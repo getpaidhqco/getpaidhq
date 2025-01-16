@@ -1,0 +1,29 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.coverprofile
+
+# Output of the go build tool
+_build/
+
+# Go workspace file
+go.work
+
+# GoLand project files
+.idea/
+
+# GoLand workspace file
+*.iml
+
+# Dependency directories (remove the comment below if you use Go modules)
+# /vendor/
+
+# Go module files
+go.sum
