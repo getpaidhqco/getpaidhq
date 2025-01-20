@@ -3,15 +3,15 @@ package services
 import (
 	"context"
 	"payloop/internal/models"
-	"payloop/internal/repositories"
+	"payloop/internal/repository"
 )
 
 type OrderService struct {
-	repo repositories.OrderRepository
+	repo repository.OrderRepository
 }
 
-func NewOrderService(repo repositories.OrderRepository) *OrderService {
-	return &OrderService{repo: repo}
+func NewOrderService(repo repository.OrderRepository) OrderService {
+	return OrderService{repo: repo}
 }
 
 func (s *OrderService) GetOneOrder(id uint) (*models.Order, error) {

@@ -25,7 +25,7 @@ func (r *PgOrderRepository) CreateOrder(ctx context.Context, input CreateOrderIn
 		ref = ksuid.New().String()
 	}
 
-	tx, _ := r.db.Begin(ctx)
+	tx, _ := r.Begin(ctx)
 
 	_, err := tx.Exec(ctx, queries.InsertOrderQuery, pgx.NamedArgs{
 		"tid":       input.TID,

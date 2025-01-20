@@ -4,17 +4,19 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"payloop/internal/lib"
+	"payloop/internal/models"
+	"payloop/internal/services"
 	"strconv"
 )
 
 // OrderController data type
 type OrderController struct {
-	service OrderService
+	service services.OrderService
 	logger  lib.Logger
 }
 
 // NewOrderController creates new order controller
-func NewOrderController(orderService OrderService, logger lib.Logger) OrderController {
+func NewOrderController(orderService services.OrderService, logger lib.Logger) OrderController {
 	return OrderController{
 		service: orderService,
 		logger:  logger,
@@ -59,8 +61,7 @@ func (o OrderController) GetOrders(c *gin.Context) {
 
 // SaveOrder saves the order
 func (o OrderController) SaveOrder(c *gin.Context) {
-	order := Order{}
-	trxHandle := c.MustGet(constants.DBTransaction).(*gorm.DB)
+	order := models.Order{}
 
 	if err := c.ShouldBindJSON(&order); err != nil {
 		o.logger.Error(err)
@@ -70,7 +71,7 @@ func (o OrderController) SaveOrder(c *gin.Context) {
 		return
 	}
 
-	if err := o.service.WithTrx(trxHandle).CreateOrder(order); err != nil {
+	if err := o.service.CreateOrder(order); err != nil {
 		o.logger.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),

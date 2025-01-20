@@ -1,9 +1,10 @@
-package repositories
+package repository
 
 import (
 	"context"
 	_ "github.com/jackc/pgx/v5"
 	"payloop/internal/db"
+	"payloop/internal/lib"
 	"payloop/internal/models"
 )
 
@@ -16,16 +17,24 @@ type OrderRepositoryIf interface {
 }
 
 type OrderRepository struct {
-	db *db.PgDatabase
+	*db.PgDatabase
+	logger lib.Logger
 }
 
-func NewOrderRepository(db *db.PgDatabase) *OrderRepository {
-	return &OrderRepository{db: db}
+func NewOrderRepository(database db.Database, logger lib.Logger) OrderRepository {
+	pgDatabase, ok := database.(*db.PgDatabase)
+	if !ok {
+		panic("database is not of type *db.PgDatabase")
+	}
+	return OrderRepository{
+		PgDatabase: pgDatabase,
+		logger:     logger,
+	}
 }
 
 func (r *OrderRepository) FindByID(ctx context.Context, id uint) (*models.Order, error) {
 	query := "SELECT id, customer_id, status, total FROM orders WHERE id=$1"
-	row := r.db.QueryRow(ctx, query, id)
+	row := r.QueryRow(ctx, query, id)
 
 	var order models.Order
 	err := row.Scan(&order.ID, &order.CustomerID, &order.Status, &order.Total)
@@ -37,7 +46,7 @@ func (r *OrderRepository) FindByID(ctx context.Context, id uint) (*models.Order,
 
 func (r *OrderRepository) FindAll(ctx context.Context) ([]*models.Order, error) {
 	query := "SELECT id, customer_id, status, total FROM orders"
-	rows, err := r.db.Query(ctx, query)
+	rows, err := r.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -57,18 +66,18 @@ func (r *OrderRepository) FindAll(ctx context.Context) ([]*models.Order, error) 
 
 func (r *OrderRepository) Create(ctx context.Context, order models.Order) error {
 	query := "INSERT INTO orders (customer_id, status, total) VALUES ($1, $2, $3)"
-	_, err := r.db.Exec(ctx, query, order.CustomerID, order.Status, order.Total)
+	_, err := r.Exec(ctx, query, order.CustomerID, order.Status, order.Total)
 	return err
 }
 
 func (r *OrderRepository) Update(ctx context.Context, order models.Order) error {
 	query := "UPDATE orders SET customer_id=$1, status=$2, total=$3 WHERE id=$4"
-	_, err := r.db.Exec(ctx, query, order.CustomerID, order.Status, order.Total, order.ID)
+	_, err := r.Exec(ctx, query, order.CustomerID, order.Status, order.Total, order.ID)
 	return err
 }
 
 func (r *OrderRepository) Delete(ctx context.Context, id uint) error {
 	query := "DELETE FROM orders WHERE id=$1"
-	_, err := r.db.Exec(ctx, query, id)
+	_, err := r.Exec(ctx, query, id)
 	return err
 }

@@ -1,4 +1,4 @@
-package repositories
+package repository
 
 import "go.uber.org/fx"
 
@@ -6,4 +6,5 @@ import "go.uber.org/fx"
 var Module = fx.Options(
 	fx.Provide(NewUserRepository),
 	fx.Provide(NewOrderRepository),
+	fx.Provide(NewTenantRepository),
 )

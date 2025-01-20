@@ -23,8 +23,8 @@ func NewUserController(userService services.UserService, logger lib.Logger) User
 	}
 }
 
-// GetOneUser gets one user
-func (u UserController) GetOneUser(c *gin.Context) {
+// GetUser gets one user
+func (u UserController) GetUser(c *gin.Context) {
 	paramID := c.Param("id")
 
 	id, err := strconv.Atoi(paramID)
@@ -35,7 +35,7 @@ func (u UserController) GetOneUser(c *gin.Context) {
 		})
 		return
 	}
-	user, err := u.service.GetOneUser(uint(id))
+	user, err := u.service.GetUser(uint(id))
 
 	if err != nil {
 		u.logger.Error(err)

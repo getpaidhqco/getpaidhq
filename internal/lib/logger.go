@@ -1,8 +1,10 @@
 package lib
 
 import (
+	"fmt"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // Logger structure
@@ -26,7 +28,7 @@ var (
 // GetLogger get the logger
 func GetLogger() Logger {
 	if globalLogger == nil {
-		logger := newLogger()
+		logger := newLogger(NewEnv())
 		globalLogger = &logger
 	}
 	return *globalLogger
@@ -124,12 +126,36 @@ func newSugaredLogger(logger *zap.Logger) *Logger {
 }
 
 // newLogger sets up logger
-func newLogger() Logger {
+func newLogger(env Env) Logger {
 
 	config := zap.NewDevelopmentConfig()
+	logOutput := env.LogOutput
 
+	if env.Environment == "development" {
+		fmt.Println("encode level")
+		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	}
+
+	if env.Environment == "production" && logOutput != "" {
+		config.OutputPaths = []string{logOutput}
+	}
+
+	logLevel := env.LogLevel
 	level := zap.PanicLevel
-
+	switch logLevel {
+	case "debug":
+		level = zapcore.DebugLevel
+	case "info":
+		level = zapcore.InfoLevel
+	case "warn":
+		level = zapcore.WarnLevel
+	case "error":
+		level = zapcore.ErrorLevel
+	case "fatal":
+		level = zapcore.FatalLevel
+	default:
+		level = zap.PanicLevel
+	}
 	config.Level.SetLevel(level)
 
 	zapLogger, _ = config.Build()
