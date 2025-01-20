@@ -3,7 +3,6 @@ package middlewares
 import (
 	"github.com/dipeshdulal/clean-gin/constants"
 	"net/http"
-	"payloop/internal/db"
 	"payloop/internal/lib"
 
 	"github.com/gin-gonic/gin"
@@ -13,7 +12,7 @@ import (
 type DatabaseTrx struct {
 	handler lib.RequestHandler
 	logger  lib.Logger
-	db      db.Database
+	db      lib.Database
 }
 
 // statusInList function checks if context writer status is in provided list
@@ -30,7 +29,7 @@ func statusInList(status int, statusList []int) bool {
 func NewDatabaseTrx(
 	handler lib.RequestHandler,
 	logger lib.Logger,
-	db db.Database,
+	db lib.Database,
 ) DatabaseTrx {
 	return DatabaseTrx{
 		handler: handler,

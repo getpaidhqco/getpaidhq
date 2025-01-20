@@ -3,8 +3,9 @@ package repository
 import (
 	"context"
 	_ "github.com/jackc/pgx/v5"
-	"payloop/internal/db"
+
 	"payloop/internal/lib"
+
 	"payloop/internal/models"
 )
 
@@ -17,12 +18,12 @@ type OrderRepositoryIf interface {
 }
 
 type OrderRepository struct {
-	*db.PgDatabase
+	*lib.PgDatabase
 	logger lib.Logger
 }
 
-func NewOrderRepository(database db.Database, logger lib.Logger) OrderRepository {
-	pgDatabase, ok := database.(*db.PgDatabase)
+func NewOrderRepository(database lib.Database, logger lib.Logger) OrderRepository {
+	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

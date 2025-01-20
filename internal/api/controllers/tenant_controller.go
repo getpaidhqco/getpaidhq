@@ -3,19 +3,18 @@ package controllers
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"payloop/internal/domain/tenants"
 	"payloop/internal/lib"
-	"payloop/internal/repository/tenants"
-	"payloop/internal/services"
 )
 
 // TenantController data type
 type TenantController struct {
-	service services.TenantService
+	service tenants.Service
 	logger  lib.Logger
 }
 
 // NewTenantController creates new user controller
-func NewTenantController(tenantService services.TenantService, logger lib.Logger) TenantController {
+func NewTenantController(tenantService tenants.Service, logger lib.Logger) TenantController {
 	return TenantController{
 		service: tenantService,
 		logger:  logger,

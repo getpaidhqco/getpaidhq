@@ -1,13 +1,27 @@
-package db
+package lib
 
 import (
 	"context"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/fx"
 	"log"
-	"payloop/internal/lib"
 	"sync"
 )
+
+type TransactionBeginner interface {
+	Begin(ctx context.Context) (Committer, error)
+}
+
+type Committer interface {
+	Commit(ctx context.Context) error
+	Rollback(ctx context.Context) error
+}
+
+type Database interface {
+	TransactionBeginner
+	Ping(ctx context.Context) error
+	Close()
+}
 
 type PgDatabase struct {
 	*pgxpool.Pool
@@ -18,7 +32,7 @@ var (
 	pgOnce     sync.Once
 )
 
-func NewDatabase(lc fx.Lifecycle, env lib.Env, logger lib.Logger) *PgDatabase {
+func NewDatabase(lc fx.Lifecycle, env Env, logger Logger) *PgDatabase {
 	logger.Info("Connecting to database", "url", env.DBUrl)
 	lc.Append(fx.Hook{
 		OnStop: func(ctx context.Context) error {

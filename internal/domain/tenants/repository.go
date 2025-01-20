@@ -1,33 +1,33 @@
-package repository
+package tenants
 
 import (
 	"context"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
 	"github.com/segmentio/ksuid"
-	"payloop/internal/db"
+
 	"payloop/internal/lib"
+
 	"payloop/internal/models"
-	"payloop/internal/repository/tenants"
 )
 
-type TenantRepository struct {
-	*db.PgDatabase
+type Repository struct {
+	*lib.PgDatabase
 	logger lib.Logger
 }
 
-func NewTenantRepository(database db.Database, logger lib.Logger) TenantRepository {
-	pgDatabase, ok := database.(*db.PgDatabase)
+func NewTenantRepository(database lib.Database, logger lib.Logger) Repository {
+	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}
-	return TenantRepository{
+	return Repository{
 		PgDatabase: pgDatabase,
 		logger:     logger,
 	}
 }
 
-func (r *TenantRepository) FindByID(ctx context.Context, id uint) (*models.User, error) {
+func (r *Repository) FindByID(ctx context.Context, id uint) (*models.User, error) {
 	query := "SELECT id, name, email FROM users"
 	row, _ := r.PgDatabase.Query(ctx, query, id)
 
@@ -39,7 +39,7 @@ func (r *TenantRepository) FindByID(ctx context.Context, id uint) (*models.User,
 	return &user, nil
 }
 
-func (r *TenantRepository) FindAll(ctx context.Context) ([]*models.User, error) {
+func (r *Repository) FindAll(ctx context.Context) ([]*models.User, error) {
 	query := ``
 	rows, err := r.Query(ctx, query)
 	if err != nil {
@@ -59,7 +59,7 @@ func (r *TenantRepository) FindAll(ctx context.Context) ([]*models.User, error) 
 	return users, nil
 }
 
-func (r *TenantRepository) Create(ctx context.Context, input tenants.CreateTenantInput) (models.Tenant, error) {
+func (r *Repository) Create(ctx context.Context, input CreateTenantInput) (models.Tenant, error) {
 	tenantId := "t_" + ksuid.New().String()
 	var tenant models.Tenant
 	query := `INSERT INTO tenants (id, name, description, created_at, updated_at) 
