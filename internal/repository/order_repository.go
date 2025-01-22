@@ -2,7 +2,11 @@ package repository
 
 import (
 	"context"
+	"encoding/json"
+	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
+	"payloop/internal/domain/customers"
+	"payloop/internal/domain/orders"
 
 	"payloop/internal/lib"
 
@@ -19,17 +23,19 @@ type OrderRepositoryIf interface {
 
 type OrderRepository struct {
 	*lib.PgDatabase
-	logger lib.Logger
+	logger             lib.Logger
+	customerRepository CustomerRepository
 }
 
-func NewOrderRepository(database lib.Database, logger lib.Logger) OrderRepository {
+func NewOrderRepository(database lib.Database, customerRepository CustomerRepository, logger lib.Logger) OrderRepository {
 	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}
 	return OrderRepository{
-		PgDatabase: pgDatabase,
-		logger:     logger,
+		PgDatabase:         pgDatabase,
+		logger:             logger,
+		customerRepository: customerRepository,
 	}
 }
 
@@ -65,20 +71,41 @@ func (r *OrderRepository) FindAll(ctx context.Context) ([]*models.Order, error) 
 	return orders, nil
 }
 
-func (r *OrderRepository) Create(ctx context.Context, order models.Order) error {
-	query := "INSERT INTO orders (customer_id, status, total) VALUES ($1, $2, $3)"
-	_, err := r.Exec(ctx, query, order.CustomerID, order.Status, order.Total)
-	return err
-}
+func (r *OrderRepository) Create(ctx context.Context, input orders.CreateOrderInput) (models.Order, error) {
 
-func (r *OrderRepository) Update(ctx context.Context, order models.Order) error {
-	query := "UPDATE orders SET customer_id=$1, status=$2, total=$3 WHERE id=$4"
-	_, err := r.Exec(ctx, query, order.CustomerID, order.Status, order.Total, order.ID)
-	return err
-}
+	var order models.Order
 
-func (r *OrderRepository) Delete(ctx context.Context, id uint) error {
-	query := "DELETE FROM orders WHERE id=$1"
-	_, err := r.Exec(ctx, query, id)
-	return err
+	query := `INSERT INTO orders (acct_id,id,customer_id,status,currency,total,metadata, created_at, updated_at) 
+			  VALUES (@acctId,@id,@cid,@status,@currency,@total,@metadata, NOW(), NOW())`
+
+	metaJson, _ := json.Marshal(input.Metadata)
+
+	customer, err := r.customerRepository.Create(ctx, customers.CreateCustomerInput{
+		AccountId: input.AccountId,
+		Email:     "test",
+		Name:      "test",
+		Metadata:  input.Metadata,
+	})
+
+	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
+		"acctId":   input.AccountId,
+		"id":       lib.GenerateId("order"),
+		"cid":      input.CustomerId,
+		"status":   models.OrderStatusPending,
+		"currency": input.Currency,
+		"total":    input.Total,
+		"metadata": metaJson,
+	}).Scan(&order)
+
+	if err != nil {
+		r.logger.Error(`failed to insert Order`, err)
+		return models.Order{}, err
+	}
+
+	if err != nil {
+		r.logger.Error(`failed to insert Order`, err)
+		return models.Order{}, err
+	}
+
+	return order, nil
 }

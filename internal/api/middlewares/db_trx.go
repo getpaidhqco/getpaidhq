@@ -1,7 +1,6 @@
 package middlewares
 
 import (
-	"github.com/dipeshdulal/clean-gin/constants"
 	"net/http"
 	"payloop/internal/lib"
 
@@ -40,11 +39,11 @@ func NewDatabaseTrx(
 
 // Setup sets up database transaction middleware
 func (m DatabaseTrx) Setup() {
-	m.logger.Info("setting up database transaction middleware")
+	m.logger.Debug("setting up database transaction middleware")
 
 	m.handler.Gin.Use(func(c *gin.Context) {
 		txHandle, _ := m.db.Begin(c.Request.Context())
-		m.logger.Info("beginning database transaction")
+		m.logger.Debug("beginning database transaction")
 
 		defer func() {
 			if r := recover(); r != nil {
@@ -52,17 +51,17 @@ func (m DatabaseTrx) Setup() {
 			}
 		}()
 
-		c.Set(constants.DBTransaction, txHandle)
+		c.Set(lib.DBTransaction, txHandle)
 		c.Next()
 
 		// commit transaction on success status
 		if statusInList(c.Writer.Status(), []int{http.StatusOK, http.StatusCreated, http.StatusNoContent}) {
-			m.logger.Info("committing transactions")
+			m.logger.Debug("committing transactions")
 			if err := txHandle.Commit(c.Request.Context()).Error; err != nil {
 				m.logger.Error("trx commit error: ", err)
 			}
 		} else {
-			m.logger.Info("rolling back transaction due to status code: 500")
+			m.logger.Debug("rolling back transaction due to status code:", c.Writer.Status())
 			_ = txHandle.Rollback(c.Request.Context())
 		}
 	})

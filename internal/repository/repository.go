@@ -2,12 +2,12 @@ package repository
 
 import (
 	"go.uber.org/fx"
-	"payloop/internal/domain/tenants"
 )
 
 // Module exports dependency
 var Module = fx.Options(
 	fx.Provide(NewUserRepository),
 	fx.Provide(NewOrderRepository),
-	fx.Provide(tenants.NewTenantRepository),
+	fx.Provide(NewAccountRepository),
+	fx.Provide(NewCustomerRepository),
 )

@@ -8,6 +8,11 @@ import (
 	"sync"
 )
 
+const (
+	// DBTransaction is database transaction handle set at router context
+	DBTransaction = "db_trx"
+)
+
 type TransactionBeginner interface {
 	Begin(ctx context.Context) (Committer, error)
 }

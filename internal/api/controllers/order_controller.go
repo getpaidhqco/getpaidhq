@@ -3,8 +3,8 @@ package controllers
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"payloop/internal/domain/orders"
 	"payloop/internal/lib"
-	"payloop/internal/models"
 	"payloop/internal/services"
 	"strconv"
 )
@@ -59,48 +59,19 @@ func (o OrderController) GetOrders(c *gin.Context) {
 	c.JSON(200, gin.H{"data": orders})
 }
 
-// SaveOrder saves the order
-func (o OrderController) SaveOrder(c *gin.Context) {
-	order := models.Order{}
+func (o OrderController) CreateOrder(c *gin.Context) {
+	var input orders.CreateOrderInput
 
-	if err := c.ShouldBindJSON(&order); err != nil {
-		o.logger.Error(err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	if err := o.service.CreateOrder(order); err != nil {
-		o.logger.Error(err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	c.JSON(200, gin.H{"data": "order created"})
-}
-
-// UpdateOrder updates order
-func (o OrderController) UpdateOrder(c *gin.Context) {
-	c.JSON(200, gin.H{"data": "order updated"})
-}
-
-// DeleteOrder deletes order
-func (o OrderController) DeleteOrder(c *gin.Context) {
-	paramID := c.Param("id")
-
-	id, err := strconv.Atoi(paramID)
-	if err != nil {
+	if err := c.ShouldBindJSON(&input); err != nil {
 		o.logger.Error(err)
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err,
+			"error": err.Error(),
 		})
 		return
 	}
 
-	if err := o.service.DeleteOrder(uint(id)); err != nil {
+	order, err := o.service.CreateOrder(c.Request.Context(), input)
+	if err != nil {
 		o.logger.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
@@ -108,5 +79,5 @@ func (o OrderController) DeleteOrder(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, gin.H{"data": "order deleted"})
+	c.JSON(200, order)
 }

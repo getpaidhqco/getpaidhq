@@ -5,14 +5,14 @@ import (
 	"payloop/internal/lib"
 )
 
-type TenantsRoutes struct {
+type AccountsRoutes struct {
 	logger     lib.Logger
 	handler    lib.RequestHandler
-	controller controllers.TenantController
+	controller controllers.AccountController
 }
 
 // Setup user routes
-func (s TenantsRoutes) Setup() {
+func (s AccountsRoutes) Setup() {
 	s.logger.Info("Setting up Tenants routes")
 	api := s.handler.Gin.Group("/api")
 	{
@@ -20,13 +20,13 @@ func (s TenantsRoutes) Setup() {
 	}
 }
 
-// NewTenantsRoutes creates new user controller
-func NewTenantsRoutes(
+// NewAccountsRoutes creates new user controller
+func NewAccountsRoutes(
 	logger lib.Logger,
 	handler lib.RequestHandler,
-	controller controllers.TenantController,
-) TenantsRoutes {
-	return TenantsRoutes{
+	controller controllers.AccountController,
+) AccountsRoutes {
+	return AccountsRoutes{
 		handler:    handler,
 		logger:     logger,
 		controller: controller,

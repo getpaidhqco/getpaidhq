@@ -1,6 +1,6 @@
-package tenants
+package accounts
 
-type CreateTenantInput struct {
+type CreateAccountInput struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 }

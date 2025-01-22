@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"payloop/internal/domain/orders"
 	"payloop/internal/models"
 	"payloop/internal/repository"
 )
@@ -22,14 +23,6 @@ func (s *OrderService) GetAllOrders() ([]*models.Order, error) {
 	return s.repo.FindAll(context.Background())
 }
 
-func (s *OrderService) CreateOrder(order models.Order) error {
-	return s.repo.Create(context.Background(), order)
-}
-
-func (s *OrderService) UpdateOrder(order models.Order) error {
-	return s.repo.Update(context.Background(), order)
-}
-
-func (s *OrderService) DeleteOrder(id uint) error {
-	return s.repo.Delete(context.Background(), id)
+func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderInput) (models.Order, error) {
+	return s.repo.Create(ctx, input)
 }

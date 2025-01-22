@@ -17,6 +17,7 @@ func (s OrderRoutes) Setup() {
 	api := s.handler.Gin.Group("/api")
 	{
 		api.GET("/orders", s.orderController.GetOrders)
+		api.POST("/orders", s.orderController.CreateOrder)
 	}
 }
 

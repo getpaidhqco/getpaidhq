@@ -2,7 +2,7 @@ package models
 
 import "time"
 
-type Tenant struct {
+type Account struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name" binding:"required"`
 	Description string    `json:"description"`

@@ -2,12 +2,11 @@ package services
 
 import (
 	"go.uber.org/fx"
-	"payloop/internal/domain/tenants"
 )
 
 // Module exports services present
 var Module = fx.Options(
 	fx.Provide(NewUserService),
 	fx.Provide(NewOrderService),
-	fx.Provide(tenants.NewTenantService),
+	fx.Provide(NewAccountService),
 )
