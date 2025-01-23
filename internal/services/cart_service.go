@@ -2,7 +2,7 @@ package services
 
 import (
 	"context"
-	"payloop/internal/domain/orders"
+	"payloop/internal/domain/cart"
 	"payloop/internal/models"
 	"payloop/internal/repository"
 )
@@ -15,14 +15,10 @@ func NewCartService(repo repository.CartRepository) CartService {
 	return CartService{repo: repo}
 }
 
-func (s *CartService) GetOneCart(id uint) (*models.Cart, error) {
-	return s.repo.FindByID(context.Background(), id)
+func (s *CartService) GetCart(acctId string, id string) (models.Cart, error) {
+	return s.repo.FindByID(context.Background(), acctId, id)
 }
 
-func (s *CartService) GetAllCarts() ([]*models.Cart, error) {
-	return s.repo.FindAll(context.Background())
-}
-
-func (s *CartService) CreateCart(ctx context.Context, input orders.CreateCartInput) (models.Cart, error) {
+func (s *CartService) CreateCart(ctx context.Context, input cart.CreateCartInput) (models.Cart, error) {
 	return s.repo.Create(ctx, input)
 }
