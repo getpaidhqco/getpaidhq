@@ -1,0 +1,264 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
+// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Account {
+  id          String        @id
+  name        String
+  description String?
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  users       UserAccount[]
+
+  @@map("accounts")
+}
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String    @unique
+  emailVerified DateTime? @map("email_verified")
+  image         String?
+
+  createdAt   DateTime      @default(now()) @map("created_at")
+  updatedAt   DateTime      @updatedAt @map("updated_at")
+  UserAccount UserAccount[]
+
+  @@map("users")
+}
+
+model UserAccount {
+  userId    String @map("user_id")
+  accountId String @map("acct_id")
+
+  user    User    @relation(fields: [userId], references: [id])
+  account Account @relation(fields: [accountId], references: [id])
+
+  role Role @default(user)
+
+  @@id([userId, accountId])
+  @@map("user_accounts")
+}
+
+enum Role {
+  owner
+  admin
+  user
+}
+
+model Cart {
+  accountId String @map("acct_id")
+  id        String @default(cuid())
+
+  data     Json?
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  order     Order[]
+
+  @@id([accountId, id])
+  @@map("carts")
+}
+
+model Product {
+  accountId String @map("acct_id")
+  id        String @default(cuid())
+
+  name        String
+  description String?
+  currency    String?
+  price       Decimal?
+
+  metadata Json?
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  Variant   Variant[]
+
+  @@id([accountId, id])
+  @@map("products")
+}
+
+model Variant {
+  accountId String @map("acct_id")
+  id        String @default(cuid())
+
+  productId String  @map("product_id")
+  product   Product @relation(fields: [accountId, productId], references: [accountId, id])
+
+  name        String
+  description String?
+
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  Price     Price[]
+
+  @@id([accountId, id])
+  @@map("variants")
+}
+
+model Price {
+  accountId String @map("acct_id")
+  id        String @default(cuid())
+
+  variantId String  @map("variant_id")
+  variant   Variant @relation(fields: [accountId, variantId], references: [accountId, id])
+
+  currency String?
+  amount   Decimal?
+
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([accountId, id])
+  @@map("prices")
+}
+
+model Order {
+  accountId  String      @map("acct_id")
+  id         String      @default(cuid())
+  customerId String?     @map("customer_id")
+  customer   Customer?   @relation(fields: [accountId, customerId], references: [accountId, id], onDelete: Restrict)
+  status     OrderStatus
+
+  currency String?
+  total    Decimal?
+
+  metadata Json?
+
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  subscriptions Subscription[]
+  payments      Payment[]
+
+  paymentAccountId String?
+  paymentId        String?
+  cartId           String? @map("cart_id")
+  cart             Cart?   @relation(fields: [accountId, cartId], references: [accountId, id])
+
+  @@id([accountId, id])
+  @@map("orders")
+}
+
+enum OrderStatus {
+  pending
+  failed
+  refunded
+  partial_refund
+  completed
+  expired
+  cancelled
+  fraudulent
+}
+
+model Customer {
+  accountId String @map("acct_id")
+  id        String @default(cuid())
+
+  email String
+  name  String?
+
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  orders Order[]
+
+  @@id([accountId, id], map: "customer_primary_key")
+  @@map("customers")
+}
+
+model Subscription {
+  accountId String @map("acct_id")
+  id        String @default(cuid())
+
+  orderId String             @map("order_id")
+  order   Order              @relation(fields: [accountId, orderId], references: [accountId, id])
+  status  SubscriptionStatus
+
+  startDate     DateTime?     @map("start_date")
+  endDate       DateTime?     @map("end_date")
+  period        BillingPeriod
+  interval      Int?
+  cycles        Int?
+  billingAnchor Int?          @map("billing_anchor")
+  trialEndsAt   DateTime?     @map("trial_ends_at")
+  cancelAt      DateTime?     @map("cancel_at")
+  endsAt        DateTime?     @map("ends_at")
+  lastCharge    DateTime?     @map("last_charge")
+  renewsAt      DateTime?     @map("renews_at")
+
+  retries   Int?
+  nextRetry DateTime? @map("next_retry")
+
+  currency String?
+  amount   Decimal?
+
+  metadata Json?
+
+  cyclesProcessed Int?      @map("cycles_processed")
+  totalRevenue    Decimal?  @map("total_revenue")
+  cancelledAt     DateTime? @map("cancelled_at")
+
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  Payment   Payment[]
+
+  @@id([accountId, id])
+  @@map("subscriptions")
+}
+
+enum SubscriptionStatus {
+  trial
+  active
+  past_due
+  paused
+  unpaid
+  cancelled
+  pending
+  expired
+}
+
+enum BillingPeriod {
+  none
+  day
+  week
+  month
+  year
+}
+
+model Payment {
+  accountId String @map("acct_id")
+  id        String @default(cuid())
+
+  orderId String @map("order_id")
+  order   Order  @relation(fields: [accountId, orderId], references: [accountId, id])
+
+  subscriptionId String?       @map("subscription_id")
+  subscription   Subscription? @relation(fields: [accountId, subscriptionId], references: [accountId, id])
+
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([accountId, id])
+  @@map("payments")
+}

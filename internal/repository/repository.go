@@ -10,4 +10,5 @@ var Module = fx.Options(
 	fx.Provide(NewOrderRepository),
 	fx.Provide(NewAccountRepository),
 	fx.Provide(NewCustomerRepository),
+	fx.Provide(NewCartRepository),
 )

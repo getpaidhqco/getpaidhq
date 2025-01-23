@@ -13,7 +13,7 @@ func GenerateId(resource string) string {
 	case "customer":
 		return "cus_" + ksuid.New().String()
 	default:
-		return ksuid.New().String()
+		return resource + "_" + ksuid.New().String()
 	}
 
 }

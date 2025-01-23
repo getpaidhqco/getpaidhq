@@ -1,0 +1,14 @@
+{
+  "name": "payloop",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "prisma:generate": "pnpm dlx  prisma generate",
+    "prisma:format": "pnpm dlx prisma format",
+    "prisma:push": "pnpm dlx prisma db push"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
