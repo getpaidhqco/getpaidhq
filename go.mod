@@ -69,4 +69,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/mdwt/payloop-cart => /home/mdwt/dev/payloop-cart
+replace github.com/mdwt/payloop-cart => ../payloop-cart

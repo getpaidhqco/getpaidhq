@@ -30,7 +30,7 @@ func NewCustomerRepository(database lib.Database, logger lib.Logger) CustomerRep
 
 func (r *CustomerRepository) FindByID(ctx context.Context, id uint) (*models.User, error) {
 	query := "SELECT id, name, email FROM users"
-	row, _ := r.PgDatabase.Query(ctx, query, id)
+	row, _ := r.PgDatabase.Tx.Query(ctx, query, id)
 
 	var user models.User
 	err := row.Scan(&user.ID, &user.Username, &user.Email, &user.Password)
@@ -42,7 +42,7 @@ func (r *CustomerRepository) FindByID(ctx context.Context, id uint) (*models.Use
 
 func (r *CustomerRepository) FindAll(ctx context.Context) ([]*models.User, error) {
 	query := ``
-	rows, err := r.Query(ctx, query)
+	rows, err := r.Tx.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}

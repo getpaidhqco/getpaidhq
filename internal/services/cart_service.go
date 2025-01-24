@@ -15,6 +15,11 @@ func NewCartService(repo repository.CartRepository) CartService {
 	return CartService{repo: repo}
 }
 
+// WithTrx enables repository with transaction
+func (s *CartService) WithTrx(trxHandle interface{}) *CartService {
+	s.repo = *s.repo.WithTrx(trxHandle)
+	return s
+}
 func (s *CartService) GetCart(acctId string, id string) (models.Cart, error) {
 	return s.repo.FindByID(context.Background(), acctId, id)
 }

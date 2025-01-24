@@ -35,6 +35,16 @@ func NewCartRepository(database lib.Database, logger lib.Logger) CartRepository 
 	}
 }
 
+// WithTrx enables repository with transaction
+func (r *CartRepository) WithTrx(trxHandle interface{}) *CartRepository {
+	if trxHandle == nil {
+		r.logger.Warn("Transaction Database not found in gin context. ")
+		return r
+	}
+	r.PgDatabase.Tx = trxHandle.(pgx.Tx)
+	return r
+}
+
 func (r *CartRepository) FindByID(ctx context.Context, acctId string, id string) (models.Cart, error) {
 	var cart models.Cart
 	err := r.Pool.QueryRow(ctx, `SELECT * FROM carts WHERE acct_id=@acct_id AND id=@id`, pgx.NamedArgs{
@@ -50,30 +60,29 @@ func (r *CartRepository) FindByID(ctx context.Context, acctId string, id string)
 }
 
 func (r *CartRepository) Create(ctx context.Context, input carts.CreateCartInput) (models.Cart, error) {
-
-	var order models.Cart
+	cartId := lib.GenerateId("cart")
 
 	query := `INSERT INTO carts (acct_id,id,data,metadata,created_at,updated_at) 
-			  VALUES (@acct_id,@id,@data,@metadata,@metadata, NOW(), NOW())`
+			  VALUES (@acct_id,@id,@data,@metadata,NOW(), NOW())`
 
 	metaJson, _ := json.Marshal(input.Metadata)
 
-	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
-		"acctId":   input.AccountId,
-		"id":       lib.GenerateId("carts"),
+	_, err := r.Tx.Exec(ctx, query, pgx.NamedArgs{
+		"acct_id":  input.AccountId,
+		"id":       cartId,
 		"data":     input.Cart,
 		"metadata": metaJson,
-	}).Scan(&order)
+	})
 
 	if err != nil {
 		r.logger.Error(`failed to insert Cart`, err)
 		return models.Cart{}, err
 	}
 
-	if err != nil {
-		r.logger.Error(`failed to insert Cart`, err)
-		return models.Cart{}, err
-	}
-
-	return order, nil
+	return models.Cart{
+		Id:     cartId,
+		Data:   input.Cart,
+		Status: "",
+		Total:  0,
+	}, nil
 }

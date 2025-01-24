@@ -25,6 +25,7 @@ func NewSessionController(sessionService services.SessionService, cartService se
 }
 
 func (s SessionController) Create(c *gin.Context) {
+	trxHandle := c.MustGet(lib.DBTransaction)
 	var input sessions.CreateSessionRequest
 	sessionId := lib.GenerateId("session")
 
@@ -42,11 +43,25 @@ func (s SessionController) Create(c *gin.Context) {
 		Items:    make([]cart.Item, 0),
 	})
 
-	cartInstance, err := s.cartService.CreateCart(c.Request.Context(), carts.CreateCartInput{
+	cartInstance, err := s.cartService.WithTrx(trxHandle).CreateCart(c.Request.Context(), carts.CreateCartInput{
 		AccountId: input.AccountId,
 		Cart:      cartData,
 		Metadata:  nil,
 	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	_, err = s.sessionService.WithTrx(trxHandle).CreateSession(
+		c.Request.Context(),
+		sessions.CreateSessionInput{
+			AccountId: input.AccountId,
+			CartId:    cartInstance.Id,
+			Metadata:  nil,
+		})
 
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{

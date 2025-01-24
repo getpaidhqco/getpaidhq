@@ -27,7 +27,7 @@ func NewUserRepository(database lib.Database, logger lib.Logger) UserRepository 
 
 func (r *UserRepository) FindByID(ctx context.Context, id uint) (*models.User, error) {
 	query := "SELECT id, name, email FROM users"
-	row, _ := r.PgDatabase.Query(ctx, query, id)
+	row, _ := r.PgDatabase.Tx.Query(ctx, query, id)
 
 	var user models.User
 	err := row.Scan(&user.ID, &user.Username, &user.Email, &user.Password)
@@ -39,7 +39,7 @@ func (r *UserRepository) FindByID(ctx context.Context, id uint) (*models.User, e
 
 func (r *UserRepository) FindAll(ctx context.Context) ([]*models.User, error) {
 	query := ``
-	rows, err := r.Query(ctx, query)
+	rows, err := r.Tx.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
@@ -59,18 +59,18 @@ func (r *UserRepository) FindAll(ctx context.Context) ([]*models.User, error) {
 
 func (r *UserRepository) Create(ctx context.Context, user models.User) error {
 	query := "INSERT INTO users (username, email, password) VALUES ($1, $2, $3)"
-	_, err := r.Exec(ctx, query, user.Username, user.Email, user.Password)
+	_, err := r.Tx.Exec(ctx, query, user.Username, user.Email, user.Password)
 	return err
 }
 
 func (r *UserRepository) Update(ctx context.Context, user models.User) error {
 	query := "UPDATE users SET username=$1, email=$2, password=$3 WHERE id=$4"
-	_, err := r.Exec(ctx, query, user.Username, user.Email, user.Password, user.ID)
+	_, err := r.Tx.Exec(ctx, query, user.Username, user.Email, user.Password, user.ID)
 	return err
 }
 
 func (r *UserRepository) Delete(ctx context.Context, id uint) error {
 	query := "DELETE FROM users WHERE id=$1"
-	_, err := r.Exec(ctx, query, id)
+	_, err := r.Tx.Exec(ctx, query, id)
 	return err
 }

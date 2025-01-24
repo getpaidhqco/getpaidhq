@@ -2,6 +2,7 @@ package lib
 
 import (
 	"context"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"go.uber.org/fx"
 	"log"
@@ -30,6 +31,7 @@ type Database interface {
 
 type PgDatabase struct {
 	*pgxpool.Pool
+	pgx.Tx
 }
 
 var (
@@ -53,7 +55,10 @@ func NewDatabase(lc fx.Lifecycle, env Env, logger Logger) *PgDatabase {
 			return
 		}
 
-		pgInstance = &PgDatabase{pool}
+		pgInstance = &PgDatabase{
+			pool,
+			nil,
+		}
 	})
 
 	if pgInstance == nil {

@@ -22,6 +22,7 @@ type SessionRepository struct {
 }
 
 func NewSessionRepository(database lib.Database, customerRepository CustomerRepository, logger lib.Logger) SessionRepository {
+	logger.Debug("Creating new Session Repository")
 	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
@@ -31,6 +32,16 @@ func NewSessionRepository(database lib.Database, customerRepository CustomerRepo
 		logger:             logger,
 		customerRepository: customerRepository,
 	}
+}
+
+// WithTrx enables repository with transaction
+func (r *SessionRepository) WithTrx(trxHandle interface{}) *SessionRepository {
+	if trxHandle == nil {
+		r.logger.Warn("Transaction Database not found in gin context. ")
+		return r
+	}
+	r.PgDatabase.Tx = trxHandle.(pgx.Tx)
+	return r
 }
 
 func (r *SessionRepository) FindById(ctx context.Context, accountId string, id string) (models.Session, error) {
@@ -56,11 +67,12 @@ func (r *SessionRepository) Create(ctx context.Context, input sessions.CreateSes
 	var session models.Session
 
 	query := `INSERT INTO sessions (acct_id,id,cart_id, created_at, updated_at) 
-			  VALUES (@acct_id,@id,@cart_id, NOW(), NOW())`
+			  VALUES (@acct_id,@id,@cart_id, NOW(), NOW())
+			  RETURNING (acct_id,id,cart_id)`
 
-	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
+	err := r.Tx.QueryRow(ctx, query, pgx.NamedArgs{
 		"acct_id": input.AccountId,
-		"id":      lib.GenerateId("order"),
+		"id":      lib.GenerateId("session"),
 		"cart_id": input.CartId,
 	}).Scan(&session)
 

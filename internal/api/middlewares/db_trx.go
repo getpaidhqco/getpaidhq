@@ -47,6 +47,7 @@ func (m DatabaseTrx) Setup() {
 
 		defer func() {
 			if r := recover(); r != nil {
+				m.logger.Error("recover(), rolling back..", r)
 				_ = txHandle.Rollback(c.Request.Context())
 			}
 		}()
@@ -56,8 +57,8 @@ func (m DatabaseTrx) Setup() {
 
 		// commit transaction on success status
 		if statusInList(c.Writer.Status(), []int{http.StatusOK, http.StatusCreated, http.StatusNoContent}) {
-			m.logger.Debug("committing transactions")
-			if err := txHandle.Commit(c.Request.Context()).Error; err != nil {
+			m.logger.Debug("committing transaction")
+			if err := txHandle.Commit(c.Request.Context()); err != nil {
 				m.logger.Error("trx commit error: ", err)
 			}
 		} else {

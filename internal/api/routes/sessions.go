@@ -24,11 +24,11 @@ func (s SessionRoutes) Setup() {
 func NewSessionRoutes(
 	logger lib.Logger,
 	handler lib.RequestHandler,
-	SessionController controllers.SessionController,
+	sessionController controllers.SessionController,
 ) SessionRoutes {
 	return SessionRoutes{
 		handler:           handler,
 		logger:            logger,
-		sessionController: SessionController,
+		sessionController: sessionController,
 	}
 }

@@ -39,9 +39,19 @@ func NewOrderRepository(database lib.Database, customerRepository CustomerReposi
 	}
 }
 
+// WithTrx enables repository with transaction
+func (r *OrderRepository) WithTrx(trxHandle interface{}) *OrderRepository {
+	if trxHandle == nil {
+		r.logger.Warn("Transaction Database not found in gin context. ")
+		return r
+	}
+	r.PgDatabase.Tx = trxHandle.(pgx.Tx)
+	return r
+}
+
 func (r *OrderRepository) FindByID(ctx context.Context, id uint) (*models.Order, error) {
 	query := "SELECT id, customer_id, status, total FROM orders WHERE id=$1"
-	row := r.QueryRow(ctx, query, id)
+	row := r.Tx.QueryRow(ctx, query, id)
 
 	var order models.Order
 	err := row.Scan(&order.ID, &order.CustomerID, &order.Status, &order.Total)
@@ -53,7 +63,7 @@ func (r *OrderRepository) FindByID(ctx context.Context, id uint) (*models.Order,
 
 func (r *OrderRepository) FindAll(ctx context.Context) ([]*models.Order, error) {
 	query := "SELECT id, customer_id, status, total FROM orders"
-	rows, err := r.Query(ctx, query)
+	rows, err := r.Tx.Query(ctx, query)
 	if err != nil {
 		return nil, err
 	}
