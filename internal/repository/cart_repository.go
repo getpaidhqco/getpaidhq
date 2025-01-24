@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
-	"payloop/internal/domain/cart"
+	"payloop/internal/domain/carts"
 	"payloop/internal/lib"
 
 	"payloop/internal/models"
@@ -49,7 +49,7 @@ func (r *CartRepository) FindByID(ctx context.Context, acctId string, id string)
 	return cart, nil
 }
 
-func (r *CartRepository) Create(ctx context.Context, input cart.CreateCartInput) (models.Cart, error) {
+func (r *CartRepository) Create(ctx context.Context, input carts.CreateCartInput) (models.Cart, error) {
 
 	var order models.Cart
 
@@ -60,7 +60,7 @@ func (r *CartRepository) Create(ctx context.Context, input cart.CreateCartInput)
 
 	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
 		"acctId":   input.AccountId,
-		"id":       lib.GenerateId("cart"),
+		"id":       lib.GenerateId("carts"),
 		"data":     input.Cart,
 		"metadata": metaJson,
 	}).Scan(&order)

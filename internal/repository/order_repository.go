@@ -71,12 +71,12 @@ func (r *OrderRepository) FindAll(ctx context.Context) ([]*models.Order, error) 
 	return orders, nil
 }
 
-func (r *OrderRepository) Create(ctx context.Context, input orders.CreateOrderInput) (models.Order, error) {
+func (r *OrderRepository) Create(ctx context.Context, input orders.CreateOrderRow) (models.Order, error) {
 
 	var order models.Order
 
 	query := `INSERT INTO orders (acct_id,id,customer_id,status,currency,total,metadata, created_at, updated_at) 
-			  VALUES (@acctId,@id,@cid,@status,@currency,@total,@metadata, NOW(), NOW())`
+			  VALUES (@acct_id,@id,@customer_id,@status,@currency,@total,@metadata, NOW(), NOW())`
 
 	metaJson, _ := json.Marshal(input.Metadata)
 
@@ -86,15 +86,19 @@ func (r *OrderRepository) Create(ctx context.Context, input orders.CreateOrderIn
 		Name:      "test",
 		Metadata:  input.Metadata,
 	})
+	if err != nil {
+		r.logger.Error(`failed to create customer`, err)
+		return models.Order{}, err
+	}
 
-	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
-		"acctId":   input.AccountId,
-		"id":       lib.GenerateId("order"),
-		"cid":      input.CustomerId,
-		"status":   models.OrderStatusPending,
-		"currency": input.Currency,
-		"total":    input.Total,
-		"metadata": metaJson,
+	err = r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
+		"acct_id":     input.AccountId,
+		"id":          lib.GenerateId("order"),
+		"customer_id": customer.ID,
+		"status":      models.OrderStatusPending,
+		"currency":    input.Currency,
+		"total":       0,
+		"metadata":    metaJson,
 	}).Scan(&order)
 
 	if err != nil {

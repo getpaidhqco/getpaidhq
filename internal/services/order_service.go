@@ -3,26 +3,46 @@ package services
 import (
 	"context"
 	"payloop/internal/domain/orders"
+	"payloop/internal/lib"
 	"payloop/internal/models"
 	"payloop/internal/repository"
 )
 
 type OrderService struct {
-	repo repository.OrderRepository
+	sessionRepository repository.SessionRepository
+	orderRepository   repository.OrderRepository
+	logger            lib.Logger
 }
 
 func NewOrderService(repo repository.OrderRepository) OrderService {
-	return OrderService{repo: repo}
+	return OrderService{orderRepository: repo}
 }
 
 func (s *OrderService) GetOneOrder(id uint) (*models.Order, error) {
-	return s.repo.FindByID(context.Background(), id)
+	return s.orderRepository.FindByID(context.Background(), id)
 }
 
 func (s *OrderService) GetAllOrders() ([]*models.Order, error) {
-	return s.repo.FindAll(context.Background())
+	return s.orderRepository.FindAll(context.Background())
 }
 
 func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderInput) (models.Order, error) {
-	return s.repo.Create(ctx, input)
+	s.logger.Info("Creating order")
+	accountId := input.AccountId
+
+	session, err := s.sessionRepository.FindById(ctx, accountId, input.SessionId)
+	if err != nil {
+		s.logger.Error("Failed to find session", err)
+		return models.Order{}, err
+	}
+
+	createOrderInput := orders.CreateOrderRow{
+		AccountId: accountId,
+		Customer:  orders.CustomerInput{},
+		SessionId: session.Id,
+		Currency:  "USD",
+		Metadata:  nil,
+	}
+
+	return s.orderRepository.Create(ctx, createOrderInput)
 }

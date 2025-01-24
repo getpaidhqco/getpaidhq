@@ -78,8 +78,6 @@ model Product {
 
   name        String
   description String?
-  currency    String?
-  price       Decimal?
 
   metadata Json?
 
@@ -118,8 +116,22 @@ model Price {
   variantId String  @map("variant_id")
   variant   Variant @relation(fields: [accountId, variantId], references: [accountId, id])
 
-  currency String?
-  amount   Decimal?
+  category PriceCategory
+  scheme   PriceScheme
+
+  currency  String
+  unitPrice Decimal @map("unit_price")
+
+  billingInterval    BillingInterval? @map("billing_interval")
+  billingIntervalQty Int?             @map("billing_interval_qty")
+
+  trialInterval    BillingInterval? @map("trial_interval")
+  trialIntervalQty Int?             @map("trial_interval_qty")
+
+  minPrice       Decimal? @map("min_price")
+  suggestedPrice Decimal? @map("suggested_price")
+
+  taxCode String? @map("tax_code")
 
   metadata Json?
 
@@ -130,6 +142,43 @@ model Price {
   @@map("prices")
 }
 
+enum PriceCategory {
+  one_time
+  subscription
+  free
+  variable
+}
+
+enum PriceScheme {
+  fixed
+  tiered
+  volume
+  graduated
+}
+
+enum BillingInterval {
+  none
+  day
+  week
+  month
+  year
+}
+
+model Session {
+  accountId String @map("acct_id")
+  id        String @default(cuid())
+
+  cartId String? @map("cart_id")
+
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([accountId, id])
+  @@map("sessions")
+}
+
 model Order {
   accountId  String      @map("acct_id")
   id         String      @default(cuid())
@@ -137,8 +186,10 @@ model Order {
   customer   Customer?   @relation(fields: [accountId, customerId], references: [accountId, id], onDelete: Restrict)
   status     OrderStatus
 
+  sessionId String? @map("session_id")
+
   currency String?
-  total    Decimal?
+  total    Int?
 
   metadata Json?
 
@@ -193,17 +244,17 @@ model Subscription {
   order   Order              @relation(fields: [accountId, orderId], references: [accountId, id])
   status  SubscriptionStatus
 
-  startDate     DateTime?     @map("start_date")
-  endDate       DateTime?     @map("end_date")
-  period        BillingPeriod
-  interval      Int?
-  cycles        Int?
-  billingAnchor Int?          @map("billing_anchor")
-  trialEndsAt   DateTime?     @map("trial_ends_at")
-  cancelAt      DateTime?     @map("cancel_at")
-  endsAt        DateTime?     @map("ends_at")
-  lastCharge    DateTime?     @map("last_charge")
-  renewsAt      DateTime?     @map("renews_at")
+  startDate          DateTime?       @map("start_date")
+  endDate            DateTime?       @map("end_date")
+  billingInterval    BillingInterval @map("billing_interval")
+  billingIntervalQty Int?            @map("billing_interval_qty")
+  cycles             Int?
+  billingAnchor      Int?            @map("billing_anchor")
+  trialEndsAt        DateTime?       @map("trial_ends_at")
+  cancelAt           DateTime?       @map("cancel_at")
+  endsAt             DateTime?       @map("ends_at")
+  lastCharge         DateTime?       @map("last_charge")
+  renewsAt           DateTime?       @map("renews_at")
 
   retries   Int?
   nextRetry DateTime? @map("next_retry")
@@ -234,14 +285,6 @@ enum SubscriptionStatus {
   cancelled
   pending
   expired
-}
-
-enum BillingPeriod {
-  none
-  day
-  week
-  month
-  year
 }
 
 model Payment {

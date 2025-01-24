@@ -1,9 +1,9 @@
 services:
-  mm_pg:
-    container_name: mm_pg
+  payloop_pg:
+    container_name: payloop_pg
     image: postgres:latest
     ports:
-      - '6432:5432'
+      - '5432:5432'
     restart: always
     env_file:
       - .env

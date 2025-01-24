@@ -1,9 +1,11 @@
-package cart
+package carts
 
-import "payloop/internal/models"
+import (
+	cart "github.com/mdwt/payloop-cart"
+)
 
 type CreateCartInput struct {
 	AccountId string            `json:"account_id"`
-	Cart      models.CartData   `json:"cart"`
+	Cart      cart.Cart         `json:"carts"`
 	Metadata  map[string]string `json:"metadata"`
 }
