@@ -2,14 +2,11 @@ package repository
 
 import (
 	"context"
-	"encoding/json"
 	"github.com/jackc/pgx/v5"
-	"payloop/internal/domain/customers"
+	"payloop/internal/domain/entities"
 	"payloop/internal/lib"
 
 	_ "github.com/jackc/pgx/v5"
-
-	"payloop/internal/models"
 )
 
 type CustomerRepository struct {
@@ -28,11 +25,11 @@ func NewCustomerRepository(database lib.Database, logger lib.Logger) CustomerRep
 	}
 }
 
-func (r *CustomerRepository) FindByID(ctx context.Context, id uint) (*models.User, error) {
+func (r *CustomerRepository) FindByID(ctx context.Context, id uint) (*entities.User, error) {
 	query := "SELECT id, name, email FROM users"
 	row, _ := r.PgDatabase.Tx.Query(ctx, query, id)
 
-	var user models.User
+	var user entities.User
 	err := row.Scan(&user.ID, &user.Username, &user.Email, &user.Password)
 	if err != nil {
 		return nil, err
@@ -40,7 +37,7 @@ func (r *CustomerRepository) FindByID(ctx context.Context, id uint) (*models.Use
 	return &user, nil
 }
 
-func (r *CustomerRepository) FindAll(ctx context.Context) ([]*models.User, error) {
+func (r *CustomerRepository) FindAll(ctx context.Context) ([]*entities.User, error) {
 	query := ``
 	rows, err := r.Tx.Query(ctx, query)
 	if err != nil {
@@ -48,9 +45,9 @@ func (r *CustomerRepository) FindAll(ctx context.Context) ([]*models.User, error
 	}
 	defer rows.Close()
 
-	var users []*models.User
+	var users []*entities.User
 	for rows.Next() {
-		var user models.User
+		var user entities.User
 		err := rows.Scan(&user.ID, &user.Username, &user.Email, &user.Password)
 		if err != nil {
 			return nil, err
@@ -60,23 +57,21 @@ func (r *CustomerRepository) FindAll(ctx context.Context) ([]*models.User, error
 	return users, nil
 }
 
-func (r *CustomerRepository) Create(ctx context.Context, input customers.CreateCustomerInput) (models.Customer, error) {
-	var customer models.Customer
-	query := `INSERT INTO customers (acct_id, id, email, name, metadata, created_at, updated_at) 
-		VALUES (@acct_id, @id, @email, @name, @metadata, now(), now())`
-
-	metaJson, _ := json.Marshal(input.Metadata)
+func (r *CustomerRepository) Create(ctx context.Context, entity entities.Customer) (entities.Customer, error) {
+	var customer entities.Customer
+	query := `INSERT INTO customers (acct_id, id, email, name, created_at, updated_at) 
+		VALUES (@acct_id, @id, @email, @name, now(), now())
+		RETURNING (acct_id, id, email, name)`
 
 	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
-		"acct_id":  input.AccountId,
-		"id":       lib.GenerateId("order"),
-		"email":    input.Email,
-		"name":     input.Name,
-		"metadata": metaJson,
+		"acct_id": entity.AccountId,
+		"id":      entity.ID,
+		"email":   entity.Email,
+		"name":    entity.Name,
 	}).Scan(&customer)
 
 	if err != nil {
-		return models.Customer{}, err
+		return entities.Customer{}, err
 	}
 
 	return customer, nil

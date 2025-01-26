@@ -1,4 +1,4 @@
-package models
+package entities
 
 import cart "github.com/mdwt/payloop-cart"
 

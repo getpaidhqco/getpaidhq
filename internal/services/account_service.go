@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"payloop/internal/domain/accounts"
-	"payloop/internal/models"
+	"payloop/internal/domain/entities"
 	"payloop/internal/repository"
 )
 
@@ -15,6 +15,6 @@ func NewAccountService(repo repository.AccountRepository) AccountService {
 	return AccountService{repository: repo}
 }
 
-func (s *AccountService) Create(ctx context.Context, input accounts.CreateAccountInput) (models.Account, error) {
+func (s *AccountService) Create(ctx context.Context, input accounts.CreateAccountInput) (entities.Account, error) {
 	return s.repository.Create(ctx, input)
 }

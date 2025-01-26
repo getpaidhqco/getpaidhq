@@ -3,8 +3,8 @@ package controllers
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"payloop/internal/domain/entities"
 	"payloop/internal/lib"
-	"payloop/internal/models"
 	"payloop/internal/services"
 	"strconv"
 )
@@ -61,7 +61,7 @@ func (u UserController) GetUsers(c *gin.Context) {
 
 // SaveUser saves the user
 func (u UserController) SaveUser(c *gin.Context) {
-	var user models.User
+	var user entities.User
 
 	if err := c.ShouldBindJSON(&user); err != nil {
 		u.logger.Error(err)
@@ -84,7 +84,7 @@ func (u UserController) SaveUser(c *gin.Context) {
 
 // UpdateUser updates user
 func (u UserController) UpdateUser(c *gin.Context) {
-	var user models.User
+	var user entities.User
 
 	if err := c.ShouldBindJSON(&user); err != nil {
 		u.logger.Error(err)

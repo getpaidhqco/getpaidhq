@@ -4,9 +4,9 @@ import (
 	"context"
 	cart "github.com/mdwt/payloop-cart"
 	"payloop/internal/domain/carts"
+	"payloop/internal/domain/entities"
 	"payloop/internal/domain/sessions"
 	"payloop/internal/lib"
-	"payloop/internal/models"
 	"payloop/internal/repository"
 )
 
@@ -30,7 +30,7 @@ func (s *SessionService) WithTrx(trxHandle interface{}) *SessionService {
 	return s
 }
 
-func (s *SessionService) CreateSession(ctx context.Context, input sessions.CreateSessionRequest) (models.Session, error) {
+func (s *SessionService) CreateSession(ctx context.Context, input sessions.CreateSessionRequest) (entities.Session, error) {
 	cartData := cart.New(cart.CreateCartOptions{
 		Currency: input.Currency,
 		Items:    make([]cart.Item, 0),
@@ -43,7 +43,7 @@ func (s *SessionService) CreateSession(ctx context.Context, input sessions.Creat
 	})
 	if err != nil {
 		s.logger.Error(`failed to create cart`, err)
-		return models.Session{}, err
+		return entities.Session{}, err
 	}
 
 	session, err := s.sessionRepository.Create(ctx,

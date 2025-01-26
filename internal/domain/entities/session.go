@@ -1,4 +1,4 @@
-package models
+package entities
 
 type Session struct {
 	AccountId string `json:"account_id"`

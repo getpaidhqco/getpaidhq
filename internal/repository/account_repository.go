@@ -6,10 +6,9 @@ import (
 	_ "github.com/jackc/pgx/v5"
 	"github.com/segmentio/ksuid"
 	"payloop/internal/domain/accounts"
+	"payloop/internal/domain/entities"
 
 	"payloop/internal/lib"
-
-	"payloop/internal/models"
 )
 
 type AccountRepository struct {
@@ -28,9 +27,9 @@ func NewAccountRepository(database lib.Database, logger lib.Logger) AccountRepos
 	}
 }
 
-func (r *AccountRepository) Create(ctx context.Context, input accounts.CreateAccountInput) (models.Account, error) {
+func (r *AccountRepository) Create(ctx context.Context, input accounts.CreateAccountInput) (entities.Account, error) {
 	AccountId := "t_" + ksuid.New().String()
-	var Account models.Account
+	var Account entities.Account
 	query := `INSERT INTO accounts (id, name, description, created_at, updated_at) 
 			  VALUES (@id, @name, @description, NOW(), NOW())
 			  RETURNING (id,name,description,created_at,updated_at)`
@@ -43,7 +42,7 @@ func (r *AccountRepository) Create(ctx context.Context, input accounts.CreateAcc
 
 	if err != nil {
 		r.logger.Error(`failed to insert Account`, err)
-		return models.Account{}, err
+		return entities.Account{}, err
 	}
 
 	return Account, nil

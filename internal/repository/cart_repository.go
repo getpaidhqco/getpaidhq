@@ -6,16 +6,15 @@ import (
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
 	"payloop/internal/domain/carts"
+	"payloop/internal/domain/entities"
 	"payloop/internal/lib"
-
-	"payloop/internal/models"
 )
 
 type CartRepositoryIf interface {
-	FindByID(ctx context.Context, id uint) (*models.Cart, error)
-	FindAll(ctx context.Context) ([]*models.Cart, error)
-	Create(ctx context.Context, order models.Cart) error
-	Update(ctx context.Context, order models.Cart) error
+	FindByID(ctx context.Context, id uint) (*entities.Cart, error)
+	FindAll(ctx context.Context) ([]*entities.Cart, error)
+	Create(ctx context.Context, order entities.Cart) error
+	Update(ctx context.Context, order entities.Cart) error
 	Delete(ctx context.Context, id uint) error
 }
 
@@ -45,8 +44,8 @@ func (r *CartRepository) WithTrx(trxHandle interface{}) *CartRepository {
 	return r
 }
 
-func (r *CartRepository) FindByID(ctx context.Context, acctId string, id string) (models.Cart, error) {
-	var cart models.Cart
+func (r *CartRepository) FindByID(ctx context.Context, acctId string, id string) (entities.Cart, error) {
+	var cart entities.Cart
 	err := r.Pool.QueryRow(ctx, `SELECT acct_id,id,data FROM carts WHERE acct_id=@acct_id AND id=@id`, pgx.NamedArgs{
 		"acct_id": acctId,
 		"id":      id,
@@ -55,13 +54,13 @@ func (r *CartRepository) FindByID(ctx context.Context, acctId string, id string)
 		&cart.Data)
 
 	if err != nil {
-		r.logger.Error(`failed to find Cart`, err)
-		return models.Cart{}, err
+		r.logger.Error(`failed to find Cart`, "acctId", acctId, "id", id, "err", err.Error())
+		return entities.Cart{}, err
 	}
 	return cart, nil
 }
 
-func (r *CartRepository) Create(ctx context.Context, input carts.CreateCartInput) (models.Cart, error) {
+func (r *CartRepository) Create(ctx context.Context, input carts.CreateCartInput) (entities.Cart, error) {
 	cartId := lib.GenerateId("cart")
 
 	query := `INSERT INTO carts (acct_id,id,data,metadata,created_at,updated_at) 
@@ -78,10 +77,10 @@ func (r *CartRepository) Create(ctx context.Context, input carts.CreateCartInput
 
 	if err != nil {
 		r.logger.Error(`failed to insert Cart`, err)
-		return models.Cart{}, err
+		return entities.Cart{}, err
 	}
 
-	return models.Cart{
+	return entities.Cart{
 		Id:     cartId,
 		Data:   input.Cart,
 		Status: "",
@@ -89,7 +88,7 @@ func (r *CartRepository) Create(ctx context.Context, input carts.CreateCartInput
 	}, nil
 }
 
-func (r *CartRepository) Update(ctx context.Context, input models.Cart) (models.Cart, error) {
+func (r *CartRepository) Update(ctx context.Context, input entities.Cart) (entities.Cart, error) {
 
 	query := `UPDATE carts SET data=@data, metadata=@metadata, updated_at=NOW() 
              WHERE acct_id=@acct_id AND id=@id`
@@ -101,7 +100,7 @@ func (r *CartRepository) Update(ctx context.Context, input models.Cart) (models.
 	})
 	if err != nil {
 		r.logger.Error(`failed to update Cart`, err)
-		return models.Cart{}, err
+		return entities.Cart{}, err
 	}
 
 	// TODO read new values

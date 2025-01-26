@@ -1,24 +1,11 @@
 package orders
 
 type CreateOrderRow struct {
-	AccountId string            `json:"acct_id" binding:"required"` // TODO should be resolved from the API authn
-	Customer  CustomerInput     `json:"customer" binding:"required"`
-	SessionId string            `json:"session_id" binding:"required"`
-	Currency  string            `json:"currency" binding:"required"`
-	Metadata  map[string]string `json:"metadata"`
-}
-type CreateOrderInput struct {
-	AccountId string            `json:"acct_id" binding:"required"` // TODO should be resolved from the API authn
-	Customer  CustomerInput     `json:"customer" binding:"required"`
-	SessionId string            `json:"session_id" binding:"required"`
-	Metadata  map[string]string `json:"metadata"`
-}
-
-type CustomerInput struct {
-	ID       string            `json:"id"`
-	Email    string            `json:"email"`
-	Name     string            `json:"name"`
-	Metadata map[string]string `json:"metadata"`
+	AccountId string                     `json:"acct_id" binding:"required"` // TODO should be resolved from the API authn
+	Customer  CreateOrderCommandCustomer `json:"customer" binding:"required"`
+	SessionId string                     `json:"session_id" binding:"required"`
+	Currency  string                     `json:"currency" binding:"required"`
+	Metadata  map[string]string          `json:"metadata"`
 }
 
 type CartInput struct {

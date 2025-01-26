@@ -3,10 +3,10 @@ package controllers
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"payloop/internal/api/dto/request"
 	"payloop/internal/domain/orders"
 	"payloop/internal/lib"
 	"payloop/internal/services"
-	"strconv"
 )
 
 // OrderController data type
@@ -23,44 +23,8 @@ func NewOrderController(orderService services.OrderService, logger lib.Logger) O
 	}
 }
 
-// GetOneOrder gets one order
-func (o OrderController) GetOneOrder(c *gin.Context) {
-	paramID := c.Param("id")
-
-	id, err := strconv.Atoi(paramID)
-	if err != nil {
-		o.logger.Error(err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err,
-		})
-		return
-	}
-	order, err := o.service.GetOneOrder(uint(id))
-
-	if err != nil {
-		o.logger.Error(err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
-		return
-	}
-
-	c.JSON(200, gin.H{
-		"data": order,
-	})
-}
-
-// GetOrders gets all orders
-func (o OrderController) GetOrders(c *gin.Context) {
-	orders, err := o.service.GetAllOrders()
-	if err != nil {
-		o.logger.Error(err)
-	}
-	c.JSON(200, gin.H{"data": orders})
-}
-
 func (o OrderController) CreateOrder(c *gin.Context) {
-	var input orders.CreateOrderInput
+	var input request.CreateOrderRequest
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		o.logger.Error(err)
@@ -70,7 +34,17 @@ func (o OrderController) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	order, err := o.service.CreateOrder(c.Request.Context(), input)
+	order, err := o.service.CreateOrder(c.Request.Context(), orders.CreateOrderCommand{
+		AccountId: input.AccountId,
+		Customer: orders.CreateOrderCommandCustomer{
+			ID:       input.Customer.ID,
+			Email:    input.Customer.Email,
+			Name:     input.Customer.Name,
+			Metadata: nil,
+		},
+		CartId:   input.CartId,
+		Metadata: nil,
+	})
 	if err != nil {
 		o.logger.Error(err)
 		c.JSON(http.StatusInternalServerError, gin.H{

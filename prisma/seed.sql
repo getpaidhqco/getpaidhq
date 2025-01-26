@@ -1,0 +1,14 @@
+INSERT INTO accounts (id, name, created_at, updated_at)
+VALUES ('mollie', 'Mollie', '2025-01-26 13:18:47.991', '2025-01-26 15:18:47.000');
+
+INSERT INTO products (acct_id, id, name, description, metadata, created_at, updated_at)
+VALUES ('mollie', 'prod-1', 'Pro plan', null, null, '2025-01-26 13:18:47.991', '2025-01-26 15:18:47.000');
+
+INSERT INTO public.variants (acct_id, id, product_id, name, description, metadata, created_at, updated_at)
+VALUES ('mollie', 'var-1', 'prod-1', 'Subscription', 'Sub', null, '2025-01-26 13:18:53.260', '2025-01-26 15:17:52.000');
+
+INSERT INTO public.prices (acct_id, id, variant_id, category, scheme, currency, unit_price, billing_interval,
+                           billing_interval_qty, trial_interval, trial_interval_qty, min_price, suggested_price,
+                           tax_code, metadata, created_at, updated_at)
+VALUES ('mollie', 'price-1', 'var-1', 'subscription', 'fixed', 'USD', 10000.000000000000000000000000000000, 'month', 1,
+        'none', 0, null, null, null, null, '2025-01-26 13:18:56.354', '2025-01-26 15:17:14.000');

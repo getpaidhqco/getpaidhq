@@ -182,26 +182,25 @@ model Session {
 model Order {
   accountId  String      @map("acct_id")
   id         String      @default(cuid())
-  customerId String?     @map("customer_id")
-  customer   Customer?   @relation(fields: [accountId, customerId], references: [accountId, id], onDelete: Restrict)
+  customerId String      @map("customer_id")
+  customer   Customer    @relation(fields: [accountId, customerId], references: [accountId, id], onDelete: Restrict)
   status     OrderStatus
 
-  sessionId String? @map("session_id")
+  sessionId String @map("session_id")
 
-  currency String?
-  total    Int?
+  currency String
+  total    Int
 
-  metadata Json?
+  metadata Json
 
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
   subscriptions Subscription[]
   payments      Payment[]
 
-  paymentAccountId String?
-  paymentId        String?
-  cartId           String? @map("cart_id")
-  cart             Cart?   @relation(fields: [accountId, cartId], references: [accountId, id])
+  cartId String @map("cart_id")
+  cart   Cart   @relation(fields: [accountId, cartId], references: [accountId, id])
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@id([accountId, id])
   @@map("orders")

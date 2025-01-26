@@ -2,10 +2,10 @@ package mapper
 
 import (
 	"payloop/internal/api/dto/response"
-	"payloop/internal/models"
+	"payloop/internal/domain/entities"
 )
 
-func ToCartResponse(cart models.Cart) response.CartResponse {
+func ToCartResponse(cart entities.Cart) response.CartResponse {
 	return response.CartResponse{
 		cart.Data,
 	}
