@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"github.com/mdwt/payloop-cart/types"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/orders"
 	"payloop/internal/lib"
@@ -12,11 +13,12 @@ import (
 )
 
 type OrderService struct {
-	sessionRepository  repository.SessionRepository
-	cartRepository     repository.CartRepository
-	orderRepository    repository.OrderRepository
-	customerRepository repository.CustomerRepository
-	logger             lib.Logger
+	sessionRepository      repository.SessionRepository
+	cartRepository         repository.CartRepository
+	orderRepository        repository.OrderRepository
+	customerRepository     repository.CustomerRepository
+	subscriptionRepository repository.SubscriptionRepository
+	logger                 lib.Logger
 }
 
 func NewOrderService(
@@ -24,20 +26,23 @@ func NewOrderService(
 	cartRepository repository.CartRepository,
 	orderRepository repository.OrderRepository,
 	customerRepository repository.CustomerRepository,
+	subscriptionRepository repository.SubscriptionRepository,
 	logger lib.Logger,
 ) OrderService {
 	return OrderService{
-		customerRepository: customerRepository,
-		sessionRepository:  sessionRepository,
-		cartRepository:     cartRepository,
-		orderRepository:    orderRepository,
-		logger:             logger,
+		customerRepository:     customerRepository,
+		sessionRepository:      sessionRepository,
+		cartRepository:         cartRepository,
+		subscriptionRepository: subscriptionRepository,
+		orderRepository:        orderRepository,
+		logger:                 logger,
 	}
 }
 
 func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderCommand) (entities.Order, error) {
 	s.logger.Info("Creating order for cart", "cart", input.CartId)
 	accountId := input.AccountId
+	orderId := lib.GenerateId("order")
 
 	cart, err := s.cartRepository.FindByID(ctx, accountId, input.CartId)
 	if err != nil {
@@ -56,9 +61,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 		return entities.Order{}, err
 	}
 
-	orderId := lib.GenerateId("order")
-
-	return s.orderRepository.Create(ctx, entities.Order{
+	order, err := s.orderRepository.Create(ctx, entities.Order{
 		AccountId:  accountId,
 		Id:         orderId,
 		CustomerId: customer.ID,
@@ -71,4 +74,19 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
 	})
+
+	// Go through the list of items in the cart and create the subscriptions for each item
+	for _, item := range cart.Data.Items {
+		if item.Price.Category == types.PriceCategorySubscription {
+			// Create a subscription for the item
+			sub := entities.NewSubscriptionFromItem(accountId, orderId, item)
+			_, err := s.subscriptionRepository.Create(ctx, sub)
+			if err != nil {
+				s.logger.Error("Failed to create subscription", err.Error())
+				return entities.Order{}, err
+			}
+		}
+	}
+
+	return order, nil
 }

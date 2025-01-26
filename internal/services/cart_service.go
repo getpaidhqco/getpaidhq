@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	cartlib "github.com/mdwt/payloop-cart"
+	carttypes "github.com/mdwt/payloop-cart/types"
 	"payloop/internal/domain/carts"
 	"payloop/internal/domain/entities"
 	"payloop/internal/lib"
@@ -126,13 +127,13 @@ func (s *CartService) AdjustItem(ctx context.Context, input carts.AdjustCommand)
 		ProductId: "prod-1",
 		Price: cartlib.Price{
 			Id:                 "price-1",
-			Category:           string(cartlib.Subscription),
-			Scheme:             string(cartlib.Fixed),
+			Category:           carttypes.PriceCategorySubscription,
+			Scheme:             carttypes.Fixed,
 			Currency:           "USD",
 			UnitPrice:          1000,
-			BillingInterval:    string(cartlib.BillingIntervalMonth),
+			BillingInterval:    carttypes.BillingIntervalMonth,
 			BillingIntervalQty: 1,
-			TrialInterval:      string(cartlib.BillingIntervalNone),
+			TrialInterval:      carttypes.BillingIntervalNone,
 			TrialIntervalQty:   0,
 			TaxCode:            "exempt",
 		},

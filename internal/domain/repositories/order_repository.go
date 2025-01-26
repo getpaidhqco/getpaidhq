@@ -6,9 +6,6 @@ import (
 )
 
 type OrderRepository interface {
-	FindByID(ctx context.Context, id uint) (*entities.Order, error)
-	FindAll(ctx context.Context) ([]*entities.Order, error)
-	Create(ctx context.Context, order entities.Order) error
-	Update(ctx context.Context, order entities.Order) error
-	Delete(ctx context.Context, id uint) error
+	FindById(ctx context.Context, accountId string, id string) (entities.Order, error)
+	Create(ctx context.Context, entity entities.Order) (entities.Order, error)
 }

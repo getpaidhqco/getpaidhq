@@ -246,9 +246,9 @@ model Subscription {
   startDate          DateTime?       @map("start_date")
   endDate            DateTime?       @map("end_date")
   billingInterval    BillingInterval @map("billing_interval")
-  billingIntervalQty Int?            @map("billing_interval_qty")
-  cycles             Int?
-  billingAnchor      Int?            @map("billing_anchor")
+  billingIntervalQty Int             @map("billing_interval_qty")
+  cycles             Int
+  billingAnchor      Int             @map("billing_anchor")
   trialEndsAt        DateTime?       @map("trial_ends_at")
   cancelAt           DateTime?       @map("cancel_at")
   endsAt             DateTime?       @map("ends_at")
@@ -258,18 +258,18 @@ model Subscription {
   retries   Int?
   nextRetry DateTime? @map("next_retry")
 
-  currency String?
-  amount   Decimal?
+  currency String
+  amount   Int
 
-  metadata Json?
+  metadata Json
 
-  cyclesProcessed Int?      @map("cycles_processed")
-  totalRevenue    Decimal?  @map("total_revenue")
+  cyclesProcessed Int       @map("cycles_processed")
+  totalRevenue    Int       @map("total_revenue")
   cancelledAt     DateTime? @map("cancelled_at")
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
-  Payment   Payment[]
+  payments  Payment[]
 
   @@id([accountId, id])
   @@map("subscriptions")
