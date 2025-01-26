@@ -32,7 +32,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 
 	session, err := s.sessionRepository.FindById(ctx, accountId, input.SessionId)
 	if err != nil {
-		s.logger.Error("Failed to find session", err)
+		s.logger.Error("Failed to find sessionRepository", err)
 		return models.Order{}, err
 	}
 

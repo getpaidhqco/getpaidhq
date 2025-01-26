@@ -70,9 +70,9 @@ func (r *SessionRepository) Create(ctx context.Context, input sessions.CreateSes
 			  VALUES (@acct_id,@id,@cart_id, NOW(), NOW())
 			  RETURNING (acct_id,id,cart_id)`
 
-	err := r.Tx.QueryRow(ctx, query, pgx.NamedArgs{
+	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
 		"acct_id": input.AccountId,
-		"id":      lib.GenerateId("session"),
+		"id":      input.Id,
 		"cart_id": input.CartId,
 	}).Scan(&session)
 

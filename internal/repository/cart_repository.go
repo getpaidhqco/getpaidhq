@@ -47,10 +47,12 @@ func (r *CartRepository) WithTrx(trxHandle interface{}) *CartRepository {
 
 func (r *CartRepository) FindByID(ctx context.Context, acctId string, id string) (models.Cart, error) {
 	var cart models.Cart
-	err := r.Pool.QueryRow(ctx, `SELECT * FROM carts WHERE acct_id=@acct_id AND id=@id`, pgx.NamedArgs{
-		"acctId": acctId,
-		"id":     id,
-	}).Scan(&cart)
+	err := r.Pool.QueryRow(ctx, `SELECT acct_id,id,data FROM carts WHERE acct_id=@acct_id AND id=@id`, pgx.NamedArgs{
+		"acct_id": acctId,
+		"id":      id,
+	}).Scan(&cart.AccountId,
+		&cart.Id,
+		&cart.Data)
 
 	if err != nil {
 		r.logger.Error(`failed to find Cart`, err)
@@ -67,7 +69,7 @@ func (r *CartRepository) Create(ctx context.Context, input carts.CreateCartInput
 
 	metaJson, _ := json.Marshal(input.Metadata)
 
-	_, err := r.Tx.Exec(ctx, query, pgx.NamedArgs{
+	_, err := r.Pool.Exec(ctx, query, pgx.NamedArgs{
 		"acct_id":  input.AccountId,
 		"id":       cartId,
 		"data":     input.Cart,
@@ -85,4 +87,23 @@ func (r *CartRepository) Create(ctx context.Context, input carts.CreateCartInput
 		Status: "",
 		Total:  0,
 	}, nil
+}
+
+func (r *CartRepository) Update(ctx context.Context, input models.Cart) (models.Cart, error) {
+
+	query := `UPDATE carts SET data=@data, metadata=@metadata, updated_at=NOW() 
+             WHERE acct_id=@acct_id AND id=@id`
+
+	_, err := r.Pool.Exec(ctx, query, pgx.NamedArgs{
+		"acct_id": input.AccountId,
+		"id":      input.Id,
+		"data":    input.Data,
+	})
+	if err != nil {
+		r.logger.Error(`failed to update Cart`, err)
+		return models.Cart{}, err
+	}
+
+	// TODO read new values
+	return input, nil
 }

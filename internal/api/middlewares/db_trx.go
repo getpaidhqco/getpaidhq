@@ -42,7 +42,15 @@ func (m DatabaseTrx) Setup() {
 	m.logger.Debug("setting up database transaction middleware")
 
 	m.handler.Gin.Use(func(c *gin.Context) {
-		txHandle, _ := m.db.Begin(c.Request.Context())
+		txHandle, err := m.db.Begin(c.Request.Context())
+		if err != nil {
+			m.logger.Error("error beginning database transaction", err)
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"error": "internal server error",
+			})
+			c.Abort()
+			return
+		}
 		m.logger.Debug("beginning database transaction")
 
 		defer func() {

@@ -29,6 +29,12 @@ type Database interface {
 	Close()
 }
 
+type Tx interface {
+	Begin(ctx context.Context) (Tx, error)
+	Commit(ctx context.Context) error
+	Rollback(ctx context.Context) error
+}
+
 type PgDatabase struct {
 	*pgxpool.Pool
 	pgx.Tx
