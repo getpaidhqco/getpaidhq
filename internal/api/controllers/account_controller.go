@@ -3,9 +3,9 @@ package controllers
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"payloop/internal/application/services"
 	"payloop/internal/domain/orgs"
 	"payloop/internal/lib"
-	"payloop/internal/services"
 )
 
 // OrgController data type

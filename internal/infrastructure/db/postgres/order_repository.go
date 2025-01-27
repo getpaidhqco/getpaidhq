@@ -1,4 +1,4 @@
-package repository
+package postgres
 
 import (
 	"context"
@@ -6,29 +6,28 @@ import (
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 )
 
 type OrderRepository struct {
 	*lib.PgDatabase
-	logger             lib.Logger
-	customerRepository CustomerRepository
+	logger lib.Logger
 }
 
-func NewOrderRepository(database lib.Database, customerRepository CustomerRepository, logger lib.Logger) OrderRepository {
+func NewOrderRepository(database lib.Database, logger lib.Logger) repositories.OrderRepository {
 	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}
 	return OrderRepository{
-		PgDatabase:         pgDatabase,
-		logger:             logger,
-		customerRepository: customerRepository,
+		PgDatabase: pgDatabase,
+		logger:     logger,
 	}
 }
 
 // WithTrx enables repository with transaction
-func (r *OrderRepository) WithTrx(trxHandle interface{}) *OrderRepository {
+func (r OrderRepository) WithTrx(trxHandle interface{}) OrderRepository {
 	if trxHandle == nil {
 		r.logger.Warn("Transaction Database not found in gin context. ")
 		return r
@@ -37,7 +36,7 @@ func (r *OrderRepository) WithTrx(trxHandle interface{}) *OrderRepository {
 	return r
 }
 
-func (r *OrderRepository) FindById(ctx context.Context, orgId string, id string) (entities.Order, error) {
+func (r OrderRepository) FindById(ctx context.Context, orgId string, id string) (entities.Order, error) {
 	query := "SELECT id, customer_id, status, total FROM orders WHERE id=$1"
 	row := r.Tx.QueryRow(ctx, query, id)
 
@@ -49,7 +48,7 @@ func (r *OrderRepository) FindById(ctx context.Context, orgId string, id string)
 	return order, nil
 }
 
-func (r *OrderRepository) Create(ctx context.Context, entity entities.Order) (entities.Order, error) {
+func (r OrderRepository) Create(ctx context.Context, entity entities.Order) (entities.Order, error) {
 
 	var order entities.Order
 

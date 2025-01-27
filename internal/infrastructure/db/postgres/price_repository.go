@@ -1,4 +1,4 @@
-package repository
+package postgres
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 )
 
@@ -14,7 +15,7 @@ type PriceRepository struct {
 	logger lib.Logger
 }
 
-func NewPriceRepository(database lib.Database, logger lib.Logger) PriceRepository {
+func NewPriceRepository(database lib.Database, logger lib.Logger) repositories.PriceRepository {
 	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
@@ -26,7 +27,7 @@ func NewPriceRepository(database lib.Database, logger lib.Logger) PriceRepositor
 }
 
 // WithTrx enables repository with transaction
-func (r *PriceRepository) WithTrx(trxHandle interface{}) *PriceRepository {
+func (r PriceRepository) WithTrx(trxHandle interface{}) PriceRepository {
 	if trxHandle == nil {
 		r.logger.Warn("Transaction Database not found in gin context. ")
 		return r
@@ -35,12 +36,12 @@ func (r *PriceRepository) WithTrx(trxHandle interface{}) *PriceRepository {
 	return r
 }
 
-func (r *PriceRepository) FindByID(ctx context.Context, acctId string, id string) (entities.Price, error) {
+func (r PriceRepository) FindById(ctx context.Context, orgId string, id string) (entities.Price, error) {
 	var price entities.Price
 	err := r.Pool.QueryRow(ctx, `SELECT org_id,id,billing_interval,billing_interval_qty,category,scheme,currency,unit_price,trial_interval,trial_interval_qty,tax_code 
 							FROM prices WHERE org_id=@org_id AND id=@id`,
 		pgx.NamedArgs{
-			"org_id": acctId,
+			"org_id": orgId,
 			"id":     id,
 		}).Scan(
 		&price.OrgId,

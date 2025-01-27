@@ -1,4 +1,4 @@
-package repository
+package postgres
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 )
 
@@ -15,7 +16,7 @@ type SubscriptionRepository struct {
 	logger lib.Logger
 }
 
-func NewSubscriptionRepository(database lib.Database, logger lib.Logger) SubscriptionRepository {
+func NewSubscriptionRepository(database lib.Database, logger lib.Logger) repositories.SubscriptionRepository {
 	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
@@ -26,22 +27,12 @@ func NewSubscriptionRepository(database lib.Database, logger lib.Logger) Subscri
 	}
 }
 
-// WithTrx enables repository with transaction
-func (r *SubscriptionRepository) WithTrx(trxHandle interface{}) *SubscriptionRepository {
-	if trxHandle == nil {
-		r.logger.Warn("Transaction Database not found in gin context. ")
-		return r
-	}
-	r.PgDatabase.Tx = trxHandle.(pgx.Tx)
-	return r
-}
-
-func (r *SubscriptionRepository) FindById(ctx context.Context, acctId string, id string) (entities.Subscription, error) {
+func (r SubscriptionRepository) FindById(ctx context.Context, org_id string, id string) (entities.Subscription, error) {
 	var subscription entities.Subscription
 	err := r.Pool.QueryRow(ctx,
 		`SELECT * FROM subscriptions WHERE org_id=@org_id AND id=@id`,
 		pgx.NamedArgs{
-			"org_id": acctId,
+			"org_id": org_id,
 			"id":     id,
 		}).Scan(
 		&subscription.OrgId,
@@ -78,7 +69,7 @@ func (r *SubscriptionRepository) FindById(ctx context.Context, acctId string, id
 	return subscription, nil
 }
 
-func (r *SubscriptionRepository) Create(ctx context.Context, entity entities.Subscription) (entities.Subscription, error) {
+func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subscription) (entities.Subscription, error) {
 
 	var subscription entities.Subscription
 

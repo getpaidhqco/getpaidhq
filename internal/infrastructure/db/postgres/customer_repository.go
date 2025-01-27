@@ -1,9 +1,10 @@
-package repository
+package postgres
 
 import (
 	"context"
 	"github.com/jackc/pgx/v5"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 
 	_ "github.com/jackc/pgx/v5"
@@ -14,7 +15,7 @@ type CustomerRepository struct {
 	logger lib.Logger
 }
 
-func NewCustomerRepository(database lib.Database, logger lib.Logger) CustomerRepository {
+func NewCustomerRepository(database lib.Database, logger lib.Logger) repositories.CustomerRepository {
 	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
@@ -25,39 +26,19 @@ func NewCustomerRepository(database lib.Database, logger lib.Logger) CustomerRep
 	}
 }
 
-func (r *CustomerRepository) FindByID(ctx context.Context, id uint) (*entities.User, error) {
+func (r CustomerRepository) FindById(ctx context.Context, id string) (entities.Customer, error) {
 	query := "SELECT id, name, email FROM users"
 	row, _ := r.PgDatabase.Tx.Query(ctx, query, id)
 
-	var user entities.User
-	err := row.Scan(&user.ID, &user.Username, &user.Email, &user.Password)
+	var user entities.Customer
+	err := row.Scan(&user.ID, &user.Email, &user.Name)
 	if err != nil {
-		return nil, err
+		return entities.Customer{}, err
 	}
-	return &user, nil
+	return user, nil
 }
 
-func (r *CustomerRepository) FindAll(ctx context.Context) ([]*entities.User, error) {
-	query := ``
-	rows, err := r.Tx.Query(ctx, query)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-
-	var users []*entities.User
-	for rows.Next() {
-		var user entities.User
-		err := rows.Scan(&user.ID, &user.Username, &user.Email, &user.Password)
-		if err != nil {
-			return nil, err
-		}
-		users = append(users, &user)
-	}
-	return users, nil
-}
-
-func (r *CustomerRepository) Create(ctx context.Context, entity entities.Customer) (entities.Customer, error) {
+func (r CustomerRepository) Create(ctx context.Context, entity entities.Customer) (entities.Customer, error) {
 	var customer entities.Customer
 	query := `INSERT INTO customers (org_id, id, email, name, created_at, updated_at) 
 		VALUES (@org_id, @id, @email, @name, now(), now())

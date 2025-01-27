@@ -1,4 +1,4 @@
-package repository
+package postgres
 
 import (
 	"context"
@@ -7,23 +7,16 @@ import (
 	_ "github.com/jackc/pgx/v5"
 	"payloop/internal/domain/carts"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 )
-
-type CartRepositoryIf interface {
-	FindByID(ctx context.Context, id uint) (*entities.Cart, error)
-	FindAll(ctx context.Context) ([]*entities.Cart, error)
-	Create(ctx context.Context, order entities.Cart) error
-	Update(ctx context.Context, order entities.Cart) error
-	Delete(ctx context.Context, id uint) error
-}
 
 type CartRepository struct {
 	*lib.PgDatabase
 	logger lib.Logger
 }
 
-func NewCartRepository(database lib.Database, logger lib.Logger) CartRepository {
+func NewCartRepository(database lib.Database, logger lib.Logger) repositories.CartRepository {
 	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
@@ -34,33 +27,23 @@ func NewCartRepository(database lib.Database, logger lib.Logger) CartRepository 
 	}
 }
 
-// WithTrx enables repository with transaction
-func (r *CartRepository) WithTrx(trxHandle interface{}) *CartRepository {
-	if trxHandle == nil {
-		r.logger.Warn("Transaction Database not found in gin context. ")
-		return r
-	}
-	r.PgDatabase.Tx = trxHandle.(pgx.Tx)
-	return r
-}
-
-func (r *CartRepository) FindByID(ctx context.Context, acctId string, id string) (entities.Cart, error) {
+func (r CartRepository) FindById(ctx context.Context, orgId string, id string) (entities.Cart, error) {
 	var cart entities.Cart
-	err := r.Pool.QueryRow(ctx, `SELECT org_id,id,data FROM carts WHERE org_id=@org_id AND id=@id`, pgx.NamedArgs{
-		"org_id": acctId,
-		"id":     id,
+	err := r.Pool.QueryRow(ctx, `SELECT orgId,id,data FROM carts WHERE orgId=@orgId AND id=@id`, pgx.NamedArgs{
+		"orgId": orgId,
+		"id":    id,
 	}).Scan(&cart.OrgId,
 		&cart.Id,
 		&cart.Data)
 
 	if err != nil {
-		r.logger.Error(`failed to find Cart`, "acctId", acctId, "id", id, "err", err.Error())
+		r.logger.Error(`failed to find Cart`, "orgId", orgId, "id", id, "err", err.Error())
 		return entities.Cart{}, err
 	}
 	return cart, nil
 }
 
-func (r *CartRepository) Create(ctx context.Context, input carts.CreateCartInput) (entities.Cart, error) {
+func (r CartRepository) Create(ctx context.Context, input carts.CreateCartInput) (entities.Cart, error) {
 	cartId := lib.GenerateId("cart")
 
 	query := `INSERT INTO carts (org_id,id,data,metadata,created_at,updated_at) 
@@ -88,7 +71,7 @@ func (r *CartRepository) Create(ctx context.Context, input carts.CreateCartInput
 	}, nil
 }
 
-func (r *CartRepository) Update(ctx context.Context, input entities.Cart) (entities.Cart, error) {
+func (r CartRepository) Update(ctx context.Context, input entities.Cart) (entities.Cart, error) {
 
 	query := `UPDATE carts SET data=@data, metadata=@metadata, updated_at=NOW() 
              WHERE org_id=@org_id AND id=@id`

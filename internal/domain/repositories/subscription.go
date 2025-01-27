@@ -6,6 +6,6 @@ import (
 )
 
 type SubscriptionRepository interface {
-	FindById(ctx context.Context, acctId string, id string) (entities.Subscription, error)
+	FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error)
 	Create(ctx context.Context, entity entities.Subscription) (entities.Subscription, error)
 }

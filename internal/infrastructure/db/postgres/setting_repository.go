@@ -1,4 +1,4 @@
-package repository
+package postgres
 
 import (
 	"context"
@@ -35,12 +35,12 @@ func (r *SettingRepository) WithTrx(trxHandle interface{}) *SettingRepository {
 	return r
 }
 
-func (r *SettingRepository) FindById(ctx context.Context, acctId string, id string) (entities.Setting, error) {
+func (r *SettingRepository) FindById(ctx context.Context, org_id string, id string) (entities.Setting, error) {
 	var setting entities.Setting
 	err := r.Pool.QueryRow(ctx,
 		`SELECT * FROM settings WHERE org_id=@org_id AND id=@id`,
 		pgx.NamedArgs{
-			"org_id": acctId,
+			"org_id": org_id,
 			"id":     id,
 		}).Scan(
 		&setting.OrgId,

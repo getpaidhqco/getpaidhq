@@ -6,27 +6,26 @@ import (
 	"github.com/mdwt/payloop-cart/types"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/orders"
+	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 	"time"
-
-	"payloop/internal/repository"
 )
 
 type OrderService struct {
-	sessionRepository      repository.SessionRepository
-	cartRepository         repository.CartRepository
-	orderRepository        repository.OrderRepository
-	customerRepository     repository.CustomerRepository
-	subscriptionRepository repository.SubscriptionRepository
+	sessionRepository      repositories.SessionRepository
+	cartRepository         repositories.CartRepository
+	orderRepository        repositories.OrderRepository
+	customerRepository     repositories.CustomerRepository
+	subscriptionRepository repositories.SubscriptionRepository
 	logger                 lib.Logger
 }
 
 func NewOrderService(
-	sessionRepository repository.SessionRepository,
-	cartRepository repository.CartRepository,
-	orderRepository repository.OrderRepository,
-	customerRepository repository.CustomerRepository,
-	subscriptionRepository repository.SubscriptionRepository,
+	sessionRepository repositories.SessionRepository,
+	cartRepository repositories.CartRepository,
+	orderRepository repositories.OrderRepository,
+	customerRepository repositories.CustomerRepository,
+	subscriptionRepository repositories.SubscriptionRepository,
 	logger lib.Logger,
 ) OrderService {
 	return OrderService{
@@ -44,7 +43,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 	orgId := input.OrgId
 	orderId := lib.GenerateId("order")
 
-	cart, err := s.cartRepository.FindByID(ctx, orgId, input.CartId)
+	cart, err := s.cartRepository.FindById(ctx, orgId, input.CartId)
 	if err != nil {
 		s.logger.Error("Failed to find cart id ", "id", input.CartId, err.Error())
 		return entities.Order{}, errors.New("cart not found")

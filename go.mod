@@ -40,6 +40,7 @@ require (
 	github.com/leodido/go-urn v1.4.0 // indirect
 	github.com/magiconair/properties v1.8.7 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
+	github.com/mdwt/paystack-go v0.0.0-20210725234520-196191f8ab58 // indirect
 	github.com/minio/highwayhash v1.0.3 // indirect
 	github.com/mitchellh/mapstructure v1.5.0 // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
@@ -75,3 +76,5 @@ require (
 )
 
 replace github.com/mdwt/payloop-cart => ../payloop-cart
+
+replace github.com/mdwt/paystack-go => ../paystack-go

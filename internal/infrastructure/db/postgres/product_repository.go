@@ -1,4 +1,4 @@
-package repository
+package postgres
 
 import (
 	"context"
@@ -6,6 +6,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 )
 
@@ -14,7 +15,7 @@ type ProductRepository struct {
 	logger lib.Logger
 }
 
-func NewProductRepository(database lib.Database, logger lib.Logger) ProductRepository {
+func NewProductRepository(database lib.Database, logger lib.Logger) repositories.ProductRepository {
 	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
@@ -25,22 +26,12 @@ func NewProductRepository(database lib.Database, logger lib.Logger) ProductRepos
 	}
 }
 
-// WithTrx enables repository with transaction
-func (r *ProductRepository) WithTrx(trxHandle interface{}) *ProductRepository {
-	if trxHandle == nil {
-		r.logger.Warn("Transaction Database not found in gin context. ")
-		return r
-	}
-	r.PgDatabase.Tx = trxHandle.(pgx.Tx)
-	return r
-}
-
-func (r *ProductRepository) FindByID(ctx context.Context, acctId string, id string) (entities.Product, error) {
+func (r ProductRepository) FindById(ctx context.Context, orgId string, id string) (entities.Product, error) {
 	var product entities.Product
 	err := r.Pool.QueryRow(ctx, `SELECT org_id,id,name,description,metadata 
 							FROM products WHERE org_id=@org_id AND id=@id`,
 		pgx.NamedArgs{
-			"org_id": acctId,
+			"org_id": orgId,
 			"id":     id,
 		}).Scan(
 		&product.OrgId,

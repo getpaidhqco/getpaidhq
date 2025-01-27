@@ -5,29 +5,23 @@ import (
 	cart "github.com/mdwt/payloop-cart"
 	"payloop/internal/domain/carts"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/repositories"
 	"payloop/internal/domain/sessions"
 	"payloop/internal/lib"
-	"payloop/internal/repository"
 )
 
 type SessionService struct {
-	sessionRepository repository.SessionRepository
-	cartRepository    repository.CartRepository
+	sessionRepository repositories.SessionRepository
+	cartRepository    repositories.CartRepository
 	logger            lib.Logger
 }
 
-func NewSessionService(sessionRepository repository.SessionRepository, cartRepository repository.CartRepository, logger lib.Logger) SessionService {
+func NewSessionService(sessionRepository repositories.SessionRepository, cartRepository repositories.CartRepository, logger lib.Logger) SessionService {
 	return SessionService{
 		sessionRepository: sessionRepository,
 		cartRepository:    cartRepository,
 		logger:            logger,
 	}
-}
-
-// WithTrx enables repository with transaction
-func (s *SessionService) WithTrx(trxHandle interface{}) *SessionService {
-	s.sessionRepository = *s.sessionRepository.WithTrx(trxHandle)
-	return s
 }
 
 func (s *SessionService) CreateSession(ctx context.Context, input sessions.CreateSessionRequest) (entities.Session, error) {

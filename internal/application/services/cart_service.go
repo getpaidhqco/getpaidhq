@@ -7,21 +7,22 @@ import (
 	carttypes "github.com/mdwt/payloop-cart/types"
 	"payloop/internal/domain/carts"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/repositories"
+
 	"payloop/internal/lib"
-	"payloop/internal/repository"
 )
 
 type CartService struct {
-	cartRepository    repository.CartRepository
-	priceRepository   repository.PriceRepository
-	productRepository repository.ProductRepository
+	cartRepository    repositories.CartRepository
+	priceRepository   repositories.PriceRepository
+	productRepository repositories.ProductRepository
 	logger            lib.Logger
 }
 
-func NewCartService(repo repository.CartRepository,
-	priceRepository repository.PriceRepository,
+func NewCartService(repo repositories.CartRepository,
+	priceRepository repositories.PriceRepository,
 	logger lib.Logger,
-	productRepository repository.ProductRepository,
+	productRepository repositories.ProductRepository,
 ) CartService {
 	return CartService{
 		cartRepository:    repo,
@@ -31,14 +32,8 @@ func NewCartService(repo repository.CartRepository,
 	}
 }
 
-// WithTrx enables repository with transaction
-func (s *CartService) WithTrx(trxHandle interface{}) *CartService {
-
-	s.cartRepository = *s.cartRepository.WithTrx(trxHandle)
-	return s
-}
-func (s *CartService) GetCart(acctId string, id string) (entities.Cart, error) {
-	return s.cartRepository.FindByID(context.Background(), acctId, id)
+func (s *CartService) GetCart(org_id string, id string) (entities.Cart, error) {
+	return s.cartRepository.FindById(context.Background(), org_id, id)
 }
 
 func (s *CartService) CreateCart(ctx context.Context, input carts.CreateCartInput) (entities.Cart, error) {
@@ -48,19 +43,19 @@ func (s *CartService) CreateCart(ctx context.Context, input carts.CreateCartInpu
 // AddProduct adds product to cart. It returns updated cart.
 func (s *CartService) AddProduct(ctx context.Context, input carts.AddProductCommand) (entities.Cart, error) {
 
-	cartModel, err := s.cartRepository.FindByID(ctx, input.OrgId, input.CartId)
+	cartModel, err := s.cartRepository.FindById(ctx, input.OrgId, input.CartId)
 	if err != nil {
 		return entities.Cart{}, err
 	}
 	cart := cartModel.Data
 	s.logger.Debug(`Found cart`, `id`, cart.Id)
 
-	price, err := s.priceRepository.FindByID(ctx, input.OrgId, input.PriceId)
+	price, err := s.priceRepository.FindById(ctx, input.OrgId, input.PriceId)
 	if err != nil {
 		s.logger.Error(`failed to find price`, err)
 		return entities.Cart{}, err
 	}
-	product, err := s.productRepository.FindByID(ctx, input.OrgId, input.ProductId)
+	product, err := s.productRepository.FindById(ctx, input.OrgId, input.ProductId)
 	if err != nil {
 		s.logger.Error(`invalid product`, err.Error())
 		return entities.Cart{}, errors.New(`invalid product`)
@@ -91,7 +86,7 @@ func (s *CartService) AddProduct(ctx context.Context, input carts.AddProductComm
 // AddProduct adds product to cart. It returns updated cart.
 func (s *CartService) RemoveItem(ctx context.Context, input carts.RemoveItemCommand) (entities.Cart, error) {
 
-	cartModel, err := s.cartRepository.FindByID(ctx, input.OrgId, input.CartId)
+	cartModel, err := s.cartRepository.FindById(ctx, input.OrgId, input.CartId)
 	if err != nil {
 		return entities.Cart{}, err
 	}
@@ -116,7 +111,7 @@ func (s *CartService) RemoveItem(ctx context.Context, input carts.RemoveItemComm
 // AddProduct adds product to cart. It returns updated cart.
 func (s *CartService) AdjustItem(ctx context.Context, input carts.AdjustCommand) (entities.Cart, error) {
 
-	cartModel, err := s.cartRepository.FindByID(ctx, input.OrgId, input.CartId)
+	cartModel, err := s.cartRepository.FindById(ctx, input.OrgId, input.CartId)
 	if err != nil {
 		return entities.Cart{}, err
 	}

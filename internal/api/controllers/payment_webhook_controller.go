@@ -1,8 +1,8 @@
 package controllers
 
 import (
+	"payloop/internal/application/services"
 	"payloop/internal/lib"
-	"payloop/internal/services"
 )
 
 // PaymentWebhookController data type

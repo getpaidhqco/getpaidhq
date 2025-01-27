@@ -4,14 +4,14 @@ import (
 	"context"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/orgs"
-	"payloop/internal/repository"
+	"payloop/internal/domain/repositories"
 )
 
 type OrgService struct {
-	repository repository.OrgRepository
+	repository repositories.OrgRepository
 }
 
-func NewOrgService(repo repository.OrgRepository) OrgService {
+func NewOrgService(repo repositories.OrgRepository) OrgService {
 	return OrgService{repository: repo}
 }
 

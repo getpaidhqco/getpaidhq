@@ -3,18 +3,18 @@ package controllers
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
+	services2 "payloop/internal/application/services"
 	"payloop/internal/domain/sessions"
 	"payloop/internal/lib"
-	"payloop/internal/services"
 )
 
 type SessionController struct {
-	sessionService services.SessionService
-	cartService    services.CartService
+	sessionService services2.SessionService
+	cartService    services2.CartService
 	logger         lib.Logger
 }
 
-func NewSessionController(sessionService services.SessionService, cartService services.CartService, logger lib.Logger) SessionController {
+func NewSessionController(sessionService services2.SessionService, cartService services2.CartService, logger lib.Logger) SessionController {
 	return SessionController{
 		sessionService: sessionService,
 		cartService:    cartService,

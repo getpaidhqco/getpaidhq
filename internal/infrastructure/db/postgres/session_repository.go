@@ -1,26 +1,22 @@
-package repository
+package postgres
 
 import (
 	"context"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/repositories"
 	"payloop/internal/domain/sessions"
 	"payloop/internal/lib"
 )
 
-type SessionRepositoryIf interface {
-	FindById(ctx context.Context, orgId string, id string) (entities.Session, error)
-	Create(ctx context.Context, input sessions.CreateSessionInput) (entities.Session, error)
-}
-
 type SessionRepository struct {
 	*lib.PgDatabase
 	logger             lib.Logger
-	customerRepository CustomerRepository
+	customerRepository repositories.CustomerRepository
 }
 
-func NewSessionRepository(database lib.Database, customerRepository CustomerRepository, logger lib.Logger) SessionRepository {
+func NewSessionRepository(database lib.Database, customerRepository repositories.CustomerRepository, logger lib.Logger) repositories.SessionRepository {
 	logger.Debug("Creating new Session Repository")
 	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {
@@ -33,17 +29,7 @@ func NewSessionRepository(database lib.Database, customerRepository CustomerRepo
 	}
 }
 
-// WithTrx enables repository with transaction
-func (r *SessionRepository) WithTrx(trxHandle interface{}) *SessionRepository {
-	if trxHandle == nil {
-		r.logger.Warn("Transaction Database not found in gin context. ")
-		return r
-	}
-	r.PgDatabase.Tx = trxHandle.(pgx.Tx)
-	return r
-}
-
-func (r *SessionRepository) FindById(ctx context.Context, orgId string, id string) (entities.Session, error) {
+func (r SessionRepository) FindById(ctx context.Context, orgId string, id string) (entities.Session, error) {
 	var session entities.Session
 
 	query := `INSERT INTO sessions (org_id,id,cart_id, created_at, updated_at) 
@@ -62,7 +48,7 @@ func (r *SessionRepository) FindById(ctx context.Context, orgId string, id strin
 	return session, nil
 }
 
-func (r *SessionRepository) Create(ctx context.Context, input sessions.CreateSessionInput) (entities.Session, error) {
+func (r SessionRepository) Create(ctx context.Context, input sessions.CreateSessionInput) (entities.Session, error) {
 	var session entities.Session
 
 	query := `INSERT INTO sessions (org_id,id,cart_id, created_at, updated_at) 

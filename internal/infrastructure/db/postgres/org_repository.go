@@ -1,4 +1,4 @@
-package repository
+package postgres
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 	"github.com/segmentio/ksuid"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/orgs"
+	"payloop/internal/domain/repositories"
 
 	"payloop/internal/lib"
 )
@@ -16,7 +17,7 @@ type OrgRepository struct {
 	logger lib.Logger
 }
 
-func NewOrgRepository(database lib.Database, logger lib.Logger) OrgRepository {
+func NewOrgRepository(database lib.Database, logger lib.Logger) repositories.OrgRepository {
 	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
@@ -27,7 +28,7 @@ func NewOrgRepository(database lib.Database, logger lib.Logger) OrgRepository {
 	}
 }
 
-func (r *OrgRepository) Create(ctx context.Context, input orgs.CreateOrgInput) (entities.Org, error) {
+func (r OrgRepository) Create(ctx context.Context, input orgs.CreateOrgInput) (entities.Org, error) {
 	OrgId := "t_" + ksuid.New().String()
 	var Org entities.Org
 	query := `INSERT INTO orgs (id, name, description, created_at, updated_at) 

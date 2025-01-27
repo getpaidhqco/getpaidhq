@@ -5,9 +5,10 @@ import (
 	"payloop/internal/api/controllers"
 	"payloop/internal/api/middlewares"
 	"payloop/internal/api/routes"
+	"payloop/internal/application/services"
+	"payloop/internal/infrastructure/db/postgres"
+	"payloop/internal/infrastructure/payments/paystack"
 	"payloop/internal/lib"
-	"payloop/internal/repository"
-	"payloop/internal/services"
 )
 
 var CommonModules = fx.Options(
@@ -16,5 +17,6 @@ var CommonModules = fx.Options(
 	lib.Module,
 	services.Module,
 	middlewares.Module,
-	repository.Module,
+	postgres.Module,
+	paystack.Module,
 )
