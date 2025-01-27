@@ -8,7 +8,7 @@ import (
 var Module = fx.Options(
 	fx.Provide(NewUserService),
 	fx.Provide(NewOrderService),
-	fx.Provide(NewAccountService),
+	fx.Provide(NewOrgService),
 	fx.Provide(NewSessionService),
 	fx.Provide(NewCartService),
 	fx.Provide(NewWebhookService),

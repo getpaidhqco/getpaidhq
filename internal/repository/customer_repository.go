@@ -59,15 +59,15 @@ func (r *CustomerRepository) FindAll(ctx context.Context) ([]*entities.User, err
 
 func (r *CustomerRepository) Create(ctx context.Context, entity entities.Customer) (entities.Customer, error) {
 	var customer entities.Customer
-	query := `INSERT INTO customers (acct_id, id, email, name, created_at, updated_at) 
-		VALUES (@acct_id, @id, @email, @name, now(), now())
-		RETURNING (acct_id, id, email, name)`
+	query := `INSERT INTO customers (org_id, id, email, name, created_at, updated_at) 
+		VALUES (@org_id, @id, @email, @name, now(), now())
+		RETURNING (org_id, id, email, name)`
 
 	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
-		"acct_id": entity.AccountId,
-		"id":      entity.ID,
-		"email":   entity.Email,
-		"name":    entity.Name,
+		"org_id": entity.OrgId,
+		"id":     entity.ID,
+		"email":  entity.Email,
+		"name":   entity.Name,
 	}).Scan(&customer)
 
 	if err != nil {

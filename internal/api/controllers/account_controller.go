@@ -3,27 +3,27 @@ package controllers
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
-	"payloop/internal/domain/accounts"
+	"payloop/internal/domain/orgs"
 	"payloop/internal/lib"
 	"payloop/internal/services"
 )
 
-// AccountController data type
-type AccountController struct {
-	service services.AccountService
+// OrgController data type
+type OrgController struct {
+	service services.OrgService
 	logger  lib.Logger
 }
 
-// NewAccountController creates new user controller
-func NewAccountController(service services.AccountService, logger lib.Logger) AccountController {
-	return AccountController{
+// NewOrgController creates new user controller
+func NewOrgController(service services.OrgService, logger lib.Logger) OrgController {
+	return OrgController{
 		service: service,
 		logger:  logger,
 	}
 }
 
-func (u AccountController) Create(c *gin.Context) {
-	var input accounts.CreateAccountInput
+func (u OrgController) Create(c *gin.Context) {
+	var input orgs.CreateOrgInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		u.logger.Error(err)

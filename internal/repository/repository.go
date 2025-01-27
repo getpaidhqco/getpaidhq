@@ -8,7 +8,7 @@ import (
 var Module = fx.Options(
 	fx.Provide(NewUserRepository),
 	fx.Provide(NewOrderRepository),
-	fx.Provide(NewAccountRepository),
+	fx.Provide(NewOrgRepository),
 	fx.Provide(NewCustomerRepository),
 	fx.Provide(NewSessionRepository),
 	fx.Provide(NewCartRepository),

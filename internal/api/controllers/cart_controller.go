@@ -43,7 +43,7 @@ func (o *CartController) AddProduct(c *gin.Context) {
 	}
 
 	cart, err := o.cartService.AddProduct(c.Request.Context(), carts.AddProductCommand{
-		AccountId: input.AccountId,
+		OrgId:     input.OrgId,
 		CartId:    cartId,
 		ProductId: input.ProductId,
 		PriceId:   input.PriceId,
@@ -76,9 +76,9 @@ func (o *CartController) RemoveItem(c *gin.Context) {
 	}
 
 	cart, err := o.cartService.RemoveItem(c.Request.Context(), carts.RemoveItemCommand{
-		AccountId: input.AccountId,
-		CartId:    cartId,
-		Id:        input.Id,
+		OrgId:  input.OrgId,
+		CartId: cartId,
+		Id:     input.Id,
 	})
 	if err != nil {
 		o.logger.Error(err)

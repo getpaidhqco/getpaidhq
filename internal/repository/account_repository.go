@@ -5,45 +5,45 @@ import (
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
 	"github.com/segmentio/ksuid"
-	"payloop/internal/domain/accounts"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/orgs"
 
 	"payloop/internal/lib"
 )
 
-type AccountRepository struct {
+type OrgRepository struct {
 	*lib.PgDatabase
 	logger lib.Logger
 }
 
-func NewAccountRepository(database lib.Database, logger lib.Logger) AccountRepository {
+func NewOrgRepository(database lib.Database, logger lib.Logger) OrgRepository {
 	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}
-	return AccountRepository{
+	return OrgRepository{
 		PgDatabase: pgDatabase,
 		logger:     logger,
 	}
 }
 
-func (r *AccountRepository) Create(ctx context.Context, input accounts.CreateAccountInput) (entities.Account, error) {
-	AccountId := "t_" + ksuid.New().String()
-	var Account entities.Account
-	query := `INSERT INTO accounts (id, name, description, created_at, updated_at) 
+func (r *OrgRepository) Create(ctx context.Context, input orgs.CreateOrgInput) (entities.Org, error) {
+	OrgId := "t_" + ksuid.New().String()
+	var Org entities.Org
+	query := `INSERT INTO orgs (id, name, description, created_at, updated_at) 
 			  VALUES (@id, @name, @description, NOW(), NOW())
 			  RETURNING (id,name,description,created_at,updated_at)`
 
 	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
-		"id":          AccountId,
+		"id":          OrgId,
 		"name":        input.Name,
 		"description": input.Description,
-	}).Scan(&Account)
+	}).Scan(&Org)
 
 	if err != nil {
-		r.logger.Error(`failed to insert Account`, err)
-		return entities.Account{}, err
+		r.logger.Error(`failed to insert Org`, err)
+		return entities.Org{}, err
 	}
 
-	return Account, nil
+	return Org, nil
 }

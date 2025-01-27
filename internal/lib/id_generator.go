@@ -8,7 +8,7 @@ func GenerateId(resource string) string {
 		return "usr_" + ksuid.New().String()
 	case "order":
 		return "ord_" + ksuid.New().String()
-	case "account":
+	case "org":
 		return "acct_" + ksuid.New().String()
 	case "customer":
 		return "cus_" + ksuid.New().String()

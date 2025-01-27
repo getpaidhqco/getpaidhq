@@ -41,20 +41,20 @@ func NewOrderService(
 
 func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderCommand) (entities.Order, error) {
 	s.logger.Info("Creating order for cart", "cart", input.CartId)
-	accountId := input.AccountId
+	orgId := input.OrgId
 	orderId := lib.GenerateId("order")
 
-	cart, err := s.cartRepository.FindByID(ctx, accountId, input.CartId)
+	cart, err := s.cartRepository.FindByID(ctx, orgId, input.CartId)
 	if err != nil {
 		s.logger.Error("Failed to find cart id ", "id", input.CartId, err.Error())
 		return entities.Order{}, errors.New("cart not found")
 	}
 
 	customer, err := s.customerRepository.Create(ctx, entities.Customer{
-		AccountId: accountId,
-		ID:        lib.GenerateId("customer"),
-		Name:      input.Customer.Name,
-		Email:     input.Customer.Email,
+		OrgId: orgId,
+		ID:    lib.GenerateId("customer"),
+		Name:  input.Customer.Name,
+		Email: input.Customer.Email,
 	})
 	if err != nil {
 		s.logger.Error("Failed to create customer", err.Error())
@@ -62,7 +62,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 	}
 
 	order, err := s.orderRepository.Create(ctx, entities.Order{
-		AccountId:  accountId,
+		OrgId:      orgId,
 		Id:         orderId,
 		CustomerId: customer.ID,
 		Status:     entities.OrderStatusPending,
@@ -79,7 +79,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 	for _, item := range cart.Data.Items {
 		if item.Price.Category == types.PriceCategorySubscription {
 			// Create a subscription for the item
-			sub := entities.NewSubscriptionFromItem(accountId, orderId, item)
+			sub := entities.NewSubscriptionFromItem(orgId, orderId, item)
 			_, err := s.subscriptionRepository.Create(ctx, sub)
 			if err != nil {
 				s.logger.Error("Failed to create subscription", err.Error())

@@ -7,6 +7,6 @@ import (
 )
 
 type PriceRepository interface {
-	FindById(ctx context.Context, accountId string, id string) (entities.Order, error)
+	FindById(ctx context.Context, orgId string, id string) (entities.Order, error)
 	Create(ctx context.Context, input orders.CreateOrderRow) (entities.Order, error)
 }

@@ -3,7 +3,7 @@ package entities
 import "time"
 
 type Order struct {
-	AccountId  string            `json:"account_id"`
+	OrgId      string            `json:"org_id"`
 	Id         string            `json:"id"`
 	CustomerId string            `json:"customer_id"`
 	Status     OrderStatus       `json:"status"`

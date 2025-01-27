@@ -48,19 +48,19 @@ func (s *CartService) CreateCart(ctx context.Context, input carts.CreateCartInpu
 // AddProduct adds product to cart. It returns updated cart.
 func (s *CartService) AddProduct(ctx context.Context, input carts.AddProductCommand) (entities.Cart, error) {
 
-	cartModel, err := s.cartRepository.FindByID(ctx, input.AccountId, input.CartId)
+	cartModel, err := s.cartRepository.FindByID(ctx, input.OrgId, input.CartId)
 	if err != nil {
 		return entities.Cart{}, err
 	}
 	cart := cartModel.Data
 	s.logger.Debug(`Found cart`, `id`, cart.Id)
 
-	price, err := s.priceRepository.FindByID(ctx, input.AccountId, input.PriceId)
+	price, err := s.priceRepository.FindByID(ctx, input.OrgId, input.PriceId)
 	if err != nil {
 		s.logger.Error(`failed to find price`, err)
 		return entities.Cart{}, err
 	}
-	product, err := s.productRepository.FindByID(ctx, input.AccountId, input.ProductId)
+	product, err := s.productRepository.FindByID(ctx, input.OrgId, input.ProductId)
 	if err != nil {
 		s.logger.Error(`invalid product`, err.Error())
 		return entities.Cart{}, errors.New(`invalid product`)
@@ -91,7 +91,7 @@ func (s *CartService) AddProduct(ctx context.Context, input carts.AddProductComm
 // AddProduct adds product to cart. It returns updated cart.
 func (s *CartService) RemoveItem(ctx context.Context, input carts.RemoveItemCommand) (entities.Cart, error) {
 
-	cartModel, err := s.cartRepository.FindByID(ctx, input.AccountId, input.CartId)
+	cartModel, err := s.cartRepository.FindByID(ctx, input.OrgId, input.CartId)
 	if err != nil {
 		return entities.Cart{}, err
 	}
@@ -116,7 +116,7 @@ func (s *CartService) RemoveItem(ctx context.Context, input carts.RemoveItemComm
 // AddProduct adds product to cart. It returns updated cart.
 func (s *CartService) AdjustItem(ctx context.Context, input carts.AdjustCommand) (entities.Cart, error) {
 
-	cartModel, err := s.cartRepository.FindByID(ctx, input.AccountId, input.CartId)
+	cartModel, err := s.cartRepository.FindByID(ctx, input.OrgId, input.CartId)
 	if err != nil {
 		return entities.Cart{}, err
 	}

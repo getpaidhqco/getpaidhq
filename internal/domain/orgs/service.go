@@ -1,6 +1,6 @@
-package accounts
+package orgs
 
-type CreateAccountInput struct {
+type CreateOrgInput struct {
 	Name        string `json:"name"`
 	Description string `json:"description"`
 }

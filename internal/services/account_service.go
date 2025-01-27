@@ -2,19 +2,19 @@ package services
 
 import (
 	"context"
-	"payloop/internal/domain/accounts"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/orgs"
 	"payloop/internal/repository"
 )
 
-type AccountService struct {
-	repository repository.AccountRepository
+type OrgService struct {
+	repository repository.OrgRepository
 }
 
-func NewAccountService(repo repository.AccountRepository) AccountService {
-	return AccountService{repository: repo}
+func NewOrgService(repo repository.OrgRepository) OrgService {
+	return OrgService{repository: repo}
 }
 
-func (s *AccountService) Create(ctx context.Context, input accounts.CreateAccountInput) (entities.Account, error) {
+func (s *OrgService) Create(ctx context.Context, input orgs.CreateOrgInput) (entities.Org, error) {
 	return s.repository.Create(ctx, input)
 }

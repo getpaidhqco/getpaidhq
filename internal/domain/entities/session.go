@@ -1,7 +1,7 @@
 package entities
 
 type Session struct {
-	AccountId string `json:"account_id"`
-	Id        string `json:"id"`
-	CartId    string `json:"cart_id"`
+	OrgId  string `json:"org_id"`
+	Id     string `json:"id"`
+	CartId string `json:"cart_id"`
 }

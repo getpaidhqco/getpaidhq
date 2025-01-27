@@ -2,7 +2,7 @@ package entities
 
 import "time"
 
-type Account struct {
+type Org struct {
 	ID          string    `json:"id"`
 	Name        string    `json:"name" binding:"required"`
 	Description string    `json:"description"`

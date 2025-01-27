@@ -13,15 +13,44 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model Account {
-  id          String        @id
-  name        String
-  description String?
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
-  users       UserAccount[]
+enum OrgStatus {
+  active
+  inactive
+  deleted
+}
 
-  @@map("accounts")
+model Org {
+  id           String         @id
+  country      String
+  status       OrgStatus      @default(active)
+  name         String
+  description  String?
+  createdAt    DateTime       @default(now()) @map("created_at")
+  updatedAt    DateTime       @updatedAt @map("updated_at")
+  users        UserOrg[]
+  Session      Session[]
+  Variant      Variant[]
+  Price        Price[]
+  Order        Order[]
+  Customer     Customer[]
+  Subscription Subscription[]
+  Payment      Payment[]
+  Setting      Setting[]
+
+  @@map("orgs")
+}
+
+model Setting {
+  orgId      String   @map("org_id")
+  id         String
+  value      Json
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, id])
+  @@map("settings")
 }
 
 model User {
@@ -31,24 +60,24 @@ model User {
   emailVerified DateTime? @map("email_verified")
   image         String?
 
-  createdAt   DateTime      @default(now()) @map("created_at")
-  updatedAt   DateTime      @updatedAt @map("updated_at")
-  UserAccount UserAccount[]
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  UserOrg   UserOrg[]
 
   @@map("users")
 }
 
-model UserAccount {
-  userId    String @map("user_id")
-  accountId String @map("acct_id")
+model UserOrg {
+  userId String @map("user_id")
+  orgId  String @map("org_id")
 
-  user    User    @relation(fields: [userId], references: [id])
-  account Account @relation(fields: [accountId], references: [id])
+  user User @relation(fields: [userId], references: [id])
+  org  Org  @relation(fields: [orgId], references: [id])
 
   role Role @default(user)
 
-  @@id([userId, accountId])
-  @@map("user_accounts")
+  @@id([userId, orgId])
+  @@map("user_orgs")
 }
 
 enum Role {
@@ -58,8 +87,8 @@ enum Role {
 }
 
 model Cart {
-  accountId String @map("acct_id")
-  id        String @default(cuid())
+  orgId String @map("org_id")
+  id    String @default(cuid())
 
   data     Json?
   metadata Json?
@@ -68,13 +97,13 @@ model Cart {
   updatedAt DateTime @updatedAt @map("updated_at")
   order     Order[]
 
-  @@id([accountId, id])
+  @@id([orgId, id])
   @@map("carts")
 }
 
 model Product {
-  accountId String @map("acct_id")
-  id        String @default(cuid())
+  orgId String @map("org_id")
+  id    String @default(cuid())
 
   name        String
   description String?
@@ -85,16 +114,16 @@ model Product {
   updatedAt DateTime  @updatedAt @map("updated_at")
   Variant   Variant[]
 
-  @@id([accountId, id])
+  @@id([orgId, id])
   @@map("products")
 }
 
 model Variant {
-  accountId String @map("acct_id")
-  id        String @default(cuid())
+  orgId String @map("org_id")
+  id    String @default(cuid())
 
   productId String  @map("product_id")
-  product   Product @relation(fields: [accountId, productId], references: [accountId, id])
+  product   Product @relation(fields: [orgId, productId], references: [orgId, id])
 
   name        String
   description String?
@@ -105,16 +134,18 @@ model Variant {
   updatedAt DateTime @updatedAt @map("updated_at")
   Price     Price[]
 
-  @@id([accountId, id])
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, id])
   @@map("variants")
 }
 
 model Price {
-  accountId String @map("acct_id")
-  id        String @default(cuid())
+  orgId String @map("org_id")
+  id    String @default(cuid())
 
   variantId String  @map("variant_id")
-  variant   Variant @relation(fields: [accountId, variantId], references: [accountId, id])
+  variant   Variant @relation(fields: [orgId, variantId], references: [orgId, id])
 
   category PriceCategory
   scheme   PriceScheme
@@ -138,7 +169,9 @@ model Price {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@id([accountId, id])
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, id])
   @@map("prices")
 }
 
@@ -165,8 +198,8 @@ enum BillingInterval {
 }
 
 model Session {
-  accountId String @map("acct_id")
-  id        String @default(cuid())
+  orgId String @map("org_id")
+  id    String @default(cuid())
 
   cartId String? @map("cart_id")
 
@@ -175,15 +208,17 @@ model Session {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@id([accountId, id])
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, id])
   @@map("sessions")
 }
 
 model Order {
-  accountId  String      @map("acct_id")
+  orgId      String      @map("org_id")
   id         String      @default(cuid())
   customerId String      @map("customer_id")
-  customer   Customer    @relation(fields: [accountId, customerId], references: [accountId, id], onDelete: Restrict)
+  customer   Customer    @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
   status     OrderStatus
 
   sessionId String @map("session_id")
@@ -197,12 +232,14 @@ model Order {
   payments      Payment[]
 
   cartId String @map("cart_id")
-  cart   Cart   @relation(fields: [accountId, cartId], references: [accountId, id])
+  cart   Cart   @relation(fields: [orgId, cartId], references: [orgId, id])
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@id([accountId, id])
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, id])
   @@map("orders")
 }
 
@@ -218,8 +255,8 @@ enum OrderStatus {
 }
 
 model Customer {
-  accountId String @map("acct_id")
-  id        String @default(cuid())
+  orgId String @map("org_id")
+  id    String @default(cuid())
 
   email String
   name  String?
@@ -231,16 +268,18 @@ model Customer {
 
   orders Order[]
 
-  @@id([accountId, id], map: "customer_primary_key")
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, id], map: "customer_primary_key")
   @@map("customers")
 }
 
 model Subscription {
-  accountId String @map("acct_id")
-  id        String @default(cuid())
+  orgId String @map("org_id")
+  id    String @default(cuid())
 
   orderId String             @map("order_id")
-  order   Order              @relation(fields: [accountId, orderId], references: [accountId, id])
+  order   Order              @relation(fields: [orgId, orderId], references: [orgId, id])
   status  SubscriptionStatus
 
   startDate          DateTime?       @map("start_date")
@@ -271,7 +310,9 @@ model Subscription {
   updatedAt DateTime  @updatedAt @map("updated_at")
   payments  Payment[]
 
-  @@id([accountId, id])
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, id])
   @@map("subscriptions")
 }
 
@@ -287,20 +328,22 @@ enum SubscriptionStatus {
 }
 
 model Payment {
-  accountId String @map("acct_id")
-  id        String @default(cuid())
+  orgId String @map("org_id")
+  id    String @default(cuid())
 
   orderId String @map("order_id")
-  order   Order  @relation(fields: [accountId, orderId], references: [accountId, id])
+  order   Order  @relation(fields: [orgId, orderId], references: [orgId, id])
 
   subscriptionId String?       @map("subscription_id")
-  subscription   Subscription? @relation(fields: [accountId, subscriptionId], references: [accountId, id])
+  subscription   Subscription? @relation(fields: [orgId, subscriptionId], references: [orgId, id])
 
   metadata Json?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@id([accountId, id])
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, id])
   @@map("payments")
 }

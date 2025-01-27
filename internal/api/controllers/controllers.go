@@ -6,7 +6,7 @@ import "go.uber.org/fx"
 var Module = fx.Options(
 	fx.Provide(NewUserController),
 	fx.Provide(NewOrderController),
-	fx.Provide(NewAccountController),
+	fx.Provide(NewOrgController),
 	fx.Provide(NewCartController),
 	fx.Provide(NewSessionController),
 )

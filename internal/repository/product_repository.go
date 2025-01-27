@@ -37,13 +37,13 @@ func (r *ProductRepository) WithTrx(trxHandle interface{}) *ProductRepository {
 
 func (r *ProductRepository) FindByID(ctx context.Context, acctId string, id string) (entities.Product, error) {
 	var product entities.Product
-	err := r.Pool.QueryRow(ctx, `SELECT acct_id,id,name,description,metadata 
-							FROM products WHERE acct_id=@acct_id AND id=@id`,
+	err := r.Pool.QueryRow(ctx, `SELECT org_id,id,name,description,metadata 
+							FROM products WHERE org_id=@org_id AND id=@id`,
 		pgx.NamedArgs{
-			"acct_id": acctId,
-			"id":      id,
+			"org_id": acctId,
+			"id":     id,
 		}).Scan(
-		&product.AccountId,
+		&product.OrgId,
 		&product.Id,
 		&product.Name,
 		&product.Metadata,

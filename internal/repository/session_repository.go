@@ -10,7 +10,7 @@ import (
 )
 
 type SessionRepositoryIf interface {
-	FindById(ctx context.Context, accountId string, id string) (entities.Session, error)
+	FindById(ctx context.Context, orgId string, id string) (entities.Session, error)
 	Create(ctx context.Context, input sessions.CreateSessionInput) (entities.Session, error)
 }
 
@@ -43,15 +43,15 @@ func (r *SessionRepository) WithTrx(trxHandle interface{}) *SessionRepository {
 	return r
 }
 
-func (r *SessionRepository) FindById(ctx context.Context, accountId string, id string) (entities.Session, error) {
+func (r *SessionRepository) FindById(ctx context.Context, orgId string, id string) (entities.Session, error) {
 	var session entities.Session
 
-	query := `INSERT INTO sessions (acct_id,id,cart_id, created_at, updated_at) 
-			  VALUES (@acct_id,@id,@cart_id, NOW(), NOW())`
+	query := `INSERT INTO sessions (org_id,id,cart_id, created_at, updated_at) 
+			  VALUES (@org_id,@id,@cart_id, NOW(), NOW())`
 
 	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
-		"acct_id": accountId,
-		"id":      id,
+		"org_id": orgId,
+		"id":     id,
 	}).Scan(&session)
 
 	if err != nil {
@@ -65,12 +65,12 @@ func (r *SessionRepository) FindById(ctx context.Context, accountId string, id s
 func (r *SessionRepository) Create(ctx context.Context, input sessions.CreateSessionInput) (entities.Session, error) {
 	var session entities.Session
 
-	query := `INSERT INTO sessions (acct_id,id,cart_id, created_at, updated_at) 
-			  VALUES (@acct_id,@id,@cart_id, NOW(), NOW())
-			  RETURNING (acct_id,id,cart_id)`
+	query := `INSERT INTO sessions (org_id,id,cart_id, created_at, updated_at) 
+			  VALUES (@org_id,@id,@cart_id, NOW(), NOW())
+			  RETURNING (org_id,id,cart_id)`
 
 	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
-		"acct_id": input.AccountId,
+		"org_id":  input.OrgId,
 		"id":      input.Id,
 		"cart_id": input.CartId,
 	}).Scan(&session)

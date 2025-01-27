@@ -21,7 +21,7 @@ const (
 )
 
 type Subscription struct {
-	AccountId          string             `json:"acct_id"`
+	OrgId              string             `json:"org_id"`
 	Id                 string             `json:"id"`
 	OrderId            string             `json:"order_id"`
 	Status             SubscriptionStatus `json:"status"`
@@ -49,7 +49,7 @@ type Subscription struct {
 }
 
 // NewSubscriptionFromItem creates a new Subscription from a payloop-cart Item
-func NewSubscriptionFromItem(accountId, orderId string, item cart.Item) Subscription {
+func NewSubscriptionFromItem(orgId, orderId string, item cart.Item) Subscription {
 
 	var startDate time.Time
 	if item.Price.TrialInterval == types.BillingIntervalNone {
@@ -57,7 +57,7 @@ func NewSubscriptionFromItem(accountId, orderId string, item cart.Item) Subscrip
 	}
 
 	return Subscription{
-		AccountId:          accountId,
+		OrgId:              orgId,
 		Id:                 lib.GenerateId("subscription"),
 		OrderId:            orderId,
 		Status:             SubscriptionStatusPending,

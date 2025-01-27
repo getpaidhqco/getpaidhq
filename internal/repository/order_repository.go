@@ -37,7 +37,7 @@ func (r *OrderRepository) WithTrx(trxHandle interface{}) *OrderRepository {
 	return r
 }
 
-func (r *OrderRepository) FindById(ctx context.Context, accountId string, id string) (entities.Order, error) {
+func (r *OrderRepository) FindById(ctx context.Context, orgId string, id string) (entities.Order, error) {
 	query := "SELECT id, customer_id, status, total FROM orders WHERE id=$1"
 	row := r.Tx.QueryRow(ctx, query, id)
 
@@ -53,14 +53,14 @@ func (r *OrderRepository) Create(ctx context.Context, entity entities.Order) (en
 
 	var order entities.Order
 
-	query := `INSERT INTO orders (acct_id,id,customer_id,cart_id,status,session_id,currency,total,metadata, created_at, updated_at) 
-			  VALUES (@acct_id,@id,@customer_id,@cart_id,@status,@session_id, @currency,@total,@metadata, NOW(), NOW())
-			  RETURNING (acct_id,id,customer_id,status,session_id,cart_id,currency,total,metadata,created_at, updated_at)`
+	query := `INSERT INTO orders (org_id,id,customer_id,cart_id,status,session_id,currency,total,metadata, created_at, updated_at) 
+			  VALUES (@org_id,@id,@customer_id,@cart_id,@status,@session_id, @currency,@total,@metadata, NOW(), NOW())
+			  RETURNING (org_id,id,customer_id,status,session_id,cart_id,currency,total,metadata,created_at, updated_at)`
 
 	metaJson, _ := json.Marshal(entity.Metadata)
 
 	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
-		"acct_id":     entity.AccountId,
+		"org_id":      entity.OrgId,
 		"id":          entity.Id,
 		"customer_id": entity.CustomerId,
 		"cart_id":     entity.CartId,

@@ -1,7 +1,7 @@
 package orders
 
 type CreateOrderRow struct {
-	AccountId string                     `json:"acct_id" binding:"required"` // TODO should be resolved from the API authn
+	OrgId     string                     `json:"org_id" binding:"required"` // TODO should be resolved from the API authn
 	Customer  CreateOrderCommandCustomer `json:"customer" binding:"required"`
 	SessionId string                     `json:"session_id" binding:"required"`
 	Currency  string                     `json:"currency" binding:"required"`

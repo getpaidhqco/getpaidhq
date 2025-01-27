@@ -46,10 +46,10 @@ func (r *CartRepository) WithTrx(trxHandle interface{}) *CartRepository {
 
 func (r *CartRepository) FindByID(ctx context.Context, acctId string, id string) (entities.Cart, error) {
 	var cart entities.Cart
-	err := r.Pool.QueryRow(ctx, `SELECT acct_id,id,data FROM carts WHERE acct_id=@acct_id AND id=@id`, pgx.NamedArgs{
-		"acct_id": acctId,
-		"id":      id,
-	}).Scan(&cart.AccountId,
+	err := r.Pool.QueryRow(ctx, `SELECT org_id,id,data FROM carts WHERE org_id=@org_id AND id=@id`, pgx.NamedArgs{
+		"org_id": acctId,
+		"id":     id,
+	}).Scan(&cart.OrgId,
 		&cart.Id,
 		&cart.Data)
 
@@ -63,13 +63,13 @@ func (r *CartRepository) FindByID(ctx context.Context, acctId string, id string)
 func (r *CartRepository) Create(ctx context.Context, input carts.CreateCartInput) (entities.Cart, error) {
 	cartId := lib.GenerateId("cart")
 
-	query := `INSERT INTO carts (acct_id,id,data,metadata,created_at,updated_at) 
-			  VALUES (@acct_id,@id,@data,@metadata,NOW(), NOW())`
+	query := `INSERT INTO carts (org_id,id,data,metadata,created_at,updated_at) 
+			  VALUES (@org_id,@id,@data,@metadata,NOW(), NOW())`
 
 	metaJson, _ := json.Marshal(input.Metadata)
 
 	_, err := r.Pool.Exec(ctx, query, pgx.NamedArgs{
-		"acct_id":  input.AccountId,
+		"org_id":   input.OrgId,
 		"id":       cartId,
 		"data":     input.Cart,
 		"metadata": metaJson,
@@ -91,12 +91,12 @@ func (r *CartRepository) Create(ctx context.Context, input carts.CreateCartInput
 func (r *CartRepository) Update(ctx context.Context, input entities.Cart) (entities.Cart, error) {
 
 	query := `UPDATE carts SET data=@data, metadata=@metadata, updated_at=NOW() 
-             WHERE acct_id=@acct_id AND id=@id`
+             WHERE org_id=@org_id AND id=@id`
 
 	_, err := r.Pool.Exec(ctx, query, pgx.NamedArgs{
-		"acct_id": input.AccountId,
-		"id":      input.Id,
-		"data":    input.Data,
+		"org_id": input.OrgId,
+		"id":     input.Id,
+		"data":   input.Data,
 	})
 	if err != nil {
 		r.logger.Error(`failed to update Cart`, err)

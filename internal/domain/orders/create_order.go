@@ -1,10 +1,10 @@
 package orders
 
 type CreateOrderCommand struct {
-	AccountId string                     `json:"acct_id" binding:"required"` // TODO should be resolved from the API authn
-	Customer  CreateOrderCommandCustomer `json:"customer" binding:"required"`
-	CartId    string                     `json:"cart_id" binding:"required"`
-	Metadata  map[string]string          `json:"metadata"`
+	OrgId    string                     `json:"org_id" binding:"required"` // TODO should be resolved from the API authn
+	Customer CreateOrderCommandCustomer `json:"customer" binding:"required"`
+	CartId   string                     `json:"cart_id" binding:"required"`
+	Metadata map[string]string          `json:"metadata"`
 }
 
 type CreateOrderCommandCustomer struct {

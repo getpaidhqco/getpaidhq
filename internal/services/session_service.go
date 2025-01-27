@@ -37,9 +37,9 @@ func (s *SessionService) CreateSession(ctx context.Context, input sessions.Creat
 	})
 
 	cartInstance, err := s.cartRepository.Create(ctx, carts.CreateCartInput{
-		AccountId: input.AccountId,
-		Cart:      cartData,
-		Metadata:  nil,
+		OrgId:    input.OrgId,
+		Cart:     cartData,
+		Metadata: nil,
 	})
 	if err != nil {
 		s.logger.Error(`failed to create cart`, err)
@@ -48,10 +48,10 @@ func (s *SessionService) CreateSession(ctx context.Context, input sessions.Creat
 
 	session, err := s.sessionRepository.Create(ctx,
 		sessions.CreateSessionInput{
-			AccountId: input.AccountId,
-			Id:        lib.GenerateId("session"),
-			CartId:    cartInstance.Id,
-			Metadata:  nil,
+			OrgId:    input.OrgId,
+			Id:       lib.GenerateId("session"),
+			CartId:   cartInstance.Id,
+			Metadata: nil,
 		})
 
 	return session, err

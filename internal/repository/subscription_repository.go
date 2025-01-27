@@ -39,12 +39,12 @@ func (r *SubscriptionRepository) WithTrx(trxHandle interface{}) *SubscriptionRep
 func (r *SubscriptionRepository) FindById(ctx context.Context, acctId string, id string) (entities.Subscription, error) {
 	var subscription entities.Subscription
 	err := r.Pool.QueryRow(ctx,
-		`SELECT * FROM subscriptions WHERE acct_id=@acct_id AND id=@id`,
+		`SELECT * FROM subscriptions WHERE org_id=@org_id AND id=@id`,
 		pgx.NamedArgs{
-			"acct_id": acctId,
-			"id":      id,
+			"org_id": acctId,
+			"id":     id,
 		}).Scan(
-		&subscription.AccountId,
+		&subscription.OrgId,
 		&subscription.Id,
 		&subscription.OrderId,
 		&subscription.Status,
@@ -82,14 +82,14 @@ func (r *SubscriptionRepository) Create(ctx context.Context, entity entities.Sub
 
 	var subscription entities.Subscription
 
-	query := `INSERT INTO subscriptions (acct_id, id, order_id, status, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at) 
-			  VALUES (@acct_id, @id, @order_id, @status, @start_date, @end_date, @billing_interval, @billing_interval_qty, @cycles, @billing_anchor, @trial_ends_at, @cancel_at, @ends_at, @last_charge, @renews_at, @retries, @next_retry, @currency, @amount, @metadata, @cycles_processed, @total_revenue, @cancelled_at, NOW(), NOW())
-			  RETURNING acct_id, id, order_id, status, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at`
+	query := `INSERT INTO subscriptions (org_id, id, order_id, status, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at) 
+			  VALUES (@org_id, @id, @order_id, @status, @start_date, @end_date, @billing_interval, @billing_interval_qty, @cycles, @billing_anchor, @trial_ends_at, @cancel_at, @ends_at, @last_charge, @renews_at, @retries, @next_retry, @currency, @amount, @metadata, @cycles_processed, @total_revenue, @cancelled_at, NOW(), NOW())
+			  RETURNING org_id, id, order_id, status, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at`
 
 	metaJson, _ := json.Marshal(entity.Metadata)
 
 	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
-		"acct_id":              entity.AccountId,
+		"org_id":               entity.OrgId,
 		"id":                   entity.Id,
 		"order_id":             entity.OrderId,
 		"status":               entity.Status,
@@ -113,7 +113,7 @@ func (r *SubscriptionRepository) Create(ctx context.Context, entity entities.Sub
 		"total_revenue":        entity.TotalRevenue,
 		"cancelled_at":         entity.CancelledAt,
 	}).Scan(
-		&subscription.AccountId,
+		&subscription.OrgId,
 		&subscription.Id,
 		&subscription.OrderId,
 		&subscription.Status,

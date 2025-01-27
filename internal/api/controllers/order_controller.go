@@ -35,7 +35,7 @@ func (o OrderController) CreateOrder(c *gin.Context) {
 	}
 
 	order, err := o.service.CreateOrder(c.Request.Context(), orders.CreateOrderCommand{
-		AccountId: input.AccountId,
+		OrgId: input.OrgId,
 		Customer: orders.CreateOrderCommandCustomer{
 			ID:       input.Customer.ID,
 			Email:    input.Customer.Email,
