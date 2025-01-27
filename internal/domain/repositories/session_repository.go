@@ -3,7 +3,7 @@ package repositories
 import (
 	"context"
 	"payloop/internal/domain/entities"
-	"payloop/internal/domain/sessions"
+	"payloop/internal/domain/entities/sessions"
 )
 
 type SessionRepository interface {

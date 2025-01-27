@@ -5,7 +5,7 @@ import (
 	"errors"
 	"github.com/mdwt/payloop-cart/types"
 	"payloop/internal/domain/entities"
-	"payloop/internal/domain/orders"
+	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 	"time"

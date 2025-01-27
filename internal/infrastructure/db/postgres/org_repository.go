@@ -6,7 +6,7 @@ import (
 	_ "github.com/jackc/pgx/v5"
 	"github.com/segmentio/ksuid"
 	"payloop/internal/domain/entities"
-	"payloop/internal/domain/orgs"
+	"payloop/internal/domain/entities/orgs"
 	"payloop/internal/domain/repositories"
 
 	"payloop/internal/lib"

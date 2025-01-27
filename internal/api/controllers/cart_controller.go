@@ -6,7 +6,7 @@ import (
 	"payloop/internal/api/dto/mapper"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/services"
-	"payloop/internal/domain/carts"
+	"payloop/internal/domain/entities/carts"
 	"payloop/internal/lib"
 )
 

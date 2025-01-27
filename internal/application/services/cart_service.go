@@ -5,8 +5,8 @@ import (
 	"errors"
 	cartlib "github.com/mdwt/payloop-cart"
 	carttypes "github.com/mdwt/payloop-cart/types"
-	"payloop/internal/domain/carts"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/carts"
 	"payloop/internal/domain/repositories"
 
 	"payloop/internal/lib"

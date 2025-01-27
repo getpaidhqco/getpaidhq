@@ -3,10 +3,10 @@ package services
 import (
 	"context"
 	cart "github.com/mdwt/payloop-cart"
-	"payloop/internal/domain/carts"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/carts"
+	"payloop/internal/domain/entities/sessions"
 	"payloop/internal/domain/repositories"
-	"payloop/internal/domain/sessions"
 	"payloop/internal/lib"
 )
 

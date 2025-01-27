@@ -4,7 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 	"payloop/internal/application/services"
-	"payloop/internal/domain/orgs"
+	"payloop/internal/domain/entities/orgs"
 	"payloop/internal/lib"
 )
 

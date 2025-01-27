@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/services"
-	"payloop/internal/domain/orders"
+	"payloop/internal/domain/entities/orders"
 	"payloop/internal/lib"
 )
 

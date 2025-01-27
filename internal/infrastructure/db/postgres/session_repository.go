@@ -5,8 +5,8 @@ import (
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/sessions"
 	"payloop/internal/domain/repositories"
-	"payloop/internal/domain/sessions"
 	"payloop/internal/lib"
 )
 

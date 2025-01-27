@@ -2,8 +2,8 @@ package repositories
 
 import (
 	"context"
-	"payloop/internal/domain/carts"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/carts"
 )
 
 type CartRepository interface {

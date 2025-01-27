@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"payloop/internal/domain/entities"
-	"payloop/internal/domain/orgs"
+	"payloop/internal/domain/entities/orgs"
 	"payloop/internal/domain/repositories"
 )
 

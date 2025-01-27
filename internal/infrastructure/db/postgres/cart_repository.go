@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
-	"payloop/internal/domain/carts"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/carts"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 )
