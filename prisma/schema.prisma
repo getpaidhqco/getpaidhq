@@ -270,10 +270,32 @@ model Customer {
 
   orders Order[]
 
-  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org            Org             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  paymentMethods PaymentMethod[]
 
   @@id([orgId, id], map: "customer_primary_key")
   @@map("customers")
+}
+
+model PaymentMethod {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  name       String?
+  customerId String   @map("customer_id")
+  customer   Customer @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Cascade)
+
+  isDefault Boolean @map("is_default")
+
+  billingAddress Json?  @map("billing_address")
+  details        Json?
+  type           String
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([orgId, id], map: "paymentmethod_pk")
+  @@map("payment_methods")
 }
 
 model Subscription {
