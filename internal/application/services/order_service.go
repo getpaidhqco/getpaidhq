@@ -42,7 +42,7 @@ func NewOrderService(
 	}
 }
 
-func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderCommand) (entities.Order, error) {
+func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderCommand) (entities.Order, payment_providers.InitPaymentResponse, error) {
 	s.logger.Info("Creating order for cart", "cart", input.CartId)
 	orgId := input.OrgId
 	orderId := lib.GenerateId("order")
@@ -50,7 +50,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 	cart, err := s.cartRepository.FindById(ctx, orgId, input.CartId)
 	if err != nil {
 		s.logger.Error("Failed to find cart id ", "id", input.CartId, err.Error())
-		return entities.Order{}, errors.New("cart not found")
+		return entities.Order{}, payment_providers.InitPaymentResponse{}, errors.New("cart not found")
 	}
 
 	customer, err := s.customerRepository.Create(ctx, entities.Customer{
@@ -61,7 +61,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 	})
 	if err != nil {
 		s.logger.Error("Failed to create customer", err.Error())
-		return entities.Order{}, err
+		return entities.Order{}, payment_providers.InitPaymentResponse{}, err
 	}
 
 	order, err := s.orderRepository.Create(ctx, entities.Order{
@@ -80,7 +80,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 	})
 	if err != nil {
 		s.logger.Error("Failed to create order", err.Error())
-		return entities.Order{}, err
+		return entities.Order{}, payment_providers.InitPaymentResponse{}, err
 	}
 
 	// Go through the list of items in the cart and create the subscriptions for each item
@@ -91,13 +91,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 			_, err := s.subscriptionRepository.Create(ctx, sub)
 			if err != nil {
 				s.logger.Error("Failed to create subscription", err.Error())
-				return entities.Order{}, err
+				return entities.Order{}, payment_providers.InitPaymentResponse{}, err
 			}
 		}
 	}
 
 	// initialise the payment session with the payment processor
-	err = s.paymentGateway.InitPayment(ctx, payment_providers.InitPaymentCommand{
+	pspResponse, err := s.paymentGateway.InitPayment(ctx, payment_providers.InitPaymentCommand{
 		OrgId:    orgId,
 		Cart:     cart.Data,
 		Order:    order,
@@ -105,8 +105,8 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 	})
 	if err != nil {
 		s.logger.Error("Failed to initialise payment gateway", err.Error())
-		return entities.Order{}, err
+		return entities.Order{}, payment_providers.InitPaymentResponse{}, err
 	}
 
-	return order, nil
+	return order, pspResponse, nil
 }

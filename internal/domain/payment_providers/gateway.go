@@ -7,7 +7,7 @@ import (
 )
 
 type Gateway interface {
-	InitPayment(ctx context.Context, input InitPaymentCommand) error
+	InitPayment(ctx context.Context, input InitPaymentCommand) (InitPaymentResponse, error)
 }
 
 type InitPaymentCommand struct {
@@ -15,4 +15,8 @@ type InitPaymentCommand struct {
 	Cart     cart.Cart
 	Order    entities.Order
 	Customer entities.Customer
+}
+
+type InitPaymentResponse struct {
+	PspResponse interface{}
 }

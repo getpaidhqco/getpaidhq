@@ -34,7 +34,7 @@ func (o OrderController) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	order, err := o.service.CreateOrder(c.Request.Context(), orders.CreateOrderCommand{
+	order, psp, err := o.service.CreateOrder(c.Request.Context(), orders.CreateOrderCommand{
 		OrgId: input.OrgId,
 		Customer: orders.CreateOrderCommandCustomer{
 			ID:       input.Customer.ID,
@@ -53,5 +53,8 @@ func (o OrderController) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, order)
+	c.JSON(200, map[string]interface{}{
+		"order": order,
+		"psp":   psp,
+	})
 }

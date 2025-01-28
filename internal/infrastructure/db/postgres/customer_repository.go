@@ -42,7 +42,7 @@ func (r CustomerRepository) Create(ctx context.Context, entity entities.Customer
 	var customer entities.Customer
 	query := `INSERT INTO customers (org_id, id, email, name, created_at, updated_at) 
 		VALUES (@org_id, @id, @email, @name, now(), now())
-		RETURNING (org_id, id, email, name)`
+		RETURNING (org_id, id, name, email)`
 
 	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
 		"org_id": entity.OrgId,

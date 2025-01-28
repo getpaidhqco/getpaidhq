@@ -3,7 +3,6 @@ package paystack
 import (
 	"context"
 	paystacklib "github.com/mdwt/paystack-go"
-	"log"
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/lib"
 )
@@ -18,7 +17,7 @@ func NewPaystackGateway(logger lib.Logger) payment_providers.Gateway {
 	}
 }
 
-func (p Paystack) InitPayment(ctx context.Context, input payment_providers.InitPaymentCommand) error {
+func (p Paystack) InitPayment(ctx context.Context, input payment_providers.InitPaymentCommand) (payment_providers.InitPaymentResponse, error) {
 	apiKey := "sk_test_e39ce23869e6e677121a5e6ef691a8c3d835f0bb"
 
 	cart := input.Cart
@@ -26,10 +25,7 @@ func (p Paystack) InitPayment(ctx context.Context, input payment_providers.InitP
 	reference := input.Order.Reference
 	email := input.Customer.Email
 
-	// second param is an optional http client, allowing overriding of the HTTP client to use.
-	// This is useful if you're running in a Google AppEngine environment
-	// where the http.DefaultClient is not available.
-	client := paystacklib.NewClient(apiKey, nil)
+	client := paystacklib.NewClient(apiKey)
 
 	request := paystacklib.TransactionRequest{
 		CallbackURL: "https://www.example.com",
@@ -39,13 +35,13 @@ func (p Paystack) InitPayment(ctx context.Context, input payment_providers.InitP
 		Email:       email,
 	}
 
-	transaction, err := client.Transaction.Initialize(&request)
-
-	log.Printf("created Paystack transaction", transaction)
+	transaction, err := client.Transaction.Initialize(ctx, &request)
 	if err != nil {
 		p.logger.Errorf("failed to init paystack client", err.Error())
-		return err
+		return payment_providers.InitPaymentResponse{}, err
 	}
-
-	return nil
+	p.logger.Info("created Paystack transaction", "reference", transaction.Reference, "code", transaction.AccessCode)
+	return payment_providers.InitPaymentResponse{
+		PspResponse: transaction,
+	}, nil
 }

@@ -38,6 +38,7 @@ type Tx interface {
 type PgDatabase struct {
 	*pgxpool.Pool
 	pgx.Tx
+	logger Logger
 }
 
 var (
@@ -64,6 +65,7 @@ func NewDatabase(lc fx.Lifecycle, env Env, logger Logger) *PgDatabase {
 		pgInstance = &PgDatabase{
 			pool,
 			nil,
+			logger,
 		}
 	})
 
@@ -73,18 +75,19 @@ func NewDatabase(lc fx.Lifecycle, env Env, logger Logger) *PgDatabase {
 	return pgInstance
 }
 
-func (pg *PgDatabase) Ping(ctx context.Context) error {
-	return pg.Ping(ctx)
+func (d *PgDatabase) Ping(ctx context.Context) error {
+	return d.Ping(ctx)
 }
 
-func (pg *PgDatabase) Close() {
-	pg.Close()
+func (d *PgDatabase) Close() {
+	d.logger.Info("Closing database connection")
+	d.Pool.Close()
 }
 
-func (pg *PgDatabase) Begin(ctx context.Context) (Committer, error) {
-	return pg.Pool.Begin(ctx)
+func (d *PgDatabase) Begin(ctx context.Context) (Committer, error) {
+	return d.Pool.Begin(ctx)
 }
 
-func (pg *PgDatabase) Commit(ctx context.Context) (Committer, error) {
-	return pg.Pool.Begin(ctx)
+func (d *PgDatabase) Commit(ctx context.Context) (Committer, error) {
+	return d.Pool.Begin(ctx)
 }
