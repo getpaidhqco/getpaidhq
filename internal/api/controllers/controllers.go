@@ -9,4 +9,5 @@ var Module = fx.Options(
 	fx.Provide(NewOrgController),
 	fx.Provide(NewCartController),
 	fx.Provide(NewSessionController),
+	fx.Provide(NewWebhookController),
 )

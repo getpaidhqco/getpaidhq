@@ -2,6 +2,7 @@ package paystack
 
 import (
 	"context"
+	"encoding/json"
 	paystacklib "github.com/mdwt/paystack-go"
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/lib"
@@ -44,4 +45,30 @@ func (p Paystack) InitPayment(ctx context.Context, input payment_providers.InitP
 	return payment_providers.InitPaymentResponse{
 		PspResponse: transaction,
 	}, nil
+}
+
+func (p Paystack) HandleWebhook(ctx context.Context, data []byte) error {
+	p.logger.Info("handling Paystack webhook", "data", string(data))
+
+	var payload WebhookPayload
+	if err := json.Unmarshal(data, &payload); err != nil {
+		p.logger.Errorf("failed to unmarshal webhook payload", err.Error())
+		return err
+	}
+
+	switch payload.Event {
+	case "charge.success":
+		p.logger.Info("charge success")
+
+	case "charge.failed":
+		p.logger.Info("charge failed")
+	case "transfer.success":
+		p.logger.Info("transfer success")
+	case "transfer.failed":
+		p.logger.Info("transfer failed")
+	default:
+		p.logger.Info("unknown event", "event", payload.Event)
+	}
+
+	return nil
 }

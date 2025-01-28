@@ -17,6 +17,7 @@ func NewWebhookService(
 	}
 }
 
-func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, input interface{}) {
+func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, input []byte) error {
 	s.logger.Info("Webhook ")
+	return nil
 }

@@ -8,6 +8,7 @@ import (
 
 type Gateway interface {
 	InitPayment(ctx context.Context, input InitPaymentCommand) (InitPaymentResponse, error)
+	HandleWebhook(ctx context.Context, data []byte) error
 }
 
 type InitPaymentCommand struct {
