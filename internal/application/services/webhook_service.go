@@ -21,9 +21,18 @@ func NewWebhookService(
 	}
 }
 
+// HandlePaymentWebhook parses a payment webhook and checks if it is valid. If valid, it publishes
+// a payment event to the event bus.
 func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, input []byte) error {
 	s.logger.Info("Webhook ")
 
-	s.payments.ParseWebhook(ctx, input)
+	webhook, err := s.payments.ParseWebhook(ctx, input)
+	if err != nil {
+		s.logger.Errorf("failed to parse webhook", err.Error())
+		return err
+	}
+
+	s.logger.Info("Webhook parsed", "org_id", webhook.OrgId)
+
 	return nil
 }

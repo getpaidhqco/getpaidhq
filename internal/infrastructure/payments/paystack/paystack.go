@@ -81,7 +81,7 @@ func (p Paystack) ParseWebhook(ctx context.Context, data []byte) (payment_provid
 			OrderId: webhook.Metadata.OrderID,
 			Psp:     PAYSTACK,
 			Status:  "success",
-			RawData: []byte(payload.Data.(string)),
+			RawData: data,
 		}, nil
 
 	case "charge.failed":

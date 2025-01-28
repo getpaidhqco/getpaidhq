@@ -361,6 +361,15 @@ model Payment {
   subscriptionId String?       @map("subscription_id")
   subscription   Subscription? @relation(fields: [orgId, subscriptionId], references: [orgId, id])
 
+  amount   Int
+  currency String
+
+  status PaymentStatus
+
+  psp_fee      Int
+  platform_fee Int
+  net_amount   Int
+
   metadata Json?
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -370,4 +379,15 @@ model Payment {
 
   @@id([orgId, id])
   @@map("payments")
+}
+
+enum PaymentStatus {
+  pending
+  failed
+  succeeded
+  refunded
+  partial_refund
+  cancelled
+  expired
+  fraudulent
 }

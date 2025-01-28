@@ -105,8 +105,9 @@ func TestPaystack_HandleWebhook(t *testing.T) {
 		fx.Invoke(func(paystack payment_providers.Gateway) {
 			logger.Info("Starting application")
 
-			err := paystack.ParseWebhook(ctx, []byte(event))
+			p, err := paystack.ParseWebhook(ctx, []byte(event))
 			assert.Equal(t, err, nil)
+			assert.Equal(t, p.OrgId, "mollie")
 		}),
 	))
 	app.Start(ctx)
