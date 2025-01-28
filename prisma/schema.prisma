@@ -221,6 +221,8 @@ model Order {
   customer   Customer    @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Restrict)
   status     OrderStatus
 
+  reference String
+
   sessionId String @map("session_id")
 
   currency String

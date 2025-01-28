@@ -2,7 +2,7 @@ package bootstrap
 
 import (
 	"github.com/spf13/cobra"
-	"payloop/internal/bootstrap/commands"
+	"payloop/internal/application/bootstrap/commands"
 )
 
 // This is a command runner or cli for api architecture in golang.

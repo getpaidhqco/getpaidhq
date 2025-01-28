@@ -14,7 +14,8 @@ type Env struct {
 	LogLevel    string `mapstructure:"LOG_LEVEL"`
 	DBUrl       string `mapstructure:"DATABASE_URL"`
 
-	JWTSecret string `mapstructure:"JWT_SECRET"`
+	JWTSecret      string `mapstructure:"JWT_SECRET"`
+	PaystackSecret string `mapstructure:"PAYSTACK_SECRET"`
 }
 
 // NewEnv creates a new environment

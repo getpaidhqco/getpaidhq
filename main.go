@@ -1,7 +1,7 @@
 package main
 
 import (
-	"payloop/internal/bootstrap"
+	"payloop/internal/application/bootstrap"
 )
 
 func main() {

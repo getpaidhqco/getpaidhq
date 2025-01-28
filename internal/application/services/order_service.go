@@ -6,6 +6,7 @@ import (
 	"github.com/mdwt/payloop-cart/types"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
+	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 	"time"
@@ -17,6 +18,7 @@ type OrderService struct {
 	orderRepository        repositories.OrderRepository
 	customerRepository     repositories.CustomerRepository
 	subscriptionRepository repositories.SubscriptionRepository
+	paymentGateway         payment_providers.Gateway
 	logger                 lib.Logger
 }
 
@@ -26,6 +28,7 @@ func NewOrderService(
 	orderRepository repositories.OrderRepository,
 	customerRepository repositories.CustomerRepository,
 	subscriptionRepository repositories.SubscriptionRepository,
+	paymentGateway payment_providers.Gateway,
 	logger lib.Logger,
 ) OrderService {
 	return OrderService{
@@ -35,6 +38,7 @@ func NewOrderService(
 		subscriptionRepository: subscriptionRepository,
 		orderRepository:        orderRepository,
 		logger:                 logger,
+		paymentGateway:         paymentGateway,
 	}
 }
 
@@ -85,6 +89,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 				return entities.Order{}, err
 			}
 		}
+	}
+
+	// initialise the payment session with the payment processor
+	err = s.paymentGateway.InitPayment()
+	if err != nil {
+		s.logger.Error("Failed to initialise payment gateway", err.Error())
+		return entities.Order{}, err
 	}
 
 	return order, nil

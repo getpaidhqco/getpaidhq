@@ -6,6 +6,7 @@ type Order struct {
 	OrgId      string            `json:"org_id"`
 	Id         string            `json:"id"`
 	CustomerId string            `json:"customer_id"`
+	Reference  string            `json:"reference"`
 	Status     OrderStatus       `json:"status"`
 	SessionId  string            `json:"session_id"`
 	CartId     string            `json:"cart_id"`
