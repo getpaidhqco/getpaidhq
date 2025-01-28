@@ -3,10 +3,13 @@ package paystack
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	paystacklib "github.com/mdwt/paystack-go"
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/lib"
 )
+
+var PAYSTACK = "Paystack"
 
 type Paystack struct {
 	logger lib.Logger
@@ -34,6 +37,16 @@ func (p Paystack) InitPayment(ctx context.Context, input payment_providers.InitP
 		Currency:    currency,
 		Amount:      float32(cart.Total),
 		Email:       email,
+		Metadata: paystacklib.Metadata{
+			"order_id": input.Order.Id,
+			"cart_id":  input.Cart.Id,
+			"org_id":   input.OrgId,
+			"custom_fields": []paystacklib.MetadataCustomField{{
+				DisplayName:  "order_id",
+				VariableName: "Order#",
+				Value:        input.Order.Id,
+			}},
+		},
 	}
 
 	transaction, err := client.Transaction.Initialize(ctx, &request)
@@ -47,7 +60,7 @@ func (p Paystack) InitPayment(ctx context.Context, input payment_providers.InitP
 	}, nil
 }
 
-func (p Paystack) HandleWebhook(ctx context.Context, data []byte) error {
+func (p Paystack) ParseWebhook(ctx context.Context, data []byte) (payment_providers.PaymentWebhookContext, error) {
 	p.logger.Info("handling Paystack webhook", "data", string(data))
 
 	var payload WebhookPayload
@@ -58,8 +71,18 @@ func (p Paystack) HandleWebhook(ctx context.Context, data []byte) error {
 
 	switch payload.Event {
 	case "charge.success":
-		p.logger.Info("charge success")
-
+		webhook, err := p.parseChargeSuccess(payload.Data)
+		if err != nil {
+			p.logger.Errorf("failed to parse charge success", err.Error())
+			return err
+		}
+		return payment_providers.PaymentWebhookContext{
+			OrgId:   webhook.Metadata.OrgID,
+			OrderId: webhook.Metadata.OrderID,
+			Psp:     PAYSTACK,
+			Status:  "success",
+			RawData: []byte(payload.Data.(string)),
+		}, nil
 	case "charge.failed":
 		p.logger.Info("charge failed")
 	case "transfer.success":
@@ -71,4 +94,23 @@ func (p Paystack) HandleWebhook(ctx context.Context, data []byte) error {
 	}
 
 	return nil
+}
+
+func (p Paystack) ValidateWebhook(ctx context.Context, data []byte) error {
+	return nil
+}
+
+func (p Paystack) parseChargeSuccess(data interface{}) (TransactionSuccessful, error) {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return TransactionSuccessful{}, errors.New("failed to marshal data to JSON")
+	}
+
+	var payload TransactionSuccessful
+	if err := json.Unmarshal(jsonData, &payload); err != nil {
+		return TransactionSuccessful{}, errors.New("failed to unmarshal JSON to TransactionSuccessful")
+	}
+
+	p.logger.Info("handling charge success", "reference", payload.Reference)
+	return payload, nil
 }

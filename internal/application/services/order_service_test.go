@@ -30,7 +30,7 @@ func TestCreateOrder(t *testing.T) {
 		fx.Invoke(func(orderService OrderService) {
 			logger.Info("Starting application")
 
-			_, err := orderService.CreateOrder(ctx, orders.CreateOrderCommand{
+			_, _, err := orderService.CreateOrder(ctx, orders.CreateOrderCommand{
 				CartId: "cart_id",
 				OrgId:  "org_id",
 				Customer: orders.CreateOrderCommandCustomer{
