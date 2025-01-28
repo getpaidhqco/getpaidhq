@@ -66,7 +66,7 @@ func (p Paystack) ParseWebhook(ctx context.Context, data []byte) (payment_provid
 	var payload WebhookPayload
 	if err := json.Unmarshal(data, &payload); err != nil {
 		p.logger.Errorf("failed to unmarshal webhook payload", err.Error())
-		return err
+		return payment_providers.PaymentWebhookContext{}, err
 	}
 
 	switch payload.Event {
@@ -74,7 +74,7 @@ func (p Paystack) ParseWebhook(ctx context.Context, data []byte) (payment_provid
 		webhook, err := p.parseChargeSuccess(payload.Data)
 		if err != nil {
 			p.logger.Errorf("failed to parse charge success", err.Error())
-			return err
+			return payment_providers.PaymentWebhookContext{}, err
 		}
 		return payment_providers.PaymentWebhookContext{
 			OrgId:   webhook.Metadata.OrgID,
@@ -83,6 +83,7 @@ func (p Paystack) ParseWebhook(ctx context.Context, data []byte) (payment_provid
 			Status:  "success",
 			RawData: []byte(payload.Data.(string)),
 		}, nil
+
 	case "charge.failed":
 		p.logger.Info("charge failed")
 	case "transfer.success":
@@ -93,7 +94,7 @@ func (p Paystack) ParseWebhook(ctx context.Context, data []byte) (payment_provid
 		p.logger.Info("unknown event", "event", payload.Event)
 	}
 
-	return nil
+	return payment_providers.PaymentWebhookContext{}, errors.New("unknown event")
 }
 
 func (p Paystack) ValidateWebhook(ctx context.Context, data []byte) error {
