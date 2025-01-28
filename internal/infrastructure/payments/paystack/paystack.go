@@ -12,7 +12,7 @@ type Paystack struct {
 	logger lib.Logger
 }
 
-func NewPaystack(logger lib.Logger) payment_providers.Gateway {
+func NewPaystackGateway(logger lib.Logger) payment_providers.Gateway {
 	return Paystack{
 		logger: logger,
 	}
@@ -31,13 +31,15 @@ func (p Paystack) InitPayment(ctx context.Context, input payment_providers.InitP
 	// where the http.DefaultClient is not available.
 	client := paystacklib.NewClient(apiKey, nil)
 
-	transaction, err := client.Transaction.Initialize(&paystacklib.TransactionRequest{
+	request := paystacklib.TransactionRequest{
 		CallbackURL: "https://www.example.com",
 		Reference:   reference,
 		Currency:    currency,
 		Amount:      float32(cart.Total),
 		Email:       email,
-	})
+	}
+
+	transaction, err := client.Transaction.Initialize(&request)
 
 	log.Printf("created Paystack transaction", transaction)
 	if err != nil {

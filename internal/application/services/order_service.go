@@ -67,6 +67,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 	order, err := s.orderRepository.Create(ctx, entities.Order{
 		OrgId:      orgId,
 		Id:         orderId,
+		Reference:  orderId,
 		CustomerId: customer.ID,
 		Status:     entities.OrderStatusPending,
 		SessionId:  "-",
@@ -77,6 +78,10 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 		CreatedAt:  time.Now(),
 		UpdatedAt:  time.Now(),
 	})
+	if err != nil {
+		s.logger.Error("Failed to create order", err.Error())
+		return entities.Order{}, err
+	}
 
 	// Go through the list of items in the cart and create the subscriptions for each item
 	for _, item := range cart.Data.Items {
@@ -92,7 +97,12 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 	}
 
 	// initialise the payment session with the payment processor
-	err = s.paymentGateway.InitPayment()
+	err = s.paymentGateway.InitPayment(ctx, payment_providers.InitPaymentCommand{
+		OrgId:    orgId,
+		Cart:     cart.Data,
+		Order:    order,
+		Customer: customer,
+	})
 	if err != nil {
 		s.logger.Error("Failed to initialise payment gateway", err.Error())
 		return entities.Order{}, err

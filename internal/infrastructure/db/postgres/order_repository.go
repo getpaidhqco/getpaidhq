@@ -52,9 +52,9 @@ func (r OrderRepository) Create(ctx context.Context, entity entities.Order) (ent
 
 	var order entities.Order
 
-	query := `INSERT INTO orders (org_id,id,customer_id,cart_id,status,session_id,currency,total,metadata, created_at, updated_at) 
-			  VALUES (@org_id,@id,@customer_id,@cart_id,@status,@session_id, @currency,@total,@metadata, NOW(), NOW())
-			  RETURNING (org_id,id,customer_id,status,session_id,cart_id,currency,total,metadata,created_at, updated_at)`
+	query := `INSERT INTO orders (org_id,id,customer_id,cart_id,reference,status,session_id,currency,total,metadata, created_at, updated_at) 
+			  VALUES (@org_id,@id,@customer_id,@cart_id,@reference,@status,@session_id, @currency,@total,@metadata, NOW(), NOW())
+			  RETURNING (org_id,id,customer_id,reference,status,session_id,cart_id,currency,total,metadata,created_at, updated_at)`
 
 	metaJson, _ := json.Marshal(entity.Metadata)
 
@@ -63,6 +63,7 @@ func (r OrderRepository) Create(ctx context.Context, entity entities.Order) (ent
 		"id":          entity.Id,
 		"customer_id": entity.CustomerId,
 		"cart_id":     entity.CartId,
+		"reference":   entity.Reference,
 		"session_id":  entity.SessionId,
 		"status":      entity.Status,
 		"currency":    entity.Currency,

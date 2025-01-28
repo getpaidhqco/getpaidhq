@@ -29,9 +29,9 @@ func NewCartRepository(database lib.Database, logger lib.Logger) repositories.Ca
 
 func (r CartRepository) FindById(ctx context.Context, orgId string, id string) (entities.Cart, error) {
 	var cart entities.Cart
-	err := r.Pool.QueryRow(ctx, `SELECT orgId,id,data FROM carts WHERE orgId=@orgId AND id=@id`, pgx.NamedArgs{
-		"orgId": orgId,
-		"id":    id,
+	err := r.Pool.QueryRow(ctx, `SELECT org_id,id,data FROM carts WHERE org_id=@org_id AND id=@id`, pgx.NamedArgs{
+		"org_id": orgId,
+		"id":     id,
 	}).Scan(&cart.OrgId,
 		&cart.Id,
 		&cart.Data)
