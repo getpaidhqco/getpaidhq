@@ -20,7 +20,7 @@ type Temporal struct {
 func NewTemporalEngine(
 	logger lib.Logger,
 	paymentSuccessWorkflow workflow.Workflow,
-// completeOrderStep workflow.Step,
+	// completeOrderStep workflow.Step,
 ) workflow.Engine {
 	// The client is a heavyweight object that should be created once per process.
 	c, err := client.Dial(client.Options{
@@ -31,7 +31,7 @@ func NewTemporalEngine(
 	}
 	logger.Infof("Temporal engine initialized")
 	w := worker.New(c, "events", worker.Options{})
-	w.RegisterWorkflow(paymentSuccessWorkflow.Start)
+	//w.RegisterWorkflow(paymentSuccessWorkflow.Start)
 	//w.RegisterActivity(completeOrderStep.Execute)
 	err = w.Start()
 	if err != nil {

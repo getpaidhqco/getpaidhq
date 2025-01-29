@@ -14,10 +14,9 @@ type PaymentSuccessWorkflow struct {
 	logger            lib.Logger
 }
 
-func NewPaymentSuccessWorkflow(logger lib.Logger, completeOrderStep workflow.Step) PaymentSuccessWorkflow {
+func NewPaymentSuccessWorkflow(logger lib.Logger) PaymentSuccessWorkflow {
 	return PaymentSuccessWorkflow{
-		logger:            logger,
-		completeOrderStep: completeOrderStep,
+		logger: logger,
 	}
 }
 
