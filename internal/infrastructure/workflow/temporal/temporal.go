@@ -5,6 +5,7 @@ import (
 	"go.temporal.io/sdk/client"
 	"log"
 	"payloop/internal/domain/workflow"
+	"payloop/internal/infrastructure/workflow/temporal/workflows"
 	"payloop/internal/lib"
 )
 
@@ -29,7 +30,7 @@ func NewTemporalEngine(logger lib.Logger) workflow.Engine {
 	}
 }
 
-func (t Temporal) StartWorkflow(ctx context.Context, id string, payload interface{}) error {
+func (t Temporal) StartWorkflow(ctx context.Context, id string, payload interface{}) (workflow.Result, error) {
 	workflowId := lib.GenerateId("workflow")
 	// start workflow
 	workflowOptions := client.StartWorkflowOptions{
@@ -37,10 +38,10 @@ func (t Temporal) StartWorkflow(ctx context.Context, id string, payload interfac
 		TaskQueue: id,
 	}
 
-	we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, PaymentSuccessWorkflow, payload)
+	we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, workflows.PaymentSuccessWorkflow, payload)
 	if err != nil {
 		t.logger.Error("Unable to execute workflow", "err", err.Error())
-		return err
+		return workflow.Result{}, err
 	}
 	t.logger.Info("Started workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID())
 
@@ -50,5 +51,9 @@ func (t Temporal) StartWorkflow(ctx context.Context, id string, payload interfac
 		t.logger.Error("Unable to get workflow result", "err", err.Error())
 	}
 	t.logger.Info("Finished workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID(), "result", result)
-	return nil
+	return workflow.Result{
+		Success: true,
+		Message: "success",
+		Payload: result,
+	}, nil
 }

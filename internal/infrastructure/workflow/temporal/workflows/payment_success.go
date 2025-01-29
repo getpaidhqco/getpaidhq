@@ -1,4 +1,4 @@
-package temporal
+package workflows
 
 import (
 	"payloop/internal/infrastructure/workflow/temporal/activities"
