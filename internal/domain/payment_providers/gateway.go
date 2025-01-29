@@ -22,10 +22,17 @@ type InitPaymentResponse struct {
 	PspResponse interface{}
 }
 
+type PaymentWebhookType string
+
+const (
+	PaymentSuccess PaymentWebhookType = "payment.success"
+)
+
 type PaymentWebhookContext struct {
-	OrgId   string `json:"org_id"`
-	OrderId string `json:"order_id"`
-	Psp     string `json:"psp"`
-	Status  string `json:"status"`
-	RawData []byte `json:"raw_data"`
+	Type    PaymentWebhookType `json:"type"`
+	OrgId   string             `json:"org_id"`
+	OrderId string             `json:"order_id"`
+	Psp     string             `json:"psp"`
+	Status  string             `json:"status"`
+	RawData []byte             `json:"raw_data"`
 }

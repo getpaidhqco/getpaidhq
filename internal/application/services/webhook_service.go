@@ -2,7 +2,10 @@ package services
 
 import (
 	"context"
+	"go.temporal.io/sdk/workflow"
+	"payloop/internal/api/controllers"
 	"payloop/internal/domain/payment_providers"
+	"payloop/internal/infrastructure/workflow/temporal/activities"
 	"payloop/internal/lib"
 )
 
@@ -35,4 +38,14 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, input []byte)
 	s.logger.Info("Webhook parsed", "org_id", webhook.OrgId)
 
 	return nil
+}
+
+// TODO this needs to be handled by a worker from a queue
+func startWorkflow(event payment_providers.PaymentWebhookContext) {
+	switch event.Type {
+	case payment_providers.PaymentSuccess:
+		// start workflow
+		workflow.ExecuteActivity(ctx1, activities.CompleteOrderActivity, payload).Get(ctx1, nil)
+
+	}
 }

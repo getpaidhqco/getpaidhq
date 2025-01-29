@@ -8,6 +8,7 @@ import (
 	"payloop/internal/application/services"
 	"payloop/internal/infrastructure/db/postgres"
 	"payloop/internal/infrastructure/payments/paystack"
+	"payloop/internal/infrastructure/workflow/temporal"
 	"payloop/internal/lib"
 )
 
@@ -18,5 +19,10 @@ var CommonModules = fx.Options(
 	services.Module,
 	middlewares.Module,
 	postgres.Module,
+
+	// Payment provider
 	paystack.Module,
+
+	// Workflow engine
+	temporal.Module,
 )
