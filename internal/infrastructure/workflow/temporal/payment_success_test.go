@@ -7,9 +7,9 @@ import (
 	"go.uber.org/fx/fxevent"
 	"payloop/internal/api/middlewares"
 	"payloop/internal/application/services"
-	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/workflow"
 	"payloop/internal/infrastructure/db/postgres"
+	"payloop/internal/infrastructure/workflow/temporal/workflows"
 	"payloop/internal/lib"
 	"testing"
 )
@@ -31,7 +31,11 @@ func TestTemporal_StartWorkflow(t *testing.T) {
 		fx.Invoke(func(temporal workflow.Engine) {
 			logger.Info("Starting application")
 
-			p, err := temporal.StartWorkflow(ctx, "payment.success", payment_providers.PaymentWebhookContext{})
+			_, err := temporal.StartWorkflow(ctx, "payment.success", workflows.WorkflowContext{
+				EventId: "test1",
+				OrderId: "123",
+			})
+			assert.Equal(t, err, nil)
 			assert.Equal(t, err, nil)
 		}),
 	))

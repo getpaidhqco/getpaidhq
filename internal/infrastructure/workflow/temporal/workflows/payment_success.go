@@ -8,8 +8,8 @@ import (
 )
 
 type WorkflowContext struct {
-	WorkflowID string
-	OrderId    string
+	EventId string
+	OrderId string
 }
 
 // PaymentSuccessWorkflow executes tasks for processing a successful payment
@@ -23,7 +23,7 @@ func PaymentSuccessWorkflow(ctx workflow.Context, payload WorkflowContext) (resu
 
 	err = workflow.ExecuteActivity(ctx1, activities.CompleteOrderActivity, payload).Get(ctx1, nil)
 	if err != nil {
-		logger.Error("Failed to create expense report", "Error", err)
+		logger.Error("Failed to create activityu", "Error", err)
 		return "", err
 	}
 
