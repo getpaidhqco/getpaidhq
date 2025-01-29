@@ -44,6 +44,11 @@ func (l Logger) GetGinLogger() GinLogger {
 	}
 }
 
+// GetZapLogger get the zap logger
+func (l Logger) GetZapLogger() *zap.Logger {
+	return zapLogger
+}
+
 // GetFxLogger gets logger for go-fx
 func (l *Logger) GetFxLogger() fxevent.Logger {
 	logger := zapLogger.WithOptions(

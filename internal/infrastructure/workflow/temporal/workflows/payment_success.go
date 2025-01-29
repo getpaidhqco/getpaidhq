@@ -10,8 +10,7 @@ import (
 )
 
 type PaymentSuccessWorkflow struct {
-	completeOrderStep workflow.Step
-	logger            lib.Logger
+	logger lib.Logger
 }
 
 func NewPaymentSuccessWorkflow(logger lib.Logger) PaymentSuccessWorkflow {
@@ -30,7 +29,12 @@ func (p PaymentSuccessWorkflow) Start(ctx temporal.Context, payload interface{})
 	ctx1 := temporal.WithActivityOptions(ctx, ao)
 	logger := temporal.GetLogger(ctx)
 
-	err := temporal.ExecuteActivity(ctx1, activities.CompleteOrder, payload).Get(ctx1, nil)
+	// Complete Order
+	err := temporal.ExecuteActivity(ctx1, activities.CompleteOrder, workflow.CompleteOrderStepInput{
+		OrgId:   "mollie",
+		OrderId: "",
+	}).Get(ctx1, nil)
+
 	if err != nil {
 		logger.Error("Failed to create activityu", "Error", err)
 		return workflow.Result{}, nil

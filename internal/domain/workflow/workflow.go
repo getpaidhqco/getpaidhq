@@ -9,8 +9,13 @@ type Engine interface {
 type Workflow interface {
 	Start(ctx interface{}, payload interface{}) (Result, error)
 }
-type Step interface {
-	Execute(ctx interface{}, payload interface{}) (Result, error)
+type PaymentSteps interface {
+	CompleteOrder(payload CompleteOrderStepInput) (Result, error)
+}
+
+type CompleteOrderStepInput struct {
+	OrgId   string
+	OrderId string
 }
 
 type Result struct {

@@ -4,7 +4,6 @@ import (
 	"context"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
-	"log"
 	"payloop/internal/domain/workflow"
 	"payloop/internal/infrastructure/workflow/temporal/activities"
 	"payloop/internal/infrastructure/workflow/temporal/workflows"
@@ -22,25 +21,29 @@ func NewTemporalEngine(
 	logger lib.Logger,
 ) workflow.Engine {
 	// The client is a heavyweight object that should be created once per process.
+	// Set our Zap logger so that workflows and activities can use it
 	c, err := client.Dial(client.Options{
 		HostPort: client.DefaultHostPort,
+		Logger:   NewZapAdapter(logger.GetZapLogger()),
 	})
 	if err != nil {
 		logger.Error("Unable to create client: ", err.Error())
 	}
-	logger.Infof("Temporal engine initialized")
 
 	wf := workflows.NewPaymentSuccessWorkflow(logger)
 
+	// Start a worker and register all workflows and activities for this instance.
+	// It's recommended by Temporal to have one worker per process,
+	// and to start out with one taskQueue.
 	w := worker.New(c, "events", worker.Options{})
 	w.RegisterWorkflow(wf.Start)
 	w.RegisterActivity(activities.CompleteOrder)
 	err = w.Start()
 	if err != nil {
-		log.Fatalln("Unable to start worker", err)
+		logger.Fatalln("Unable to start worker", err)
 	}
 
-	logger.Infof("One worker initialized")
+	logger.Infof("Temporal engine initialized with worker")
 	return Temporal{
 		logger:                 logger,
 		client:                 c,
