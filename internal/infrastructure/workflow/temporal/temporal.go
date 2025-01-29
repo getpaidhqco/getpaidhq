@@ -6,29 +6,33 @@ import (
 	"go.temporal.io/sdk/worker"
 	"log"
 	"payloop/internal/domain/workflow"
-	"payloop/internal/infrastructure/workflow/temporal/activities"
-	"payloop/internal/infrastructure/workflow/temporal/workflows"
 	"payloop/internal/lib"
 )
 
 type Temporal struct {
-	logger lib.Logger
-	client client.Client
-	worker worker.Worker
+	logger                 lib.Logger
+	client                 client.Client
+	worker                 worker.Worker
+	paymentSuccessWorkflow workflow.Workflow
+	completeOrderStep      workflow.Step
 }
 
-func NewTemporalEngine(logger lib.Logger) workflow.Engine {
+func NewTemporalEngine(
+	logger lib.Logger,
+	paymentSuccessWorkflow workflow.Workflow,
+// completeOrderStep workflow.Step,
+) workflow.Engine {
 	// The client is a heavyweight object that should be created once per process.
 	c, err := client.Dial(client.Options{
 		HostPort: client.DefaultHostPort,
 	})
 	if err != nil {
-		log.Fatalln("Unable to create client", err)
+		logger.Error("Unable to create client: ", err.Error())
 	}
 	logger.Infof("Temporal engine initialized")
 	w := worker.New(c, "events", worker.Options{})
-	w.RegisterWorkflow(workflows.PaymentSuccessWorkflow)
-	w.RegisterActivity(activities.CompleteOrderActivity)
+	w.RegisterWorkflow(paymentSuccessWorkflow.Start)
+	//w.RegisterActivity(completeOrderStep.Execute)
 	err = w.Start()
 	if err != nil {
 		log.Fatalln("Unable to start worker", err)
@@ -50,7 +54,7 @@ func (t Temporal) StartWorkflow(ctx context.Context, id string, payload interfac
 		TaskQueue: "events",
 	}
 
-	we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, workflows.PaymentSuccessWorkflow, payload)
+	we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, t.paymentSuccessWorkflow.Start, payload)
 	if err != nil {
 		t.logger.Error("Unable to execute workflow", "err", err.Error())
 		return workflow.Result{}, err

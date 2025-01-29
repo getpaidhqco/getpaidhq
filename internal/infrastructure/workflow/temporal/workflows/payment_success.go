@@ -1,27 +1,44 @@
 package workflows
 
 import (
+	"payloop/internal/domain/workflow"
 	"payloop/internal/infrastructure/workflow/temporal/activities"
+	"payloop/internal/lib"
 	"time"
 
-	"go.temporal.io/sdk/workflow"
+	temporal "go.temporal.io/sdk/workflow"
 )
 
-// PaymentSuccessWorkflow executes tasks for processing a successful payment
-func PaymentSuccessWorkflow(ctx workflow.Context, payload interface{}) (result string, err error) {
+type PaymentSuccessWorkflow struct {
+	completeOrderStep workflow.Step
+	logger            lib.Logger
+}
+
+func NewPaymentSuccessWorkflow(logger lib.Logger, completeOrderStep workflow.Step) PaymentSuccessWorkflow {
+	return PaymentSuccessWorkflow{
+		logger:            logger,
+		completeOrderStep: completeOrderStep,
+	}
+}
+
+// Execute executes tasks for processing a successful payment
+func (p PaymentSuccessWorkflow) Start(ctx interface{}, payload interface{}) (workflow.Result, error) {
+	temporalCtx := ctx.(temporal.Context)
+
 	// step 1, mark the order as paid
-	ao := workflow.ActivityOptions{
+	ao := temporal.ActivityOptions{
 		StartToCloseTimeout: 1000 * time.Second,
 	}
-	ctx1 := workflow.WithActivityOptions(ctx, ao)
-	logger := workflow.GetLogger(ctx)
+	ctx1 := temporal.WithActivityOptions(temporalCtx, ao)
+	logger := temporal.GetLogger(temporalCtx)
 
-	err = workflow.ExecuteActivity(ctx1, activities.CompleteOrderActivity, payload).Get(ctx1, nil)
+	var a *activities.CompleteOrderActivity
+	err := temporal.ExecuteActivity(ctx1, a.Execute, payload).Get(ctx1, nil)
 	if err != nil {
 		logger.Error("Failed to create activityu", "Error", err)
-		return "", err
+		return workflow.Result{}, nil
 	}
 
 	logger.Info("Workflow completed.")
-	return "COMPLETED", nil
+	return workflow.Result{}, nil
 }

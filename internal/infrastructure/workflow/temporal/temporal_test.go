@@ -9,6 +9,7 @@ import (
 	"payloop/internal/application/services"
 	"payloop/internal/domain/workflow"
 	"payloop/internal/infrastructure/db/postgres"
+	"payloop/internal/infrastructure/payments/paystack"
 	"payloop/internal/lib"
 	"testing"
 )
@@ -22,6 +23,7 @@ func TestTemporal_StartWorkflow(t *testing.T) {
 		services.Module,
 		middlewares.Module,
 		postgres.Module,
+		paystack.Module,
 		Module,
 	), fx.Options(
 		fx.WithLogger(func() fxevent.Logger {
