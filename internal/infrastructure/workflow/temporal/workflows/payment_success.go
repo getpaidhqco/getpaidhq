@@ -21,18 +21,16 @@ func NewPaymentSuccessWorkflow(logger lib.Logger) PaymentSuccessWorkflow {
 }
 
 // Execute executes tasks for processing a successful payment
-func (p PaymentSuccessWorkflow) Start(ctx interface{}, payload interface{}) (workflow.Result, error) {
-	temporalCtx := ctx.(temporal.Context)
+func (p PaymentSuccessWorkflow) Start(ctx temporal.Context, payload interface{}) (workflow.Result, error) {
 
 	// step 1, mark the order as paid
 	ao := temporal.ActivityOptions{
 		StartToCloseTimeout: 1000 * time.Second,
 	}
-	ctx1 := temporal.WithActivityOptions(temporalCtx, ao)
-	logger := temporal.GetLogger(temporalCtx)
+	ctx1 := temporal.WithActivityOptions(ctx, ao)
+	logger := temporal.GetLogger(ctx)
 
-	var a *activities.CompleteOrderActivity
-	err := temporal.ExecuteActivity(ctx1, a.Execute, payload).Get(ctx1, nil)
+	err := temporal.ExecuteActivity(ctx1, activities.CompleteOrder, payload).Get(ctx1, nil)
 	if err != nil {
 		logger.Error("Failed to create activityu", "Error", err)
 		return workflow.Result{}, nil
