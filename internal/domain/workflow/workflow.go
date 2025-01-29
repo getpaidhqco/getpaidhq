@@ -11,3 +11,8 @@ type Result struct {
 	Message string
 	Payload interface{}
 }
+
+type WorkflowContext struct {
+	EventId string
+	OrderId string
+}

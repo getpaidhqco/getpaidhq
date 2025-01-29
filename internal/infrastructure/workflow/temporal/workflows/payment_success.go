@@ -7,13 +7,8 @@ import (
 	"go.temporal.io/sdk/workflow"
 )
 
-type WorkflowContext struct {
-	EventId string
-	OrderId string
-}
-
 // PaymentSuccessWorkflow executes tasks for processing a successful payment
-func PaymentSuccessWorkflow(ctx workflow.Context, payload WorkflowContext) (result string, err error) {
+func PaymentSuccessWorkflow(ctx workflow.Context, payload workflow.WorkflowContext) (result string, err error) {
 	// step 1, mark the order as paid
 	ao := workflow.ActivityOptions{
 		StartToCloseTimeout: 1000 * time.Second,

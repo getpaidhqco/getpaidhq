@@ -3,8 +3,10 @@ package temporal
 import (
 	"context"
 	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/worker"
 	"log"
 	"payloop/internal/domain/workflow"
+	"payloop/internal/infrastructure/workflow/temporal/activities"
 	"payloop/internal/infrastructure/workflow/temporal/workflows"
 	"payloop/internal/lib"
 )
@@ -12,6 +14,7 @@ import (
 type Temporal struct {
 	logger lib.Logger
 	client client.Client
+	worker worker.Worker
 }
 
 func NewTemporalEngine(logger lib.Logger) workflow.Engine {
@@ -22,11 +25,20 @@ func NewTemporalEngine(logger lib.Logger) workflow.Engine {
 	if err != nil {
 		log.Fatalln("Unable to create client", err)
 	}
-	defer c.Close()
+	logger.Infof("Temporal engine initialized")
+	w := worker.New(c, "events", worker.Options{})
+	w.RegisterWorkflow(workflows.PaymentSuccessWorkflow)
+	w.RegisterActivity(activities.CompleteOrderActivity)
+	err = w.Start()
+	if err != nil {
+		log.Fatalln("Unable to start worker", err)
+	}
 
+	logger.Infof("One worker initialized")
 	return Temporal{
 		logger: logger,
 		client: c,
+		worker: w,
 	}
 }
 
@@ -35,7 +47,7 @@ func (t Temporal) StartWorkflow(ctx context.Context, id string, payload interfac
 	// start workflow
 	workflowOptions := client.StartWorkflowOptions{
 		ID:        workflowId,
-		TaskQueue: id,
+		TaskQueue: "events",
 	}
 
 	we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, workflows.PaymentSuccessWorkflow, payload)
@@ -43,7 +55,7 @@ func (t Temporal) StartWorkflow(ctx context.Context, id string, payload interfac
 		t.logger.Error("Unable to execute workflow", "err", err.Error())
 		return workflow.Result{}, err
 	}
-	t.logger.Info("Started workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID())
+	t.logger.Info("Started workflow ", "WorkflowID: ", we.GetID(), "RunID: ", we.GetRunID())
 
 	var result string
 	err = we.Get(ctx, &result)

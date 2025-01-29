@@ -5,7 +5,7 @@ import (
 	"go.temporal.io/sdk/activity"
 )
 
-func CompleteOrderActivity(ctx context.Context, expenseID string) error {
+func CompleteOrderActivity(ctx context.Context, expenseID WorkflowContext) error {
 	activity.GetLogger(ctx).Info("Completing order.", "ExpenseID", expenseID)
 
 	return nil
