@@ -31,15 +31,20 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload workflow.WorkflowPaylo
 	var a *activities.OrderActivities
 
 	// Complete Order
+	var result workflow.Result
 	err = temporal.ExecuteActivity(ctx1, a.CompleteOrder, workflow.CompleteOrderStepInput{
 		PaymentContext: wfData,
-	}).Get(ctx1, nil)
+	}).Get(ctx1, &result)
 
 	if err != nil {
-		logger.Error("Failed to create activityu", "Error", err)
+		logger.Error("a.CompleteOrder", "Error", err)
 		return workflow.Result{}, nil
 	}
 
 	logger.Info("Workflow completed.")
-	return workflow.Result{}, nil
+	return workflow.Result{
+		Success: true,
+		Message: "PaymentSuccessWorkflow completed",
+		Payload: result.Payload,
+	}, nil
 }

@@ -37,14 +37,32 @@ func (r OrderRepository) WithTrx(trxHandle interface{}) OrderRepository {
 }
 
 func (r OrderRepository) FindById(ctx context.Context, orgId string, id string) (entities.Order, error) {
-	query := "SELECT id, customer_id, status, total FROM orders WHERE id=$1"
-	row := r.Pool.QueryRow(ctx, query, id)
-
 	var order entities.Order
-	err := row.Scan(&order.Id, &order.CustomerId, &order.Status, &order.Total)
+
+	query := `SELECT org_id, id, customer_id, reference, status, session_id, cart_id, currency, total, metadata, created_at, updated_at
+			  FROM orders
+			  WHERE org_id = $1 AND id = $2`
+
+	err := r.Pool.QueryRow(ctx, query, orgId, id).Scan(
+		&order.OrgId,
+		&order.Id,
+		&order.CustomerId,
+		&order.Reference,
+		&order.Status,
+		&order.SessionId,
+		&order.CartId,
+		&order.Currency,
+		&order.Total,
+		&order.Metadata,
+		&order.CreatedAt,
+		&order.UpdatedAt,
+	)
+
 	if err != nil {
+		r.logger.Error("failed to find Order", err.Error())
 		return entities.Order{}, err
 	}
+
 	return order, nil
 }
 
@@ -94,8 +112,8 @@ func (r OrderRepository) Update(ctx context.Context, entity entities.Order) (ent
 			      total = @total,
 			      metadata = @metadata,
 			      updated_at = NOW()
-			  WHERE id = @id
-			  RETURNING org_id, id, customer_id, reference, status, session_id, cart_id, currency, total, metadata, created_at, updated_at`
+			  WHERE org_id = @org_id AND id = @id
+			  RETURNING (org_id, id, customer_id, reference, status, session_id, cart_id, currency, total, metadata, created_at, updated_at)`
 
 	metaJson, _ := json.Marshal(entity.Metadata)
 
@@ -113,7 +131,7 @@ func (r OrderRepository) Update(ctx context.Context, entity entities.Order) (ent
 	}).Scan(&order)
 
 	if err != nil {
-		r.logger.Error(`failed to insert Order`, err.Error())
+		r.logger.Error(`failed to update Order`, err.Error())
 		return entities.Order{}, err
 	}
 

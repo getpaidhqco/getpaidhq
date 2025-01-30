@@ -89,7 +89,6 @@ func (t Temporal) StartWorkflow(ctx context.Context, id workflow.WorkflowType, p
 			t.logger.Error("Unable to execute workflow", "err", err.Error())
 			return workflow.Result{}, err
 		}
-		t.logger.Info("Started workflow ", "WorkflowID: ", we.GetID(), "RunID: ", we.GetRunID())
 
 		var result workflow.Result
 		err = we.Get(ctx, &result)
