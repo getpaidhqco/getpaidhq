@@ -48,7 +48,7 @@ func (s *WebhookService) startWorkflow(ctx context.Context, event payment_provid
 	switch event.Type {
 	case payment_providers.PaymentSuccess:
 		// start workflow
-		s.workflowEngine.StartWorkflow(ctx, "payment.success", event)
+		s.workflowEngine.StartWorkflow(ctx, workflow.PaymentSuccess, event)
 	default:
 		s.logger.Info("Unknown webhook type", "type", event.Type)
 

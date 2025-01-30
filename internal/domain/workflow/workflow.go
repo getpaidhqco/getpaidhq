@@ -3,7 +3,7 @@ package workflow
 import "context"
 
 type Engine interface {
-	StartWorkflow(ctx context.Context, id string, payload interface{}) (Result, error)
+	StartWorkflow(ctx context.Context, id WorkflowType, payload interface{}) (Result, error)
 }
 
 type Workflow interface {
@@ -11,6 +11,9 @@ type Workflow interface {
 }
 type PaymentSteps interface {
 	CompleteOrder(payload CompleteOrderStepInput) (Result, error)
+}
+
+type PaymentSuccessWorkflowPayload struct {
 }
 
 type CompleteOrderStepInput struct {
@@ -24,7 +27,13 @@ type Result struct {
 	Payload interface{}
 }
 
-type WorkflowContext struct {
-	EventId string
-	OrderId string
+type WorkflowPayload struct {
+	Engine Engine
+	Data   interface{}
 }
+
+type WorkflowType string
+
+const (
+	PaymentSuccess WorkflowType = "payment.success"
+)

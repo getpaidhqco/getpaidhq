@@ -7,6 +7,12 @@ type CreateOrderCommand struct {
 	Metadata map[string]string          `json:"metadata"`
 }
 
+type CompleteOrderCommand struct {
+	OrgId    string            `json:"org_id" binding:"required"` // TODO should be resolved from the API authn
+	OrderId  string            `json:"cart_id" binding:"required"`
+	Metadata map[string]string `json:"metadata"`
+}
+
 type CreateOrderCommandCustomer struct {
 	ID       string            `json:"id"`
 	Email    string            `json:"email"`

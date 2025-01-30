@@ -110,3 +110,44 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 
 	return order, pspResponse, nil
 }
+
+// CompleteOrder marks a pending order as completed and activates any subscriptions
+func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOrderCommand) (entities.Order, error) {
+	s.logger.Info("Completing order", "order_id", input.OrderId)
+	orgId := input.OrgId
+	orderId := input.OrderId
+
+	order, err := s.orderRepository.FindById(ctx, orgId, orderId)
+	if err != nil {
+		s.logger.Error("Failed to find order", "order_id", orderId, err.Error())
+		return entities.Order{}, errors.New("order not found")
+	}
+
+	// update the order status
+	order.Status = entities.OrderStatusCompleted
+	order.UpdatedAt = time.Now()
+	_, err = s.orderRepository.Update(ctx, order)
+	if err != nil {
+		s.logger.Error("Failed to update order", err.Error())
+		return entities.Order{}, err
+	}
+
+	// update the subscriptions
+	subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
+	if err != nil {
+		s.logger.Error("Failed to find subscriptions", err.Error())
+		return entities.Order{}, err
+	}
+
+	for _, sub := range subscriptions {
+		sub.Status = entities.SubscriptionStatusActive
+		sub.UpdatedAt = time.Now()
+		_, err = s.subscriptionRepository.Update(ctx, sub)
+		if err != nil {
+			s.logger.Error("Failed to update subscription", err.Error())
+			return entities.Order{}, err
+		}
+	}
+
+	return order, nil
+}
