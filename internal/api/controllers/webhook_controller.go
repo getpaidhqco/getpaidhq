@@ -25,7 +25,7 @@ func NewWebhookController(service services.WebhookService, logger lib.Logger) We
 func (u WebhookController) Process(c *gin.Context) {
 	jsonData, err := io.ReadAll(c.Request.Body)
 
-	u.logger.Debug("Creating tenant", "input", jsonData)
+	u.logger.Debug("Processing webhook")
 	err = u.webhookService.HandlePaymentWebhook(c.Request.Context(), jsonData)
 	if err != nil {
 		u.logger.Error(err)

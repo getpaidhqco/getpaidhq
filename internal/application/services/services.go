@@ -12,4 +12,5 @@ var Module = fx.Options(
 	fx.Provide(NewSessionService),
 	fx.Provide(NewCartService),
 	fx.Provide(NewWebhookService),
+	fx.Provide(NewSubscriptionService),
 )

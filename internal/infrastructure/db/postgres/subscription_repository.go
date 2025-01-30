@@ -73,7 +73,7 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 	var subscriptions []entities.Subscription
 
 	rows, err := r.Pool.Query(ctx,
-		`SELECT * FROM subscriptions WHERE org_id=@org_id AND order_id=@order_id`,
+		`SELECT * FROM subscriptions WHERE org_id=@org_id AND order_id=@order_id order by org_id,id`,
 		pgx.NamedArgs{
 			"org_id":   orgId,
 			"order_id": orderId,

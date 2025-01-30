@@ -27,7 +27,7 @@ type Subscription struct {
 	Status             SubscriptionStatus `json:"status"`
 	StartDate          time.Time          `json:"start_date"`
 	EndDate            *time.Time         `json:"end_date"`
-	BillingInterval    string             `json:"billing_interval"`
+	BillingInterval    BillingInterval    `json:"billing_interval"`
 	BillingIntervalQty int                `json:"billing_interval_qty"`
 	Cycles             int                `json:"cycles"`
 	BillingAnchor      int                `json:"billing_anchor"`
@@ -58,12 +58,12 @@ func NewSubscriptionFromItem(orgId, orderId string, item cart.Item) Subscription
 
 	return Subscription{
 		OrgId:              orgId,
-		Id:                 lib.GenerateId("subscription"),
+		Id:                 lib.GenerateId("sub"),
 		OrderId:            orderId,
 		Status:             SubscriptionStatusPending,
 		StartDate:          startDate,
 		EndDate:            nil,
-		BillingInterval:    string(item.Price.BillingInterval),
+		BillingInterval:    BillingInterval(item.Price.BillingInterval),
 		BillingIntervalQty: item.Price.BillingIntervalQty,
 		Cycles:             0,
 		BillingAnchor:      startDate.Day(),

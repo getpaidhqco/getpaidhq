@@ -119,7 +119,7 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteO
 
 	order, err := s.orderRepository.FindById(ctx, orgId, orderId)
 	if err != nil {
-		s.logger.Error("Failed to find order", "order_id", orderId, err.Error())
+		s.logger.Error("Failed to find order", "order_id", orderId, "err", err.Error())
 		return entities.Order{}, errors.New("order not found")
 	}
 
@@ -130,23 +130,6 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteO
 	if err != nil {
 		s.logger.Error("Failed to update order", err.Error())
 		return entities.Order{}, err
-	}
-
-	// update the subscriptions
-	subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
-	if err != nil {
-		s.logger.Error("Failed to find subscriptions", err.Error())
-		return entities.Order{}, err
-	}
-
-	for _, sub := range subscriptions {
-		sub.Status = entities.SubscriptionStatusActive
-		sub.UpdatedAt = time.Now()
-		_, err = s.subscriptionRepository.Update(ctx, sub)
-		if err != nil {
-			s.logger.Error("Failed to update subscription", err.Error())
-			return entities.Order{}, err
-		}
 	}
 
 	return order, nil

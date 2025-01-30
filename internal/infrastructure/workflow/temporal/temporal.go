@@ -46,6 +46,7 @@ func NewTemporalEngine(
 
 	// Workflows
 	w.RegisterWorkflow(workflows.PaymentSuccessWorkflow)
+	w.RegisterWorkflow(workflows.SubscriptionWorkflow)
 
 	// Activities
 
@@ -72,7 +73,7 @@ func (t Temporal) StartWorkflow(ctx context.Context, id workflow.WorkflowType, p
 
 	switch id {
 	case "payment.success":
-		workflowId := lib.GenerateId("workflow")
+		workflowId := lib.GenerateId("wf")
 		// start workflow
 		workflowOptions := client.StartWorkflowOptions{
 			ID:        workflowId,

@@ -59,7 +59,7 @@ func (r OrderRepository) FindById(ctx context.Context, orgId string, id string) 
 	)
 
 	if err != nil {
-		r.logger.Error("failed to find Order", err.Error())
+		r.logger.Error("failed to find Order", "err", err.Error())
 		return entities.Order{}, err
 	}
 

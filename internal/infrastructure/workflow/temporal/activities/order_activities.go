@@ -5,17 +5,21 @@ import (
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 	"payloop/internal/application/services"
+	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
+	"payloop/internal/domain/repositories"
 	"payloop/internal/domain/workflow"
 )
 
 type OrderActivities struct {
-	orderService services.OrderService
+	orderService           services.OrderService
+	subscriptionRepository repositories.SubscriptionRepository
 }
 
-func NewOrderActivities(orderService services.OrderService) OrderActivities {
+func NewOrderActivities(orderService services.OrderService, subscriptionRepository repositories.SubscriptionRepository) OrderActivities {
 	return OrderActivities{
-		orderService: orderService,
+		orderService:           orderService,
+		subscriptionRepository: subscriptionRepository,
 	}
 }
 
@@ -29,7 +33,7 @@ func (a *OrderActivities) CompleteOrder(ctx context.Context, data workflow.Compl
 		Metadata: nil,
 	})
 	if err != nil {
-		logger.Error("error completing order", "OrgId", data.PaymentContext.OrgId, "OrderId", data.PaymentContext.OrderId, err.Error())
+		logger.Error("error completing order", "OrgId", data.PaymentContext.OrgId, "OrderId", data.PaymentContext.OrderId, "err", err.Error())
 		return workflow.Result{}, temporal.NewNonRetryableApplicationError("Can't mark order as completed", "order", err)
 	}
 
@@ -38,4 +42,23 @@ func (a *OrderActivities) CompleteOrder(ctx context.Context, data workflow.Compl
 		Message: "Order completed",
 		Payload: nil,
 	}, nil
+}
+
+func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
+	logger := activity.GetLogger(ctx)
+	logger.Info("GetOrderSubscriptions: ", "[OrgId]", orgId, "[OrderId]", orderId)
+	// update the subscriptions
+	subscriptions, err := a.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
+	if err != nil {
+		logger.Error("Failed to find subscriptions", err.Error())
+		return []entities.Subscription{}, err
+	}
+
+	return subscriptions, nil
+}
+
+func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, customer entities.Customer, amount int) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("ChargeCustomerForBillingPeriod", "CustomerId", customer.ID, "Amount", amount)
+	return nil
 }
