@@ -7,20 +7,16 @@ toolchain go1.23.5
 require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/jackc/pgx/v5 v5.7.2
-	github.com/joho/godotenv v1.5.1
 	github.com/mdwt/payloop-cart v0.0.0-20250124073144-4b5701be2231
 	github.com/mdwt/paystack-go v0.0.0-20250128134735-2e5c46a871b7
 	github.com/nats-io/nats-server/v2 v2.10.25
 	github.com/nats-io/nats.go v1.36.0
 	github.com/rs/cors/wrapper/gin v0.0.0-20220223021805-a4a5ce87d5a2
 	github.com/segmentio/ksuid v1.0.4
-	github.com/shopspring/decimal v1.4.0
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
-	github.com/steebchen/prisma-client-go v0.46.0
 	github.com/stretchr/testify v1.10.0
 	go.temporal.io/sdk v1.32.1
-	go.temporal.io/server v1.26.2
 	go.uber.org/fx v1.23.0
 	go.uber.org/zap v1.27.0
 )
@@ -42,6 +38,7 @@ require (
 	github.com/goccy/go-json v0.10.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/mock v1.6.0 // indirect
+	github.com/golang/protobuf v1.5.4 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.22.0 // indirect
@@ -80,10 +77,8 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
-	go.mongodb.org/mongo-driver/v2 v2.0.0 // indirect
 	go.temporal.io/api v1.43.0 // indirect
 	go.uber.org/dig v1.18.0 // indirect
-	go.uber.org/mock v0.4.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect
 	golang.org/x/crypto v0.32.0 // indirect

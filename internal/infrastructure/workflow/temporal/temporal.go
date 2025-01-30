@@ -16,6 +16,8 @@ type Temporal struct {
 	client client.Client
 	worker worker.Worker
 
+	orderActivities activities.OrderActivities
+
 	// services
 	orderService   services.OrderService
 	sessionService services.SessionService
@@ -25,7 +27,7 @@ func NewTemporalEngine(
 	logger lib.Logger,
 	orderService services.OrderService,
 	sessionService services.SessionService,
-
+	a activities.OrderActivities,
 ) workflow.Engine {
 	// The client is a heavyweight object that should be created once per process.
 	// Set our Zap logger so that workflows and activities can use it
@@ -37,7 +39,7 @@ func NewTemporalEngine(
 		logger.Error("Unable to create client: ", err.Error())
 	}
 
-	// Start a worker and register all workflows and activities for this instance.
+	// Start orderActivities worker and register all workflows and activities for this instance.
 	// It's recommended by Temporal to have one worker per process,
 	// and to start out with one taskQueue.
 	w := worker.New(c, "events", worker.Options{})
@@ -46,7 +48,8 @@ func NewTemporalEngine(
 	w.RegisterWorkflow(workflows.PaymentSuccessWorkflow)
 
 	// Activities
-	w.RegisterActivity(activities.CompleteOrder)
+
+	w.RegisterActivity(&a)
 
 	// Start the worker
 	err = w.Start()
@@ -56,11 +59,12 @@ func NewTemporalEngine(
 
 	logger.Infof("Temporal engine initialized with worker")
 	return Temporal{
-		logger:         logger,
-		client:         c,
-		worker:         w,
-		orderService:   orderService,
-		sessionService: sessionService,
+		logger:          logger,
+		client:          c,
+		worker:          w,
+		orderService:    orderService,
+		sessionService:  sessionService,
+		orderActivities: a,
 	}
 }
 
@@ -75,7 +79,12 @@ func (t Temporal) StartWorkflow(ctx context.Context, id workflow.WorkflowType, p
 			TaskQueue: "events",
 		}
 
-		we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, workflows.PaymentSuccessWorkflow, payload)
+		// payload is payment_providers.PaymentWebhookContext
+		data := workflow.WorkflowPayload{
+			Data: payload,
+		}
+
+		we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, workflows.PaymentSuccessWorkflow, data)
 		if err != nil {
 			t.logger.Error("Unable to execute workflow", "err", err.Error())
 			return workflow.Result{}, err

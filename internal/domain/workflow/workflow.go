@@ -1,6 +1,9 @@
 package workflow
 
-import "context"
+import (
+	"context"
+	"payloop/internal/domain/payment_providers"
+)
 
 type Engine interface {
 	StartWorkflow(ctx context.Context, id WorkflowType, payload interface{}) (Result, error)
@@ -9,16 +12,15 @@ type Engine interface {
 type Workflow interface {
 	Start(ctx interface{}, payload interface{}) (Result, error)
 }
-type PaymentSteps interface {
-	CompleteOrder(payload CompleteOrderStepInput) (Result, error)
+type Steps interface {
+	CompleteOrder(ctx context.Context, data CompleteOrderStepInput) (Result, error)
 }
 
 type PaymentSuccessWorkflowPayload struct {
 }
 
 type CompleteOrderStepInput struct {
-	OrgId   string
-	OrderId string
+	PaymentContext payment_providers.PaymentWebhookContext
 }
 
 type Result struct {
@@ -28,8 +30,8 @@ type Result struct {
 }
 
 type WorkflowPayload struct {
-	Engine Engine
-	Data   interface{}
+	Data  interface{}
+	Steps Steps
 }
 
 type WorkflowType string

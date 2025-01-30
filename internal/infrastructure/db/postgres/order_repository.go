@@ -38,7 +38,7 @@ func (r OrderRepository) WithTrx(trxHandle interface{}) OrderRepository {
 
 func (r OrderRepository) FindById(ctx context.Context, orgId string, id string) (entities.Order, error) {
 	query := "SELECT id, customer_id, status, total FROM orders WHERE id=$1"
-	row := r.Tx.QueryRow(ctx, query, id)
+	row := r.Pool.QueryRow(ctx, query, id)
 
 	var order entities.Order
 	err := row.Scan(&order.Id, &order.CustomerId, &order.Status, &order.Total)
