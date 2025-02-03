@@ -3,8 +3,11 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -59,7 +62,15 @@ func (r OrderRepository) FindById(ctx context.Context, orgId string, id string) 
 	)
 
 	if err != nil {
-		r.logger.Error("failed to find Order", "err", err.Error())
+		var pgErr *pgconn.PgError
+		if errors.As(err, &pgErr) {
+			fmt.Println(pgErr.Message) // => syntax error at end of input
+			fmt.Println(pgErr.Code)    // => 42601
+			r.logger.Error("failed to find Order", "err", pgErr.Message, "code", pgErr.Code)
+		}
+		if errors.Is(err, pgx.ErrNoRows) {
+			r.logger.Error("Order not found")
+		}
 		return entities.Order{}, err
 	}
 

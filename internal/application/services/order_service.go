@@ -119,7 +119,6 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteO
 
 	order, err := s.orderRepository.FindById(ctx, orgId, orderId)
 	if err != nil {
-		s.logger.Error("Failed to find order", "order_id", orderId, "err", err.Error())
 		return entities.Order{}, errors.New("order not found")
 	}
 
