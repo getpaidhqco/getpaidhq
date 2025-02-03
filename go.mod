@@ -10,7 +10,7 @@ require (
 	github.com/mdwt/payloop-cart v0.0.0-20250124073144-4b5701be2231
 	github.com/mdwt/paystack-go v0.0.0-20250128134735-2e5c46a871b7
 	github.com/nats-io/nats-server/v2 v2.10.25
-	github.com/nats-io/nats.go v1.36.0
+	github.com/nats-io/nats.go v1.38.0
 	github.com/rs/cors/wrapper/gin v0.0.0-20220223021805-a4a5ce87d5a2
 	github.com/segmentio/ksuid v1.0.4
 	github.com/spf13/cobra v1.8.1

@@ -25,3 +25,8 @@ const (
 	OrderStatusExpired   OrderStatus = "expired"
 	OrderStatusCancelled OrderStatus = "cancelled"
 )
+
+type OrderCompletedEvent struct {
+	OrgId   string `json:"org_id"`
+	OrderId string `json:"order_id"`
+}

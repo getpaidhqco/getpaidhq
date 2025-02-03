@@ -4,6 +4,7 @@ import (
 	"context"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
+	"payloop/internal/application/lib/events"
 	"payloop/internal/application/services"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
@@ -14,12 +15,14 @@ import (
 type OrderActivities struct {
 	orderService           services.OrderService
 	subscriptionRepository repositories.SubscriptionRepository
+	pubsub                 events.PubSub
 }
 
-func NewOrderActivities(orderService services.OrderService, subscriptionRepository repositories.SubscriptionRepository) OrderActivities {
+func NewOrderActivities(orderService services.OrderService, subscriptionRepository repositories.SubscriptionRepository, pubsub events.PubSub) OrderActivities {
 	return OrderActivities{
 		orderService:           orderService,
 		subscriptionRepository: subscriptionRepository,
+		pubsub:                 pubsub,
 	}
 }
 
@@ -27,7 +30,7 @@ func (a *OrderActivities) CompleteOrder(ctx context.Context, data workflow.Compl
 	logger := activity.GetLogger(ctx)
 	logger.Info("CompleteOrder", "OrgId", data.PaymentContext.OrgId, "OrderId", data.PaymentContext.OrderId)
 
-	_, err := a.orderService.CompleteOrder(ctx, orders.CompleteOrderCommand{
+	order, err := a.orderService.CompleteOrder(ctx, orders.CompleteOrderCommand{
 		OrgId:    data.PaymentContext.OrgId,
 		OrderId:  data.PaymentContext.OrderId,
 		Metadata: nil,
@@ -36,6 +39,9 @@ func (a *OrderActivities) CompleteOrder(ctx context.Context, data workflow.Compl
 		logger.Error("error completing order", "OrgId", data.PaymentContext.OrgId, "OrderId", data.PaymentContext.OrderId, "err", err.Error())
 		return workflow.Result{}, temporal.NewNonRetryableApplicationError("Can't mark order as completed", "order", err)
 	}
+
+	// publish order completed event
+	_ = a.pubsub.PublishJSON(events.TopicOrderCompleted, order)
 
 	return workflow.Result{
 		Success: true,
