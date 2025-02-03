@@ -48,12 +48,46 @@ type Subscription struct {
 	UpdatedAt          time.Time          `json:"updated_at"`
 }
 
+// NextBillingDate calculates and returns the next billing date for a subscription
+// based on the StartDate, LastCharge, BillingInterval, BillingIntervalQty and CyclesProcessed
+// If the subscription has not started yet, it returns the StartDate
+// If the subscription has started but has not been charged yet, it returns the StartDate
+// If the subscription has been charged, it uses the LastCharge date as the base date
+// and the BillingInterval and BillingIntervalQty
+func (s Subscription) NextBillingDate() time.Time {
+	if s.BillingInterval == "" || s.BillingIntervalQty <= 0 {
+		return time.Time{}
+	}
+
+	nextBillingDate := s.StartDate
+	if s.LastCharge == nil && s.CyclesProcessed == 0 {
+		return nextBillingDate
+	}
+
+	if s.LastCharge != nil && s.LastCharge.After(nextBillingDate) {
+		nextBillingDate = *s.LastCharge
+	}
+
+	switch s.BillingInterval {
+	case "day":
+		nextBillingDate = nextBillingDate.AddDate(0, 0, s.BillingIntervalQty)
+	case "week":
+		nextBillingDate = nextBillingDate.AddDate(0, 0, s.BillingIntervalQty*7)
+	case "month":
+		nextBillingDate = nextBillingDate.AddDate(0, s.BillingIntervalQty, 0)
+	case "year":
+		nextBillingDate = nextBillingDate.AddDate(s.BillingIntervalQty, 0, 0)
+	}
+
+	return nextBillingDate
+}
+
 // NewSubscriptionFromItem creates a new Subscription from a payloop-cart Item
 func NewSubscriptionFromItem(orgId, orderId string, item cart.Item) Subscription {
 
-	var startDate time.Time
-	if item.Price.TrialInterval == types.BillingIntervalNone {
-		startDate = time.Now()
+	var startDate = time.Now().UTC()
+	if item.Price.TrialInterval != types.BillingIntervalNone {
+		startDate = startDate.AddDate(0, 0, item.Price.TrialIntervalQty)
 	}
 
 	return Subscription{
@@ -80,7 +114,7 @@ func NewSubscriptionFromItem(orgId, orderId string, item cart.Item) Subscription
 		CyclesProcessed:    0,
 		TotalRevenue:       0,
 		CancelledAt:        nil,
-		CreatedAt:          time.Now(),
-		UpdatedAt:          time.Now(),
+		CreatedAt:          time.Now().UTC(),
+		UpdatedAt:          time.Now().UTC(),
 	}
 }

@@ -131,5 +131,20 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteO
 		return entities.Order{}, err
 	}
 
+	subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
+	if err != nil {
+		s.logger.Error("Failed to find subscriptions", err.Error())
+		return entities.Order{}, err
+	}
+	
+	for _, subscription := range subscriptions {
+		subscription.Status = entities.SubscriptionStatusActive
+		_, err := s.subscriptionRepository.Update(ctx, subscription)
+		if err != nil {
+			s.logger.Error("Failed to update subscription status", err.Error())
+			return entities.Order{}, err
+		}
+	}
+
 	return order, nil
 }

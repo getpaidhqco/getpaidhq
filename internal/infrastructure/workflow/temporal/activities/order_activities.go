@@ -10,6 +10,7 @@ import (
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/domain/workflow"
+	"time"
 )
 
 type OrderActivities struct {
@@ -63,8 +64,34 @@ func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId strin
 	return subscriptions, nil
 }
 
-func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, customer entities.Customer, amount int) error {
+// ChargeCustomerForBillingPeriod is responsible for charging the customer for the billing period and to
+// update the subscription status to reflect the billing period
+// TODO move this to the subscription service
+// TODO log the payment
+func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, subscription entities.Subscription) (entities.Subscription, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("ChargeCustomerForBillingPeriod", "CustomerId", customer.ID, "Amount", amount)
-	return nil
+	logger.Info("ChargeCustomerForBillingPeriod", "id", subscription.Id, "Amount", subscription.Amount)
+
+	// TODO success charge
+
+	// update the subscription status
+	lastCharge := time.Now().UTC()
+	subscription.Status = entities.SubscriptionStatusActive
+	subscription.CyclesProcessed++
+	subscription.TotalRevenue += subscription.Amount
+	subscription.LastCharge = &lastCharge
+
+	nextCharge := subscription.NextBillingDate()
+	subscription.RenewsAt = &nextCharge
+
+	logger.Info("Subscription charged, updating with new values",
+		"id", subscription.Id,
+		"NextCharge", nextCharge,
+		"cycles", subscription.CyclesProcessed)
+	newSub, err := a.subscriptionRepository.Update(ctx, subscription)
+	return newSub, err
+}
+
+func (a *OrderActivities) GetSubscription(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
+	return a.subscriptionRepository.FindById(ctx, orgId, id)
 }

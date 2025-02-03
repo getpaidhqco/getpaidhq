@@ -22,19 +22,16 @@ type SubscriptionInput struct {
 
 func SubscriptionWorkflow(ctx workflow.Context, input SubscriptionInput) (string, error) {
 	logger := workflow.GetLogger(ctx)
+	subscription := input.Subscription
+	//customer := input.Customer
 
 	subscriptionCancelled := false
-	totalCharged := 0
-	billingPeriodNumber := 0
-	billingPeriodChargeAmount := input.Subscription.Amount
-	nextBillingDate := input.Subscription.StartDate
-	customer := input.Customer
 
-	logger.Info("SubscriptionWorkflow started", "Subscription:", input.Subscription.Id)
+	logger.Info("SubscriptionWorkflow started", "Subscription:", subscription.Id)
 	var a *activities.OrderActivities
 	// Register query handler for subscription details
-	err := workflow.SetQueryHandler(ctx, "getSubscriptionDetails", func() (string, error) {
-		return "hello", nil
+	err := workflow.SetQueryHandler(ctx, "getSubscriptionDetails", func() (entities.Subscription, error) {
+		return subscription, nil
 	})
 	if err != nil {
 		return "", err
@@ -58,11 +55,11 @@ func SubscriptionWorkflow(ctx workflow.Context, input SubscriptionInput) (string
 	}
 
 	for {
+		nextBillingDate := subscription.NextBillingDate()
 		logger.Info("Blocking until cancelled or nextBillingDate", "date", nextBillingDate.Format(time.RFC3339))
 
 		// Calculate the duration until the next billing date
 		// Remember to use workflow.Now(ctx) to get the current time
-		// https://medium.com/@sanhdoan/understanding-non-determinism-in-temporal-io-why-it-matters-how-to-avoid-it-3d397d8a5793
 		duration := nextBillingDate.Sub(workflow.Now(ctx))
 		ok, err := workflow.AwaitWithTimeout(ctx, duration, func() bool {
 			return subscriptionCancelled
@@ -89,20 +86,27 @@ func SubscriptionWorkflow(ctx workflow.Context, input SubscriptionInput) (string
 				BackoffCoefficient: 1.0,
 			},
 		}
-		ctx1 := workflow.WithActivityOptions(ctx, options)
-		logger.Info("Charging customer", "billingPeriodNumber", billingPeriodNumber, "amount", billingPeriodChargeAmount)
-		err = workflow.ExecuteActivity(ctx1, a.ChargeCustomerForBillingPeriod, customer, billingPeriodChargeAmount).
-			Get(ctx, nil)
+
+		chargeCtx := workflow.WithActivityOptions(ctx, options)
+		var chargeResult entities.Subscription
+		err = workflow.ExecuteActivity(chargeCtx,
+			a.ChargeCustomerForBillingPeriod, subscription,
+		).Get(chargeCtx, &chargeResult)
 		if err != nil {
+			logger.Error("Failed to charge customer", "Error", err.Error())
 			return "", err
 		}
 
-		// Update the total charged and prepare for the next billing period
-		totalCharged += billingPeriodChargeAmount
-		billingPeriodNumber++
-		nextBillingDate = workflow.Now(ctx).Add(time.Second * time.Duration(10))
+		subscription = chargeResult
 
+		// the subscription was successfully charged, update the subscription state
+		// and prepare for the next billing period
+		logger.Info("Charging cycle completed",
+			"orgId", subscription.OrgId,
+			"id", subscription.Id,
+			"billingPeriodNumber", chargeResult.CyclesProcessed,
+			"amount", subscription.Amount)
 	}
-	logger.Info(fmt.Sprintf("Completed %s, Total Charged: %d", workflow.GetInfo(ctx).WorkflowExecution.ID, totalCharged))
+	logger.Info(fmt.Sprintf("Completed %s, Total Charged: %d", workflow.GetInfo(ctx).WorkflowExecution.ID, subscription.TotalRevenue))
 	return "ok", nil
 }
