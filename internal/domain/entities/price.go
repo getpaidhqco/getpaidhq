@@ -9,11 +9,13 @@ import (
 type BillingInterval string
 
 const (
-	BillingIntervalNone  BillingInterval = "none"
-	BillingIntervalDay   BillingInterval = "day"
-	BillingIntervalWeek  BillingInterval = "week"
-	BillingIntervalMonth BillingInterval = "month"
-	BillingIntervalYear  BillingInterval = "year"
+	BillingIntervalNone   BillingInterval = "none"
+	BillingIntervalSecond BillingInterval = "second"
+	BillingIntervalMinute BillingInterval = "minute"
+	BillingIntervalDay    BillingInterval = "day"
+	BillingIntervalWeek   BillingInterval = "week"
+	BillingIntervalMonth  BillingInterval = "month"
+	BillingIntervalYear   BillingInterval = "year"
 )
 
 type Price struct {

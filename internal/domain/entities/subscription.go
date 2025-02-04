@@ -69,6 +69,10 @@ func (s Subscription) NextBillingDate() time.Time {
 	}
 
 	switch s.BillingInterval {
+	case "minute":
+		nextBillingDate = nextBillingDate.Add(time.Minute * time.Duration(s.BillingIntervalQty))
+	case "hour":
+		nextBillingDate = nextBillingDate.Add(time.Hour * time.Duration(s.BillingIntervalQty))
 	case "day":
 		nextBillingDate = nextBillingDate.AddDate(0, 0, s.BillingIntervalQty)
 	case "week":

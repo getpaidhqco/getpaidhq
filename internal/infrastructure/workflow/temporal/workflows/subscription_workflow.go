@@ -89,9 +89,8 @@ func SubscriptionWorkflow(ctx workflow.Context, input SubscriptionInput) (string
 
 		chargeCtx := workflow.WithActivityOptions(ctx, options)
 		var chargeResult entities.Subscription
-		err = workflow.ExecuteActivity(chargeCtx,
-			a.ChargeCustomerForBillingPeriod, subscription,
-		).Get(chargeCtx, &chargeResult)
+		err = workflow.ExecuteActivity(chargeCtx, a.ChargeCustomerForBillingPeriod, subscription).
+			Get(chargeCtx, &chargeResult)
 		if err != nil {
 			logger.Error("Failed to charge customer", "Error", err.Error())
 			return "", err

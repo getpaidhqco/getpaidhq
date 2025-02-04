@@ -151,7 +151,7 @@ model Price {
   scheme   PriceScheme
 
   currency  String
-  unitPrice Decimal @map("unit_price")
+  unitPrice Int    @map("unit_price")
 
   billingInterval    BillingInterval? @map("billing_interval")
   billingIntervalQty Int?             @map("billing_interval_qty")
@@ -159,8 +159,8 @@ model Price {
   trialInterval    BillingInterval? @map("trial_interval")
   trialIntervalQty Int?             @map("trial_interval_qty")
 
-  minPrice       Decimal? @map("min_price")
-  suggestedPrice Decimal? @map("suggested_price")
+  minPrice       Int? @map("min_price")
+  suggestedPrice Int? @map("suggested_price")
 
   taxCode String? @map("tax_code")
 
@@ -191,6 +191,8 @@ enum PriceScheme {
 
 enum BillingInterval {
   none
+  minute
+  hour
   day
   week
   month

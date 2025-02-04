@@ -10,19 +10,22 @@ import (
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/domain/workflow"
+	"payloop/internal/lib"
 	"time"
 )
 
 type OrderActivities struct {
 	orderService           services.OrderService
 	subscriptionRepository repositories.SubscriptionRepository
+	paymentRepository      repositories.PaymentRepository
 	pubsub                 events.PubSub
 }
 
-func NewOrderActivities(orderService services.OrderService, subscriptionRepository repositories.SubscriptionRepository, pubsub events.PubSub) OrderActivities {
+func NewOrderActivities(orderService services.OrderService, subscriptionRepository repositories.SubscriptionRepository, pubsub events.PubSub, paymentRepository repositories.PaymentRepository) OrderActivities {
 	return OrderActivities{
 		orderService:           orderService,
 		subscriptionRepository: subscriptionRepository,
+		paymentRepository:      paymentRepository,
 		pubsub:                 pubsub,
 	}
 }
@@ -67,12 +70,35 @@ func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId strin
 // ChargeCustomerForBillingPeriod is responsible for charging the customer for the billing period and to
 // update the subscription status to reflect the billing period
 // TODO move this to the subscription service
-// TODO log the payment
+// TODO split the charge and DB work into 2 activities
 func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, subscription entities.Subscription) (entities.Subscription, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("ChargeCustomerForBillingPeriod", "id", subscription.Id, "Amount", subscription.Amount)
 
 	// TODO success charge
+
+	// create a payment
+	matadata := make(map[string]string)
+	matadata["psp_id"] = "mocky"
+	payment := entities.Payment{
+		OrgId:          subscription.OrgId,
+		Id:             lib.GenerateId("pmt"),
+		OrderId:        subscription.OrderId,
+		SubscriptionId: subscription.Id,
+		Status:         entities.PaymentStatusSucceeded,
+		Currency:       subscription.Currency,
+		Amount:         subscription.Amount,
+		PspFee:         0,
+		PlatformFee:    0,
+		NetAmount:      subscription.Amount,
+		Metadata:       matadata,
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
+	}
+	payment, err := a.paymentRepository.Create(ctx, payment)
+	if err != nil {
+		logger.Error("Failed to create payment", err.Error())
+	}
 
 	// update the subscription status
 	lastCharge := time.Now().UTC()
