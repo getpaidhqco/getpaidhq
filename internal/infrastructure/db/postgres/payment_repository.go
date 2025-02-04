@@ -56,13 +56,14 @@ func (r PaymentRepository) FindById(ctx context.Context, orgId string, id string
 }
 
 func (r PaymentRepository) Create(ctx context.Context, entity entities.Payment) (entities.Payment, error) {
-	query := `INSERT INTO payments (org_id, id, order_id, subscription_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, created_at, updated_at)
-	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-	          RETURNING org_id, id, order_id, subscription_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, created_at, updated_at`
+	query := `INSERT INTO payments (org_id, id, psp_id,order_id, subscription_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, created_at, updated_at)
+	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+	          RETURNING org_id, id, psp_id,order_id, subscription_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, created_at, updated_at`
 
 	err := r.Pool.QueryRow(ctx, query,
 		entity.OrgId,
 		entity.Id,
+		entity.PspId,
 		entity.OrderId,
 		entity.SubscriptionId,
 		entity.Status,
@@ -77,6 +78,7 @@ func (r PaymentRepository) Create(ctx context.Context, entity entities.Payment) 
 	).Scan(
 		&entity.OrgId,
 		&entity.Id,
+		&entity.PspId,
 		&entity.OrderId,
 		&entity.SubscriptionId,
 		&entity.Status,

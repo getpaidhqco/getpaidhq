@@ -4,6 +4,7 @@ import (
 	"fmt"
 	temporalio "go.temporal.io/sdk/temporal"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/payments"
 	"payloop/internal/infrastructure/workflow/temporal/activities"
 	"time"
 
@@ -79,16 +80,14 @@ func SubscriptionWorkflow(ctx workflow.Context, input SubscriptionInput) (string
 		}
 
 		// Charge the customer
-		options := workflow.ActivityOptions{
+		var chargeResult payments.ChargeResult
+		chargeCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 			StartToCloseTimeout: 1000 * time.Second,
 			RetryPolicy: &temporalio.RetryPolicy{
 				InitialInterval:    time.Minute,
 				BackoffCoefficient: 1.0,
 			},
-		}
-
-		chargeCtx := workflow.WithActivityOptions(ctx, options)
-		var chargeResult entities.Subscription
+		})
 		err = workflow.ExecuteActivity(chargeCtx, a.ChargeCustomerForBillingPeriod, subscription).
 			Get(chargeCtx, &chargeResult)
 		if err != nil {
@@ -96,14 +95,30 @@ func SubscriptionWorkflow(ctx workflow.Context, input SubscriptionInput) (string
 			return "", err
 		}
 
-		subscription = chargeResult
+		// Update the subscription with the charge result
+		var updateResult entities.Subscription
+		updateCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+			StartToCloseTimeout: 10000 * time.Second,
+			RetryPolicy: &temporalio.RetryPolicy{
+				InitialInterval:    time.Minute,
+				BackoffCoefficient: 1.0,
+			},
+		})
+		err = workflow.ExecuteActivity(updateCtx, a.StoreChargeResults, subscription, chargeResult).
+			Get(updateCtx, &updateResult)
+		if err != nil {
+			logger.Error("Failed to StoreChargeResults", "Error", err.Error())
+			return "", err
+		}
+
+		subscription = updateResult
 
 		// the subscription was successfully charged, update the subscription state
 		// and prepare for the next billing period
 		logger.Info("Charging cycle completed",
 			"orgId", subscription.OrgId,
 			"id", subscription.Id,
-			"billingPeriodNumber", chargeResult.CyclesProcessed,
+			"billingPeriodNumber", subscription.CyclesProcessed,
 			"amount", subscription.Amount)
 	}
 	logger.Info(fmt.Sprintf("Completed %s, Total Charged: %d", workflow.GetInfo(ctx).WorkflowExecution.ID, subscription.TotalRevenue))

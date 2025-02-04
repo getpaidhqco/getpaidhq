@@ -24,14 +24,14 @@ func NewNatsPubSub(logger lib.Logger) pubsub.PubSub {
 }
 
 func (n NatsPubSub) Publish(topic string, message string) error {
-	n.logger.Debug("Publishing to NATS", "topic", topic, "data", message)
+	n.logger.Debug("Publishing to NATS", "topic", topic)
 	err := n.Conn.Publish(topic, []byte(message))
 	return err
 }
 
 func (n NatsPubSub) PublishJSON(topic string, message interface{}) error {
 	data, _ := json.Marshal(message)
-	n.logger.Debug("Publishing to NATS", "topic", topic, "data", data)
+	n.logger.Debug("Publishing to NATS", "topic", topic, "data", string(data))
 	err := n.Conn.Publish(topic, data)
 	return err
 }

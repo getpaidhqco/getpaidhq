@@ -9,20 +9,23 @@ import (
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/entities/payments"
+	"payloop/internal/domain/entities/subscriptions"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/domain/workflow"
 )
 
 type OrderActivities struct {
 	orderService           services.OrderService
+	subscriptionService    services.SubscriptionService
 	subscriptionRepository repositories.SubscriptionRepository
 	paymentRepository      repositories.PaymentRepository
 	pubsub                 events.PubSub
 }
 
-func NewOrderActivities(orderService services.OrderService, subscriptionRepository repositories.SubscriptionRepository, pubsub events.PubSub, paymentRepository repositories.PaymentRepository) OrderActivities {
+func NewOrderActivities(orderService services.OrderService, subscriptionService services.SubscriptionService, subscriptionRepository repositories.SubscriptionRepository, pubsub events.PubSub, paymentRepository repositories.PaymentRepository) OrderActivities {
 	return OrderActivities{
 		orderService:           orderService,
+		subscriptionService:    subscriptionService,
 		subscriptionRepository: subscriptionRepository,
 		paymentRepository:      paymentRepository,
 		pubsub:                 pubsub,
@@ -83,6 +86,17 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, su
 		RawData:  "{}",
 	}
 	return result, nil
+}
+
+func (a *OrderActivities) StoreChargeResults(ctx context.Context, subscription entities.Subscription, chargeResult payments.ChargeResult) (entities.Subscription, error) {
+	logger := activity.GetLogger(ctx)
+	logger.Info("StoreChargeResults", "id", subscription.Id)
+
+	newSub, err := a.subscriptionService.StoreSubscriptionPayment(ctx, subscriptions.StoreSubscriptionPaymentInput{
+		Subscription: subscription,
+		ChargeResult: chargeResult,
+	})
+	return newSub, err
 }
 
 func (a *OrderActivities) GetSubscription(ctx context.Context, orgId string, id string) (entities.Subscription, error) {

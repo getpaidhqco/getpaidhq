@@ -34,6 +34,7 @@ func NewSubscriptionService(
 	return SubscriptionService{
 		customerRepository:     customerRepository,
 		sessionRepository:      sessionRepository,
+		paymentRepository:      paymentRepository,
 		cartRepository:         cartRepository,
 		orderRepository:        orderRepository,
 		subscriptionRepository: subscriptionRepository,
@@ -72,19 +73,21 @@ func (s *SubscriptionService) StoreSubscriptionPayment(ctx context.Context, inpu
 	payment := entities.Payment{
 		OrgId:          subscription.OrgId,
 		Id:             lib.GenerateId("pmt"),
+		PspId:          "psp_id",
 		OrderId:        subscription.OrderId,
 		SubscriptionId: subscription.Id,
-		Status:         charge.Status,
-		Currency:       charge.Currency,
-		Amount:         charge.Amount,
-		PspFee:         0,
-		PlatformFee:    0,
-		NetAmount:      subscription.Amount,
-		Metadata:       matadata,
-		CreatedAt:      time.Now().UTC(),
-		UpdatedAt:      time.Now().UTC(),
+
+		Status:      charge.Status,
+		Currency:    charge.Currency,
+		Amount:      charge.Amount,
+		PspFee:      0,
+		PlatformFee: 0,
+		NetAmount:   subscription.Amount,
+		Metadata:    matadata,
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
 	}
-	payment, err := s.paymentRepository.Create(ctx, payment)
+	_, err := s.paymentRepository.Create(ctx, payment)
 	if err != nil {
 		s.logger.Error("Failed to create payment", err.Error())
 	}

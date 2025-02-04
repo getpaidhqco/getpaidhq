@@ -66,9 +66,9 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload workflow.WorkflowPaylo
 	// Wait for the Child Workflow Execution to spawn
 	var childWE temporal.Execution
 	if err := childWorkflowFuture.GetChildWorkflowExecution().Get(ctx, &childWE); err != nil {
-		logger.Error("Unable to start subscription workflow.")
+		logger.Error("Unable to start subscription workflow.", "err", err.Error())
 		// update the subscription so that we can retry
-		
+
 		return workflow.Result{
 			Success: false,
 			Message: "Can't spawn child workflow",
