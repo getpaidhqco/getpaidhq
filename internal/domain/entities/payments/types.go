@@ -1,0 +1,22 @@
+package payments
+
+type PaymentStatus string
+
+const (
+	PaymentStatusPending       PaymentStatus = "pending"
+	PaymentStatusFailed        PaymentStatus = "failed"
+	PaymentStatusSucceeded     PaymentStatus = "succeeded"
+	PaymentStatusRefunded      PaymentStatus = "refunded"
+	PaymentStatusPartialRefund PaymentStatus = "partial_refund"
+	PaymentStatusCancelled     PaymentStatus = "cancelled"
+	PaymentStatusExpired       PaymentStatus = "expired"
+	PaymentStatusFraudulent    PaymentStatus = "fraudulent"
+)
+
+type ChargeResult struct {
+	Amount   int           `json:"amount"`
+	Status   PaymentStatus `json:"status"`
+	Currency string        `json:"currency"`
+	PspId    string        `json:"psp_id"`
+	RawData  string        `json:"raw_data"`
+}
