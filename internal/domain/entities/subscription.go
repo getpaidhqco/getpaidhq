@@ -25,6 +25,7 @@ type Subscription struct {
 	Id                 string             `json:"id"`
 	OrderId            string             `json:"order_id"`
 	Status             SubscriptionStatus `json:"status"`
+	PaymentMethodId    string             `json:"payment_method_id"`
 	StartDate          time.Time          `json:"start_date"`
 	EndDate            *time.Time         `json:"end_date"`
 	BillingInterval    BillingInterval    `json:"billing_interval"`
@@ -103,6 +104,44 @@ func NewSubscriptionFromItem(orgId, orderId string, item cart.Item) Subscription
 		EndDate:            nil,
 		BillingInterval:    BillingInterval(item.Price.BillingInterval),
 		BillingIntervalQty: item.Price.BillingIntervalQty,
+		Cycles:             0,
+		BillingAnchor:      startDate.Day(),
+		TrialEndsAt:        nil,
+		CancelAt:           nil,
+		EndsAt:             nil,
+		LastCharge:         nil,
+		RenewsAt:           nil,
+		Retries:            0,
+		NextRetry:          nil,
+		Currency:           item.Price.Currency,
+		Amount:             item.Price.UnitPrice,
+		Metadata:           nil,
+		CyclesProcessed:    0,
+		TotalRevenue:       0,
+		CancelledAt:        nil,
+		CreatedAt:          time.Now().UTC(),
+		UpdatedAt:          time.Now().UTC(),
+	}
+}
+
+// NewSubscriptionFromItem creates a new Subscription from a payloop-cart Item
+func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
+
+	var startDate = time.Now().UTC()
+
+	if *item.Price.TrialInterval != BillingIntervalNone {
+		startDate = startDate.AddDate(0, 0, *item.Price.TrialIntervalQty)
+	}
+
+	return Subscription{
+		OrgId:              item.OrgId,
+		Id:                 lib.GenerateId("sub"),
+		OrderId:            item.OrderId,
+		Status:             SubscriptionStatusPending,
+		StartDate:          startDate,
+		EndDate:            nil,
+		BillingInterval:    *item.Price.BillingInterval,
+		BillingIntervalQty: *item.Price.BillingIntervalQty,
 		Cycles:             0,
 		BillingAnchor:      startDate.Day(),
 		TrialEndsAt:        nil,

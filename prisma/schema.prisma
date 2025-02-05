@@ -36,20 +36,24 @@ model Org {
   Subscription Subscription[]
   Payment      Payment[]
   Setting      Setting[]
+  OrderItem    OrderItem[]
 
   @@map("orgs")
 }
 
 model Setting {
-  orgId      String   @map("org_id")
-  id         String
-  value      Json
+  orgId     String @map("org_id")
+  parentId  String @map("parent_id")
+  id        String
+  valueType String @map("value_type")
+  value     Json
+
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
-  @@id([orgId, id])
+  @@id([orgId, parentId, id])
   @@map("settings")
 }
 
@@ -134,7 +138,8 @@ model Variant {
   updatedAt DateTime @updatedAt @map("updated_at")
   Price     Price[]
 
-  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org       Org         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  OrderItem OrderItem[]
 
   @@id([orgId, id])
   @@map("variants")
@@ -232,6 +237,7 @@ model Order {
 
   metadata Json
 
+  items         OrderItem[]
   subscriptions Subscription[]
   payments      Payment[]
 
@@ -256,6 +262,32 @@ enum OrderStatus {
   expired
   cancelled
   fraudulent
+}
+
+model OrderItem {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  orderId String @map("order_id")
+  order   Order  @relation(fields: [orgId, orderId], references: [orgId, id], onDelete: Cascade)
+
+  priceId String @map("price_id")
+
+  description String
+  quantity    Int
+
+  metadata Json
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  org          Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  Variant      Variant? @relation(fields: [variantOrgId, variantId], references: [orgId, id])
+  variantOrgId String?
+  variantId    String?
+
+  @@id([orgId, id])
+  @@map("order_items")
 }
 
 model Customer {
@@ -293,8 +325,9 @@ model PaymentMethod {
   details        Json?
   type           String
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  createdAt     DateTime       @default(now()) @map("created_at")
+  updatedAt     DateTime       @updatedAt @map("updated_at")
+  subscriptions Subscription[]
 
   @@id([orgId, id], map: "paymentmethod_pk")
   @@map("payment_methods")
@@ -307,6 +340,9 @@ model Subscription {
   orderId String             @map("order_id")
   order   Order              @relation(fields: [orgId, orderId], references: [orgId, id])
   status  SubscriptionStatus
+
+  paymentMethodId String?        @map("payment_method_id")
+  paymentMethod   PaymentMethod? @relation(fields: [orgId, paymentMethodId], references: [orgId, id])
 
   startDate          DateTime?       @map("start_date")
   endDate            DateTime?       @map("end_date")

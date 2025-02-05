@@ -2,6 +2,7 @@ package activities
 
 import (
 	"context"
+	"encoding/json"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 	"payloop/internal/application/lib/events"
@@ -12,22 +13,39 @@ import (
 	"payloop/internal/domain/entities/subscriptions"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/domain/workflow"
+
+	temporal_workflow "go.temporal.io/sdk/workflow"
 )
+
+type StoreSubscriptionWorkflowContextInput struct {
+	OrgId          string
+	SubscriptionId string
+	Execution      temporal_workflow.Execution
+}
 
 type OrderActivities struct {
 	orderService           services.OrderService
 	subscriptionService    services.SubscriptionService
 	subscriptionRepository repositories.SubscriptionRepository
+	settingRepository      repositories.SettingRepository
 	paymentRepository      repositories.PaymentRepository
 	pubsub                 events.PubSub
 }
 
-func NewOrderActivities(orderService services.OrderService, subscriptionService services.SubscriptionService, subscriptionRepository repositories.SubscriptionRepository, pubsub events.PubSub, paymentRepository repositories.PaymentRepository) OrderActivities {
+func NewOrderActivities(
+	orderService services.OrderService,
+	settingRepository repositories.SettingRepository,
+	subscriptionService services.SubscriptionService,
+	subscriptionRepository repositories.SubscriptionRepository,
+	pubsub events.PubSub,
+	paymentRepository repositories.PaymentRepository,
+) OrderActivities {
 	return OrderActivities{
 		orderService:           orderService,
 		subscriptionService:    subscriptionService,
 		subscriptionRepository: subscriptionRepository,
 		paymentRepository:      paymentRepository,
+		settingRepository:      settingRepository,
 		pubsub:                 pubsub,
 	}
 }
@@ -46,32 +64,24 @@ func (a *OrderActivities) CompleteOrder(ctx context.Context, data workflow.Compl
 		return workflow.Result{}, temporal.NewNonRetryableApplicationError("Can't mark order as completed", "order", err)
 	}
 
-	// publish order completed event
-	_ = a.pubsub.PublishJSON(events.TopicOrderCompleted, order)
-
 	return workflow.Result{
 		Success: true,
 		Message: "Order completed",
-		Payload: nil,
+		Payload: order,
 	}, nil
 }
 
 func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("GetOrderSubscriptions: ", "[OrgId]", orgId, "[OrderId]", orderId)
-	// update the subscriptions
-	subscriptions, err := a.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
-	if err != nil {
-		logger.Error("Failed to find subscriptions", err.Error())
-		return []entities.Subscription{}, err
-	}
 
-	return subscriptions, nil
+	subs, err := a.subscriptionService.CreateSubscriptionsForOrder(ctx, orgId, orderId)
+
+	return subs, err
 }
 
 // ChargeCustomerForBillingPeriod is responsible for charging the customer for the billing period and to
 // update the subscription status to reflect the billing period
-// TODO split the charge and DB work into 2 activities
 func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, subscription entities.Subscription) (payments.ChargeResult, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("ChargeCustomerForBillingPeriod", "id", subscription.Id, "Amount", subscription.Amount)
@@ -97,6 +107,30 @@ func (a *OrderActivities) StoreChargeResults(ctx context.Context, subscription e
 		ChargeResult: chargeResult,
 	})
 	return newSub, err
+}
+
+// StoreSubscriptionWorkflowContext stores the Temporal workflow ID and workflow run ID
+// so that the system can query the workflow status later.
+//
+// At the moment this is not an Application level concern, only a Temporal concern, so use the
+// repositories directly here instead of a Service implementation.
+func (a *OrderActivities) StoreSubscriptionWorkflowContext(ctx context.Context, input StoreSubscriptionWorkflowContextInput) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("StoreSubscriptionWorkflowContext", "OrgId", input.OrgId, "SubscriptionId", input.SubscriptionId, "Execution", input.Execution)
+	executionBytes, err := json.Marshal(input.Execution)
+	if err != nil {
+		return err
+	}
+
+	_, err = a.settingRepository.Create(ctx, entities.Setting{
+		OrgId:    input.OrgId,
+		ParentId: input.SubscriptionId,
+		Id:       "temporal-workflow",
+		Type:     "workflow.Execution",
+		Value:    string(executionBytes),
+	})
+
+	return err
 }
 
 func (a *OrderActivities) GetSubscription(ctx context.Context, orgId string, id string) (entities.Subscription, error) {

@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"errors"
-	"github.com/mdwt/payloop-cart/types"
+	"payloop/internal/application/lib/events"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/payment_providers"
@@ -18,7 +18,9 @@ type OrderService struct {
 	orderRepository        repositories.OrderRepository
 	customerRepository     repositories.CustomerRepository
 	subscriptionRepository repositories.SubscriptionRepository
+	orderItemRepository    repositories.OrderItemRepository
 	paymentGateway         payment_providers.Gateway
+	pubsub                 events.PubSub
 	logger                 lib.Logger
 }
 
@@ -27,8 +29,10 @@ func NewOrderService(
 	cartRepository repositories.CartRepository,
 	orderRepository repositories.OrderRepository,
 	customerRepository repositories.CustomerRepository,
+	orderItemRepository repositories.OrderItemRepository,
 	subscriptionRepository repositories.SubscriptionRepository,
 	paymentGateway payment_providers.Gateway,
+	pubsub events.PubSub,
 	logger lib.Logger,
 ) OrderService {
 	return OrderService{
@@ -38,7 +42,9 @@ func NewOrderService(
 		subscriptionRepository: subscriptionRepository,
 		orderRepository:        orderRepository,
 		logger:                 logger,
+		pubsub:                 pubsub,
 		paymentGateway:         paymentGateway,
+		orderItemRepository:    orderItemRepository,
 	}
 }
 
@@ -83,16 +89,23 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 		return entities.Order{}, payment_providers.InitPaymentResponse{}, err
 	}
 
-	// Go through the list of items in the cart and create the subscriptions for each item
+	// Go through the list of items in the cart and create the order items for each item
 	for _, item := range cart.Data.Items {
-		if item.Price.Category == types.PriceCategorySubscription {
-			// Create a subscription for the item
-			sub := entities.NewSubscriptionFromItem(orgId, orderId, item)
-			_, err := s.subscriptionRepository.Create(ctx, sub)
-			if err != nil {
-				s.logger.Error("Failed to create subscription", err.Error())
-				return entities.Order{}, payment_providers.InitPaymentResponse{}, err
-			}
+		orderItem := entities.OrderItem{
+			OrgId:       orgId,
+			Id:          lib.GenerateId("order_item"),
+			OrderId:     orderId,
+			PriceId:     item.Price.Id,
+			Description: item.Description,
+			Quantity:    item.Quantity,
+			Metadata:    nil,
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		}
+		_, err := s.orderItemRepository.Create(ctx, orderItem)
+		if err != nil {
+			s.logger.Error("Failed to create order item", "item", item, err.Error())
+			return entities.Order{}, payment_providers.InitPaymentResponse{}, err
 		}
 	}
 
@@ -136,7 +149,7 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteO
 		s.logger.Error("Failed to find subscriptions", err.Error())
 		return entities.Order{}, err
 	}
-	
+
 	for _, subscription := range subscriptions {
 		subscription.Status = entities.SubscriptionStatusActive
 		_, err := s.subscriptionRepository.Update(ctx, subscription)
@@ -145,6 +158,9 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteO
 			return entities.Order{}, err
 		}
 	}
+
+	// publish order completed event
+	_ = s.pubsub.PublishJSON(events.TopicOrderCompleted, order)
 
 	return order, nil
 }

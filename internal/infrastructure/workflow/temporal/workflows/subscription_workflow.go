@@ -12,8 +12,8 @@ import (
 )
 
 type SubscriptionInput struct {
-	Customer     entities.Customer
-	Subscription entities.Subscription
+	Customer     entities.Customer     `json:"customer"`
+	Subscription entities.Subscription `json:"subscription"`
 }
 
 // SubscriptionWorkflow is a Temporal workflow that manages a subscription instance
@@ -26,8 +26,6 @@ func SubscriptionWorkflow(ctx workflow.Context, input SubscriptionInput) (string
 	subscription := input.Subscription
 	//customer := input.Customer
 
-	subscriptionCancelled := false
-
 	logger.Info("SubscriptionWorkflow started", "Subscription:", subscription.Id)
 	var a *activities.OrderActivities
 	// Register query handler for subscription details
@@ -38,22 +36,29 @@ func SubscriptionWorkflow(ctx workflow.Context, input SubscriptionInput) (string
 		return "", err
 	}
 
-	// Register update handler for cancelling the subscription
-	err = workflow.SetUpdateHandlerWithOptions(ctx, "cancelSubscription", func(_ workflow.Context) error {
-		subscriptionCancelled = true
-		return nil
-	}, workflow.UpdateHandlerOptions{
-		Validator: func() error {
-			if subscriptionCancelled {
-				return fmt.Errorf("Subscription is already cancelled")
-			}
-			return nil
-		},
+	// Register signal handler for cancelling the subscription
+	var signalSubscription entities.Subscription
+	pausedChannel := workflow.GetSignalChannel(ctx, "subscription.paused")
+	activatedChannel := workflow.GetSignalChannel(ctx, "subscription.activated")
+	cancelledChannel := workflow.GetSignalChannel(ctx, "subscription.cancelled")
+	workflow.Go(ctx, func(ctx workflow.Context) {
+		for {
+			selector := workflow.NewSelector(ctx)
+			selector.AddReceive(pausedChannel, func(c workflow.ReceiveChannel, more bool) {
+				c.Receive(ctx, &signalSubscription)
+				subscription.Status = entities.SubscriptionStatusPaused
+			})
+			selector.AddReceive(activatedChannel, func(c workflow.ReceiveChannel, more bool) {
+				c.Receive(ctx, &signalSubscription)
+				subscription.Status = entities.SubscriptionStatusActive
+			})
+			selector.AddReceive(cancelledChannel, func(c workflow.ReceiveChannel, more bool) {
+				c.Receive(ctx, &signalSubscription)
+				subscription.Status = entities.SubscriptionStatusCancelled
+			})
+			selector.Select(ctx)
+		}
 	})
-	if err != nil {
-		logger.Error("Failed to register update handler", "Error", err)
-		return "", err
-	}
 
 	for {
 		nextBillingDate := subscription.NextBillingDate()
@@ -63,20 +68,28 @@ func SubscriptionWorkflow(ctx workflow.Context, input SubscriptionInput) (string
 		// Remember to use workflow.Now(ctx) to get the current time
 		duration := nextBillingDate.Sub(workflow.Now(ctx))
 		ok, err := workflow.AwaitWithTimeout(ctx, duration, func() bool {
-			return subscriptionCancelled
+			return subscription.Status == entities.SubscriptionStatusPaused ||
+				subscription.Status == entities.SubscriptionStatusCancelled
 		})
 		if err != nil {
-			logger.Error("cancellation received", "Error", err.Error())
+			logger.Error("cancellation received", "Error", err.Error(), "status", subscription.Status)
 		}
 		if !ok {
-			logger.Info("Blocking await timed out")
+			logger.Info("Next billing date reached", "date", nextBillingDate.Format(time.RFC3339))
 		}
 
 		// The wait is over, check if the subscription was cancelled and if not, charge the customer and
 		// update local state for the next billing period
-		if subscriptionCancelled {
+		if subscription.Status == entities.SubscriptionStatusCancelled {
 			logger.Info("Subscription is cancelled, ending workflow...")
 			break
+		}
+
+		if subscription.Status == entities.SubscriptionStatusPaused {
+			err = workflow.Await(ctx, func() bool {
+				logger.Debug("Pause clause", "subscription.Status", subscription.Status)
+				return subscription.Status == entities.SubscriptionStatusActive
+			})
 		}
 
 		// Charge the customer

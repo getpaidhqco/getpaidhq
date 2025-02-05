@@ -36,9 +36,9 @@ func (n NatsPubSub) PublishJSON(topic string, message interface{}) error {
 	return err
 }
 
-func (n NatsPubSub) Subscribe(topic string, handler func(data []byte)) (pubsub.Subscription, error) {
+func (n NatsPubSub) Subscribe(topic string, handler func(topic string, data []byte)) (pubsub.Subscription, error) {
 	s, err := n.Conn.Subscribe(topic, func(m *nats.Msg) {
-		handler(m.Data)
+		handler(m.Subject, m.Data)
 	})
 
 	return s, err

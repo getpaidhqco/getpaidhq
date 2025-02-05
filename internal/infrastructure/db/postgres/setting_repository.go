@@ -6,6 +6,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 )
 
@@ -14,7 +15,7 @@ type SettingRepository struct {
 	logger lib.Logger
 }
 
-func NewSettingRepository(database lib.Database, logger lib.Logger) SettingRepository {
+func NewSettingRepository(database lib.Database, logger lib.Logger) repositories.SettingRepository {
 	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
@@ -25,26 +26,20 @@ func NewSettingRepository(database lib.Database, logger lib.Logger) SettingRepos
 	}
 }
 
-// WithTrx enables repository with transaction
-func (r *SettingRepository) WithTrx(trxHandle interface{}) *SettingRepository {
-	if trxHandle == nil {
-		r.logger.Warn("Transaction Database not found in gin context. ")
-		return r
-	}
-	r.PgDatabase.Tx = trxHandle.(pgx.Tx)
-	return r
-}
-
-func (r *SettingRepository) FindById(ctx context.Context, org_id string, id string) (entities.Setting, error) {
+func (r SettingRepository) FindById(ctx context.Context, orgId string, parentId string, id string) (entities.Setting, error) {
 	var setting entities.Setting
 	err := r.Pool.QueryRow(ctx,
-		`SELECT * FROM settings WHERE org_id=@org_id AND id=@id`,
+		`SELECT org_id,parent_id,id,value_type,value FROM settings WHERE org_id=@org_id AND parent_id=@parent_id AND id=@id`,
+
 		pgx.NamedArgs{
-			"org_id": org_id,
-			"id":     id,
+			"org_id":    orgId,
+			"parent_id": parentId,
+			"id":        id,
 		}).Scan(
 		&setting.OrgId,
+		&setting.ParentId,
 		&setting.Id,
+		&setting.Type,
 		&setting.Value,
 	)
 
@@ -55,24 +50,27 @@ func (r *SettingRepository) FindById(ctx context.Context, org_id string, id stri
 	return setting, nil
 }
 
-func (r *SettingRepository) Save(ctx context.Context, entity entities.Setting) (entities.Setting, error) {
+func (r SettingRepository) Create(ctx context.Context, entity entities.Setting) (entities.Setting, error) {
 
 	var setting entities.Setting
 
-	query := `INSERT INTO settings (org_id, id, value, created_at, updated_at) 
-			  VALUES (@org_id, @id, @value, NOW(), NOW())
-			  ON CONFLICT DO UPDATE SET org_id, id, value, created_at, updated_at
-			  
-			  RETURNING org_id, id, value`
+	query := `INSERT INTO settings (org_id, parent_id, id, value, value_type, created_at, updated_at) 
+			  VALUES (@org_id, @parent_id, @id, @value, @value_type, NOW(), NOW())
+			  ON CONFLICT (org_id, parent_id, id) DO UPDATE SET value = EXCLUDED.value, value_type = EXCLUDED.value_type, updated_at = NOW()
+			  RETURNING org_id, parent_id, id, value, value_type`
 
 	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
-		"org_id":   entity.OrgId,
-		"id":       entity.Id,
-		"order_id": entity.Value,
+		"org_id":     entity.OrgId,
+		"parent_id":  entity.ParentId,
+		"id":         entity.Id,
+		"value":      entity.Value,
+		"value_type": entity.Type,
 	}).Scan(
 		&setting.OrgId,
+		&setting.ParentId,
 		&setting.Id,
 		&setting.Value,
+		&setting.Type,
 	)
 
 	if err != nil {

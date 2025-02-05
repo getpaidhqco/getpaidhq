@@ -26,29 +26,32 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload workflow.WorkflowPaylo
 		return workflow.Result{}, errors.New("invalid payload data, expected payment_providers.PaymentWebhookContext ")
 	}
 
-	ao := temporal.ActivityOptions{
-		StartToCloseTimeout: 1000 * time.Second,
+	var a *activities.OrderActivities
+
+	// ACTIVITY
+	// Complete the Order
+	var completeOrderResult workflow.Result
+	ctx1 := temporal.WithActivityOptions(ctx, temporal.ActivityOptions{
+		StartToCloseTimeout: 10000 * time.Second,
 		RetryPolicy: &temporalio.RetryPolicy{
 			InitialInterval:    time.Minute,
 			BackoffCoefficient: 1.0,
 		},
-	}
-	ctx1 := temporal.WithActivityOptions(ctx, ao)
-	var a *activities.OrderActivities
-
-	// step 1, mark the order as paid
-	var result workflow.Result
+	})
 	err = temporal.ExecuteActivity(ctx1, a.CompleteOrder, workflow.CompleteOrderStepInput{
 		PaymentContext: wfData,
-	}).Get(ctx1, &result)
+	}).Get(ctx1, &completeOrderResult)
 	if err != nil {
 		logger.Error("[Complete Order] failed with error: ", "Error", err.Error())
 		return workflow.Result{}, temporalio.NewApplicationError("Complete Order failed", "", err)
 	}
 
-	// Fetch the subscriptions
+	// ACTIVITY
+	// Prepare the subscriptions for the order
+	// TODO prepare the subscriptions for the order, returning a list of subscriptions
 	var subscriptions []entities.Subscription
-	err = temporal.ExecuteActivity(ctx1, a.GetOrderSubscriptions, wfData.OrgId, wfData.OrderId).Get(ctx1, &subscriptions)
+	err = temporal.ExecuteActivity(ctx1, a.GetOrderSubscriptions, wfData.OrgId, wfData.OrderId).
+		Get(ctx1, &subscriptions)
 
 	// step 2, process the subscriptions
 	subscription := subscriptions[0]
@@ -72,14 +75,22 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload workflow.WorkflowPaylo
 		return workflow.Result{
 			Success: false,
 			Message: "Can't spawn child workflow",
-			Payload: result.Payload,
+			Payload: completeOrderResult.Payload,
 		}, err
 	}
+
+	// ACTIVITY
+	// store the child workflow execution details against the subscription
+	err = temporal.ExecuteActivity(ctx1, a.StoreSubscriptionWorkflowContext, activities.StoreSubscriptionWorkflowContextInput{
+		OrgId:          wfData.OrgId,
+		SubscriptionId: subscription.Id,
+		Execution:      childWE,
+	}).Get(ctx1, nil)
 
 	logger.Info("Workflow completed.")
 	return workflow.Result{
 		Success: true,
 		Message: "PaymentSuccessWorkflow completed",
-		Payload: result.Payload,
+		Payload: completeOrderResult.Payload,
 	}, nil
 }

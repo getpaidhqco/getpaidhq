@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"payloop/internal/application/lib/events"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/subscriptions"
 	"payloop/internal/domain/payment_providers"
@@ -17,7 +18,9 @@ type SubscriptionService struct {
 	customerRepository     repositories.CustomerRepository
 	subscriptionRepository repositories.SubscriptionRepository
 	paymentRepository      repositories.PaymentRepository
+	orderItemRepository    repositories.OrderItemRepository
 	paymentGateway         payment_providers.Gateway
+	pubsub                 events.PubSub
 	logger                 lib.Logger
 }
 
@@ -25,9 +28,11 @@ func NewSubscriptionService(
 	sessionRepository repositories.SessionRepository,
 	cartRepository repositories.CartRepository,
 	subscriptionRepository repositories.SubscriptionRepository,
+	orderItemRepository repositories.OrderItemRepository,
 	customerRepository repositories.CustomerRepository,
 	orderRepository repositories.OrderRepository,
 	paymentRepository repositories.PaymentRepository,
+	pubsub events.PubSub,
 	paymentGateway payment_providers.Gateway,
 	logger lib.Logger,
 ) SubscriptionService {
@@ -37,10 +42,65 @@ func NewSubscriptionService(
 		paymentRepository:      paymentRepository,
 		cartRepository:         cartRepository,
 		orderRepository:        orderRepository,
+		orderItemRepository:    orderItemRepository,
 		subscriptionRepository: subscriptionRepository,
+		pubsub:                 pubsub,
 		logger:                 logger,
 		paymentGateway:         paymentGateway,
 	}
+}
+
+func (s *SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
+	s.logger.Info("CreateSubscriptionsForOrder", "orgId", orgId, "orderId", orderId)
+	var subscriptions []entities.Subscription
+	_, err := s.orderRepository.FindById(ctx, orgId, orderId)
+	if err != nil {
+		s.logger.Error("Failed to find order", err.Error())
+		return subscriptions, err
+	}
+
+	orderItems, err := s.orderItemRepository.FindByOrderId(ctx, orgId, orderId)
+	if err != nil {
+		s.logger.Error("Failed to find order items", err.Error())
+		return subscriptions, err
+	}
+
+	for _, item := range orderItems {
+		subscription := entities.NewSubscriptionFromOrderItem(item)
+		_, err := s.subscriptionRepository.Create(ctx, subscription)
+		if err != nil {
+			s.logger.Error("Failed to create subscription", "item", item, err.Error())
+			return subscriptions, err
+		}
+		subscriptions = append(subscriptions, subscription)
+	}
+
+	s.logger.Info("Subscriptions created", "count", len(subscriptions))
+	return subscriptions, nil
+}
+
+func (s *SubscriptionService) Update(ctx context.Context, input subscriptions.UpdateSubscriptionInput) (entities.Subscription, error) {
+	s.logger.Info("Marking subscription active", "orgId", input.OrgId, "id", input.Id)
+
+	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
+	if err != nil {
+		s.logger.Error("Failed to find subscriptions", err.Error())
+		return entities.Subscription{}, err
+	}
+
+	return subscription, nil
+}
+
+func (s *SubscriptionService) FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
+	s.logger.Info("Fetching", "orgId", orgId, "id", id)
+
+	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, id)
+	if err != nil {
+		s.logger.Error("Failed to find subscriptions", err.Error())
+		return entities.Subscription{}, err
+	}
+
+	return subscription, nil
 }
 
 func (s *SubscriptionService) Activate(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
@@ -58,6 +118,28 @@ func (s *SubscriptionService) Activate(ctx context.Context, orgId string, id str
 		s.logger.Error("Failed to update subscription", err.Error())
 		return entities.Subscription{}, err
 	}
+
+	return subscription, nil
+}
+
+func (s *SubscriptionService) Pause(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
+	s.logger.Info("Pausing subscriptino", "orgId", orgId, "id", id)
+
+	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, id)
+	if err != nil {
+		s.logger.Error("Failed to find subscriptions", err.Error())
+		return entities.Subscription{}, err
+	}
+
+	subscription.Status = entities.SubscriptionStatusPaused
+	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
+	if err != nil {
+		s.logger.Error("Failed to update subscription", err.Error())
+		return entities.Subscription{}, err
+	}
+
+	// publi
+	_ = s.pubsub.PublishJSON(events.TopicSubscriptionPaused, subscription)
 
 	return subscription, nil
 }
