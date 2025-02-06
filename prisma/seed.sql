@@ -15,5 +15,7 @@ VALUES ('mollie', 'price-1', 'var-1', 'subscription', 'fixed', 'USD', 10000.0000
        ('mollie', 'price-2', 'var-1', 'subscription', 'fixed', 'USD', 10000, 'hour', 1,
         'none', 0, null, null, null, null, '2025-01-26 13:18:56.354', '2025-01-26 15:17:14.000'),
        ('mollie', 'price-3', 'var-1', 'subscription', 'fixed', 'USD', 100, 'minute', 2,
-        'none', 0, null, null, null, null, '2025-01-26 13:18:56.354', '2025-01-26 15:17:14.000')
+        'none', 0, null, null, null, null, '2025-01-26 13:18:56.354', '2025-01-26 15:17:14.000'),
+       ('mollie', 'freetrial', 'var-1', 'subscription', 'fixed', 'USD', 100, 'hour', 1,
+        'hour', 2, null, null, null, null, '2025-01-26 13:18:56.354', '2025-01-26 15:17:14.000')
 ON CONFLICT DO NOTHING;

@@ -5,6 +5,7 @@ go 1.23.2
 toolchain go1.23.5
 
 require (
+	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gin-gonic/gin v1.10.0
 	github.com/jackc/pgx/v5 v5.7.2
 	github.com/mdwt/payloop-cart v0.0.0-20250124073144-4b5701be2231
@@ -16,6 +17,7 @@ require (
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
+	go.temporal.io/api v1.43.0
 	go.temporal.io/sdk v1.32.1
 	go.uber.org/fx v1.23.0
 	go.uber.org/zap v1.27.0
@@ -77,7 +79,6 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
-	go.temporal.io/api v1.43.0 // indirect
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect

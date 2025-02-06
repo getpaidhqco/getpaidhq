@@ -6,6 +6,7 @@ import (
 	"payloop/internal/api/middlewares"
 	"payloop/internal/api/routes"
 	"payloop/internal/application/services"
+	"payloop/internal/infrastructure/authn/cognito"
 	"payloop/internal/infrastructure/db/postgres"
 	"payloop/internal/infrastructure/payments/paystack"
 	"payloop/internal/infrastructure/pubsub/nats"
@@ -20,6 +21,9 @@ var CommonModules = fx.Options(
 	services.Module,
 	middlewares.Module,
 	postgres.Module,
+
+	// Authn
+	cognito.Module,
 
 	// Payment provider
 	paystack.Module,

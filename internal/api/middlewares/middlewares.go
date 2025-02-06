@@ -1,6 +1,9 @@
 package middlewares
 
-import "go.uber.org/fx"
+import (
+	"go.uber.org/fx"
+	"payloop/internal/infrastructure/authn/cognito"
+)
 
 // Module Middleware exported
 var Module = fx.Options(
@@ -22,10 +25,12 @@ type Middlewares []IMiddleware
 func NewMiddlewares(
 	corsMiddleware CorsMiddleware,
 	dbTrxMiddleware DatabaseTrx,
+	authMiddleware cognito.CognitoMiddleware,
 ) Middlewares {
 	return Middlewares{
 		corsMiddleware,
 		dbTrxMiddleware,
+		authMiddleware,
 	}
 }
 

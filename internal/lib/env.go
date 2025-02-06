@@ -16,6 +16,10 @@ type Env struct {
 
 	JWTSecret      string `mapstructure:"JWT_SECRET"`
 	PaystackSecret string `mapstructure:"PAYSTACK_SECRET"`
+
+	CognitoClientId string `mapstructure:"COGNITO_CLIENT_ID"`
+	CognitoPoolId   string `mapstructure:"COGNITO_POOL_ID"`
+	CognitoRegion   string `mapstructure:"COGNITO_REGION"`
 }
 
 // NewEnv creates a new environment
