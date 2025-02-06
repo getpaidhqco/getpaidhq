@@ -11,6 +11,7 @@ import (
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/entities/payments"
 	"payloop/internal/domain/entities/subscriptions"
+	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/domain/workflow"
 
@@ -50,17 +51,18 @@ func NewOrderActivities(
 	}
 }
 
-func (a *OrderActivities) CompleteOrder(ctx context.Context, data workflow.CompleteOrderStepInput) (workflow.Result, error) {
+func (a *OrderActivities) CompleteOrder(ctx context.Context, paymentContext payment_providers.PaymentWebhookContext) (workflow.Result, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("CompleteOrder", "OrgId", data.PaymentContext.OrgId, "OrderId", data.PaymentContext.OrderId)
+	logger.Info("CompleteOrder", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId)
 
 	order, err := a.orderService.CompleteOrder(ctx, orders.CompleteOrderCommand{
-		OrgId:    data.PaymentContext.OrgId,
-		OrderId:  data.PaymentContext.OrderId,
-		Metadata: nil,
+		OrgId:          paymentContext.OrgId,
+		OrderId:        paymentContext.OrderId,
+		PaymentContext: paymentContext,
+		Metadata:       nil,
 	})
 	if err != nil {
-		logger.Error("error completing order", "OrgId", data.PaymentContext.OrgId, "OrderId", data.PaymentContext.OrderId, "err", err.Error())
+		logger.Error("error completing order", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId, "err", err.Error())
 		return workflow.Result{}, temporal.NewNonRetryableApplicationError("Can't mark order as completed", "order", err)
 	}
 
@@ -75,7 +77,7 @@ func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId strin
 	logger := activity.GetLogger(ctx)
 	logger.Info("GetOrderSubscriptions: ", "[OrgId]", orgId, "[OrderId]", orderId)
 
-	subs, err := a.subscriptionService.CreateSubscriptionsForOrder(ctx, orgId, orderId)
+	subs, err := a.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
 
 	return subs, err
 }
@@ -109,7 +111,7 @@ func (a *OrderActivities) StoreChargeResults(ctx context.Context, subscription e
 	return newSub, err
 }
 
-// StoreSubscriptionWorkflowContext stores the Temporal workflow ID and workflow run ID
+// StoreSubscriptionWorkflowContext stores the Temporal workflow Id and workflow run Id
 // so that the system can query the workflow status later.
 //
 // At the moment this is not an Application level concern, only a Temporal concern, so use the

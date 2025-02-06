@@ -20,7 +20,7 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload workflow.WorkflowPaylo
 	logger.Info("PaymentSuccessWorkflow started")
 
 	// parse the data to make sure we have what we need
-	wfData, err := payment_providers.ParsePaymentWebhookContext(payload.Data)
+	paymentWebhookContext, err := payment_providers.ParsePaymentWebhookContext(payload.Data)
 	if err != nil {
 		logger.Error("Invalid payload data", "err", err.Error())
 		return workflow.Result{}, errors.New("invalid payload data, expected payment_providers.PaymentWebhookContext ")
@@ -38,9 +38,7 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload workflow.WorkflowPaylo
 			BackoffCoefficient: 1.0,
 		},
 	})
-	err = temporal.ExecuteActivity(ctx1, a.CompleteOrder, workflow.CompleteOrderStepInput{
-		PaymentContext: wfData,
-	}).Get(ctx1, &completeOrderResult)
+	err = temporal.ExecuteActivity(ctx1, a.CompleteOrder, paymentWebhookContext).Get(ctx1, &completeOrderResult)
 	if err != nil {
 		logger.Error("[Complete Order] failed with error: ", "Error", err.Error())
 		return workflow.Result{}, temporalio.NewApplicationError("Complete Order failed", "", err)
@@ -50,25 +48,30 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload workflow.WorkflowPaylo
 	// Prepare the subscriptions for the order
 	// TODO prepare the subscriptions for the order, returning a list of subscriptions
 	var subscriptions []entities.Subscription
-	err = temporal.ExecuteActivity(ctx1, a.GetOrderSubscriptions, wfData.OrgId, wfData.OrderId).
-		Get(ctx1, &subscriptions)
-
-	// step 2, process the subscriptions
-	subscription := subscriptions[0]
-	logger.Info("Spawiing child workflow for subscription", "subscription", subscription.Id)
-	childWorkflowOptions := temporal.ChildWorkflowOptions{
-		WorkflowID:        fmt.Sprintf(`subwf_%s_%s`, subscription.OrgId, subscription.Id),
-		ParentClosePolicy: enums.PARENT_CLOSE_POLICY_ABANDON,
-	}
-	childCtx := temporal.WithChildOptions(ctx, childWorkflowOptions)
-	childWorkflowFuture := temporal.ExecuteChildWorkflow(childCtx, SubscriptionWorkflow, SubscriptionInput{
-		Customer:     entities.Customer{},
-		Subscription: subscription,
+	ctx2 := temporal.WithActivityOptions(ctx, temporal.ActivityOptions{
+		StartToCloseTimeout: 10000 * time.Second,
+		RetryPolicy: &temporalio.RetryPolicy{
+			InitialInterval:    time.Minute,
+			BackoffCoefficient: 1.0,
+		},
 	})
+	err = temporal.ExecuteActivity(ctx2, a.GetOrderSubscriptions, paymentWebhookContext.OrgId, paymentWebhookContext.OrderId).
+		Get(ctx2, &subscriptions)
+
+	// ACTIVITY
+	// process the subscriptions
+	subscription := subscriptions[0]
+	logger.Info("Spawning child workflow for subscription", "subscription", subscription.Id)
+	childCtx := temporal.WithChildOptions(ctx, temporal.ChildWorkflowOptions{
+		WorkflowID:        fmt.Sprintf(`subscription_[%s]_[%s]`, subscription.OrgId, subscription.Id),
+		ParentClosePolicy: enums.PARENT_CLOSE_POLICY_ABANDON,
+	})
+	childWorkflowFuture := temporal.ExecuteChildWorkflow(childCtx, SubscriptionWorkflow, subscription)
 
 	// Wait for the Child Workflow Execution to spawn
 	var childWE temporal.Execution
-	if err := childWorkflowFuture.GetChildWorkflowExecution().Get(ctx, &childWE); err != nil {
+	if err := childWorkflowFuture.GetChildWorkflowExecution().
+		Get(ctx, &childWE); err != nil {
 		logger.Error("Unable to start subscription workflow.", "err", err.Error())
 		// update the subscription so that we can retry
 
@@ -82,7 +85,7 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload workflow.WorkflowPaylo
 	// ACTIVITY
 	// store the child workflow execution details against the subscription
 	err = temporal.ExecuteActivity(ctx1, a.StoreSubscriptionWorkflowContext, activities.StoreSubscriptionWorkflowContextInput{
-		OrgId:          wfData.OrgId,
+		OrgId:          paymentWebhookContext.OrgId,
 		SubscriptionId: subscription.Id,
 		Execution:      childWE,
 	}).Get(ctx1, nil)

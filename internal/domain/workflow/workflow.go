@@ -2,11 +2,13 @@ package workflow
 
 import (
 	"context"
+	"payloop/internal/domain/entities"
 	"payloop/internal/domain/payment_providers"
 )
 
 type Engine interface {
 	StartWorkflow(ctx context.Context, id WorkflowType, payload interface{}) (Result, error)
+	StartSubscriptionWorkflow(ctx context.Context, subscription entities.Subscription) (Result, error)
 }
 
 type Workflow interface {
@@ -38,4 +40,5 @@ type WorkflowType string
 
 const (
 	PaymentSuccess WorkflowType = "payment.success"
+	Subscription   WorkflowType = "subscription"
 )

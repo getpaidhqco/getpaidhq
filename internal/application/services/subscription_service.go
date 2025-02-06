@@ -53,7 +53,7 @@ func NewSubscriptionService(
 func (s *SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
 	s.logger.Info("CreateSubscriptionsForOrder", "orgId", orgId, "orderId", orderId)
 	var subscriptions []entities.Subscription
-	_, err := s.orderRepository.FindById(ctx, orgId, orderId)
+	order, err := s.orderRepository.FindById(ctx, orgId, orderId)
 	if err != nil {
 		s.logger.Error("Failed to find order", err.Error())
 		return subscriptions, err
@@ -67,6 +67,10 @@ func (s *SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, o
 
 	for _, item := range orderItems {
 		subscription := entities.NewSubscriptionFromOrderItem(item)
+		if order.Status == entities.OrderStatusCompleted {
+			subscription.Status = entities.SubscriptionStatusActive
+		}
+
 		_, err := s.subscriptionRepository.Create(ctx, subscription)
 		if err != nil {
 			s.logger.Error("Failed to create subscription", "item", item, err.Error())
@@ -77,6 +81,22 @@ func (s *SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, o
 
 	s.logger.Info("Subscriptions created", "count", len(subscriptions))
 	return subscriptions, nil
+}
+
+func (s *SubscriptionService) Create(ctx context.Context, input subscriptions.CreateSubscriptionInput) (entities.Subscription, error) {
+	s.logger.Info("Creating new subscription", "orgId", input.OrgId)
+
+	subscription := subscriptions.NewFromCreateInput(input)
+	subscription, err := s.subscriptionRepository.Create(ctx, subscription)
+
+	if err != nil {
+		s.logger.Error("Failed to find subscriptions", err.Error())
+		return entities.Subscription{}, err
+	}
+
+	_ = s.pubsub.PublishJSON(events.TopicSubscriptionCreated, subscription)
+
+	return subscription, nil
 }
 
 func (s *SubscriptionService) Update(ctx context.Context, input subscriptions.UpdateSubscriptionInput) (entities.Subscription, error) {
@@ -149,13 +169,18 @@ func (s *SubscriptionService) StoreSubscriptionPayment(ctx context.Context, inpu
 	subscription := input.Subscription
 	charge := input.ChargeResult
 
+	if subscription.Id == "" {
+		s.logger.Error("Subscription is empty")
+		panic("Subscription is empty")
+	}
+
 	matadata := make(map[string]string)
 	matadata["psp_id"] = charge.PspId
 
 	payment := entities.Payment{
 		OrgId:          subscription.OrgId,
 		Id:             lib.GenerateId("pmt"),
-		PspId:          "psp_id",
+		PspId:          charge.PspId,
 		OrderId:        subscription.OrderId,
 		SubscriptionId: subscription.Id,
 
@@ -190,6 +215,10 @@ func (s *SubscriptionService) StoreSubscriptionPayment(ctx context.Context, inpu
 		"cycles", subscription.CyclesProcessed,
 		"totalRevenue", subscription.TotalRevenue)
 	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
+	if err != nil {
+		s.logger.Error("Failed to update subscription", err.Error())
+		return entities.Subscription{}, err
+	}
 
 	return newSub, nil
 }

@@ -1,5 +1,7 @@
 package entities
 
+import "time"
+
 type PaymentMethod struct {
 	OrgId          string  `json:"org_id"`
 	Id             string  `json:"id"`
@@ -9,6 +11,8 @@ type PaymentMethod struct {
 	BillingAddress Address `json:"billing_address"`
 	Type           string  `json:"type"`
 	Details        interface{}
+	CreatedAt      time.Time `json:"created_at"`
+	UpdatedAt      time.Time `json:"updated_at"`
 }
 
 type Address struct {

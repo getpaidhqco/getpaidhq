@@ -72,9 +72,10 @@ func (r OrderItemRepository) FindById(ctx context.Context, orgId string, id stri
 
 // Create inserts a new order item into the database
 func (r OrderItemRepository) Create(ctx context.Context, orderItem entities.OrderItem) (entities.OrderItem, error) {
+
 	query := `INSERT INTO order_items (org_id, id, order_id, price_id, description, quantity, metadata, created_at, updated_at)
-			  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-			  RETURNING org_id, id, order_id, price_id, description, quantity, metadata, created_at, updated_at`
+				  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+				  RETURNING org_id, id, order_id, price_id, description, quantity, metadata, created_at, updated_at`
 
 	metadata, err := json.Marshal(orderItem.Metadata)
 	if err != nil {
@@ -98,7 +99,7 @@ func (r OrderItemRepository) Create(ctx context.Context, orderItem entities.Orde
 		&orderItem.PriceId,
 		&orderItem.Description,
 		&orderItem.Quantity,
-		&orderItem.Metadata,
+		&metadata,
 		&orderItem.CreatedAt,
 		&orderItem.UpdatedAt,
 	)
@@ -106,10 +107,37 @@ func (r OrderItemRepository) Create(ctx context.Context, orderItem entities.Orde
 		return entities.OrderItem{}, err
 	}
 
+	err = json.Unmarshal(metadata, &orderItem.Metadata)
+	if err != nil {
+		return entities.OrderItem{}, err
+	}
+
+	// Join with Price
+	var price entities.Price
+	priceQuery := `SELECT org_id, id, category, scheme, trial_interval, trial_interval_qty, billing_interval, billing_interval_qty, currency, unit_price, tax_code
+					   FROM prices WHERE id = $1`
+	err = r.Pool.QueryRow(ctx, priceQuery, orderItem.PriceId).Scan(
+		&price.OrgId,
+		&price.Id,
+		&price.Category,
+		&price.Scheme,
+		&price.TrialInterval,
+		&price.TrialIntervalQty,
+		&price.BillingInterval,
+		&price.BillingIntervalQty,
+		&price.Currency,
+		&price.UnitPrice,
+		&price.TaxCode,
+	)
+	if err != nil {
+		return entities.OrderItem{}, err
+	}
+
+	orderItem.Price = price
 	return orderItem, nil
 }
 
-// FindByOrderId retrieves order items by order ID
+// FindByOrderId retrieves order items by order Id
 func (r OrderItemRepository) FindByOrderId(ctx context.Context, orgId string, orderId string) ([]entities.OrderItem, error) {
 	var orderItems []entities.OrderItem
 

@@ -3,6 +3,8 @@ package controllers
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"payloop/internal/api/authn"
+	"payloop/internal/api/dto/request"
 	"payloop/internal/application/services"
 	"payloop/internal/domain/entities/subscriptions"
 	"payloop/internal/lib"
@@ -55,6 +57,42 @@ func (s SubscriptionController) Update(c *gin.Context) {
 		Id:       id,
 		Status:   input.Status,
 		Metadata: input.Metadata,
+	})
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	c.JSON(200, subscription)
+}
+
+// Create a new subscription in pending status
+func (s SubscriptionController) Create(c *gin.Context) {
+	var input request.CreateSubscriptionRequest
+	user, _ := c.Get("user")
+	orgId := user.(authn.User).OrgId
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"error": err.Error(),
+		})
+		return
+	}
+
+	s.logger.Debug("Creating subscription", "orgId", orgId, "input", input)
+
+	subscription, err := s.subscriptionService.Create(c.Request.Context(), subscriptions.CreateSubscriptionInput{
+		OrgId:              orgId,
+		PaymentMethodId:    input.PaymentMethodId,
+		Amount:             input.Amount,
+		Currency:           input.Currency,
+		BillingInterval:    input.BillingInterval,
+		BillingIntervalQty: input.BillingIntervalQty,
+		Cycles:             input.Cycles,
+		TrialInterval:      input.TrialInterval,
+		TrialIntervalQty:   input.TrialIntervalQty,
+		Metadata:           nil,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{

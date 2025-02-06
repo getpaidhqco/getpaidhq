@@ -71,9 +71,36 @@ func (r SubscriptionRepository) FindById(ctx context.Context, org_id string, id 
 
 func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
 	var subscriptions []entities.Subscription
-
+	query := `SELECT  org_id,
+				  id,
+				  order_id,
+				  status,
+				  payment_method_id,
+				  start_date,
+				  end_date,
+				  billing_interval,
+				  billing_interval_qty,
+				  cycles,
+				  billing_anchor,
+				  trial_ends_at,
+				  cancel_at,
+				  ends_at,
+				  last_charge,
+				  renews_at,
+				  retries,
+				  next_retry,
+				  currency,
+				  amount,
+				  metadata,
+				  cycles_processed,
+				  total_revenue,
+				  cancelled_at,
+				  created_at,
+				  updated_at
+				FROM subscriptions
+				WHERE org_id = @org_id AND order_id = @order_id;`
 	rows, err := r.Pool.Query(ctx,
-		`SELECT * FROM subscriptions WHERE org_id=@org_id AND order_id=@order_id order by org_id,id`,
+		query,
 		pgx.NamedArgs{
 			"org_id":   orgId,
 			"order_id": orderId,
@@ -86,11 +113,13 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 
 	for rows.Next() {
 		var subscription entities.Subscription
+
 		err := rows.Scan(
 			&subscription.OrgId,
 			&subscription.Id,
 			&subscription.OrderId,
 			&subscription.Status,
+			&subscription.PaymentMethodId,
 			&subscription.StartDate,
 			&subscription.EndDate,
 			&subscription.BillingInterval,
@@ -131,10 +160,9 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subscription) (entities.Subscription, error) {
 
 	var subscription entities.Subscription
-
 	query := `INSERT INTO subscriptions (org_id, id, order_id, status, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at) 
 			  VALUES (@org_id, @id, @order_id, @status, @start_date, @end_date, @billing_interval, @billing_interval_qty, @cycles, @billing_anchor, @trial_ends_at, @cancel_at, @ends_at, @last_charge, @renews_at, @retries, @next_retry, @currency, @amount, @metadata, @cycles_processed, @total_revenue, @cancelled_at, NOW(), NOW())
-			  RETURNING org_id, id, order_id, status, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at`
+			  RETURNING org_id, id, status, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at`
 
 	metaJson, _ := json.Marshal(entity.Metadata)
 
@@ -165,7 +193,6 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 	}).Scan(
 		&subscription.OrgId,
 		&subscription.Id,
-		&subscription.OrderId,
 		&subscription.Status,
 		&subscription.StartDate,
 		&subscription.EndDate,
@@ -195,14 +222,17 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 		return entities.Subscription{}, err
 	}
 
+	subscription.OrderId = entity.OrderId
+
 	return subscription, nil
 }
 
 func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subscription) (entities.Subscription, error) {
+
 	query := `UPDATE subscriptions
-			  SET status=@status, start_date=@start_date, end_date=@end_date, billing_interval=@billing_interval, billing_interval_qty=@billing_interval_qty, cycles=@cycles, billing_anchor=@billing_anchor, trial_ends_at=@trial_ends_at, cancel_at=@cancel_at, ends_at=@ends_at, last_charge=@last_charge, renews_at=@renews_at, retries=@retries, next_retry=@next_retry, currency=@currency, amount=@amount, metadata=@metadata, cycles_processed=@cycles_processed, total_revenue=@total_revenue, cancelled_at=@cancelled_at, updated_at=NOW()
+			  SET status=@status, payment_method_id=@payment_method_id, start_date=@start_date, end_date=@end_date, billing_interval=@billing_interval, billing_interval_qty=@billing_interval_qty, cycles=@cycles, billing_anchor=@billing_anchor, trial_ends_at=@trial_ends_at, cancel_at=@cancel_at, ends_at=@ends_at, last_charge=@last_charge, renews_at=@renews_at, retries=@retries, next_retry=@next_retry, currency=@currency, amount=@amount, metadata=@metadata, cycles_processed=@cycles_processed, total_revenue=@total_revenue, cancelled_at=@cancelled_at, updated_at=NOW()
 			  WHERE org_id=@org_id AND id=@id
-			  RETURNING org_id, id, order_id, status, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at`
+			  RETURNING org_id, id, order_id, payment_method_id, status, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at`
 
 	metaJson, _ := json.Marshal(entity.Metadata)
 
@@ -212,6 +242,7 @@ func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subs
 		"id":                   entity.Id,
 		"status":               entity.Status,
 		"start_date":           entity.StartDate,
+		"payment_method_id":    entity.PaymentMethodId,
 		"end_date":             entity.EndDate,
 		"billing_interval":     entity.BillingInterval,
 		"billing_interval_qty": entity.BillingIntervalQty,
@@ -234,6 +265,7 @@ func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subs
 		&subscription.OrgId,
 		&subscription.Id,
 		&subscription.OrderId,
+		&subscription.PaymentMethodId,
 		&subscription.Status,
 		&subscription.StartDate,
 		&subscription.EndDate,

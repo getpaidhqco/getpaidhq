@@ -41,10 +41,13 @@ func (r OrderRepository) WithTrx(trxHandle interface{}) OrderRepository {
 
 func (r OrderRepository) FindById(ctx context.Context, orgId string, id string) (entities.Order, error) {
 	var order entities.Order
+	var customer entities.Customer
 
-	query := `SELECT org_id, id, customer_id, reference, status, session_id, cart_id, currency, total, metadata, created_at, updated_at
+	query := `SELECT orders.org_id, orders.id, orders.customer_id, orders.reference, orders.status, orders.session_id, orders.cart_id, orders.currency, orders.total, orders.metadata, orders.created_at, orders.updated_at,
+                 c.org_id, c.id, c.email, c.name, c.created_at, c.updated_at
 			  FROM orders
-			  WHERE org_id = $1 AND id = $2`
+			  JOIN customers c ON orders.org_id=c.org_id AND orders.customer_id = c.id
+			  WHERE orders.org_id = $1 AND orders.id = $2`
 
 	err := r.Pool.QueryRow(ctx, query, orgId, id).Scan(
 		&order.OrgId,
@@ -59,6 +62,13 @@ func (r OrderRepository) FindById(ctx context.Context, orgId string, id string) 
 		&order.Metadata,
 		&order.CreatedAt,
 		&order.UpdatedAt,
+
+		&customer.OrgId,
+		&customer.Id,
+		&customer.Email,
+		&customer.Name,
+		&customer.CreatedAt,
+		&customer.UpdatedAt,
 	)
 
 	if err != nil {
@@ -83,7 +93,7 @@ func (r OrderRepository) Create(ctx context.Context, entity entities.Order) (ent
 
 	query := `INSERT INTO orders (org_id,id,customer_id,cart_id,reference,status,session_id,currency,total,metadata, created_at, updated_at) 
 			  VALUES (@org_id,@id,@customer_id,@cart_id,@reference,@status,@session_id, @currency,@total,@metadata, NOW(), NOW())
-			  RETURNING (org_id,id,customer_id,reference,status,session_id,cart_id,currency,total,metadata,created_at, updated_at)`
+			  RETURNING org_id,id,customer_id,reference,status,session_id,cart_id,currency,total,metadata,created_at, updated_at`
 
 	metaJson, _ := json.Marshal(entity.Metadata)
 
@@ -98,7 +108,20 @@ func (r OrderRepository) Create(ctx context.Context, entity entities.Order) (ent
 		"currency":    entity.Currency,
 		"total":       entity.Total,
 		"metadata":    metaJson,
-	}).Scan(&order)
+	}).Scan(
+		&order.OrgId,
+		&order.Id,
+		&order.CustomerId,
+		&order.Reference,
+		&order.Status,
+		&order.SessionId,
+		&order.CartId,
+		&order.Currency,
+		&order.Total,
+		&order.Metadata,
+		&order.CreatedAt,
+		&order.UpdatedAt,
+	)
 
 	if err != nil {
 		r.logger.Error(`failed to insert Order`, err.Error())
@@ -108,27 +131,16 @@ func (r OrderRepository) Create(ctx context.Context, entity entities.Order) (ent
 	return order, nil
 }
 
+// Update updates an existing order in the database and joins with the customer
 func (r OrderRepository) Update(ctx context.Context, entity entities.Order) (entities.Order, error) {
 
-	var order entities.Order
-
-	query := `UPDATE orders 
-			  SET org_id = @org_id,
-			      customer_id = @customer_id,
-			      cart_id = @cart_id,
-			      reference = @reference,
-			      status = @status,
-			      session_id = @session_id,
-			      currency = @currency,
-			      total = @total,
-			      metadata = @metadata,
-			      updated_at = NOW()
-			  WHERE org_id = @org_id AND id = @id
-			  RETURNING (org_id, id, customer_id, reference, status, session_id, cart_id, currency, total, metadata, created_at, updated_at)`
+	query := `UPDATE orders
+				SET customer_id = @customer_id, cart_id = @cart_id, reference = @reference, status = @status, session_id = @session_id, currency = @currency, total = @total, metadata = @metadata, updated_at = NOW()
+				WHERE org_id = @org_id AND id = @id`
 
 	metaJson, _ := json.Marshal(entity.Metadata)
 
-	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
+	_, err := r.Pool.Exec(ctx, query, pgx.NamedArgs{
 		"org_id":      entity.OrgId,
 		"id":          entity.Id,
 		"customer_id": entity.CustomerId,
@@ -139,12 +151,12 @@ func (r OrderRepository) Update(ctx context.Context, entity entities.Order) (ent
 		"currency":    entity.Currency,
 		"total":       entity.Total,
 		"metadata":    metaJson,
-	}).Scan(&order)
+	})
 
 	if err != nil {
 		r.logger.Error(`failed to update Order`, err.Error())
 		return entities.Order{}, err
 	}
 
-	return order, nil
+	return r.FindById(ctx, entity.OrgId, entity.Id)
 }

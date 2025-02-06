@@ -17,6 +17,7 @@ func (s SubscriptionRoutes) Setup() {
 	api := s.handler.Gin.Group("/api")
 	{
 		api.GET("/subscriptions/:id", s.subscriptionController.Get)
+		api.POST("/subscriptions", s.subscriptionController.Create)
 		api.PATCH("/subscriptions/:id", s.subscriptionController.Update)
 	}
 }

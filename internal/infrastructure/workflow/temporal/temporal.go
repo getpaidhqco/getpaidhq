@@ -3,6 +3,7 @@ package temporal
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 	temporal "go.temporal.io/sdk/workflow"
@@ -134,6 +135,36 @@ func (t Temporal) StartWorkflow(ctx context.Context, id workflow.WorkflowType, p
 
 }
 
+func (t Temporal) StartSubscriptionWorkflow(ctx context.Context, subscription entities.Subscription) (workflow.Result, error) {
+
+	workflowId := fmt.Sprintf(`subscription_[%s]_[%s]`, subscription.OrgId, subscription.Id)
+	// start workflow
+	// TODO move subscriptions to their own task queue
+	workflowOptions := client.StartWorkflowOptions{
+		ID:        workflowId,
+		TaskQueue: "events",
+	}
+	we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, workflows.SubscriptionWorkflow, subscription)
+	if err != nil {
+		t.logger.Error("Unable to execute workflow", "err", err.Error())
+		return workflow.Result{}, err
+	}
+
+	var result workflow.Result
+	err = we.Get(ctx, &result)
+	if err != nil {
+		t.logger.Error("Unable to get workflow result", "err", err.Error())
+		return workflow.Result{}, err
+	}
+	t.logger.Info("Finished workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID(), "result", result)
+	return workflow.Result{
+		Success: true,
+		Message: "success",
+		Payload: result,
+	}, nil
+
+}
+
 // HandleSubscriptionEvent forwards subscription events on to the appropriate workflow
 func (t Temporal) HandleSubscriptionEvent(topic string, data []byte) error {
 	// Unmarshal the event data
@@ -144,23 +175,32 @@ func (t Temporal) HandleSubscriptionEvent(topic string, data []byte) error {
 		return err
 	}
 
-	setting, err := t.settingRepository.FindById(context.TODO(), eventData.OrgId, eventData.Id, "temporal-workflow")
-	if err != nil {
-		t.logger.Error("Failed to get setting", "error", err)
+	switch topic {
+	case "subscription.created":
+		// TODO this should be done from somewhere else
+		t.logger.Infof("Starting subscription workflow [%s][%s]", eventData.OrgId, eventData.Id)
+		_, err = t.StartSubscriptionWorkflow(context.TODO(), eventData)
+
 		return err
+	default:
+		setting, err := t.settingRepository.FindById(context.TODO(), eventData.OrgId, eventData.Id, "temporal-workflow")
+		if err != nil {
+			t.logger.Error("Failed to get setting", "error", err)
+			return err
+		}
+
+		var we temporal.Execution
+		err = json.Unmarshal([]byte(setting.Value), &we)
+		if err != nil {
+			t.logger.Error("Failed to unmarshal setting value", "error", err)
+			return err
+		}
+
+		err = t.client.SignalWorkflow(context.Background(), we.ID, we.RunID, topic, eventData)
+		if err != nil {
+			t.logger.Error("Unable to signal workflow: %v", err)
+		}
+		return nil
 	}
 
-	var we temporal.Execution
-	err = json.Unmarshal([]byte(setting.Value), &we)
-	if err != nil {
-		t.logger.Error("Failed to unmarshal setting value", "error", err)
-		return err
-	}
-
-	err = t.client.SignalWorkflow(context.Background(), we.ID, we.RunID, topic, eventData)
-	if err != nil {
-		t.logger.Error("Unable to signal workflow: %v", err)
-	}
-
-	return nil
 }

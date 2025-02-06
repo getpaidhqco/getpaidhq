@@ -25,7 +25,7 @@ type Client interface {
 }
 
 type Cognito struct {
-	// AWS App Client ID
+	// AWS App Client Id
 	ClientId string
 
 	// AWS Cognito Issuer

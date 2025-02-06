@@ -1,8 +1,6 @@
 package entities
 
 import (
-	cart "github.com/mdwt/payloop-cart"
-	"github.com/mdwt/payloop-cart/types"
 	"payloop/internal/domain/entities/prices"
 	"payloop/internal/lib"
 	"time"
@@ -26,7 +24,7 @@ type Subscription struct {
 	Id                 string                 `json:"id"`
 	OrderId            string                 `json:"order_id"`
 	Status             SubscriptionStatus     `json:"status"`
-	PaymentMethodId    string                 `json:"payment_method_id"`
+	PaymentMethodId    *string                `json:"payment_method_id,omitempty"`
 	StartDate          time.Time              `json:"start_date"`
 	EndDate            *time.Time             `json:"end_date"`
 	BillingInterval    prices.BillingInterval `json:"billing_interval"`
@@ -86,43 +84,6 @@ func (s Subscription) NextBillingDate() time.Time {
 	}
 
 	return nextBillingDate
-}
-
-// NewSubscriptionFromItem creates a new Subscription from a payloop-cart Item
-func NewSubscriptionFromItem(orgId, orderId string, item cart.Item) Subscription {
-
-	var startDate = time.Now().UTC()
-	if item.Price.TrialInterval != types.BillingIntervalNone {
-		startDate = startDate.AddDate(0, 0, item.Price.TrialIntervalQty)
-	}
-
-	return Subscription{
-		OrgId:              orgId,
-		Id:                 lib.GenerateId("sub"),
-		OrderId:            orderId,
-		Status:             SubscriptionStatusPending,
-		StartDate:          startDate,
-		EndDate:            nil,
-		BillingInterval:    prices.BillingInterval(item.Price.BillingInterval),
-		BillingIntervalQty: item.Price.BillingIntervalQty,
-		Cycles:             0,
-		BillingAnchor:      startDate.Day(),
-		TrialEndsAt:        nil,
-		CancelAt:           nil,
-		EndsAt:             nil,
-		LastCharge:         nil,
-		RenewsAt:           nil,
-		Retries:            0,
-		NextRetry:          nil,
-		Currency:           item.Price.Currency,
-		Amount:             item.Price.UnitPrice,
-		Metadata:           nil,
-		CyclesProcessed:    0,
-		TotalRevenue:       0,
-		CancelledAt:        nil,
-		CreatedAt:          time.Now().UTC(),
-		UpdatedAt:          time.Now().UTC(),
-	}
 }
 
 // NewSubscriptionFromItem creates a new Subscription from a payloop-cart Item

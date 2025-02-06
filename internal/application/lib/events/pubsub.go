@@ -18,6 +18,7 @@ const (
 
 	TopicOrderCompleted = "order.completed"
 
+	TopicSubscriptionCreated   = "subscription.created"
 	TopicSubscriptionPaused    = "subscription.paused"
 	TopicSubscriptionActivated = "subscription.activated"
 )

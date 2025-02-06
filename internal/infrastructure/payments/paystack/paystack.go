@@ -81,6 +81,19 @@ func (p Paystack) ParseWebhook(ctx context.Context, data []byte) (payment_provid
 			OrderId: webhook.Metadata.OrderID,
 			Psp:     PAYSTACK,
 			Status:  "success",
+			Payment: payment_providers.Payment{
+				Currency:  webhook.Currency,
+				Reference: webhook.Reference,
+				Amount:    webhook.Amount,
+				PaidAt:    webhook.PaidAt,
+			},
+			PaymentMethod: payment_providers.PaymentMethod{
+				PspId:       webhook.Authorization.Signature,
+				Name:        webhook.Authorization.Brand,
+				Type:        webhook.Authorization.CardType,
+				IsRecurring: webhook.Authorization.Reusable,
+				Token:       webhook.Authorization.AuthorizationCode,
+			},
 			Type:    payment_providers.PaymentSuccess,
 			RawData: data,
 		}, nil

@@ -12,8 +12,7 @@ import (
 )
 
 type SubscriptionInput struct {
-	Customer     entities.Customer     `json:"customer"`
-	Subscription entities.Subscription `json:"subscription"`
+	entities.Subscription `json:"subscription"`
 }
 
 // SubscriptionWorkflow is a Temporal workflow that manages a subscription instance
@@ -21,10 +20,9 @@ type SubscriptionInput struct {
 // https://learn.temporal.io/tutorials/go/build-an-email-drip-campaign/
 // https://learn.temporal.io/tutorials/typescript/recurring-billing-system/
 
-func SubscriptionWorkflow(ctx workflow.Context, input SubscriptionInput) (string, error) {
+func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (string, error) {
 	logger := workflow.GetLogger(ctx)
-	subscription := input.Subscription
-	//customer := input.Customer
+	subscription := input
 
 	logger.Info("SubscriptionWorkflow started", "Subscription:", subscription.Id)
 	var a *activities.OrderActivities

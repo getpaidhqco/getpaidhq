@@ -6,6 +6,7 @@ import (
 	"payloop/internal/application/lib/events"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
+	"payloop/internal/domain/entities/prices"
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -61,7 +62,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 
 	customer, err := s.customerRepository.Create(ctx, entities.Customer{
 		OrgId: orgId,
-		ID:    lib.GenerateId("customer"),
+		Id:    lib.GenerateId("customer"),
 		Name:  input.Customer.Name,
 		Email: input.Customer.Email,
 	})
@@ -74,7 +75,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 		OrgId:      orgId,
 		Id:         orderId,
 		Reference:  orderId,
-		CustomerId: customer.ID,
+		CustomerId: customer.Id,
 		Status:     entities.OrderStatusPending,
 		SessionId:  "-",
 		CartId:     cart.Id,
@@ -102,7 +103,17 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
 		}
-		_, err := s.orderItemRepository.Create(ctx, orderItem)
+		orderItem, err := s.orderItemRepository.Create(ctx, orderItem)
+
+		if orderItem.Price.Category == prices.PriceCategorySubscription {
+			subscription := entities.NewSubscriptionFromOrderItem(orderItem)
+			_, err := s.subscriptionRepository.Create(ctx, subscription)
+			if err != nil {
+				s.logger.Error("Failed to create subscription", "item", item, err.Error())
+				return entities.Order{}, payment_providers.InitPaymentResponse{}, err
+			}
+		}
+
 		if err != nil {
 			s.logger.Error("Failed to create order item", "item", item, err.Error())
 			return entities.Order{}, payment_providers.InitPaymentResponse{}, err
@@ -124,7 +135,8 @@ func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrder
 	return order, pspResponse, nil
 }
 
-// CompleteOrder marks a pending order as completed and activates any subscriptions
+// CompleteOrder marks a pending order as completed and updates the subscriptions to reflect any payment received
+// This is a special case with orders
 func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOrderCommand) (entities.Order, error) {
 	s.logger.Info("Completing order", "order_id", input.OrderId)
 	orgId := input.OrgId
@@ -144,13 +156,40 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteO
 		return entities.Order{}, err
 	}
 
+	// create a payment method
+	paymentMethod, err := s.customerRepository.CreatePaymentMethod(ctx, entities.PaymentMethod{
+		OrgId:      orgId,
+		Id:         lib.GenerateId("payment_method"),
+		Name:       "Default",
+		CustomerId: order.CustomerId,
+		IsDefault:  true,
+		BillingAddress: entities.Address{
+			Line1: order.Customer.Name,
+		},
+		Type:    input.PaymentContext.PaymentMethod.Type,
+		Details: nil,
+	})
+	if err != nil {
+		s.logger.Error("Failed to create payment method", err.Error())
+		return entities.Order{}, err
+	}
+	s.logger.Infof("Created payment method %s for order %s", paymentMethod.Id, order.Id)
+
+	// find subscriptions for the order and update the status to active
 	subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
 	if err != nil {
 		s.logger.Error("Failed to find subscriptions", err.Error())
 		return entities.Order{}, err
 	}
-
 	for _, subscription := range subscriptions {
+		// TODO this needs to happen but not sure if here or like this
+		if input.PaymentContext.Payment.Amount > 0 && subscription.StartDate.Sub(time.Now().UTC()) < 0 {
+			subscription.LastCharge = &subscription.StartDate
+			subscription.TotalRevenue = subscription.Amount
+			subscription.CyclesProcessed = 1
+		}
+
+		subscription.PaymentMethodId = &paymentMethod.Id
 		subscription.Status = entities.SubscriptionStatusActive
 		_, err := s.subscriptionRepository.Update(ctx, subscription)
 		if err != nil {
