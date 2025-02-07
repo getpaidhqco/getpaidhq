@@ -34,7 +34,7 @@ func (o OrderController) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	order, psp, err := o.service.CreateOrder(c.Request.Context(), orders.CreateOrderCommand{
+	order, psp, err := o.service.CreateOrderFromCart(c.Request.Context(), orders.CreateOrderInput{
 		OrgId: input.OrgId,
 		Customer: orders.CreateOrderCommandCustomer{
 			ID:       input.Customer.ID,

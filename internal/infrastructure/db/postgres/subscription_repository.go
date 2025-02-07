@@ -3,7 +3,6 @@ package postgres
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
 	"payloop/internal/domain/entities"
@@ -27,18 +26,20 @@ func NewSubscriptionRepository(database lib.Database, logger lib.Logger) reposit
 	}
 }
 
-func (r SubscriptionRepository) FindById(ctx context.Context, org_id string, id string) (entities.Subscription, error) {
+func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
 	var subscription entities.Subscription
-	err := r.Pool.QueryRow(ctx,
-		`SELECT * FROM subscriptions WHERE org_id=@org_id AND id=@id`,
-		pgx.NamedArgs{
-			"org_id": org_id,
-			"id":     id,
-		}).Scan(
+	query := `SELECT org_id, id, order_id, status, payment_method_id, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at
+			  FROM subscriptions
+			  WHERE org_id = @org_id AND id = @id;`
+	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
+		"org_id": orgId,
+		"id":     id,
+	}).Scan(
 		&subscription.OrgId,
 		&subscription.Id,
 		&subscription.OrderId,
 		&subscription.Status,
+		&subscription.PaymentMethodId,
 		&subscription.StartDate,
 		&subscription.EndDate,
 		&subscription.BillingInterval,
@@ -61,10 +62,9 @@ func (r SubscriptionRepository) FindById(ctx context.Context, org_id string, id 
 		&subscription.CreatedAt,
 		&subscription.UpdatedAt,
 	)
-
 	if err != nil {
-		r.logger.Error(`failed to find Subscription`, err.Error())
-		return entities.Subscription{}, errors.New("not found")
+		r.logger.Error(`failed to find Subscription by id`, err.Error())
+		return entities.Subscription{}, err
 	}
 	return subscription, nil
 }

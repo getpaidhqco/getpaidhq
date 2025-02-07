@@ -83,10 +83,10 @@ func (s *SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, o
 	return subscriptions, nil
 }
 
-func (s *SubscriptionService) Create(ctx context.Context, input subscriptions.CreateSubscriptionInput) (entities.Subscription, error) {
+func (s *SubscriptionService) Create(ctx context.Context, input entities.CreateSubscriptionInput) (entities.Subscription, error) {
 	s.logger.Info("Creating new subscription", "orgId", input.OrgId)
 
-	subscription := subscriptions.NewFromCreateInput(input)
+	subscription := entities.NewFromCreateInput(input)
 	subscription, err := s.subscriptionRepository.Create(ctx, subscription)
 
 	if err != nil {
@@ -100,7 +100,7 @@ func (s *SubscriptionService) Create(ctx context.Context, input subscriptions.Cr
 }
 
 func (s *SubscriptionService) Update(ctx context.Context, input subscriptions.UpdateSubscriptionInput) (entities.Subscription, error) {
-	s.logger.Info("Marking subscription active", "orgId", input.OrgId, "id", input.Id)
+	s.logger.Info("Updating subscription", "orgId", input.OrgId, "id", input.Id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
@@ -108,7 +108,19 @@ func (s *SubscriptionService) Update(ctx context.Context, input subscriptions.Up
 		return entities.Subscription{}, err
 	}
 
-	return subscription, nil
+	if input.Status != subscription.Status {
+		s.logger.Infof("Updating status %s", input.Status)
+		subscription.Status = input.Status
+	}
+
+	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
+	if err != nil {
+		s.logger.Error("Failed to update subscription", err.Error())
+		return entities.Subscription{}, err
+	}
+
+	_ = s.pubsub.PublishJSON(entities.GetTopicFromStatus(subscription.Status), newSub)
+	return newSub, err
 }
 
 func (s *SubscriptionService) FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error) {

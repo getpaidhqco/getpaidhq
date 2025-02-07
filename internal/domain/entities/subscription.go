@@ -1,10 +1,30 @@
 package entities
 
 import (
+	"payloop/internal/application/lib/events"
 	"payloop/internal/domain/entities/prices"
 	"payloop/internal/lib"
 	"time"
 )
+
+type CreateSubscriptionInput struct {
+	OrgId string `json:"org_id"`
+
+	PaymentMethodId string `json:"payment_method_id" binding:"required"`
+	Activate        bool   `json:"activate"`
+
+	Amount   int    `json:"amount"  binding:"required"`
+	Currency string `json:"currency"  binding:"required"`
+
+	BillingInterval    prices.BillingInterval `json:"billing_interval"  binding:"required"`
+	BillingIntervalQty int                    `json:"billing_interval_qty"  binding:"required"`
+	Cycles             int                    `json:"cycles"`
+
+	TrialInterval    prices.BillingInterval `json:"trial_interval"`
+	TrialIntervalQty int                    `json:"trial_interval_qty"`
+
+	Metadata map[string]string `json:"metadata"`
+}
 
 type SubscriptionStatus string
 
@@ -136,5 +156,75 @@ func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 		CancelledAt:        nil,
 		CreatedAt:          time.Now().UTC(),
 		UpdatedAt:          time.Now().UTC(),
+	}
+}
+
+// NewSubscriptionFrominput creates a new Subscription from a payloop-cart input
+func NewFromCreateInput(input CreateSubscriptionInput) Subscription {
+
+	var startDate = time.Now().UTC()
+	var trialEndsAt *time.Time
+	if input.TrialInterval != prices.BillingIntervalNone {
+		switch input.TrialInterval {
+		case "minute":
+			startDate = startDate.Add(time.Minute * time.Duration(input.TrialIntervalQty))
+		case "hour":
+			startDate = startDate.Add(time.Hour * time.Duration(input.TrialIntervalQty))
+		case "day":
+			startDate = startDate.AddDate(0, 0, input.TrialIntervalQty)
+		case "week":
+			startDate = startDate.AddDate(0, 0, input.TrialIntervalQty*7)
+		case "month":
+			startDate = startDate.AddDate(0, input.TrialIntervalQty, 0)
+		case "year":
+			startDate = startDate.AddDate(input.TrialIntervalQty, 0, 0)
+		}
+
+		trialEndsAt = &startDate
+	}
+
+	return Subscription{
+		OrgId:              input.OrgId,
+		Id:                 lib.GenerateId("sub"),
+		Status:             SubscriptionStatusPending,
+		StartDate:          startDate,
+		EndDate:            nil,
+		BillingInterval:    input.BillingInterval,
+		BillingIntervalQty: input.BillingIntervalQty,
+		Cycles:             0,
+		BillingAnchor:      startDate.Day(),
+		TrialEndsAt:        trialEndsAt,
+		CancelAt:           nil,
+		EndsAt:             nil,
+		LastCharge:         nil,
+		RenewsAt:           nil,
+		Retries:            0,
+		NextRetry:          nil,
+		Currency:           input.Currency,
+		Amount:             input.Amount,
+		Metadata:           nil,
+		CyclesProcessed:    0,
+		TotalRevenue:       0,
+		CancelledAt:        nil,
+		CreatedAt:          time.Now().UTC(),
+		UpdatedAt:          time.Now().UTC(),
+	}
+}
+
+func GetTopicFromStatus(status SubscriptionStatus) string {
+	switch status {
+	case SubscriptionStatusActive:
+		return events.TopicSubscriptionActivated
+	case SubscriptionStatusPaused:
+		return events.TopicSubscriptionPaused
+	case SubscriptionStatusCancelled:
+		return events.TopicSubscriptionCancelled
+	case SubscriptionStatusExpired:
+		return events.SubscriptionStatusExpired
+	case SubscriptionStatusPastDue:
+		return events.SubscriptionStatusExpired
+
+	default:
+		return ""
 	}
 }

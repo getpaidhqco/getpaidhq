@@ -76,18 +76,19 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (st
 			logger.Info("Next billing date reached", "date", nextBillingDate.Format(time.RFC3339))
 		}
 
+		if subscription.Status == entities.SubscriptionStatusPaused {
+			err = workflow.Await(ctx, func() bool {
+				logger.Debug("Pause clause", "subscription.Status", subscription.Status)
+				return subscription.Status == entities.SubscriptionStatusActive ||
+					subscription.Status == entities.SubscriptionStatusCancelled
+			})
+		}
+
 		// The wait is over, check if the subscription was cancelled and if not, charge the customer and
 		// update local state for the next billing period
 		if subscription.Status == entities.SubscriptionStatusCancelled {
 			logger.Info("Subscription is cancelled, ending workflow...")
 			break
-		}
-
-		if subscription.Status == entities.SubscriptionStatusPaused {
-			err = workflow.Await(ctx, func() bool {
-				logger.Debug("Pause clause", "subscription.Status", subscription.Status)
-				return subscription.Status == entities.SubscriptionStatusActive
-			})
 		}
 
 		// Charge the customer

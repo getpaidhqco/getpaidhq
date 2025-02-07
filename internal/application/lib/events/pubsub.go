@@ -21,4 +21,7 @@ const (
 	TopicSubscriptionCreated   = "subscription.created"
 	TopicSubscriptionPaused    = "subscription.paused"
 	TopicSubscriptionActivated = "subscription.activated"
+	TopicSubscriptionCancelled = "subscription.cancelled"
+	SubscriptionStatusExpired  = "subscription.expired"
+	SubscriptionStatusPastDue  = "subscription.past_due"
 )

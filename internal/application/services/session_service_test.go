@@ -51,7 +51,7 @@ func TestSessionService_CreateSession(t *testing.T) {
 			})
 			assert.Equal(t, err, nil)
 
-			order, _, err := orderService.CreateOrder(ctx, orders.CreateOrderCommand{
+			order, _, err := orderService.CreateOrderFromCart(ctx, orders.CreateOrderInput{
 				OrgId: orgId,
 				Customer: orders.CreateOrderCommandCustomer{
 					Name:  "John Doe",

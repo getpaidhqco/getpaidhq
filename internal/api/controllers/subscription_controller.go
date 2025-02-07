@@ -6,6 +6,7 @@ import (
 	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/services"
+	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/subscriptions"
 	"payloop/internal/lib"
 )
@@ -41,6 +42,8 @@ func (s SubscriptionController) Get(c *gin.Context) {
 
 func (s SubscriptionController) Update(c *gin.Context) {
 	var input subscriptions.UpdateSubscriptionRequest
+	user, _ := c.Get("user")
+	orgId := user.(authn.User).OrgId
 	id := c.Param("id")
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -50,10 +53,8 @@ func (s SubscriptionController) Update(c *gin.Context) {
 		return
 	}
 
-	s.logger.Debug("Updating subscription", "input", input)
-
 	subscription, err := s.subscriptionService.Update(c.Request.Context(), subscriptions.UpdateSubscriptionInput{
-		OrgId:    input.OrgId,
+		OrgId:    orgId,
 		Id:       id,
 		Status:   input.Status,
 		Metadata: input.Metadata,
@@ -82,7 +83,7 @@ func (s SubscriptionController) Create(c *gin.Context) {
 
 	s.logger.Debug("Creating subscription", "orgId", orgId, "input", input)
 
-	subscription, err := s.subscriptionService.Create(c.Request.Context(), subscriptions.CreateSubscriptionInput{
+	subscription, err := s.subscriptionService.Create(c.Request.Context(), entities.CreateSubscriptionInput{
 		OrgId:              orgId,
 		PaymentMethodId:    input.PaymentMethodId,
 		Amount:             input.Amount,

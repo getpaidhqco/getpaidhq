@@ -58,3 +58,72 @@ func TestNewSubscriptionFromOrderItem_FreeTrial(t *testing.T) {
 	assert.WithinDuration(t, now, subscription.CreatedAt, 5*time.Second)
 	assert.WithinDuration(t, now, subscription.UpdatedAt, 5*time.Second)
 }
+
+func TestNextBillingDate(t *testing.T) {
+	now := time.Now().UTC()
+
+	tests := []struct {
+		name             string
+		subscription     Subscription
+		expectedNextDate time.Time
+	}{
+		{
+			name: "No LastCharge, No CyclesProcessed",
+			subscription: Subscription{
+				StartDate:          now,
+				BillingInterval:    prices.BillingIntervalMonth,
+				BillingIntervalQty: 1,
+			},
+			expectedNextDate: now,
+		},
+		{
+			name: "Started now, With LastCharge, 1 CycleProcessed",
+			subscription: Subscription{
+				StartDate:          now,
+				LastCharge:         &now,
+				CyclesProcessed:    1,
+				BillingInterval:    prices.BillingIntervalMonth,
+				BillingIntervalQty: 1,
+			},
+			expectedNextDate: now.AddDate(0, 1, 0),
+		},
+		{
+			name: "With LastCharge",
+			subscription: Subscription{
+				StartDate:          now.AddDate(0, -1, 0),
+				LastCharge:         &now,
+				BillingInterval:    prices.BillingIntervalMonth,
+				BillingIntervalQty: 1,
+			},
+			expectedNextDate: now.AddDate(0, 1, 0),
+		},
+		{
+			name: "With LastCharge and CyclesProcessed",
+			subscription: Subscription{
+				StartDate:          now.AddDate(0, -2, 0),
+				LastCharge:         &now,
+				BillingInterval:    prices.BillingIntervalMonth,
+				BillingIntervalQty: 1,
+				CyclesProcessed:    1,
+			},
+			expectedNextDate: now.AddDate(0, 1, 0),
+		},
+		{
+			name: "Weekly Billing Interval",
+			subscription: Subscription{
+				StartDate:          now.AddDate(0, 0, -7),
+				LastCharge:         &now,
+				BillingInterval:    prices.BillingIntervalWeek,
+				BillingIntervalQty: 1,
+			},
+			expectedNextDate: now.AddDate(0, 0, 7),
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			nextDate := tt.subscription.NextBillingDate()
+			assert.WithinDuration(t, tt.expectedNextDate, nextDate, time.Second)
+		})
+	}
+}

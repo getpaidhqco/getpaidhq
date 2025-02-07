@@ -49,7 +49,7 @@ func NewOrderService(
 	}
 }
 
-func (s *OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderCommand) (entities.Order, payment_providers.InitPaymentResponse, error) {
+func (s *OrderService) CreateOrderFromCart(ctx context.Context, input orders.CreateOrderInput) (entities.Order, payment_providers.InitPaymentResponse, error) {
 	s.logger.Info("Creating order for cart", "cart", input.CartId)
 	orgId := input.OrgId
 	orderId := lib.GenerateId("order")
@@ -187,6 +187,8 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteO
 			subscription.LastCharge = &subscription.StartDate
 			subscription.TotalRevenue = subscription.Amount
 			subscription.CyclesProcessed = 1
+			renewsAt := subscription.NextBillingDate()
+			subscription.RenewsAt = &renewsAt
 		}
 
 		subscription.PaymentMethodId = &paymentMethod.Id
