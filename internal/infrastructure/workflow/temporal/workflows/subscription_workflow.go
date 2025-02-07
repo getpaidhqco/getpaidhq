@@ -76,6 +76,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (st
 			logger.Info("Next billing date reached", "date", nextBillingDate.Format(time.RFC3339))
 		}
 
+		// If the subscription was paused, wait until it is activated again
 		if subscription.Status == entities.SubscriptionStatusPaused {
 			err = workflow.Await(ctx, func() bool {
 				logger.Debug("Pause clause", "subscription.Status", subscription.Status)
@@ -89,6 +90,12 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (st
 		if subscription.Status == entities.SubscriptionStatusCancelled {
 			logger.Info("Subscription is cancelled, ending workflow...")
 			break
+		}
+
+		// Check if the subscription is active
+		if subscription.Status != entities.SubscriptionStatusActive {
+			logger.Info("Subscription is not active, skipping billing cycle")
+			continue
 		}
 
 		// Charge the customer
@@ -122,7 +129,12 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (st
 			logger.Error("Failed to StoreChargeResults", "Error", err.Error())
 			return "", err
 		}
+		if updateResult.Id == "nil" {
+			logger.Error("Failed to update subscription", "Error", "updateResult is nil")
+			return "", err
+		}
 
+		// Update the local state with the updated subscription
 		subscription = updateResult
 
 		// the subscription was successfully charged, update the subscription state
