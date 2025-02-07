@@ -8,14 +8,17 @@ require (
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gin-gonic/gin v1.10.0
 	github.com/jackc/pgx/v5 v5.7.2
+	github.com/joho/godotenv v1.5.1
 	github.com/mdwt/payloop-cart v0.0.0-20250124073144-4b5701be2231
 	github.com/mdwt/paystack-go v0.0.0-20250128134735-2e5c46a871b7
 	github.com/nats-io/nats-server/v2 v2.10.25
 	github.com/nats-io/nats.go v1.38.0
 	github.com/rs/cors/wrapper/gin v0.0.0-20220223021805-a4a5ce87d5a2
 	github.com/segmentio/ksuid v1.0.4
+	github.com/shopspring/decimal v1.4.0
 	github.com/spf13/cobra v1.8.1
 	github.com/spf13/viper v1.19.0
+	github.com/steebchen/prisma-client-go v0.46.0
 	github.com/stretchr/testify v1.10.0
 	go.temporal.io/api v1.43.0
 	go.temporal.io/sdk v1.32.1
@@ -79,6 +82,7 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
+	go.mongodb.org/mongo-driver/v2 v2.0.0 // indirect
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.8.0 // indirect

@@ -20,6 +20,8 @@ type Env struct {
 	CognitoClientId string `mapstructure:"COGNITO_CLIENT_ID"`
 	CognitoPoolId   string `mapstructure:"COGNITO_POOL_ID"`
 	CognitoRegion   string `mapstructure:"COGNITO_REGION"`
+
+	PaystackApiKey string `mapstructure:"PAYSTACK_API_KEY"`
 }
 
 // NewEnv creates a new environment

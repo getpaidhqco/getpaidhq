@@ -1,6 +1,9 @@
 package request
 
-import "payloop/internal/domain/entities/prices"
+import (
+	"payloop/internal/domain/entities/prices"
+	"payloop/internal/domain/entities/subscriptions"
+)
 
 type CreateSubscriptionRequest struct {
 	PaymentMethodId string `json:"payment_method_id" binding:"required"`
@@ -34,4 +37,12 @@ type ActivateSubscriptionRequest struct {
 	TrialIntervalQty int                    `json:"trial_interval_qty"`
 
 	Metadata map[string]string `json:"metadata"`
+}
+
+type PauseSubscriptionRequest struct {
+	Reason string `json:"reason"`
+}
+
+type ResumeSubscriptionRequest struct {
+	ResumeBehavior subscriptions.SubscriptionResumeBehavior `json:"resume_behavior"`
 }

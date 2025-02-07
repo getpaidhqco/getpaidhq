@@ -13,10 +13,12 @@ var PAYSTACK = "Paystack"
 
 type Paystack struct {
 	logger lib.Logger
+	env    lib.Env
 }
 
-func NewPaystackGateway(logger lib.Logger) payment_providers.Gateway {
+func NewPaystackGateway(logger lib.Logger, env lib.Env) payment_providers.Gateway {
 	return Paystack{
+		env:    env,
 		logger: logger,
 	}
 }
@@ -57,6 +59,33 @@ func (p Paystack) InitPayment(ctx context.Context, input payment_providers.InitP
 	p.logger.Info("created Paystack transaction", "reference", transaction.Reference, "code", transaction.AccessCode)
 	return payment_providers.InitPaymentResponse{
 		PspResponse: transaction,
+	}, nil
+}
+
+func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.ChargePaymentCommand) (payment_providers.ChargePaymentResponse, error) {
+	client := paystacklib.NewClient(p.env.PaystackApiKey)
+	customer := input.Customer
+	paymentMethod := input.PaymentMethod
+
+	request := paystacklib.ChargeAuthorizationRequest{
+		Amount:            input.Amount,
+		Email:             customer.Email,
+		AuthorizationCode: paymentMethod.Token,
+		Reference:         input.Reference,
+		Currency:          input.Currency,
+		Metadata:          nil,
+	}
+
+	response, err := client.Transaction.ChargeAuthorization(ctx, request)
+	if err != nil {
+		p.logger.Errorf("failed to charge payment", err.Error())
+		return payment_providers.ChargePaymentResponse{}, err
+	}
+
+	p.logger.Info("charged payment", "response", response)
+	return payment_providers.ChargePaymentResponse{
+		Success:     true,
+		PspResponse: response,
 	}, nil
 }
 

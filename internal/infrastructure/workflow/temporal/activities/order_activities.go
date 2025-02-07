@@ -3,6 +3,7 @@ package activities
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 	"payloop/internal/application/lib/events"
@@ -31,6 +32,7 @@ type OrderActivities struct {
 	settingRepository      repositories.SettingRepository
 	paymentRepository      repositories.PaymentRepository
 	pubsub                 events.PubSub
+	paymentGateway         payment_providers.Gateway
 }
 
 func NewOrderActivities(
@@ -40,8 +42,10 @@ func NewOrderActivities(
 	subscriptionRepository repositories.SubscriptionRepository,
 	pubsub events.PubSub,
 	paymentRepository repositories.PaymentRepository,
+	paymentGateway payment_providers.Gateway,
 ) OrderActivities {
 	return OrderActivities{
+		paymentGateway:         paymentGateway,
 		orderService:           orderService,
 		subscriptionService:    subscriptionService,
 		subscriptionRepository: subscriptionRepository,
@@ -88,14 +92,45 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, su
 	logger := activity.GetLogger(ctx)
 	logger.Info("ChargeCustomerForBillingPeriod", "id", subscription.Id, "Amount", subscription.Amount)
 
-	// TODO success charge
+	customer, err := a.subscriptionService.GetSubscriptionCustomer(ctx, subscription)
+	if err != nil {
+		logger.Error("failed to get customer", "error", err.Error())
+		return payments.ChargeResult{}, err
+	}
 
+	paymentMethod, err := a.subscriptionService.GetSubscriptionPaymentMethod(ctx, subscription)
+	if err != nil {
+		logger.Error("failed to get paymentMethod", "error", err.Error())
+		return payments.ChargeResult{}, err
+	}
+
+	chargeResult, err := a.paymentGateway.ChargePayment(ctx, payment_providers.ChargePaymentCommand{
+		OrgId:     subscription.OrgId,
+		Amount:    subscription.Amount,
+		Currency:  subscription.Currency,
+		Reference: fmt.Sprintf("%s_%d", subscription.Id, subscription.CyclesProcessed+1),
+		PaymentMethod: payment_providers.PaymentMethod{
+			PspId:       paymentMethod.Id,
+			Name:        paymentMethod.Name,
+			Type:        paymentMethod.Type,
+			IsRecurring: true,
+			Token:       paymentMethod.Token,
+		},
+		Customer: customer,
+	})
+	if err != nil {
+		return payments.ChargeResult{}, err
+	}
+	rawData, err := json.Marshal(chargeResult.PspResponse)
+	if err != nil {
+		logger.Error("failed to marshal charge result", "error", err.Error())
+	}
 	result := payments.ChargeResult{
-		Amount:   subscription.Amount,
+		Amount:   chargeResult.AmountCharged,
 		Status:   payments.PaymentStatusSucceeded,
 		Currency: subscription.Currency,
-		PspId:    "psp_id",
-		RawData:  "{}",
+		PspId:    chargeResult.PspId,
+		RawData:  string(rawData),
 	}
 	return result, nil
 }
@@ -104,7 +139,7 @@ func (a *OrderActivities) StoreChargeResults(ctx context.Context, subscription e
 	logger := activity.GetLogger(ctx)
 	logger.Info("StoreChargeResults", "id", subscription.Id)
 
-	newSub, err := a.subscriptionService.StoreSubscriptionPayment(ctx, subscriptions.StoreSubscriptionPaymentInput{
+	newSub, err := a.subscriptionService.HandleSubscriptionChargeSuccess(ctx, subscriptions.SubscriptionChargeSuccessInput{
 		Subscription: subscription,
 		ChargeResult: chargeResult,
 	})

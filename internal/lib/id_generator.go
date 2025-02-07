@@ -14,6 +14,8 @@ func GenerateId(resource string) string {
 		return "cus_" + ksuid.New().String()
 	case "cartitem":
 		return "ci_" + ksuid.New().String()
+	case "payment_method":
+		return "pm_" + ksuid.New().String()
 	default:
 		return resource + "_" + ksuid.New().String()
 	}

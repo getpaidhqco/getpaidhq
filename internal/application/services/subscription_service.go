@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/subscriptions"
@@ -36,6 +37,15 @@ func NewSubscriptionService(
 	paymentGateway payment_providers.Gateway,
 	logger lib.Logger,
 ) SubscriptionService {
+
+	_, err := pubsub.Subscribe("subscription.workflow.>", func(topic string, data []byte) {
+		logger.Infof("Received message from %s", topic)
+	})
+	if err != nil {
+		logger.Error("Failed to subscribe to topic", err.Error())
+		panic(err)
+	}
+
 	return SubscriptionService{
 		customerRepository:     customerRepository,
 		sessionRepository:      sessionRepository,
@@ -154,13 +164,17 @@ func (s *SubscriptionService) Activate(ctx context.Context, orgId string, id str
 	return subscription, nil
 }
 
-func (s *SubscriptionService) Pause(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
-	s.logger.Info("Pausing subscriptino", "orgId", orgId, "id", id)
+func (s *SubscriptionService) Pause(ctx context.Context, input subscriptions.PauseSubscriptionInput) (entities.Subscription, error) {
+	s.logger.Info("Pausing subscription", "orgId", input.OrgId, "id", input.Id)
 
-	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, id)
+	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
 		s.logger.Error("Failed to find subscriptions", err.Error())
-		return entities.Subscription{}, err
+		var serr lib.ServiceError
+		if errors.As(err, &serr) {
+			return entities.Subscription{}, err
+		}
+		return entities.Subscription{}, lib.NewServiceError(lib.ErrTypeNotFound, err)
 	}
 
 	subscription.Status = entities.SubscriptionStatusPaused
@@ -176,7 +190,129 @@ func (s *SubscriptionService) Pause(ctx context.Context, orgId string, id string
 	return subscription, nil
 }
 
-func (s *SubscriptionService) StoreSubscriptionPayment(ctx context.Context, input subscriptions.StoreSubscriptionPaymentInput) (entities.Subscription, error) {
+func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input subscriptions.ResumeSubscriptionInput) (entities.Subscription, error) {
+	s.logger.Info("Resuming subscription", "orgId", input.OrgId, "id", input.Id)
+
+	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
+	if err != nil {
+		s.logger.Error("Failed to find subscriptions", err.Error())
+		var serr lib.ServiceError
+		if errors.As(err, &serr) {
+			return entities.Subscription{}, err
+		}
+		return entities.Subscription{}, lib.NewServiceError(lib.ErrTypeNotFound, err)
+	}
+
+	if subscription.Status != entities.SubscriptionStatusPaused {
+		s.logger.Info("Subscription is not paused")
+		return subscription, errors.New("subscription is not paused")
+	}
+
+	behaviour := subscriptions.ContinueExistingBillingPeriod
+	if input.ResumeBehaviour != "" {
+		behaviour = input.ResumeBehaviour
+	}
+
+	if behaviour == subscriptions.ContinueExistingBillingPeriod {
+		nextCharge := subscription.NextBillingDate()
+		if nextCharge.Before(time.Now().UTC()) {
+			return entities.Subscription{}, errors.New("next billing date is in the past")
+		}
+		// set the next billing date to the next billing date
+		subscription.RenewsAt = &nextCharge
+	} else {
+		// set the next billing date to the current date
+		nextCharge := time.Now().UTC()
+		subscription.BillingAnchor = nextCharge.Day()
+		subscription.RenewsAt = &nextCharge
+	}
+	subscription.Status = entities.SubscriptionStatusActive
+
+	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
+	if err != nil {
+		s.logger.Error("Failed to update subscription", err.Error())
+		return entities.Subscription{}, err
+	}
+
+	// Publish the resume event
+	_ = s.pubsub.PublishJSON(events.TopicSubscriptionActivated, newSub)
+	_ = s.pubsub.PublishJSON(events.TopicSubscriptionResumed, newSub)
+
+	return subscription, nil
+}
+
+// CancelSubscription
+// A canceled subscription will continue through its current billing cycle. At the end of the current billing cycle the subscription will expire and the customer will no longer be billed.
+// Canceled subscriptions can be reactivated until the end of the billing cycle
+func (s *SubscriptionService) CancelSubscription(ctx context.Context, input subscriptions.CancelSubscriptionInput) (entities.Subscription, error) {
+	s.logger.Info("Pausing subscription", "orgId", input.OrgId, "id", input.Id)
+
+	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
+	if err != nil {
+		s.logger.Error("Failed to find subscriptions", err.Error())
+		var serr lib.ServiceError
+		if errors.As(err, &serr) {
+			return entities.Subscription{}, err
+		}
+		return entities.Subscription{}, lib.NewServiceError(lib.ErrTypeNotFound, err)
+	}
+
+	if subscription.Status == entities.SubscriptionStatusCancelled {
+		s.logger.Info("Subscription is already cancelled")
+		return subscription, nil
+	}
+
+	// set the subscription status to cancelled
+	// set the cancelAt date to the next billing date
+	cancelledAt := time.Now().UTC()
+	subscription.Status = entities.SubscriptionStatusCancelled
+	subscription.CancelAt = subscription.RenewsAt
+	subscription.CancelledAt = &cancelledAt
+	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
+	if err != nil {
+		s.logger.Error("Failed to update subscription", err.Error())
+		return entities.Subscription{}, err
+	}
+
+	// publi
+	_ = s.pubsub.PublishJSON(events.TopicSubscriptionCancelled, subscription)
+
+	return subscription, nil
+}
+
+//func (s *SubscriptionService) ProcessSubscriptionCharge(ctx context.Context, input subscriptions.ProcessSubscriptionChargeInput) (payments.ChargeResult, error) {
+//
+//	subscription := input.Subscription
+//	s.logger.Info("Processing subscription charge", "orgId", subscription.OrgId, "id", subscription.Id)
+//
+//	chargeResult, err := s.paymentGateway.ChargePayment(ctx, subscription)
+//
+//	return newSub, nil
+//}
+
+func (s *SubscriptionService) GetSubscriptionCustomer(ctx context.Context, subscription entities.Subscription) (entities.Customer, error) {
+	customer, err := s.customerRepository.FindById(ctx, subscription.OrgId, subscription.CustomerId)
+	if err != nil {
+		s.logger.Error("Failed to find customer", err.Error())
+		return entities.Customer{}, err
+	}
+
+	return customer, nil
+}
+
+func (s *SubscriptionService) GetSubscriptionPaymentMethod(ctx context.Context, subscription entities.Subscription) (entities.PaymentMethod, error) {
+	s.logger.Info("Fetching payment method for subscription", "orgId", subscription.OrgId, "subscriptionId", subscription.Id)
+
+	paymentMethod, err := s.customerRepository.FindPaymentMethodById(ctx, subscription.OrgId, *subscription.PaymentMethodId)
+	if err != nil {
+		s.logger.Error("Failed to find payment method", err.Error())
+		return entities.PaymentMethod{}, err
+	}
+
+	return paymentMethod, nil
+}
+
+func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context, input subscriptions.SubscriptionChargeSuccessInput) (entities.Subscription, error) {
 	s.logger.Info("Recording subscription payment and updating subscription")
 	subscription := input.Subscription
 	charge := input.ChargeResult
@@ -206,7 +342,7 @@ func (s *SubscriptionService) StoreSubscriptionPayment(ctx context.Context, inpu
 		CreatedAt:   time.Now().UTC(),
 		UpdatedAt:   time.Now().UTC(),
 	}
-	_, err := s.paymentRepository.Create(ctx, payment)
+	payment, err := s.paymentRepository.Create(ctx, payment)
 	if err != nil {
 		s.logger.Error("Failed to create payment", err.Error())
 	}
@@ -231,6 +367,8 @@ func (s *SubscriptionService) StoreSubscriptionPayment(ctx context.Context, inpu
 		s.logger.Error("Failed to update subscription", err.Error())
 		return entities.Subscription{}, err
 	}
+
+	_ = s.pubsub.PublishJSON(events.SubscriptionPaymentChargeSuccess, payment)
 
 	return newSub, nil
 }

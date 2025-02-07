@@ -37,12 +37,14 @@ const (
 	SubscriptionStatusCancelled SubscriptionStatus = "cancelled"
 	SubscriptionStatusPending   SubscriptionStatus = "pending"
 	SubscriptionStatusExpired   SubscriptionStatus = "expired"
+	SubscriptionStatusError     SubscriptionStatus = "error"
 )
 
 type Subscription struct {
 	OrgId              string                 `json:"org_id"`
 	Id                 string                 `json:"id"`
 	OrderId            string                 `json:"order_id"`
+	CustomerId         string                 `json:"customer_id"`
 	Status             SubscriptionStatus     `json:"status"`
 	PaymentMethodId    *string                `json:"payment_method_id,omitempty"`
 	StartDate          time.Time              `json:"start_date"`
@@ -56,6 +58,8 @@ type Subscription struct {
 	EndsAt             *time.Time             `json:"ends_at"`
 	LastCharge         *time.Time             `json:"last_charge"`
 	RenewsAt           *time.Time             `json:"renews_at"`
+	CurrentPeriodStart time.Time              `json:"current_period_start"`
+	CurrentPeriodEnd   time.Time              `json:"current_period_end"`
 	Retries            int                    `json:"retries"`
 	NextRetry          *time.Time             `json:"next_retry"`
 	Currency           string                 `json:"currency"`

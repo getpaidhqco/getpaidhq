@@ -32,7 +32,7 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload workflow.WorkflowPaylo
 	// Complete the Order
 	var completeOrderResult workflow.Result
 	ctx1 := temporal.WithActivityOptions(ctx, temporal.ActivityOptions{
-		StartToCloseTimeout: 10000 * time.Second,
+		StartToCloseTimeout: 10 * time.Second,
 		RetryPolicy: &temporalio.RetryPolicy{
 			InitialInterval:    time.Minute,
 			BackoffCoefficient: 1.0,

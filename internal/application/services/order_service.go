@@ -107,6 +107,7 @@ func (s *OrderService) CreateOrderFromCart(ctx context.Context, input orders.Cre
 
 		if orderItem.Price.Category == prices.PriceCategorySubscription {
 			subscription := entities.NewSubscriptionFromOrderItem(orderItem)
+			subscription.CustomerId = customer.Id
 			_, err := s.subscriptionRepository.Create(ctx, subscription)
 			if err != nil {
 				s.logger.Error("Failed to create subscription", "item", item, err.Error())
@@ -160,14 +161,18 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteO
 	paymentMethod, err := s.customerRepository.CreatePaymentMethod(ctx, entities.PaymentMethod{
 		OrgId:      orgId,
 		Id:         lib.GenerateId("payment_method"),
+		Psp:        input.PaymentContext.Psp,
+		Token:      input.PaymentContext.PaymentMethod.Token,
 		Name:       "Default",
 		CustomerId: order.CustomerId,
 		IsDefault:  true,
 		BillingAddress: entities.Address{
 			Line1: order.Customer.Name,
 		},
-		Type:    input.PaymentContext.PaymentMethod.Type,
-		Details: nil,
+		Type:      input.PaymentContext.PaymentMethod.Type,
+		Details:   input.PaymentContext.PaymentMethod,
+		CreatedAt: time.Now().UTC(),
+		UpdatedAt: time.Now().UTC(),
 	})
 	if err != nil {
 		s.logger.Error("Failed to create payment method", err.Error())
@@ -183,16 +188,19 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteO
 	}
 	for _, subscription := range subscriptions {
 		// TODO this needs to happen but not sure if here or like this
-		if input.PaymentContext.Payment.Amount > 0 && subscription.StartDate.Sub(time.Now().UTC()) < 0 {
+		charged := input.PaymentContext.Payment.Amount > 0 && subscription.StartDate.Sub(time.Now().UTC()) < 0
+		if charged {
 			subscription.LastCharge = &subscription.StartDate
 			subscription.TotalRevenue = subscription.Amount
 			subscription.CyclesProcessed = 1
 			renewsAt := subscription.NextBillingDate()
 			subscription.RenewsAt = &renewsAt
+			subscription.Status = entities.SubscriptionStatusActive
+		} else {
+			subscription.Status = entities.SubscriptionStatusTrial
 		}
-
 		subscription.PaymentMethodId = &paymentMethod.Id
-		subscription.Status = entities.SubscriptionStatusActive
+
 		_, err := s.subscriptionRepository.Update(ctx, subscription)
 		if err != nil {
 			s.logger.Error("Failed to update subscription status", err.Error())

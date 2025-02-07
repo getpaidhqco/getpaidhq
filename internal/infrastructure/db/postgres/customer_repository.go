@@ -26,20 +26,18 @@ func NewCustomerRepository(database lib.Database, logger lib.Logger) repositorie
 	}
 }
 
-func (r CustomerRepository) FindById(ctx context.Context, id string) (entities.Customer, error) {
+func (r CustomerRepository) FindById(ctx context.Context, orgId string, id string) (entities.Customer, error) {
 	var customer entities.Customer
-	query := `SELECT org_id, id, email, name, created_at, updated_at FROM customers WHERE id = $1`
-	err := r.Pool.QueryRow(ctx, query, id).Scan(
-		&customer.OrgId,
-		&customer.Id,
-		&customer.Email,
-		&customer.Name,
-		&customer.CreatedAt,
-		&customer.UpdatedAt,
-	)
+	query := `SELECT org_id, id, email, name, created_at, updated_at FROM customers WHERE org_id=@org_id AND id=@id`
+	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
+		"org_id": orgId,
+		"id":     id,
+	}).Scan(&customer.OrgId, &customer.Id, &customer.Email, &customer.Name, &customer.CreatedAt, &customer.UpdatedAt)
+
 	if err != nil {
 		return entities.Customer{}, err
 	}
+
 	return customer, nil
 }
 
@@ -65,11 +63,13 @@ func (r CustomerRepository) Create(ctx context.Context, entity entities.Customer
 
 func (r CustomerRepository) FindPaymentMethodById(ctx context.Context, orgId string, id string) (entities.PaymentMethod, error) {
 	var pm entities.PaymentMethod
-	err := r.Pool.QueryRow(ctx, `SELECT org_id,id,name,customer_id,is_default,details,type FROM payment_methods WHERE org_id=@org_id AND id=@id`, pgx.NamedArgs{
+	err := r.Pool.QueryRow(ctx, `SELECT org_id,id,token,psp,name,customer_id,is_default,details,type FROM payment_methods WHERE org_id=@org_id AND id=@id`, pgx.NamedArgs{
 		"org_id": orgId,
 		"id":     id,
 	}).Scan(&pm.OrgId,
 		&pm.Id,
+		&pm.Token,
+		&pm.Psp,
 		&pm.Name,
 		&pm.CustomerId,
 		&pm.IsDefault,
@@ -85,15 +85,17 @@ func (r CustomerRepository) FindPaymentMethodById(ctx context.Context, orgId str
 }
 
 func (r CustomerRepository) CreatePaymentMethod(ctx context.Context, entity entities.PaymentMethod) (entities.PaymentMethod, error) {
-	query := `INSERT INTO payment_methods (org_id, id, name, customer_id, is_default, details, type, created_at, updated_at)
-			  VALUES (@org_id, @id, @name, @customer_id, @is_default, @details, @type, now(), now())
-			  RETURNING org_id, id, name, customer_id, is_default, details, type, created_at, updated_at`
+	query := `INSERT INTO payment_methods (org_id, id,token, psp,name, customer_id, is_default, details, type, created_at, updated_at)
+			  VALUES (@org_id, @id,@token,@psp, @name, @customer_id, @is_default, @details, @type, now(), now())
+			  RETURNING org_id, id,token, psp,name, customer_id, is_default, details, type, created_at, updated_at`
 
 	var newEntity entities.PaymentMethod
 	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
 		"org_id":      entity.OrgId,
 		"id":          entity.Id,
 		"name":        entity.Name,
+		"psp":         entity.Psp,
+		"token":       entity.Token,
 		"customer_id": entity.CustomerId,
 		"is_default":  entity.IsDefault,
 		"details":     entity.Details,
@@ -101,6 +103,8 @@ func (r CustomerRepository) CreatePaymentMethod(ctx context.Context, entity enti
 	}).Scan(
 		&newEntity.OrgId,
 		&newEntity.Id,
+		&newEntity.Token,
+		&newEntity.Psp,
 		&newEntity.Name,
 		&newEntity.CustomerId,
 		&newEntity.IsDefault,

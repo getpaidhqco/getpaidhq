@@ -9,14 +9,32 @@ import (
 
 type Gateway interface {
 	InitPayment(ctx context.Context, input InitPaymentCommand) (InitPaymentResponse, error)
+	ChargePayment(ctx context.Context, input ChargePaymentCommand) (ChargePaymentResponse, error)
 	ValidateWebhook(ctx context.Context, data []byte) error
 	ParseWebhook(ctx context.Context, data []byte) (PaymentWebhookContext, error)
+}
+
+type ChargePaymentCommand struct {
+	OrgId         string
+	Amount        int
+	Currency      string
+	Reference     string
+	PaymentMethod PaymentMethod
+	Customer      entities.Customer
 }
 type InitPaymentCommand struct {
 	OrgId    string
 	Cart     cart.Cart
 	Order    entities.Order
 	Customer entities.Customer
+}
+
+type ChargePaymentResponse struct {
+	Success       bool
+	PspId         string
+	AmountCharged int
+
+	PspResponse interface{}
 }
 
 type InitPaymentResponse struct {

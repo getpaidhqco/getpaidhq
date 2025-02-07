@@ -167,22 +167,40 @@ func (t Temporal) StartSubscriptionWorkflow(ctx context.Context, subscription en
 
 // HandleSubscriptionEvent forwards subscription events on to the appropriate workflow
 func (t Temporal) HandleSubscriptionEvent(topic string, data []byte) error {
+	t.logger.Infof("Received topic [%s]", topic)
 	// Unmarshal the event data
-	var eventData entities.Subscription
-	err := json.Unmarshal(data, &eventData)
-	if err != nil {
-		t.logger.Error("Failed to unmarshal event data", "error", err)
-		return err
-	}
 
 	switch topic {
 	case "subscription.created":
+		var eventData entities.Subscription
+		err := json.Unmarshal(data, &eventData)
+		if err != nil {
+			t.logger.Error("Failed to unmarshal event data", "error", err)
+			return err
+		}
 		// TODO this should be done from somewhere else
 		t.logger.Infof("Starting subscription workflow [%s][%s]", eventData.OrgId, eventData.Id)
 		_, err = t.StartSubscriptionWorkflow(context.TODO(), eventData)
+		if err != nil {
+			t.logger.Error("Failed to start subscription workflow", "error", err)
+			_ = t.pubsub.PublishJSON("subscription.workflow.startup.failed", map[string]interface{}{
+				"subscription": eventData,
+				"error":        err.Error(),
+			})
+		}
 
 		return err
-	default:
+	case "subscription.paused":
+		fallthrough
+	case "subscription.activated":
+		fallthrough
+	case "subscription.cancelled":
+		var eventData entities.Subscription
+		err := json.Unmarshal(data, &eventData)
+		if err != nil {
+			t.logger.Error("Failed to unmarshal event data", "error", err)
+			return err
+		}
 		setting, err := t.settingRepository.FindById(context.TODO(), eventData.OrgId, eventData.Id, "temporal-workflow")
 		if err != nil {
 			t.logger.Error("Failed to get setting", "error", err)
@@ -201,6 +219,8 @@ func (t Temporal) HandleSubscriptionEvent(topic string, data []byte) error {
 			t.logger.Error("Unable to signal workflow: %v", err)
 		}
 		return nil
+	default:
+		t.logger.Infof("No handler for topic %s", topic)
 	}
-
+	return nil
 }

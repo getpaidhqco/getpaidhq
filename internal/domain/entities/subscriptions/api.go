@@ -18,3 +18,25 @@ type UpdateSubscriptionInput struct {
 	DefaultPaymentMethod string                      `json:"default_payment_method"`
 	Metadata             map[string]string           `json:"metadata"`
 }
+
+type PauseSubscriptionInput struct {
+	OrgId  string `json:"org_id"`
+	Id     string `json:"id"`
+	Reason string `json:"reason"`
+}
+
+type ResumeSubscriptionInput struct {
+	OrgId           string                     `json:"org_id"`
+	Id              string                     `json:"id"`
+	ResumeBehaviour SubscriptionResumeBehavior `json:"resume_behaviour"`
+}
+
+type CancelSubscriptionInput struct {
+	OrgId  string `json:"org_id"`
+	Id     string `json:"id"`
+	Reason string `json:"reason"`
+}
+
+type ProcessSubscriptionChargeInput struct {
+	Subscription entities.Subscription `json:"subscription"`
+}

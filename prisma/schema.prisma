@@ -306,6 +306,7 @@ model Customer {
 
   org            Org             @relation(fields: [orgId], references: [id], onDelete: Cascade)
   paymentMethods PaymentMethod[]
+  Subscription   Subscription[]
 
   @@id([orgId, id], map: "customer_primary_key")
   @@map("customers")
@@ -315,6 +316,7 @@ model PaymentMethod {
   orgId String @map("org_id")
   id    String @default(cuid())
 
+  psp        String
   name       String?
   customerId String   @map("customer_id")
   customer   Customer @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Cascade)
@@ -324,6 +326,7 @@ model PaymentMethod {
   billingAddress Json?  @map("billing_address")
   details        Json?
   type           String
+  token          String
 
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
@@ -337,9 +340,13 @@ model Subscription {
   orgId String @map("org_id")
   id    String @default(cuid())
 
-  orderId String             @map("order_id")
-  order   Order              @relation(fields: [orgId, orderId], references: [orgId, id])
-  status  SubscriptionStatus
+  orderId String @map("order_id")
+  order   Order  @relation(fields: [orgId, orderId], references: [orgId, id])
+
+  customerId String   @map("customer_id")
+  customer   Customer @relation(fields: [orgId, customerId], references: [orgId, id])
+
+  status SubscriptionStatus
 
   paymentMethodId String?        @map("payment_method_id")
   paymentMethod   PaymentMethod? @relation(fields: [orgId, paymentMethodId], references: [orgId, id])

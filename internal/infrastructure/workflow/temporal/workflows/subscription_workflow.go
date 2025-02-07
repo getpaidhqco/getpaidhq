@@ -20,7 +20,7 @@ type SubscriptionInput struct {
 // https://learn.temporal.io/tutorials/go/build-an-email-drip-campaign/
 // https://learn.temporal.io/tutorials/typescript/recurring-billing-system/
 
-func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (string, error) {
+func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (entities.Subscription, error) {
 	logger := workflow.GetLogger(ctx)
 	subscription := input
 
@@ -31,7 +31,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (st
 		return subscription, nil
 	})
 	if err != nil {
-		return "", err
+		return subscription, err
 	}
 
 	// Register signal handler for cancelling the subscription
@@ -45,10 +45,12 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (st
 			selector.AddReceive(pausedChannel, func(c workflow.ReceiveChannel, more bool) {
 				c.Receive(ctx, &signalSubscription)
 				subscription.Status = entities.SubscriptionStatusPaused
+				logger.Info("Subscription paused", "subscription", subscription.Id)
 			})
 			selector.AddReceive(activatedChannel, func(c workflow.ReceiveChannel, more bool) {
 				c.Receive(ctx, &signalSubscription)
 				subscription.Status = entities.SubscriptionStatusActive
+				logger.Info("Subscription paused", "subscription", subscription.Id)
 			})
 			selector.AddReceive(cancelledChannel, func(c workflow.ReceiveChannel, more bool) {
 				c.Receive(ctx, &signalSubscription)
@@ -93,16 +95,27 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (st
 		}
 
 		// Check if the subscription is active
-		if subscription.Status != entities.SubscriptionStatusActive {
+		activeOrTrial := subscription.Status == entities.SubscriptionStatusActive ||
+			subscription.Status == entities.SubscriptionStatusTrial
+		if !activeOrTrial {
 			logger.Info("Subscription is not active, skipping billing cycle")
 			continue
 		}
 
+		// Double check the next billing date, it must be in the past
+		// E.g. if a paused subscription is activated, the next billing date may be in the future
+		if nextBillingDate.After(workflow.Now(ctx)) {
+			logger.Info("Next billing date is in the future, skipping billing cycle")
+			continue
+		}
+
+		logger.Info("Subscription is active, processing cycle")
 		// Charge the customer
 		var chargeResult payments.ChargeResult
 		chargeCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-			StartToCloseTimeout: 1000 * time.Second,
+			StartToCloseTimeout: 60 * time.Second,
 			RetryPolicy: &temporalio.RetryPolicy{
+				MaximumAttempts:    3,
 				InitialInterval:    time.Minute,
 				BackoffCoefficient: 1.0,
 			},
@@ -111,7 +124,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (st
 			Get(chargeCtx, &chargeResult)
 		if err != nil {
 			logger.Error("Failed to charge customer", "Error", err.Error())
-			return "", err
+			return subscription, err
 		}
 
 		// Update the subscription with the charge result
@@ -127,11 +140,11 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (st
 			Get(updateCtx, &updateResult)
 		if err != nil {
 			logger.Error("Failed to StoreChargeResults", "Error", err.Error())
-			return "", err
+			return subscription, err
 		}
 		if updateResult.Id == "nil" {
 			logger.Error("Failed to update subscription", "Error", "updateResult is nil")
-			return "", err
+			return subscription, err
 		}
 
 		// Update the local state with the updated subscription
@@ -146,5 +159,5 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (st
 			"amount", subscription.Amount)
 	}
 	logger.Info(fmt.Sprintf("Completed %s, Total Charged: %d", workflow.GetInfo(ctx).WorkflowExecution.ID, subscription.TotalRevenue))
-	return "ok", nil
+	return subscription, nil
 }
