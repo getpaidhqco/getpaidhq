@@ -17,6 +17,9 @@ type Paystack struct {
 }
 
 func NewPaystackGateway(logger lib.Logger, env lib.Env) payment_providers.Gateway {
+	if env.PaystackApiKey == "" {
+		logger.Fatal("Paystack API key is required")
+	}
 	return Paystack{
 		env:    env,
 		logger: logger,
@@ -24,14 +27,12 @@ func NewPaystackGateway(logger lib.Logger, env lib.Env) payment_providers.Gatewa
 }
 
 func (p Paystack) InitPayment(ctx context.Context, input payment_providers.InitPaymentCommand) (payment_providers.InitPaymentResponse, error) {
-	apiKey := "sk_test_e39ce23869e6e677121a5e6ef691a8c3d835f0bb"
-
 	cart := input.Cart
 	currency := input.Cart.Currency
 	reference := input.Order.Reference
 	email := input.Customer.Email
 
-	client := paystacklib.NewClient(apiKey)
+	client := paystacklib.NewClient(p.env.PaystackApiKey)
 
 	request := paystacklib.TransactionRequest{
 		CallbackURL: "https://www.example.com",

@@ -44,29 +44,29 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			selector := workflow.NewSelector(ctx)
 			selector.AddReceive(pausedChannel, func(c workflow.ReceiveChannel, more bool) {
 				c.Receive(ctx, &signalSubscription)
-				subscription.Status = entities.SubscriptionStatusPaused
-				logger.Info("Subscription paused", "subscription", subscription.Id)
+				subscription = signalSubscription
+				logger.Info("Subscription paused signal", "subscription", subscription.Id, "status", subscription.Status)
 			})
 			selector.AddReceive(activatedChannel, func(c workflow.ReceiveChannel, more bool) {
 				c.Receive(ctx, &signalSubscription)
-				subscription.Status = entities.SubscriptionStatusActive
-				logger.Info("Subscription paused", "subscription", subscription.Id)
+				subscription = signalSubscription
+				logger.Info("Subscription activated signal", "subscription", subscription.Id, "status", subscription.Status)
 			})
 			selector.AddReceive(cancelledChannel, func(c workflow.ReceiveChannel, more bool) {
 				c.Receive(ctx, &signalSubscription)
-				subscription.Status = entities.SubscriptionStatusCancelled
+				logger.Info("Received SubscriptionStatusCancelled signal", "subscription", subscription.Id)
+				subscription = signalSubscription
 			})
 			selector.Select(ctx)
 		}
 	})
 
 	for {
-		nextBillingDate := subscription.NextBillingDate()
-		logger.Info("Blocking until cancelled or nextBillingDate", "date", nextBillingDate.Format(time.RFC3339))
+		logger.Info("Blocking until cancelled or nextBillingDate", "date", subscription.RenewsAt.Format(time.RFC3339))
 
 		// Calculate the duration until the next billing date
 		// Remember to use workflow.Now(ctx) to get the current time
-		duration := nextBillingDate.Sub(workflow.Now(ctx))
+		duration := subscription.RenewsAt.Sub(workflow.Now(ctx))
 		ok, err := workflow.AwaitWithTimeout(ctx, duration, func() bool {
 			return subscription.Status == entities.SubscriptionStatusPaused ||
 				subscription.Status == entities.SubscriptionStatusCancelled
@@ -75,7 +75,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			logger.Error("cancellation received", "Error", err.Error(), "status", subscription.Status)
 		}
 		if !ok {
-			logger.Info("Next billing date reached", "date", nextBillingDate.Format(time.RFC3339))
+			logger.Info("Next billing date reached", "date", subscription.RenewsAt.Format(time.RFC3339))
 		}
 
 		// If the subscription was paused, wait until it is activated again
@@ -83,6 +83,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			err = workflow.Await(ctx, func() bool {
 				logger.Debug("Pause clause", "subscription.Status", subscription.Status)
 				return subscription.Status == entities.SubscriptionStatusActive ||
+					subscription.Status == entities.SubscriptionStatusTrial ||
 					subscription.Status == entities.SubscriptionStatusCancelled
 			})
 		}
@@ -104,7 +105,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 
 		// Double check the next billing date, it must be in the past
 		// E.g. if a paused subscription is activated, the next billing date may be in the future
-		if nextBillingDate.After(workflow.Now(ctx)) {
+		if subscription.RenewsAt.After(workflow.Now(ctx)) {
 			logger.Info("Next billing date is in the future, skipping billing cycle")
 			continue
 		}
@@ -124,6 +125,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			Get(chargeCtx, &chargeResult)
 		if err != nil {
 			logger.Error("Failed to charge customer", "Error", err.Error())
+			// TODO this is where the subscription goes into PAST_DUE status
 			return subscription, err
 		}
 

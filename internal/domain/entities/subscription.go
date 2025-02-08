@@ -72,13 +72,13 @@ type Subscription struct {
 	UpdatedAt          time.Time              `json:"updated_at"`
 }
 
-// NextBillingDate calculates and returns the next billing date for a subscription
+// CalculateNextBillingDate calculates and returns the next billing date for a subscription
 // based on the StartDate, LastCharge, BillingInterval, BillingIntervalQty and CyclesProcessed
 // If the subscription has not started yet, it returns the StartDate
 // If the subscription has started but has not been charged yet, it returns the StartDate
 // If the subscription has been charged, it uses the LastCharge date as the base date
 // and the BillingInterval and BillingIntervalQty
-func (s Subscription) NextBillingDate() time.Time {
+func (s Subscription) CalculateNextBillingDate() time.Time {
 	if s.BillingInterval == "" || s.BillingIntervalQty <= 0 {
 		return time.Time{}
 	}

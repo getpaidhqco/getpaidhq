@@ -26,9 +26,9 @@ type PauseSubscriptionInput struct {
 }
 
 type ResumeSubscriptionInput struct {
-	OrgId           string                     `json:"org_id"`
-	Id              string                     `json:"id"`
-	ResumeBehaviour SubscriptionResumeBehavior `json:"resume_behaviour"`
+	OrgId          string                     `json:"org_id"`
+	Id             string                     `json:"id"`
+	ResumeBehavior SubscriptionResumeBehavior `json:"resume_behavior"`
 }
 
 type CancelSubscriptionInput struct {

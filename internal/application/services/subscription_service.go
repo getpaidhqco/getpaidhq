@@ -209,18 +209,20 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input subs
 	}
 
 	behaviour := subscriptions.ContinueExistingBillingPeriod
-	if input.ResumeBehaviour != "" {
-		behaviour = input.ResumeBehaviour
+	if input.ResumeBehavior != "" {
+		behaviour = input.ResumeBehavior
 	}
 
 	if behaviour == subscriptions.ContinueExistingBillingPeriod {
-		nextCharge := subscription.NextBillingDate()
+		nextCharge := subscription.CalculateNextBillingDate()
 		if nextCharge.Before(time.Now().UTC()) {
 			return entities.Subscription{}, errors.New("next billing date is in the past")
 		}
 		// set the next billing date to the next billing date
 		subscription.RenewsAt = &nextCharge
-	} else {
+	}
+
+	if behaviour == subscriptions.StartNewBillingPeriod {
 		// set the next billing date to the current date
 		nextCharge := time.Now().UTC()
 		subscription.BillingAnchor = nextCharge.Day()
@@ -354,7 +356,7 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 	subscription.TotalRevenue += subscription.Amount
 	subscription.LastCharge = &lastCharge
 
-	nextCharge := subscription.NextBillingDate()
+	nextCharge := subscription.CalculateNextBillingDate()
 	subscription.RenewsAt = &nextCharge
 
 	s.logger.Info("Subscription charged, updating with new values",

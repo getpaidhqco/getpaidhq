@@ -193,7 +193,7 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteO
 			subscription.LastCharge = &subscription.StartDate
 			subscription.TotalRevenue = subscription.Amount
 			subscription.CyclesProcessed = 1
-			renewsAt := subscription.NextBillingDate()
+			renewsAt := subscription.CalculateNextBillingDate()
 			subscription.RenewsAt = &renewsAt
 			subscription.Status = entities.SubscriptionStatusActive
 		} else {

@@ -129,9 +129,9 @@ func (s SubscriptionController) Resume(c *gin.Context) {
 	}
 
 	subscription, err := s.subscriptionService.ResumeSubscription(c.Request.Context(), subscriptions.ResumeSubscriptionInput{
-		OrgId:           orgId,
-		Id:              id,
-		ResumeBehaviour: input.ResumeBehavior,
+		OrgId:          orgId,
+		Id:             id,
+		ResumeBehavior: input.ResumeBehavior,
 	})
 	if err != nil {
 		var serr lib.ServiceError
