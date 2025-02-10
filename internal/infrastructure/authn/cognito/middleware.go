@@ -55,6 +55,12 @@ func (cog *Cognito) Authorize(c *gin.Context) {
 	orgId := token.Claims.(jwt.MapClaims)["custom:company"].(string)
 	userId := token.Claims.(jwt.MapClaims)["sub"].(string)
 	email := token.Claims.(jwt.MapClaims)["email"].(string)
+	roles := token.Claims.(jwt.MapClaims)["cognito:groups"].([]interface{})
+
+	var roleStrings []authn.UserRole
+	for _, role := range roles {
+		roleStrings = append(roleStrings, authn.UserRole(strings.ToLower(role.(string))))
+	}
 
 	if orgId == "" {
 		c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"message": "invalid token"})
@@ -62,11 +68,7 @@ func (cog *Cognito) Authorize(c *gin.Context) {
 	}
 
 	c.Set("token", token)
-	c.Set("user", authn.User{
-		OrgId: orgId,
-		Id:    userId,
-		Email: email,
-	})
+	c.Set("user", authn.NewUser(orgId, userId, email, roleStrings))
 	c.Next()
 }
 

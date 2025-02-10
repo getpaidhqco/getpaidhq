@@ -21,7 +21,8 @@ type Env struct {
 	CognitoPoolId   string `mapstructure:"COGNITO_POOL_ID"`
 	CognitoRegion   string `mapstructure:"COGNITO_REGION"`
 
-	PaystackApiKey string `mapstructure:"PAYSTACK_API_KEY"`
+	PaystackApiKey  string `mapstructure:"PAYSTACK_API_KEY"`
+	CedarPolicyFile string `mapstructure:"CEDAR_POLICY"`
 }
 
 // NewEnv creates a new environment

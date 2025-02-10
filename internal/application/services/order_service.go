@@ -95,7 +95,7 @@ func (s *OrderService) CreateOrderFromCart(ctx context.Context, input orders.Cre
 
 	// Go through the list of items in the cart and create the order items for each item
 	for _, item := range cart.Data.Items {
-		orderItem := entities.OrderItem{
+		orderItem, err := s.orderItemRepository.Create(ctx, entities.OrderItem{
 			OrgId:       orgId,
 			Id:          lib.GenerateId("order_item"),
 			OrderId:     orderId,
@@ -105,8 +105,11 @@ func (s *OrderService) CreateOrderFromCart(ctx context.Context, input orders.Cre
 			Metadata:    nil,
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
+		})
+		if err != nil {
+			s.logger.Error("Failed to create order item", "item", item, err.Error())
+			return entities.Order{}, payment_providers.InitPaymentResponse{}, err
 		}
-		orderItem, err := s.orderItemRepository.Create(ctx, orderItem)
 
 		if orderItem.Price.Category == prices.PriceCategorySubscription {
 			subscription := entities.NewSubscriptionFromOrderItem(orderItem)
@@ -116,11 +119,6 @@ func (s *OrderService) CreateOrderFromCart(ctx context.Context, input orders.Cre
 				s.logger.Error("Failed to create subscription", "item", item, err.Error())
 				return entities.Order{}, payment_providers.InitPaymentResponse{}, err
 			}
-		}
-
-		if err != nil {
-			s.logger.Error("Failed to create order item", "item", item, err.Error())
-			return entities.Order{}, payment_providers.InitPaymentResponse{}, err
 		}
 	}
 

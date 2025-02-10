@@ -3,6 +3,7 @@ package middlewares
 import (
 	"go.uber.org/fx"
 	"payloop/internal/infrastructure/authn/cognito"
+	"payloop/internal/infrastructure/authz/cedar"
 )
 
 // Module Middleware exported
@@ -25,12 +26,15 @@ type Middlewares []IMiddleware
 func NewMiddlewares(
 	corsMiddleware CorsMiddleware,
 	dbTrxMiddleware DatabaseTrx,
+	// TODO change to interfaces
 	authMiddleware cognito.CognitoMiddleware,
+	authzMiddleware cedar.CedarMiddleware,
 ) Middlewares {
 	return Middlewares{
 		corsMiddleware,
 		dbTrxMiddleware,
 		authMiddleware,
+		authzMiddleware,
 	}
 }
 

@@ -8,7 +8,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -89,10 +88,10 @@ func (r OrderRepository) FindById(ctx context.Context, orgId string, id string) 
 }
 
 func (r OrderRepository) Create(ctx context.Context, entity entities.Order) (entities.Order, error) {
-	p := r.Pool
-	tx := ctx.Value(lib.DBTransaction).(lib.Committer)
+	var p queryRower = r.Pool
+	tx := ctx.Value(lib.DBTransaction)
 	if tx != nil {
-		p = tx.GetClient().(*pgxpool.Pool)
+		p = tx.(queryRower)
 	}
 
 	var order entities.Order

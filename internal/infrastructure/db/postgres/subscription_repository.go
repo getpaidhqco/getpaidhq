@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
-	"github.com/jackc/pgx/v5/pgxpool"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -162,11 +161,12 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 }
 
 func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subscription) (entities.Subscription, error) {
-	p := r.Pool
-	tx := ctx.Value(lib.DBTransaction).(lib.Committer)
+	var p queryRower = r.Pool
+	tx := ctx.Value(lib.DBTransaction)
 	if tx != nil {
-		p = tx.GetClient().(*pgxpool.Pool)
+		p = tx.(queryRower)
 	}
+	
 	var subscription entities.Subscription
 	query := `INSERT INTO subscriptions (org_id, id, order_id, customer_id, status, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at) 
 			  VALUES (@org_id, @id, @order_id,@customer_id, @status, @start_date, @end_date, @billing_interval, @billing_interval_qty, @cycles, @billing_anchor, @trial_ends_at, @cancel_at, @ends_at, @last_charge, @renews_at, @retries, @next_retry, @currency, @amount, @metadata, @cycles_processed, @total_revenue, @cancelled_at, NOW(), NOW())
