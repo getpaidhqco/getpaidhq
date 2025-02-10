@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -42,12 +43,17 @@ func (r CustomerRepository) FindById(ctx context.Context, orgId string, id strin
 }
 
 func (r CustomerRepository) Create(ctx context.Context, entity entities.Customer) (entities.Customer, error) {
+	p := r.Pool
+	tx := ctx.Value(lib.DBTransaction).(lib.Committer)
+	if tx != nil {
+		p = tx.GetClient().(*pgxpool.Pool)
+	}
 	var customer entities.Customer
 	query := `INSERT INTO customers (org_id, id, email, name, created_at, updated_at) 
 		VALUES (@org_id, @id, @email, @name, now(), now())
 		RETURNING (org_id, id, name, email)`
 
-	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
+	err := p.QueryRow(ctx, query, pgx.NamedArgs{
 		"org_id": entity.OrgId,
 		"id":     entity.Id,
 		"email":  entity.Email,

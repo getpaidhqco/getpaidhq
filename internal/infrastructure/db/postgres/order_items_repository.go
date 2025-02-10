@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	_ "github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -72,7 +73,11 @@ func (r OrderItemRepository) FindById(ctx context.Context, orgId string, id stri
 
 // Create inserts a new order item into the database
 func (r OrderItemRepository) Create(ctx context.Context, orderItem entities.OrderItem) (entities.OrderItem, error) {
-
+	p := r.Pool
+	tx := ctx.Value(lib.DBTransaction).(lib.Committer)
+	if tx != nil {
+		p = tx.GetClient().(*pgxpool.Pool)
+	}
 	query := `INSERT INTO order_items (org_id, id, order_id, price_id, description, quantity, metadata, created_at, updated_at)
 				  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 				  RETURNING org_id, id, order_id, price_id, description, quantity, metadata, created_at, updated_at`
@@ -82,7 +87,7 @@ func (r OrderItemRepository) Create(ctx context.Context, orderItem entities.Orde
 		return entities.OrderItem{}, err
 	}
 
-	err = r.Pool.QueryRow(ctx, query,
+	err = p.QueryRow(ctx, query,
 		orderItem.OrgId,
 		orderItem.Id,
 		orderItem.OrderId,

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/carts"
 	"payloop/internal/domain/repositories"
@@ -28,8 +29,14 @@ func NewCartRepository(database lib.Database, logger lib.Logger) repositories.Ca
 }
 
 func (r CartRepository) FindById(ctx context.Context, orgId string, id string) (entities.Cart, error) {
+	p := r.Pool
+	tx := ctx.Value(lib.DBTransaction)
+	if tx != nil {
+		p = tx.(*pgxpool.Tx)
+	}
+
 	var cart entities.Cart
-	err := r.Pool.QueryRow(ctx, `SELECT org_id,id,data FROM carts WHERE org_id=@org_id AND id=@id`, pgx.NamedArgs{
+	err := p.QueryRow(ctx, `SELECT org_id,id,data FROM carts WHERE org_id=@org_id AND id=@id`, pgx.NamedArgs{
 		"org_id": orgId,
 		"id":     id,
 	}).Scan(&cart.OrgId,

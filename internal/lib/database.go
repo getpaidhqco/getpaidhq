@@ -4,7 +4,6 @@ import (
 	"context"
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
-	"go.uber.org/fx"
 	"log"
 	"sync"
 )
@@ -21,6 +20,7 @@ type TransactionBeginner interface {
 type Committer interface {
 	Commit(ctx context.Context) error
 	Rollback(ctx context.Context) error
+	GetClient() interface{}
 }
 
 type Database interface {
@@ -35,6 +35,20 @@ type Tx interface {
 	Rollback(ctx context.Context) error
 }
 
+type PgCommitter struct {
+	pgx.Tx
+}
+
+func (c PgCommitter) Commit(ctx context.Context) error {
+	return c.Tx.Commit(ctx)
+}
+func (c PgCommitter) Rollback(ctx context.Context) error {
+	return c.Tx.Rollback(ctx)
+}
+func (c PgCommitter) GetClient() interface{} {
+	return c.Tx
+}
+
 type PgDatabase struct {
 	*pgxpool.Pool
 	pgx.Tx
@@ -46,14 +60,8 @@ var (
 	pgOnce     sync.Once
 )
 
-func NewDatabase(lc fx.Lifecycle, env Env, logger Logger) *PgDatabase {
+func NewDatabase(env Env, logger Logger) *PgDatabase {
 	logger.Info("Connecting to database", "url", env.DBUrl)
-	lc.Append(fx.Hook{
-		OnStop: func(ctx context.Context) error {
-			pgInstance.Close()
-			return nil
-		},
-	})
 
 	pgOnce.Do(func() {
 		pool, err := pgxpool.New(context.TODO(), env.DBUrl)
@@ -85,9 +93,11 @@ func (d *PgDatabase) Close() {
 }
 
 func (d *PgDatabase) Begin(ctx context.Context) (Committer, error) {
-	return d.Pool.Begin(ctx)
-}
-
-func (d *PgDatabase) Commit(ctx context.Context) (Committer, error) {
-	return d.Pool.Begin(ctx)
+	tx, err := d.Pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return PgCommitter{
+		tx,
+	}, nil
 }

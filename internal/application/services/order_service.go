@@ -22,6 +22,7 @@ type OrderService struct {
 	orderItemRepository    repositories.OrderItemRepository
 	paymentGateway         payment_providers.Gateway
 	pubsub                 events.PubSub
+	db                     lib.Database
 	logger                 lib.Logger
 }
 
@@ -34,6 +35,7 @@ func NewOrderService(
 	subscriptionRepository repositories.SubscriptionRepository,
 	paymentGateway payment_providers.Gateway,
 	pubsub events.PubSub,
+	db lib.Database,
 	logger lib.Logger,
 ) OrderService {
 	return OrderService{
@@ -44,6 +46,7 @@ func NewOrderService(
 		orderRepository:        orderRepository,
 		logger:                 logger,
 		pubsub:                 pubsub,
+		db:                     db,
 		paymentGateway:         paymentGateway,
 		orderItemRepository:    orderItemRepository,
 	}
