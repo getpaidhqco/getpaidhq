@@ -39,6 +39,7 @@ type WorkflowPayload struct {
 type WorkflowType string
 
 const (
-	PaymentSuccess WorkflowType = "payment.success"
-	Subscription   WorkflowType = "subscription"
+	PaymentSuccess  WorkflowType = "payment.success"
+	OutgoingWebhook WorkflowType = "webhook"
+	Subscription    WorkflowType = "subscription"
 )

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"payloop/internal/application/lib/events"
+	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/entities/payments"
@@ -245,7 +246,7 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteO
 	}
 
 	// publish order completed event
-	_ = s.pubsub.PublishJSON(events.TopicOrderCompleted, order)
+	_ = s.pubsub.Publish(order.OrgId, topic.OrderCompleted, order)
 
 	return order, nil
 }

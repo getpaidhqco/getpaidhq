@@ -36,6 +36,7 @@ func NewTemporalEngine(
 	orderService services.OrderService,
 	sessionService services.SessionService,
 	a activities.OrderActivities,
+	webhookActivities activities.OutgoingWebhookActivities,
 	settingRepository repositories.SettingRepository,
 	pubsub events.PubSub,
 ) workflow.Engine {
@@ -57,10 +58,12 @@ func NewTemporalEngine(
 	// Workflows
 	w.RegisterWorkflow(workflows.PaymentSuccessWorkflow)
 	w.RegisterWorkflow(workflows.SubscriptionWorkflow)
+	w.RegisterWorkflow(workflows.OutgoingWebhookWorkflow)
 
 	// Activities
 
 	w.RegisterActivity(&a)
+	w.RegisterActivity(&webhookActivities)
 
 	// Start the worker
 	err = w.Start()
@@ -128,7 +131,32 @@ func (t Temporal) StartWorkflow(ctx context.Context, id workflow.WorkflowType, p
 			Message: "success",
 			Payload: result,
 		}, nil
+	case workflow.OutgoingWebhook:
+		workflowId := lib.GenerateId("webhook_out")
+		// start workflow
+		workflowOptions := client.StartWorkflowOptions{
+			ID:        workflowId,
+			TaskQueue: "events",
+		}
 
+		we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, workflows.OutgoingWebhookWorkflow, payload)
+		if err != nil {
+			t.logger.Error("Unable to execute workflow", "err", err.Error())
+			return workflow.Result{}, err
+		}
+
+		var result workflow.Result
+		err = we.Get(ctx, &result)
+		if err != nil {
+			t.logger.Error("Unable to get workflow result", "err", err.Error())
+			return workflow.Result{}, err
+		}
+		t.logger.Info("Finished workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID(), "result", result)
+		return workflow.Result{
+			Success: true,
+			Message: "success",
+			Payload: result,
+		}, nil
 	default:
 		return workflow.Result{}, nil
 	}
@@ -183,7 +211,7 @@ func (t Temporal) HandleSubscriptionEvent(topic string, data []byte) error {
 		_, err = t.StartSubscriptionWorkflow(context.TODO(), eventData)
 		if err != nil {
 			t.logger.Error("Failed to start subscription workflow", "error", err)
-			_ = t.pubsub.PublishJSON("subscription.workflow.startup.failed", map[string]interface{}{
+			_ = t.pubsub.Publish(eventData.OrgId, "subscription.workflow.startup.failed", map[string]interface{}{
 				"subscription": eventData,
 				"error":        err.Error(),
 			})

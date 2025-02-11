@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"payloop/internal/application/lib/events"
+	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/subscriptions"
 	"payloop/internal/domain/payment_providers"
@@ -104,7 +105,7 @@ func (s *SubscriptionService) Create(ctx context.Context, input entities.CreateS
 		return entities.Subscription{}, err
 	}
 
-	_ = s.pubsub.PublishJSON(events.TopicSubscriptionCreated, subscription)
+	_ = s.pubsub.Publish(subscription.OrgId, topic.TopicSubscriptionCreated, subscription)
 
 	return subscription, nil
 }
@@ -129,7 +130,7 @@ func (s *SubscriptionService) Update(ctx context.Context, input subscriptions.Up
 		return entities.Subscription{}, err
 	}
 
-	_ = s.pubsub.PublishJSON(entities.GetTopicFromStatus(subscription.Status), newSub)
+	_ = s.pubsub.Publish(subscription.OrgId, entities.GetTopicFromStatus(subscription.Status), newSub)
 	return newSub, err
 }
 
@@ -185,7 +186,7 @@ func (s *SubscriptionService) Pause(ctx context.Context, input subscriptions.Pau
 	}
 
 	// publi
-	_ = s.pubsub.PublishJSON(events.TopicSubscriptionPaused, subscription)
+	_ = s.pubsub.Publish(subscription.OrgId, topic.TopicSubscriptionPaused, subscription)
 
 	return subscription, nil
 }
@@ -239,8 +240,8 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input subs
 	}
 
 	// Publish the resume event
-	_ = s.pubsub.PublishJSON(events.TopicSubscriptionActivated, newSub)
-	_ = s.pubsub.PublishJSON(events.TopicSubscriptionResumed, newSub)
+	_ = s.pubsub.Publish(subscription.OrgId, topic.TopicSubscriptionActivated, newSub)
+	_ = s.pubsub.Publish(subscription.OrgId, topic.TopicSubscriptionResumed, newSub)
 
 	return subscription, nil
 }
@@ -279,7 +280,7 @@ func (s *SubscriptionService) CancelSubscription(ctx context.Context, input subs
 	}
 
 	// publi
-	_ = s.pubsub.PublishJSON(events.TopicSubscriptionCancelled, subscription)
+	_ = s.pubsub.Publish(subscription.OrgId, topic.TopicSubscriptionCancelled, subscription)
 
 	return subscription, nil
 }
@@ -383,10 +384,10 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 
 	// Publish the events
 	if newSub.Status == entities.SubscriptionStatusExpired {
-		_ = s.pubsub.PublishJSON(events.SubscriptionStatusExpired, newSub)
+		_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusExpired, newSub)
 	}
 
-	_ = s.pubsub.PublishJSON(events.SubscriptionPaymentChargeSuccess, payment)
+	_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionPaymentChargeSuccess, payment)
 
 	return newSub, nil
 }
@@ -415,7 +416,7 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 		subscription.Retries = 0
 		subscription.NextRetryAt = nil
 
-		_ = s.pubsub.PublishJSON(events.SubscriptionStatusPastDue, subscription)
+		_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusPastDue, subscription)
 	}
 
 	s.logger.Infof("[%s][%s] nextCharge=[%s]", subscription.OrgId, subscription.Id, subscription.RenewsAt)
@@ -425,7 +426,7 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 		return entities.Subscription{}, err
 	}
 
-	_ = s.pubsub.PublishJSON(events.SubscriptionPaymentChargeFailed, map[string]interface{}{
+	_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionPaymentChargeFailed, map[string]interface{}{
 		"subscription":  subscription,
 		"charge_result": charge,
 	})

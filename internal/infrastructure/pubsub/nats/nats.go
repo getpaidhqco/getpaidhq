@@ -24,14 +24,13 @@ func NewNatsPubSub(logger lib.Logger) pubsub.PubSub {
 	}
 }
 
-func (n NatsPubSub) Publish(topic string, message string) error {
-	n.logger.Debug(fmt.Sprintf("[nats] publishing topic [%s]", topic))
-	err := n.Conn.Publish(topic, []byte(message))
-	return err
-}
-
-func (n NatsPubSub) PublishJSON(topic string, message interface{}) error {
-	data, _ := json.Marshal(message)
+func (n NatsPubSub) Publish(orgId, topic string, message interface{}) error {
+	data, _ := json.Marshal(pubsub.Payload{
+		Id:    lib.GenerateId("evt"),
+		OrgId: orgId,
+		Topic: topic,
+		Data:  message,
+	})
 	n.logger.Debug(fmt.Sprintf("[nats] publishing topic [%s]", topic))
 	err := n.Conn.Publish(topic, data)
 	return err

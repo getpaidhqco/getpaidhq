@@ -56,6 +56,42 @@ func (r WebhookSubscriptionRepository) GetByID(ctx context.Context, orgId string
 	return subscription, nil
 }
 
+func (r WebhookSubscriptionRepository) FindByEvent(ctx context.Context, orgId string, event string) ([]entities.WebhookSubscription, error) {
+	query := `SELECT org_id, id, events, url, secret, created_at, updated_at FROM webhook_subscriptions WHERE org_id=$1 AND $2 = ANY(events)`
+	rows, err := r.Pool.Query(ctx, query, orgId, event)
+	if err != nil {
+		r.logger.Error("failed to find WebhookSubscriptions by event", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	var subscriptions []entities.WebhookSubscription
+	for rows.Next() {
+		var subscription entities.WebhookSubscription
+		err := rows.Scan(
+			&subscription.OrgID,
+			&subscription.Id,
+			&subscription.Events,
+			&subscription.URL,
+			&subscription.Secret,
+			&subscription.CreatedAt,
+			&subscription.UpdatedAt,
+		)
+		if err != nil {
+			r.logger.Error("failed to scan WebhookSubscription", err)
+			return nil, err
+		}
+		subscriptions = append(subscriptions, subscription)
+	}
+
+	if err := rows.Err(); err != nil {
+		r.logger.Error("rows error", err)
+		return nil, err
+	}
+
+	return subscriptions, nil
+}
+
 func (r WebhookSubscriptionRepository) Update(ctx context.Context, subscription entities.WebhookSubscription) (entities.WebhookSubscription, error) {
 	query := `UPDATE webhook_subscriptions SET events = $1, url = $2, secret = $3, updated_at = $4 WHERE id = $5
 			  RETURNING org_id, id, events, url, secret, created_at, updated_at`

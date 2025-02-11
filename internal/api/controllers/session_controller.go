@@ -27,13 +27,13 @@ func (s SessionController) Create(c *gin.Context) {
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
+			"error":   "invalid input",
+			"message": err.Error(),
 		})
 		return
 	}
 
 	s.logger.Debug("Creating session", "input", input)
-
 	session, err := s.sessionService.CreateSession(c.Request.Context(), input)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{

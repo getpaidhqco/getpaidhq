@@ -3,6 +3,8 @@ package services
 import (
 	"context"
 	cart "github.com/mdwt/payloop-cart"
+	"payloop/internal/application/lib/events"
+	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/carts"
 	"payloop/internal/domain/entities/sessions"
@@ -13,14 +15,20 @@ import (
 type SessionService struct {
 	sessionRepository repositories.SessionRepository
 	cartRepository    repositories.CartRepository
+	pubsub            events.PubSub
 	logger            lib.Logger
 }
 
-func NewSessionService(sessionRepository repositories.SessionRepository, cartRepository repositories.CartRepository, logger lib.Logger) SessionService {
+func NewSessionService(sessionRepository repositories.SessionRepository,
+	cartRepository repositories.CartRepository,
+	logger lib.Logger,
+	pubsub events.PubSub,
+) SessionService {
 	return SessionService{
 		sessionRepository: sessionRepository,
 		cartRepository:    cartRepository,
 		logger:            logger,
+		pubsub:            pubsub,
 	}
 }
 
@@ -48,5 +56,6 @@ func (s *SessionService) CreateSession(ctx context.Context, input sessions.Creat
 			Metadata: nil,
 		})
 
+	_ = s.pubsub.Publish(input.OrgId, topic.SessionCreated, session)
 	return session, err
 }

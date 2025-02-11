@@ -1,7 +1,7 @@
 package entities
 
 import (
-	"payloop/internal/application/lib/events"
+	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/domain/entities/prices"
 	"payloop/internal/lib"
 	"time"
@@ -275,15 +275,15 @@ func NewFromCreateInput(input CreateSubscriptionInput) Subscription {
 func GetTopicFromStatus(status SubscriptionStatus) string {
 	switch status {
 	case SubscriptionStatusActive:
-		return events.TopicSubscriptionActivated
+		return topic.TopicSubscriptionActivated
 	case SubscriptionStatusPaused:
-		return events.TopicSubscriptionPaused
+		return topic.TopicSubscriptionPaused
 	case SubscriptionStatusCancelled:
-		return events.TopicSubscriptionCancelled
+		return topic.TopicSubscriptionCancelled
 	case SubscriptionStatusExpired:
-		return events.SubscriptionStatusExpired
+		return topic.SubscriptionStatusExpired
 	case SubscriptionStatusPastDue:
-		return events.SubscriptionStatusExpired
+		return topic.SubscriptionStatusExpired
 
 	default:
 		return ""
