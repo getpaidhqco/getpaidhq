@@ -352,26 +352,37 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 
 	// update the subscription status
 	lastCharge := time.Now().UTC()
-	subscription.Status = entities.SubscriptionStatusActive
 	subscription.CyclesProcessed++
 	subscription.TotalRevenue += subscription.Amount
 	subscription.LastCharge = &lastCharge
-
 	subscription.Retries = 0
 	subscription.NextRetryAt = nil
 
-	nextCharge := subscription.CalculateNextBillingDate()
-	subscription.RenewsAt = &nextCharge
+	if subscription.CyclesProcessed >= subscription.Cycles {
+		subscription.Status = entities.SubscriptionStatusCompleted
+		subscription.EndsAt = &lastCharge
+		subscription.RenewsAt = nil
+	} else {
+		subscription.Status = entities.SubscriptionStatusActive
+		nextCharge := subscription.CalculateNextBillingDate()
+		subscription.RenewsAt = &nextCharge
+	}
 
-	s.logger.Info("Subscription charged, updating with new values",
-		"id", subscription.Id,
-		"NextCharge", nextCharge,
-		"cycles", subscription.CyclesProcessed,
-		"totalRevenue", subscription.TotalRevenue)
+	s.logger.Infof("[%s][%s] subscription charged, updating with new values [%s]",
+		subscription.OrgId,
+		subscription.Id,
+		subscription.Status)
+
+	// Update the subscription in the database
 	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
 		s.logger.Error("Failed to update subscription", err.Error())
 		return entities.Subscription{}, err
+	}
+
+	// Publish the events
+	if newSub.Status == entities.SubscriptionStatusExpired {
+		_ = s.pubsub.PublishJSON(events.SubscriptionStatusExpired, newSub)
 	}
 
 	_ = s.pubsub.PublishJSON(events.SubscriptionPaymentChargeSuccess, payment)

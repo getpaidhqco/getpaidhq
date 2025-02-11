@@ -66,6 +66,10 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 
 		// Calculate the duration until the next billing date
 		// Remember to use workflow.Now(ctx) to get the current time
+		if subscription.RenewsAt == nil {
+			logger.Warn("Subscription has no next billing date, ending workflow...")
+			break
+		}
 		duration := subscription.RenewsAt.Sub(workflow.Now(ctx))
 		ok, err := workflow.AwaitWithTimeout(ctx, duration, func() bool {
 			return subscription.Status == entities.SubscriptionStatusPaused ||
@@ -81,7 +85,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		// If the subscription was paused, wait until it is activated again
 		if subscription.Status == entities.SubscriptionStatusPaused {
 			err = workflow.Await(ctx, func() bool {
-				logger.Debug("Pause clause", "subscription.Status", subscription.Status)
+				logger.Debug(fmt.Sprintf("[%s][%s] pause clause", subscription.OrgId, subscription.Id))
 				return subscription.Status == entities.SubscriptionStatusActive ||
 					subscription.Status == entities.SubscriptionStatusTrial ||
 					subscription.Status == entities.SubscriptionStatusCancelled
@@ -105,6 +109,10 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		// update local state for the next billing period
 		if subscription.Status == entities.SubscriptionStatusCancelled {
 			logger.Info("Subscription is cancelled, ending workflow...")
+			break
+		}
+		if subscription.Status == entities.SubscriptionStatusExpired {
+			logger.Info("Subscription is expired, ending workflow...")
 			break
 		}
 

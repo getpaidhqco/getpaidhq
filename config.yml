@@ -1,0 +1,31 @@
+# Configuration file for the application
+
+server:
+  port: 8080
+  host: "0.0.0.0"
+
+database:
+  host: "localhost"
+  port: 5432
+  user: "dbuser"
+  password: "dbpassword"
+  name: "dbname"
+
+logging:
+  level: "info"
+  format: "json"
+
+auth:
+  jwt_secret: "your_jwt_secret"
+  token_expiry: "24h"
+
+payment_gateway:
+  api_key: "sk_test_e39ce23869e6e677121a5e6ef691a8c3d835f0bb"
+  endpoint: "https://api.paymentgateway.com"
+
+pubsub:
+  provider: "your_pubsub_provider"
+  topic: "your_topic_name"
+
+subscriptions:
+  max_retries: 3

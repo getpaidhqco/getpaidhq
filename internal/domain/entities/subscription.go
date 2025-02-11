@@ -46,6 +46,7 @@ const (
 	SubscriptionStatusCancelled   SubscriptionStatus = "cancelled"
 	SubscriptionStatusPending     SubscriptionStatus = "pending"
 	SubscriptionStatusExpired     SubscriptionStatus = "expired"
+	SubscriptionStatusCompleted   SubscriptionStatus = "completed"
 	SubscriptionStatusError       SubscriptionStatus = "error"
 )
 
@@ -142,11 +143,30 @@ func (s Subscription) CalculateNextBillingDate() time.Time {
 	return nextBillingDate
 }
 
+func calculateNextDate(interval prices.BillingInterval, qty int, startDate time.Time) time.Time {
+	switch interval {
+	case "minute":
+		startDate = startDate.Add(time.Minute * time.Duration(qty))
+	case "hour":
+		startDate = startDate.Add(time.Hour * time.Duration(qty))
+	case "day":
+		startDate = startDate.AddDate(0, 0, qty)
+	case "week":
+		startDate = startDate.AddDate(0, 0, qty*7)
+	case "month":
+		startDate = startDate.AddDate(0, qty, 0)
+	case "year":
+		startDate = startDate.AddDate(qty, 0, 0)
+	}
+	return startDate
+}
+
 // NewSubscriptionFromItem creates a new Subscription from a payloop-cart Item
 func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 
 	var startDate = time.Now().UTC()
 	var trialEndsAt *time.Time
+	var endsAt *time.Time
 	if item.Price.TrialInterval != prices.BillingIntervalNone {
 		switch item.Price.TrialInterval {
 		case "minute":
@@ -166,6 +186,11 @@ func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 		trialEndsAt = &startDate
 	}
 
+	if item.Price.Cycles > 0 {
+		endsAtV := calculateNextDate(item.Price.BillingInterval, item.Price.Cycles*item.Price.BillingIntervalQty, startDate)
+		endsAt = &endsAtV
+	}
+
 	return Subscription{
 		OrgId:              item.OrgId,
 		Id:                 lib.GenerateId("sub"),
@@ -175,13 +200,13 @@ func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 		EndDate:            nil,
 		BillingInterval:    item.Price.BillingInterval,
 		BillingIntervalQty: item.Price.BillingIntervalQty,
-		Cycles:             0,
+		Cycles:             item.Price.Cycles,
 		BillingAnchor:      startDate.Day(),
 		TrialEndsAt:        trialEndsAt,
 		CancelAt:           nil,
-		EndsAt:             nil,
+		EndsAt:             endsAt,
 		LastCharge:         nil,
-		RenewsAt:           nil,
+		RenewsAt:           &startDate,
 		Retries:            0,
 		NextRetryAt:        nil,
 		Currency:           item.Price.Currency,

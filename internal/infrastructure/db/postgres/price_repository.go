@@ -38,7 +38,7 @@ func (r PriceRepository) WithTrx(trxHandle interface{}) PriceRepository {
 
 func (r PriceRepository) FindById(ctx context.Context, orgId string, id string) (entities.Price, error) {
 	var price entities.Price
-	err := r.Pool.QueryRow(ctx, `SELECT org_id,id,billing_interval,billing_interval_qty,category,scheme,currency,unit_price,trial_interval,trial_interval_qty,tax_code 
+	err := r.Pool.QueryRow(ctx, `SELECT org_id,id,billing_interval,billing_interval_qty,category,scheme,cycles,currency,unit_price,trial_interval,trial_interval_qty,tax_code 
 							FROM prices WHERE org_id=@org_id AND id=@id`,
 		pgx.NamedArgs{
 			"org_id": orgId,
@@ -50,6 +50,7 @@ func (r PriceRepository) FindById(ctx context.Context, orgId string, id string) 
 		&price.BillingIntervalQty,
 		&price.Category,
 		&price.Scheme,
+		&price.Cycles,
 		&price.Currency,
 		&price.UnitPrice,
 		&price.TrialInterval,

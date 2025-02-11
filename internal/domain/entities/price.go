@@ -11,6 +11,7 @@ type Price struct {
 	Id                 string                 `json:"id"`
 	Category           prices.PriceCategory   `json:"category"`
 	Scheme             prices.PriceScheme     `json:"scheme"`
+	Cycles             int                    `json:"cycles"`
 	Currency           string                 `json:"currency"`
 	UnitPrice          int                    `json:"unit_price"`
 	MinPrice           int                    `json:"min_price"`
@@ -27,12 +28,13 @@ func (p Price) ToCartItemPrice() cart.Price {
 	if p.TaxCode == nil {
 		p.TaxCode = new(string)
 	}
-	
+
 	return cart.Price{
 		Id:                 p.Id,
 		Category:           types.PriceCategory(p.Category),
 		Scheme:             types.PriceScheme(p.Scheme),
 		Currency:           p.Currency,
+		Cycles:             p.Cycles,
 		UnitPrice:          p.UnitPrice,
 		BillingInterval:    types.BillingInterval(p.BillingInterval),
 		BillingIntervalQty: p.BillingIntervalQty,

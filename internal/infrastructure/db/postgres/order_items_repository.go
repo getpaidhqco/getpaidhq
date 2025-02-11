@@ -118,13 +118,14 @@ func (r OrderItemRepository) Create(ctx context.Context, orderItem entities.Orde
 
 	// Join with Price
 	var price entities.Price
-	priceQuery := `SELECT org_id, id, category, scheme, trial_interval, trial_interval_qty, billing_interval, billing_interval_qty, currency, unit_price, tax_code
+	priceQuery := `SELECT org_id, id, category, scheme, cycles, trial_interval, trial_interval_qty, billing_interval, billing_interval_qty, currency, unit_price, tax_code
 					   FROM prices WHERE id = $1`
 	err = r.Pool.QueryRow(ctx, priceQuery, orderItem.PriceId).Scan(
 		&price.OrgId,
 		&price.Id,
 		&price.Category,
 		&price.Scheme,
+		&price.Cycles,
 		&price.TrialInterval,
 		&price.TrialIntervalQty,
 		&price.BillingInterval,
