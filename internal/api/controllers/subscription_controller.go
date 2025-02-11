@@ -96,18 +96,22 @@ func (s SubscriptionController) Pause(c *gin.Context) {
 		Reason: input.Reason,
 	})
 	if err != nil {
-		var serr lib.ServiceError
+		var serr lib.CustomError
 		if errors.As(err, &serr) {
-			if serr.Type == lib.ErrTypeNotFound {
+			if serr.Type == lib.NotFoundError {
 				c.JSON(http.StatusNotFound, gin.H{
-					"error": err.Error(),
+					"error":   serr.Type,
+					"message": serr.Message,
+					"details": serr.Err,
 				})
 				return
 			}
 		}
 
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
+			"error":   "internal_error",
+			"message": "An internal error occurred.",
+			"details": err.Error(),
 		})
 		return
 	}
@@ -134,18 +138,22 @@ func (s SubscriptionController) Resume(c *gin.Context) {
 		ResumeBehavior: input.ResumeBehavior,
 	})
 	if err != nil {
-		var serr lib.ServiceError
+		var serr lib.CustomError
 		if errors.As(err, &serr) {
-			if serr.Type == lib.ErrTypeNotFound {
+			if serr.Type == lib.NotFoundError {
 				c.JSON(http.StatusNotFound, gin.H{
-					"error": err.Error(),
+					"error":   serr.Type,
+					"message": serr.Message,
+					"details": serr.Err,
 				})
 				return
 			}
 		}
 
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
+			"error":   "internal_error",
+			"message": "An internal error occurred.",
+			"details": err.Error(),
 		})
 		return
 	}
@@ -172,18 +180,22 @@ func (s SubscriptionController) Cancel(c *gin.Context) {
 		Reason: input.Reason,
 	})
 	if err != nil {
-		var serr lib.ServiceError
+		var serr lib.CustomError
 		if errors.As(err, &serr) {
-			if serr.Type == lib.ErrTypeNotFound {
+			if serr.Type == lib.NotFoundError {
 				c.JSON(http.StatusNotFound, gin.H{
-					"error": err.Error(),
+					"error":   serr.Type,
+					"message": serr.Message,
+					"details": serr.Err,
 				})
 				return
 			}
 		}
 
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
+			"error":   "internal_error",
+			"message": "An internal error occurred.",
+			"details": err.Error(),
 		})
 		return
 	}

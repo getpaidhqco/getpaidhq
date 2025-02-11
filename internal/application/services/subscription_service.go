@@ -170,11 +170,11 @@ func (s *SubscriptionService) Pause(ctx context.Context, input subscriptions.Pau
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
 		s.logger.Error("Failed to find subscriptions", err.Error())
-		var serr lib.ServiceError
+		var serr lib.CustomError
 		if errors.As(err, &serr) {
 			return entities.Subscription{}, err
 		}
-		return entities.Subscription{}, lib.NewServiceError(lib.ErrTypeNotFound, err)
+		return entities.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
 	}
 
 	subscription.Status = entities.SubscriptionStatusPaused
@@ -196,17 +196,17 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input subs
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
 		s.logger.Error("Failed to find subscriptions", err.Error())
-		var serr lib.ServiceError
+		var serr lib.CustomError
 		if errors.As(err, &serr) {
 			return entities.Subscription{}, err
 		}
-		return entities.Subscription{}, lib.NewServiceError(lib.ErrTypeNotFound, err)
+		return entities.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
 	}
 
 	if subscription.Status != entities.SubscriptionStatusPaused &&
 		subscription.Status != entities.SubscriptionStatusPastDue {
 		s.logger.Info("Subscription is not paused")
-		return subscription, errors.New("subscription is not paused")
+		return subscription, lib.NewCustomError(lib.BadRequestError, "subscription is not paused", nil)
 	}
 
 	behaviour := subscriptions.ContinueExistingBillingPeriod
@@ -217,7 +217,7 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input subs
 	if behaviour == subscriptions.ContinueExistingBillingPeriod {
 		nextCharge := subscription.CalculateNextBillingDate()
 		if nextCharge.Before(time.Now().UTC()) {
-			return entities.Subscription{}, errors.New("next billing date is in the past")
+			return entities.Subscription{}, lib.NewCustomError(lib.BadRequestError, "next billing date is in the past", errors.New("next billing date is in the past"))
 		}
 		// set the next billing date to the next billing date
 		subscription.RenewsAt = &nextCharge
@@ -225,7 +225,8 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input subs
 
 	if behaviour == subscriptions.StartNewBillingPeriod {
 		// set the next billing date to the current date
-		nextCharge := time.Now().UTC()
+		// add a bit of a buffer to avoid charging immediately
+		nextCharge := time.Now().UTC().Add(time.Second * 20)
 		subscription.BillingAnchor = nextCharge.Day()
 		subscription.RenewsAt = &nextCharge
 	}
@@ -253,11 +254,11 @@ func (s *SubscriptionService) CancelSubscription(ctx context.Context, input subs
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
 		s.logger.Error("Failed to find subscriptions", err.Error())
-		var serr lib.ServiceError
+		var serr lib.CustomError
 		if errors.As(err, &serr) {
 			return entities.Subscription{}, err
 		}
-		return entities.Subscription{}, lib.NewServiceError(lib.ErrTypeNotFound, err)
+		return entities.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
 	}
 
 	if subscription.Status == entities.SubscriptionStatusCancelled {

@@ -46,7 +46,7 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, input []byte)
 		return err
 	}
 	if exists {
-		s.logger.Info("Webhook already processed", "idempotency_key", hashHex)
+		s.logger.Info("Webhook already processed")
 		return nil
 	}
 

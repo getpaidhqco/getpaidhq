@@ -99,8 +99,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 
 				// wait until the subscription is moved out of past due status. If active, the renew date
 				// must be in the future
-				return subscription.Status != entities.SubscriptionStatusPastDue &&
-					subscription.RenewsAt.After(workflow.Now(ctx))
+				return subscription.Status != entities.SubscriptionStatusPastDue
 			})
 			continue
 		}

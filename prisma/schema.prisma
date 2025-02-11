@@ -428,6 +428,7 @@ model Payment {
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@id([orgId, id])
+  @@unique([orgId, pspId])
   @@map("payments")
 }
 

@@ -64,8 +64,11 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 		&subscription.UpdatedAt,
 	)
 	if err != nil {
+		if err == pgx.ErrNoRows {
+			return entities.Subscription{}, lib.NewCustomError(lib.NotFoundError, "Subscription not found", err)
+		}
 		r.logger.Error(`failed to find Subscription by id`, err.Error())
-		return entities.Subscription{}, err
+		return entities.Subscription{}, lib.NewCustomError(lib.InternalError, "failed to find Subscription by id", err)
 	}
 	return subscription, nil
 }
