@@ -53,11 +53,11 @@ type TransactionSuccessful struct {
 	} `json:"authorization"`
 	Customer struct {
 		ID                       int         `json:"id"`
-		FirstName                interface{} `json:"first_name"`
-		LastName                 interface{} `json:"last_name"`
+		FirstName                string      `json:"first_name"`
+		LastName                 string      `json:"last_name"`
 		Email                    string      `json:"email"`
 		CustomerCode             string      `json:"customer_code"`
-		Phone                    interface{} `json:"phone"`
+		Phone                    string      `json:"phone"`
 		Metadata                 interface{} `json:"metadata"`
 		RiskAction               string      `json:"risk_action"`
 		InternationalFormatPhone interface{} `json:"international_format_phone"`

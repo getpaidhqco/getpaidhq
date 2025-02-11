@@ -19,7 +19,6 @@ type CedarAuthz struct {
 func NewCedarAuthz(logger lib.Logger, env lib.Env) authz.Authz {
 	config, err := openConfig(env.CedarPolicyFile)
 	if err != nil {
-		logger.Error("Failed to open cedar policy file", "err", err.Error())
 		log.Fatal("☠️ cannot read cedar policy")
 	}
 	var policy cedar.Policy

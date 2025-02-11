@@ -5,7 +5,8 @@ import "payloop/internal/api/authn"
 type Action string
 
 const (
-	CreateOrg          Action = "CreateOrg"
+	CreateOrg Action = "CreateOrg"
+
 	CreateCart         Action = "create_cart"
 	CreateOrder        Action = "CreateOrder"
 	AddProductToCart   Action = "AddProductToCart"

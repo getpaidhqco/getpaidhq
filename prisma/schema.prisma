@@ -441,3 +441,13 @@ enum PaymentStatus {
   expired
   fraudulent
 }
+
+model IdempotencyKey {
+  id        String   @id
+  expiresAt DateTime @map("expires_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@index([id, expiresAt])
+  @@map("idempotency_keys")
+}

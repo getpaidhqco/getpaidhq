@@ -2,26 +2,33 @@ package services
 
 import (
 	"context"
+	"crypto/md5"
+	"encoding/hex"
 	"payloop/internal/domain/payment_providers"
+	"payloop/internal/domain/repositories"
 	"payloop/internal/domain/workflow"
 	"payloop/internal/lib"
+	"time"
 )
 
 type WebhookService struct {
-	logger         lib.Logger
-	payments       payment_providers.Gateway
-	workflowEngine workflow.Engine
+	logger          lib.Logger
+	payments        payment_providers.Gateway
+	workflowEngine  workflow.Engine
+	idempotencyRepo repositories.IdempotencyKeyRepository
 }
 
 func NewWebhookService(
 	logger lib.Logger,
 	payments payment_providers.Gateway,
 	workflowEngine workflow.Engine,
+	idempotencyRepo repositories.IdempotencyKeyRepository,
 ) WebhookService {
 	return WebhookService{
-		logger:         logger,
-		payments:       payments,
-		workflowEngine: workflowEngine,
+		logger:          logger,
+		payments:        payments,
+		workflowEngine:  workflowEngine,
+		idempotencyRepo: idempotencyRepo,
 	}
 }
 
@@ -29,6 +36,26 @@ func NewWebhookService(
 // a payment event to the event bus.
 func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, input []byte) error {
 	s.logger.Info("Webhook ")
+
+	hash := md5.Sum(input)
+	hashHex := hex.EncodeToString(hash[:])
+	// Check if the idempotency key already exists
+	exists, err := s.idempotencyRepo.Exists(ctx, hashHex)
+	if err != nil {
+		s.logger.Errorf("failed to check idempotency key", err.Error())
+		return err
+	}
+	if exists {
+		s.logger.Info("Webhook already processed", "idempotency_key", hashHex)
+		return nil
+	}
+
+	// Store the idempotency key
+	err = s.idempotencyRepo.Create(ctx, hashHex, time.Now().Add(24*time.Hour))
+	if err != nil {
+		s.logger.Errorf("failed to store idempotency key", err.Error())
+		return err
+	}
 
 	webhook, err := s.payments.ParseWebhook(ctx, input)
 	if err != nil {

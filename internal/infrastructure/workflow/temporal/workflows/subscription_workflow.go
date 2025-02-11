@@ -67,7 +67,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		// Calculate the duration until the next billing date
 		// Remember to use workflow.Now(ctx) to get the current time
 		if subscription.RenewsAt == nil {
-			logger.Warn("Subscription has no next billing date, ending workflow...")
+			logger.Info("Subscription has no next billing date, ending workflow...")
 			break
 		}
 		duration := subscription.RenewsAt.Sub(workflow.Now(ctx))

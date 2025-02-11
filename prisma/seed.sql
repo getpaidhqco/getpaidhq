@@ -19,6 +19,6 @@ VALUES ('mollie', 'price-1', 'var-1', 'subscription', 'fixed', 0, 'ZAR', 10000.0
         'none', 0, null, null, null, null, '2025-01-26 13:18:56.354', '2025-01-26 15:17:14.000'),
        ('mollie', 'freetrial', 'var-1', 'subscription', 'fixed', 0, 'ZAR', 100, 'hour', 1,
         'hour', 2, null, null, null, null, '2025-01-26 13:18:56.354', '2025-01-26 15:17:14.000'),
-       ('mollie', 'cyc-1', 'var-1', 'subscription', 'fixed', 2, 'ZAR', 100, 'hour', 1,
-        'hour', 2, null, null, null, null, '2025-01-26 13:18:56.354', '2025-01-26 15:17:14.000')
+       ('mollie', 'cyc-1', 'var-1', 'subscription', 'fixed', 3, 'ZAR', 100, 'minute', 1,
+        'none', 0, null, null, null, null, '2025-01-26 13:18:56.354', '2025-01-26 15:17:14.000')
 ON CONFLICT DO NOTHING;

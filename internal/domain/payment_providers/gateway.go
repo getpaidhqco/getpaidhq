@@ -61,10 +61,22 @@ type PaymentMethod struct {
 }
 
 type Payment struct {
-	Currency  string    `json:"currency"`
-	Reference string    `json:"reference"`
-	Amount    int       `json:"amount"`
-	PaidAt    time.Time `json:"paid_at"`
+	Currency    string    `json:"currency"`
+	Reference   string    `json:"reference"`
+	PspId       string    `json:"psp_id"`
+	Amount      int       `json:"amount"`
+	PaidAt      time.Time `json:"paid_at"`
+	PspFee      int       `json:"psp_fee"`
+	PlatformFee int       `json:"platform_fee"`
+}
+
+type Customer struct {
+	Id        string `json:"id"`
+	Email     string `json:"email"`
+	FirstName string `json:"first_name"`
+	LastName  string `json:"last_name"`
+	Phone     string `json:"phone"`
+	PspId     string `json:"psp_id"`
 }
 
 type PaymentWebhookContext struct {
@@ -74,6 +86,7 @@ type PaymentWebhookContext struct {
 	Psp           string             `json:"psp"`
 	Status        string             `json:"status"`
 	Payment       Payment            `json:"payment"`
+	Customer      Customer           `json:"customer"`
 	PaymentMethod PaymentMethod      `json:"payment_method"`
 	RawData       []byte             `json:"raw_data"`
 }

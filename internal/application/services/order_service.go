@@ -6,6 +6,7 @@ import (
 	"payloop/internal/application/lib/events"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
+	"payloop/internal/domain/entities/payments"
 	"payloop/internal/domain/entities/prices"
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
@@ -20,6 +21,7 @@ type OrderService struct {
 	customerRepository     repositories.CustomerRepository
 	subscriptionRepository repositories.SubscriptionRepository
 	orderItemRepository    repositories.OrderItemRepository
+	paymentRepository      repositories.PaymentRepository
 	paymentGateway         payment_providers.Gateway
 	pubsub                 events.PubSub
 	db                     lib.Database
@@ -33,6 +35,7 @@ func NewOrderService(
 	customerRepository repositories.CustomerRepository,
 	orderItemRepository repositories.OrderItemRepository,
 	subscriptionRepository repositories.SubscriptionRepository,
+	paymentRepository repositories.PaymentRepository,
 	paymentGateway payment_providers.Gateway,
 	pubsub events.PubSub,
 	db lib.Database,
@@ -45,6 +48,7 @@ func NewOrderService(
 		subscriptionRepository: subscriptionRepository,
 		orderRepository:        orderRepository,
 		logger:                 logger,
+		paymentRepository:      paymentRepository,
 		pubsub:                 pubsub,
 		db:                     db,
 		paymentGateway:         paymentGateway,
@@ -139,6 +143,12 @@ func (s *OrderService) CreateOrderFromCart(ctx context.Context, input orders.Cre
 
 // CompleteOrder marks a pending order as completed and updates the subscriptions to reflect any payment received
 // This is a special case with orders
+// 1. The order is marked as completed
+// 2. The subscriptions are updated to reflect the payment received
+// 3. A payment is created for the order
+// 4. A payment method is created for the customer
+// It all happens here for now because it must be part of the same transaction..not sure if this is the best way
+// or if we can have transactions in temporal workflows
 func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOrderCommand) (entities.Order, error) {
 	s.logger.Info("Completing order", "order_id", input.OrderId)
 	orgId := input.OrgId
@@ -181,16 +191,18 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteO
 	}
 	s.logger.Infof("Created payment method %s for order %s", paymentMethod.Id, order.Id)
 
+	var subscriptionId string
 	// find subscriptions for the order and update the status to active
 	subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
 	if err != nil {
-		s.logger.Error("Failed to find subscriptions", err.Error())
-		return entities.Order{}, err
+		s.logger.Error("no subscriptions", err.Error())
 	}
+
 	for _, subscription := range subscriptions {
 		// TODO this needs to happen but not sure if here or like this
 		charged := input.PaymentContext.Payment.Amount > 0 && subscription.StartDate.Sub(time.Now().UTC()) < 0
 		if charged {
+			subscriptionId = subscription.Id
 			subscription.LastCharge = &subscription.StartDate
 			subscription.TotalRevenue = subscription.Amount
 			subscription.CyclesProcessed = 1
@@ -206,6 +218,29 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteO
 		if err != nil {
 			s.logger.Error("Failed to update subscription status", err.Error())
 			return entities.Order{}, err
+		}
+	}
+
+	if input.PaymentContext.Payment.Amount > 0 {
+		payment := entities.Payment{
+			OrgId:          orgId,
+			Id:             lib.GenerateId("pmt"),
+			PspId:          input.PaymentContext.Payment.PspId,
+			OrderId:        orderId,
+			SubscriptionId: subscriptionId,
+			Status:         payments.PaymentStatusSucceeded,
+			Currency:       input.PaymentContext.Payment.Currency,
+			Amount:         input.PaymentContext.Payment.Amount,
+			PspFee:         0,
+			PlatformFee:    0,
+			NetAmount:      input.PaymentContext.Payment.Amount,
+			Metadata:       nil,
+			CreatedAt:      time.Now().UTC(),
+			UpdatedAt:      time.Now().UTC(),
+		}
+		payment, err := s.paymentRepository.Create(ctx, payment)
+		if err != nil {
+			s.logger.Error("Failed to create payment", err.Error())
 		}
 	}
 
