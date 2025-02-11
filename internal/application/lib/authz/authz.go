@@ -17,6 +17,10 @@ const (
 	PauseSubscription  Action = "PauseSubscription"
 	ResumeSubscription Action = "ResumeSubscription"
 	Healthcheck        Action = "Healthcheck"
+
+	// webhook subscriptions
+	CreateWebhookSubscription Action = "CreateWebhookSubscription"
+	ListWebhookSubscriptions  Action = "ListWebhookSubscriptions"
 )
 
 type Authz interface {

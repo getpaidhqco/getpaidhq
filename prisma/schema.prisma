@@ -452,3 +452,15 @@ model IdempotencyKey {
   @@index([id, expiresAt])
   @@map("idempotency_keys")
 }
+
+model WebhookSubscription {
+  orgId     String   @map("org_id")
+  id        String   @id @default(cuid())
+  events    String[]
+  url       String
+  secret    String?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("webhook_subscriptions")
+}
