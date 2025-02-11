@@ -53,7 +53,7 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 		&subscription.LastCharge,
 		&subscription.RenewsAt,
 		&subscription.Retries,
-		&subscription.NextRetry,
+		&subscription.NextRetryAt,
 		&subscription.Currency,
 		&subscription.Amount,
 		&subscription.Metadata,
@@ -135,7 +135,7 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 			&subscription.LastCharge,
 			&subscription.RenewsAt,
 			&subscription.Retries,
-			&subscription.NextRetry,
+			&subscription.NextRetryAt,
 			&subscription.Currency,
 			&subscription.Amount,
 			&subscription.Metadata,
@@ -166,7 +166,7 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 	if tx != nil {
 		p = tx.(queryRower)
 	}
-	
+
 	var subscription entities.Subscription
 	query := `INSERT INTO subscriptions (org_id, id, order_id, customer_id, status, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at) 
 			  VALUES (@org_id, @id, @order_id,@customer_id, @status, @start_date, @end_date, @billing_interval, @billing_interval_qty, @cycles, @billing_anchor, @trial_ends_at, @cancel_at, @ends_at, @last_charge, @renews_at, @retries, @next_retry, @currency, @amount, @metadata, @cycles_processed, @total_revenue, @cancelled_at, NOW(), NOW())
@@ -192,7 +192,7 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 		"last_charge":          entity.LastCharge,
 		"renews_at":            entity.RenewsAt,
 		"retries":              entity.Retries,
-		"next_retry":           entity.NextRetry,
+		"next_retry":           entity.NextRetryAt,
 		"currency":             entity.Currency,
 		"amount":               entity.Amount,
 		"metadata":             metaJson,
@@ -216,7 +216,7 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 		&subscription.LastCharge,
 		&subscription.RenewsAt,
 		&subscription.Retries,
-		&subscription.NextRetry,
+		&subscription.NextRetryAt,
 		&subscription.Currency,
 		&subscription.Amount,
 		&subscription.Metadata,
@@ -264,7 +264,7 @@ func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subs
 		"last_charge":          entity.LastCharge,
 		"renews_at":            entity.RenewsAt,
 		"retries":              entity.Retries,
-		"next_retry":           entity.NextRetry,
+		"next_retry":           entity.NextRetryAt,
 		"currency":             entity.Currency,
 		"amount":               entity.Amount,
 		"metadata":             metaJson,
@@ -290,7 +290,7 @@ func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subs
 		&subscription.LastCharge,
 		&subscription.RenewsAt,
 		&subscription.Retries,
-		&subscription.NextRetry,
+		&subscription.NextRetryAt,
 		&subscription.Currency,
 		&subscription.Amount,
 		&subscription.Metadata,

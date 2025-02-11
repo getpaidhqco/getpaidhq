@@ -29,15 +29,24 @@ type CreateSubscriptionInput struct {
 type SubscriptionStatus string
 
 const (
-	SubscriptionStatusTrial     SubscriptionStatus = "trial"
-	SubscriptionStatusActive    SubscriptionStatus = "active"
-	SubscriptionStatusPastDue   SubscriptionStatus = "past_due"
-	SubscriptionStatusPaused    SubscriptionStatus = "paused"
-	SubscriptionStatusUnpaid    SubscriptionStatus = "unpaid"
-	SubscriptionStatusCancelled SubscriptionStatus = "cancelled"
-	SubscriptionStatusPending   SubscriptionStatus = "pending"
-	SubscriptionStatusExpired   SubscriptionStatus = "expired"
-	SubscriptionStatusError     SubscriptionStatus = "error"
+	SubscriptionStatusTrial  SubscriptionStatus = "trial"
+	SubscriptionStatusActive SubscriptionStatus = "active"
+
+	// The initial schedule charge failed, so the subscription is in a retry workflow
+	// that will attempt to charge the customer again.  The retry workflow can't be
+	// longer than the subscription period, so if the retry fails, the subscription
+	// will be marked as past_due
+	SubscriptionStatusRetry SubscriptionStatus = "retry"
+
+	// Payment failed, and not being retried, so waiting to be renewed or cancelled
+	SubscriptionStatusPastDue     SubscriptionStatus = "past_due"
+	SubscriptionStatusNonRenewing SubscriptionStatus = "non_renewing"
+	SubscriptionStatusPaused      SubscriptionStatus = "paused"
+	SubscriptionStatusUnpaid      SubscriptionStatus = "unpaid"
+	SubscriptionStatusCancelled   SubscriptionStatus = "cancelled"
+	SubscriptionStatusPending     SubscriptionStatus = "pending"
+	SubscriptionStatusExpired     SubscriptionStatus = "expired"
+	SubscriptionStatusError       SubscriptionStatus = "error"
 )
 
 type Subscription struct {
@@ -58,18 +67,21 @@ type Subscription struct {
 	EndsAt             *time.Time             `json:"ends_at"`
 	LastCharge         *time.Time             `json:"last_charge"`
 	RenewsAt           *time.Time             `json:"renews_at"`
-	CurrentPeriodStart time.Time              `json:"current_period_start"`
-	CurrentPeriodEnd   time.Time              `json:"current_period_end"`
-	Retries            int                    `json:"retries"`
-	NextRetry          *time.Time             `json:"next_retry"`
-	Currency           string                 `json:"currency"`
-	Amount             int                    `json:"amount"`
-	Metadata           map[string]string      `json:"metadata"`
-	CyclesProcessed    int                    `json:"cycles_processed"`
-	TotalRevenue       int                    `json:"total_revenue"`
-	CancelledAt        *time.Time             `json:"cancelled_at"`
-	CreatedAt          time.Time              `json:"created_at"`
-	UpdatedAt          time.Time              `json:"updated_at"`
+
+	CurrentPeriodStart time.Time `json:"current_period_start"`
+	CurrentPeriodEnd   time.Time `json:"current_period_end"`
+
+	Retries     int        `json:"retries"`
+	NextRetryAt *time.Time `json:"next_retry"`
+
+	Currency        string            `json:"currency"`
+	Amount          int               `json:"amount"`
+	Metadata        map[string]string `json:"metadata"`
+	CyclesProcessed int               `json:"cycles_processed"`
+	TotalRevenue    int               `json:"total_revenue"`
+	CancelledAt     *time.Time        `json:"cancelled_at"`
+	CreatedAt       time.Time         `json:"created_at"`
+	UpdatedAt       time.Time         `json:"updated_at"`
 }
 
 // CalculateNextBillingDate calculates and returns the next billing date for a subscription
@@ -78,12 +90,32 @@ type Subscription struct {
 // If the subscription has started but has not been charged yet, it returns the StartDate
 // If the subscription has been charged, it uses the LastCharge date as the base date
 // and the BillingInterval and BillingIntervalQty
+//
+// If the subscription is in retry status, it calculates the next retry date
 func (s Subscription) CalculateNextBillingDate() time.Time {
 	if s.BillingInterval == "" || s.BillingIntervalQty <= 0 {
 		return time.Time{}
 	}
 
-	nextBillingDate := s.StartDate
+	var nextBillingDate time.Time
+	if s.Status == SubscriptionStatusRetry {
+		// Next retry date is in the future
+		if s.NextRetryAt != nil && s.LastCharge.Before(time.Now().UTC()) {
+			return *s.NextRetryAt
+		}
+
+		// Next retry already happened, use as base
+		if s.NextRetryAt != nil && s.NextRetryAt.After(time.Now().UTC()) {
+			nextBillingDate = *s.NextRetryAt
+		}
+
+		// Retry hasn't happened yet, use last charge date as base
+		nextBillingDate = *s.LastCharge
+
+		return nextBillingDate.Add(time.Hour * 24)
+	}
+
+	nextBillingDate = s.StartDate
 	if s.LastCharge == nil && s.CyclesProcessed == 0 {
 		return nextBillingDate
 	}
@@ -151,7 +183,7 @@ func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 		LastCharge:         nil,
 		RenewsAt:           nil,
 		Retries:            0,
-		NextRetry:          nil,
+		NextRetryAt:        nil,
 		Currency:           item.Price.Currency,
 		Amount:             item.Price.UnitPrice,
 		Metadata:           nil,
@@ -203,7 +235,7 @@ func NewFromCreateInput(input CreateSubscriptionInput) Subscription {
 		LastCharge:         nil,
 		RenewsAt:           nil,
 		Retries:            0,
-		NextRetry:          nil,
+		NextRetryAt:        nil,
 		Currency:           input.Currency,
 		Amount:             input.Amount,
 		Metadata:           nil,

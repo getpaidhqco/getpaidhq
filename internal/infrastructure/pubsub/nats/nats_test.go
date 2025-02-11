@@ -29,7 +29,7 @@ func TestNatsPubSub_Publish(t *testing.T) {
 		LastCharge:         nil,
 		RenewsAt:           nil,
 		Retries:            0,
-		NextRetry:          nil,
+		NextRetryAt:        nil,
 		Currency:           "",
 		Amount:             0,
 		Metadata:           nil,

@@ -7,6 +7,7 @@ import (
 	paystacklib "github.com/mdwt/paystack-go"
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/lib"
+	"strconv"
 )
 
 var PAYSTACK = "Paystack"
@@ -63,7 +64,7 @@ func (p Paystack) InitPayment(ctx context.Context, input payment_providers.InitP
 	}, nil
 }
 
-func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.ChargePaymentCommand) (payment_providers.ChargePaymentResponse, error) {
+func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.ChargePaymentCommand) payment_providers.ChargePaymentResponse {
 	client := paystacklib.NewClient(p.env.PaystackApiKey)
 	customer := input.Customer
 	paymentMethod := input.PaymentMethod
@@ -79,15 +80,35 @@ func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.Cha
 
 	response, err := client.Transaction.ChargeAuthorization(ctx, request)
 	if err != nil {
-		p.logger.Errorf("failed to charge payment", err.Error())
-		return payment_providers.ChargePaymentResponse{}, err
+		p.logger.Errorf("failed to charge payment [%s]", err.Error())
+		var paystackErr *paystacklib.APIError
+		if errors.As(err, &paystackErr) {
+			return payment_providers.ChargePaymentResponse{
+				Success:     false,
+				Retryable:   true,
+				Psp:         PAYSTACK,
+				PspResponse: paystackErr,
+			}
+		}
+
+		return payment_providers.ChargePaymentResponse{
+			Success:     false,
+			Retryable:   false,
+			Psp:         PAYSTACK,
+			PspResponse: err,
+		}
 	}
 
 	p.logger.Info("charged payment", "response", response)
 	return payment_providers.ChargePaymentResponse{
-		Success:     true,
-		PspResponse: response,
-	}, nil
+		Success:       true,
+		Psp:           PAYSTACK,
+		PspId:         strconv.FormatInt(response.ID, 10),
+		AmountCharged: response.Amount,
+		Currency:      response.Currency,
+		PaymentType:   response.Channel,
+		PspResponse:   response,
+	}
 }
 
 func (p Paystack) ParseWebhook(ctx context.Context, data []byte) (payment_providers.PaymentWebhookContext, error) {

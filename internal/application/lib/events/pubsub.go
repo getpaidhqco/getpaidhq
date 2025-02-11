@@ -27,6 +27,7 @@ const (
 	SubscriptionStatusPastDue  = "subscription.past_due"
 
 	SubscriptionPaymentChargeSuccess = "subscription.payment.charge.success"
+	SubscriptionPaymentChargeFailed = "subscription.payment.charge.failed"
 
 	SubscriptionWorkflowStartupFailed = "subscription.workflow.startup.failed"
 )

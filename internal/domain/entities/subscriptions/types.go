@@ -5,7 +5,7 @@ import (
 	"payloop/internal/domain/entities/payments"
 )
 
-type SubscriptionChargeSuccessInput struct {
+type SubscriptionChargeInput struct {
 	Subscription entities.Subscription `json:"subscription"`
 	ChargeResult payments.ChargeResult `json:"charge_result"`
 }

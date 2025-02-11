@@ -14,9 +14,11 @@ const (
 )
 
 type ChargeResult struct {
-	Amount   int           `json:"amount"`
-	Status   PaymentStatus `json:"status"`
-	Currency string        `json:"currency"`
-	PspId    string        `json:"psp_id"`
-	RawData  string        `json:"raw_data"`
+	Amount      int           `json:"amount"`
+	Status      PaymentStatus `json:"status"`
+	ErrorReason string        `json:"error_reason"`
+	ErrorCode   string        `json:"error_code"`
+	Currency    string        `json:"currency"`
+	PspId       string        `json:"psp_id"`
+	RawData     string        `json:"raw_data"`
 }

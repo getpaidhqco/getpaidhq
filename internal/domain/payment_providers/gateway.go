@@ -9,7 +9,7 @@ import (
 
 type Gateway interface {
 	InitPayment(ctx context.Context, input InitPaymentCommand) (InitPaymentResponse, error)
-	ChargePayment(ctx context.Context, input ChargePaymentCommand) (ChargePaymentResponse, error)
+	ChargePayment(ctx context.Context, input ChargePaymentCommand) ChargePaymentResponse
 	ValidateWebhook(ctx context.Context, data []byte) error
 	ParseWebhook(ctx context.Context, data []byte) (PaymentWebhookContext, error)
 }
@@ -30,11 +30,15 @@ type InitPaymentCommand struct {
 }
 
 type ChargePaymentResponse struct {
-	Success       bool
-	PspId         string
-	AmountCharged int
+	Success       bool   `json:"success"`
+	Retryable     bool   `json:"retryable"`
+	Psp           string `json:"psp"`
+	PspId         string `json:"psp_id"`
+	Currency      string `json:"currency"`
+	AmountCharged int    `json:"amount_charged"`
+	PaymentType   string `json:"payment_type"`
 
-	PspResponse interface{}
+	PspResponse interface{} `json:"psp_response"`
 }
 
 type InitPaymentResponse struct {

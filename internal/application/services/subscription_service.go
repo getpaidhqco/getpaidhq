@@ -314,7 +314,7 @@ func (s *SubscriptionService) GetSubscriptionPaymentMethod(ctx context.Context, 
 	return paymentMethod, nil
 }
 
-func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context, input subscriptions.SubscriptionChargeSuccessInput) (entities.Subscription, error) {
+func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context, input subscriptions.SubscriptionChargeInput) (entities.Subscription, error) {
 	s.logger.Info("Recording subscription payment and updating subscription")
 	subscription := input.Subscription
 	charge := input.ChargeResult
@@ -356,6 +356,9 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 	subscription.TotalRevenue += subscription.Amount
 	subscription.LastCharge = &lastCharge
 
+	subscription.Retries = 0
+	subscription.NextRetryAt = nil
+
 	nextCharge := subscription.CalculateNextBillingDate()
 	subscription.RenewsAt = &nextCharge
 
@@ -371,6 +374,40 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 	}
 
 	_ = s.pubsub.PublishJSON(events.SubscriptionPaymentChargeSuccess, payment)
+
+	return newSub, nil
+}
+
+func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context, input subscriptions.SubscriptionChargeInput) (entities.Subscription, error) {
+	s.logger.Info("Charge failure happened", "orgId", input.Subscription.OrgId, "id", input.Subscription.Id)
+
+	subscription := input.Subscription
+	charge := input.ChargeResult
+
+	s.logger.Infof("Subscription [%s] charge failed with reason [%s][%s]", subscription.Id, charge.ErrorCode, charge.ErrorReason)
+	if subscription.Id == "" {
+		s.logger.Error("Subscription is empty")
+		panic("Subscription is empty")
+	}
+
+	// update the subscription status
+	subscription.Status = entities.SubscriptionStatusRetry
+	nextCharge := subscription.CalculateNextBillingDate()
+	subscription.RenewsAt = &nextCharge
+	subscription.NextRetryAt = &nextCharge
+	subscription.Retries++
+
+	s.logger.Infof("Subscription [%s] charge failed, updating with nextCharge=[%s]", subscription.Id, nextCharge.String())
+	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
+	if err != nil {
+		s.logger.Error("Failed to update subscription", err.Error())
+		return entities.Subscription{}, err
+	}
+
+	_ = s.pubsub.PublishJSON(events.SubscriptionPaymentChargeFailed, map[string]interface{}{
+		"subscription":  subscription,
+		"charge_result": charge,
+	})
 
 	return newSub, nil
 }

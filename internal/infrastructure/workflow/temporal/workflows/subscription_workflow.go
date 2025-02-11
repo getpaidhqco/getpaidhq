@@ -103,7 +103,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			continue
 		}
 
-		// Double check the next billing date, it must be in the past
+		// Double-check the next billing date, it must be in the past
 		// E.g. if a paused subscription is activated, the next billing date may be in the future
 		if subscription.RenewsAt.After(workflow.Now(ctx)) {
 			logger.Info("Next billing date is in the future, skipping billing cycle")
@@ -116,8 +116,8 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		chargeCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 			StartToCloseTimeout: 60 * time.Second,
 			RetryPolicy: &temporalio.RetryPolicy{
-				MaximumAttempts:    3,
-				InitialInterval:    time.Minute,
+				MaximumAttempts:    1,
+				InitialInterval:    time.Second * 15,
 				BackoffCoefficient: 1.0,
 			},
 		})
@@ -134,17 +134,17 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		updateCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 			StartToCloseTimeout: 10000 * time.Second,
 			RetryPolicy: &temporalio.RetryPolicy{
-				InitialInterval:    time.Minute,
+				InitialInterval:    time.Second * 15,
 				BackoffCoefficient: 1.0,
 			},
 		})
-		err = workflow.ExecuteActivity(updateCtx, a.StoreChargeResults, subscription, chargeResult).
+		err = workflow.ExecuteActivity(updateCtx, a.HandleChargeResult, subscription, chargeResult).
 			Get(updateCtx, &updateResult)
 		if err != nil {
-			logger.Error("Failed to StoreChargeResults", "Error", err.Error())
+			logger.Error("Failed to HandleChargeResult", "Error", err.Error())
 			return subscription, err
 		}
-		if updateResult.Id == "nil" {
+		if updateResult.Id == "" {
 			logger.Error("Failed to update subscription", "Error", "updateResult is nil")
 			return subscription, err
 		}

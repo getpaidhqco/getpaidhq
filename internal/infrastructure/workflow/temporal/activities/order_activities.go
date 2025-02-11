@@ -3,6 +3,7 @@ package activities
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
@@ -104,7 +105,7 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, su
 		return payments.ChargeResult{}, err
 	}
 
-	chargeResult, err := a.paymentGateway.ChargePayment(ctx, payment_providers.ChargePaymentCommand{
+	chargeResult := a.paymentGateway.ChargePayment(ctx, payment_providers.ChargePaymentCommand{
 		OrgId:     subscription.OrgId,
 		Amount:    subscription.Amount,
 		Currency:  subscription.Currency,
@@ -118,32 +119,51 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, su
 		},
 		Customer: customer,
 	})
-	if err != nil {
-		return payments.ChargeResult{}, err
+	if !chargeResult.Success && !chargeResult.Retryable {
+		return payments.ChargeResult{}, errors.New("failed to charge customer")
 	}
 	rawData, err := json.Marshal(chargeResult.PspResponse)
 	if err != nil {
 		logger.Error("failed to marshal charge result", "error", err.Error())
 	}
-	result := payments.ChargeResult{
-		Amount:   chargeResult.AmountCharged,
-		Status:   payments.PaymentStatusSucceeded,
-		Currency: subscription.Currency,
-		PspId:    chargeResult.PspId,
-		RawData:  string(rawData),
+
+	if chargeResult.Success {
+		result := payments.ChargeResult{
+			Amount:   chargeResult.AmountCharged,
+			Status:   payments.PaymentStatusSucceeded,
+			Currency: subscription.Currency,
+			PspId:    chargeResult.PspId,
+			RawData:  string(rawData),
+		}
+		return result, nil
+	} else {
+		result := payments.ChargeResult{
+			Amount:   0,
+			Status:   payments.PaymentStatusFailed,
+			Currency: subscription.Currency,
+			PspId:    chargeResult.PspId,
+			RawData:  string(rawData),
+		}
+		return result, nil
 	}
-	return result, nil
+
 }
 
-func (a *OrderActivities) StoreChargeResults(ctx context.Context, subscription entities.Subscription, chargeResult payments.ChargeResult) (entities.Subscription, error) {
+func (a *OrderActivities) HandleChargeResult(ctx context.Context, subscription entities.Subscription, chargeResult payments.ChargeResult) (entities.Subscription, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("StoreChargeResults", "id", subscription.Id)
+	logger.Info("HandleChargeResult", "id", subscription.Id)
 
-	newSub, err := a.subscriptionService.HandleSubscriptionChargeSuccess(ctx, subscriptions.SubscriptionChargeSuccessInput{
-		Subscription: subscription,
-		ChargeResult: chargeResult,
-	})
-	return newSub, err
+	if chargeResult.Status == payments.PaymentStatusSucceeded {
+		return a.subscriptionService.HandleSubscriptionChargeSuccess(ctx, subscriptions.SubscriptionChargeInput{
+			Subscription: subscription,
+			ChargeResult: chargeResult,
+		})
+	} else {
+		return a.subscriptionService.HandleSubscriptionChargeFailure(ctx, subscriptions.SubscriptionChargeInput{
+			Subscription: subscription,
+			ChargeResult: chargeResult,
+		})
+	}
 }
 
 // StoreSubscriptionWorkflowContext stores the Temporal workflow Id and workflow run Id

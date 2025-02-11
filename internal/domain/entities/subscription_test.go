@@ -51,7 +51,7 @@ func TestNewSubscriptionFromOrderItem_FreeTrial(t *testing.T) {
 	assert.Nil(t, subscription.LastCharge)
 	assert.Nil(t, subscription.RenewsAt)
 	assert.Equal(t, 0, subscription.Retries)
-	assert.Nil(t, subscription.NextRetry)
+	assert.Nil(t, subscription.NextRetryAt)
 	assert.Equal(t, 0, subscription.CyclesProcessed)
 	assert.Equal(t, 0, subscription.TotalRevenue)
 	assert.Nil(t, subscription.CancelledAt)
