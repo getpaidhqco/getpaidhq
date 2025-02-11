@@ -203,7 +203,8 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input subs
 		return entities.Subscription{}, lib.NewServiceError(lib.ErrTypeNotFound, err)
 	}
 
-	if subscription.Status != entities.SubscriptionStatusPaused {
+	if subscription.Status != entities.SubscriptionStatusPaused &&
+		subscription.Status != entities.SubscriptionStatusPastDue {
 		s.logger.Info("Subscription is not paused")
 		return subscription, errors.New("subscription is not paused")
 	}
@@ -390,14 +391,22 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 		panic("Subscription is empty")
 	}
 
-	// update the subscription status
-	subscription.Status = entities.SubscriptionStatusRetry
-	nextCharge := subscription.CalculateNextBillingDate()
-	subscription.RenewsAt = &nextCharge
-	subscription.NextRetryAt = &nextCharge
-	subscription.Retries++
+	if subscription.Retries < 3 {
+		// update the subscription status
+		subscription.Status = entities.SubscriptionStatusRetry
+		nextCharge := subscription.CalculateNextBillingDate()
+		subscription.RenewsAt = &nextCharge
+		subscription.NextRetryAt = &nextCharge
+		subscription.Retries++
+	} else {
+		subscription.Status = entities.SubscriptionStatusPastDue
+		subscription.Retries = 0
+		subscription.NextRetryAt = nil
 
-	s.logger.Infof("Subscription [%s] charge failed, updating with nextCharge=[%s]", subscription.Id, nextCharge.String())
+		_ = s.pubsub.PublishJSON(events.SubscriptionStatusPastDue, subscription)
+	}
+
+	s.logger.Infof("[%s][%s] nextCharge=[%s]", subscription.OrgId, subscription.Id, subscription.RenewsAt)
 	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
 		s.logger.Error("Failed to update subscription", err.Error())

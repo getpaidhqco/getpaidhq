@@ -100,19 +100,19 @@ func (s Subscription) CalculateNextBillingDate() time.Time {
 	var nextBillingDate time.Time
 	if s.Status == SubscriptionStatusRetry {
 		// Next retry date is in the future
-		if s.NextRetryAt != nil && s.LastCharge.Before(time.Now().UTC()) {
+		if s.NextRetryAt != nil && s.NextRetryAt.After(time.Now().UTC()) {
 			return *s.NextRetryAt
 		}
 
 		// Next retry already happened, use as base
-		if s.NextRetryAt != nil && s.NextRetryAt.After(time.Now().UTC()) {
-			nextBillingDate = *s.NextRetryAt
+		if s.NextRetryAt != nil && s.NextRetryAt.Before(time.Now().UTC()) {
+			nextBillingDate = time.Now().UTC()
+		} else {
+			// Retry hasn't happened yet, use last charge date as base
+			nextBillingDate = *s.LastCharge
 		}
 
-		// Retry hasn't happened yet, use last charge date as base
-		nextBillingDate = *s.LastCharge
-
-		return nextBillingDate.Add(time.Hour * 24)
+		return nextBillingDate.Add(time.Minute * 1)
 	}
 
 	nextBillingDate = s.StartDate

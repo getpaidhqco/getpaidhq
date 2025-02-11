@@ -2,6 +2,7 @@ package nats
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/nats-io/nats.go"
 	pubsub "payloop/internal/application/lib/events"
 	"payloop/internal/lib"
@@ -24,14 +25,14 @@ func NewNatsPubSub(logger lib.Logger) pubsub.PubSub {
 }
 
 func (n NatsPubSub) Publish(topic string, message string) error {
-	n.logger.Debug("Publishing to NATS", "topic", topic)
+	n.logger.Debug(fmt.Sprintf("[nats] publishing topic [%s]", topic))
 	err := n.Conn.Publish(topic, []byte(message))
 	return err
 }
 
 func (n NatsPubSub) PublishJSON(topic string, message interface{}) error {
 	data, _ := json.Marshal(message)
-	n.logger.Debug("Publishing to NATS", "topic", topic, "data", string(data))
+	n.logger.Debug(fmt.Sprintf("[nats] publishing topic [%s]", topic))
 	err := n.Conn.Publish(topic, data)
 	return err
 }
