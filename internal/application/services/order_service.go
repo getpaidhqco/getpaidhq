@@ -119,6 +119,7 @@ func (s *OrderService) CreateOrderFromCart(ctx context.Context, input orders.Cre
 		if orderItem.Price.Category == prices.PriceCategorySubscription {
 			subscription := entities.NewSubscriptionFromOrderItem(orderItem)
 			subscription.CustomerId = customer.Id
+
 			_, err := s.subscriptionRepository.Create(ctx, subscription)
 			if err != nil {
 				s.logger.Error("Failed to create subscription", "item", item, err.Error())
@@ -204,13 +205,16 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteO
 		charged := input.PaymentContext.Payment.Amount > 0 && subscription.StartDate.Sub(time.Now().UTC()) < 0
 		if charged {
 			subscriptionId = subscription.Id
+			subscription.SetActivationDates()
+			subscription.Status = entities.SubscriptionStatusActive
 			subscription.LastCharge = &subscription.StartDate
 			subscription.TotalRevenue = subscription.Amount
 			subscription.CyclesProcessed = 1
+			
 			renewsAt := subscription.CalculateNextBillingDate()
 			subscription.RenewsAt = &renewsAt
-			subscription.Status = entities.SubscriptionStatusActive
 		} else {
+			subscription.SetActivationDates()
 			subscription.Status = entities.SubscriptionStatusTrial
 		}
 		subscription.PaymentMethodId = &paymentMethod.Id

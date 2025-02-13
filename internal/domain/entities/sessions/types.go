@@ -2,15 +2,14 @@ package sessions
 
 type CreateSessionInput struct {
 	OrgId    string            `json:"org_id"`
-	Id       string            `json:"id"`
-	CartId   string            `json:"cart_id"`
+	Currency string            `json:"currency" binding:"required"`
+	Country  string            `json:"country" binding:"required"`
 	Metadata map[string]string `json:"metadata"`
 }
 
 type CreateSessionRequest struct {
-	OrgId    string            `json:"org_id"`
-	Currency string            `json:"currency"`
-	Country  string            `json:"country"`
+	Currency string            `json:"currency" binding:"required"`
+	Country  string            `json:"country" binding:"required"`
 	Metadata map[string]string `json:"metadata"`
 }
 

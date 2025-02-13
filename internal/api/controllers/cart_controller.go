@@ -2,13 +2,17 @@ package controllers
 
 import (
 	"github.com/gin-gonic/gin"
-	"net/http"
+	"github.com/go-playground/validator/v10"
+	"payloop/internal/api"
+	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/mapper"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/services"
 	"payloop/internal/domain/entities/carts"
 	"payloop/internal/lib"
 )
+
+var validate *validator.Validate
 
 // CartController data type
 type CartController struct {
@@ -27,13 +31,12 @@ func NewCartController(cartService services.CartService, logger lib.Logger) Cart
 func (o *CartController) AddProduct(c *gin.Context) {
 	var input request.AddItemRequest
 	cartId := c.Param("id")
+	user, _ := c.Get("user")
+	orgId := user.(authn.User).OrgId
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		o.logger.Error(err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "invalid input",
-			"message": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
@@ -43,17 +46,15 @@ func (o *CartController) AddProduct(c *gin.Context) {
 	}
 
 	cart, err := o.cartService.AddProduct(c.Request.Context(), carts.AddProductCommand{
-		OrgId:     input.OrgId,
+		OrgId:     orgId,
 		CartId:    cartId,
 		ProductId: input.ProductId,
 		PriceId:   input.PriceId,
 		Quantity:  input.Quantity,
 	})
 	if err != nil {
-		o.logger.Error(err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
@@ -67,11 +68,8 @@ func (o *CartController) RemoveItem(c *gin.Context) {
 	cartId := c.Param("id")
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		o.logger.Error(err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error":   "invalid input",
-			"message": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
@@ -81,10 +79,8 @@ func (o *CartController) RemoveItem(c *gin.Context) {
 		Id:     input.Id,
 	})
 	if err != nil {
-		o.logger.Error(err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 

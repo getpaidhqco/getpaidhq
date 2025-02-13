@@ -1,8 +1,14 @@
 package services
 
 import (
+	"bytes"
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"io"
+	"net/http"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/domain/entities"
@@ -18,7 +24,6 @@ type WebhookSubscriptionService struct {
 	idempotencyRepo repositories.IdempotencyKeyRepository
 	whsRepo         repositories.WebhookSubscriptionRepository
 	pubsub          events.PubSub
-	engine          workflow.Engine
 }
 
 func NewWebhookSubscriptionService(
@@ -26,54 +31,15 @@ func NewWebhookSubscriptionService(
 	whsRepo repositories.WebhookSubscriptionRepository,
 	idempotencyRepo repositories.IdempotencyKeyRepository,
 	pubsub events.PubSub,
-	engine workflow.Engine,
 ) WebhookSubscriptionService {
 	service := WebhookSubscriptionService{
 		logger:          logger,
 		whsRepo:         whsRepo,
 		pubsub:          pubsub,
-		engine:          engine,
 		idempotencyRepo: idempotencyRepo,
 	}
 
-	_, err := pubsub.Subscribe(">", service.HandlePubSubMessage)
-	if err != nil {
-		logger.Error("Failed to subscribe to topic", err.Error())
-		panic(err)
-	}
-
 	return service
-}
-
-// HandlePubSubMessage handles incoming PubSub messages
-func (s WebhookSubscriptionService) HandlePubSubMessage(topic string, data []byte) {
-	s.logger.Infof("[Outgoing Webhook::HandlePubSubMessage]: %s", topic)
-	// Check if the org is subscribed to any outgoing messages and send them using a workflow
-
-	var payload events.Payload
-	err := json.Unmarshal(data, &payload)
-	if err != nil {
-		s.logger.Errorf("Failed to unmarshal payload: %v", err)
-		return
-	}
-
-	subs, err := s.whsRepo.FindByEvent(context.Background(), payload.OrgId, payload.Topic)
-	if err != nil {
-		s.logger.Errorf("Failed to get webhook subscriptions: %v", err)
-		return
-	}
-
-	for _, sub := range subs {
-		result, err := s.engine.StartWorkflow(context.TODO(), workflow.OutgoingWebhook, workflow.OutgoingWebhookPayload{
-			WebhookSubscription: sub,
-			Event:               payload,
-		})
-		if err != nil {
-			s.logger.Errorf("Failed to start workflow", err.Error())
-		}
-		s.logger.Infof("Workflow result: %v", result)
-	}
-
 }
 
 func (s WebhookSubscriptionService) Create(ctx context.Context, input webhooks.CreateWebhookSubscriptionInput) (entities.WebhookSubscription, error) {
@@ -93,4 +59,58 @@ func (s WebhookSubscriptionService) Create(ctx context.Context, input webhooks.C
 	_ = s.pubsub.Publish(input.OrgId, topic.WebhookSubscriptionCreated, webhook)
 
 	return webhook, nil
+}
+
+func (s WebhookSubscriptionService) SendWebhook(ctx context.Context, input workflow.OutgoingWebhookPayload) error {
+
+	webhook := input.WebhookSubscription
+	// Convert the data to JSON
+	jsonData, err := json.Marshal(input.Event)
+	if err != nil {
+		s.logger.Errorf("Failed to marshal JSON: %v", err)
+		return err
+	}
+
+	// Create a new POST request with the JSON data
+	req, err := http.NewRequest("POST", webhook.URL, bytes.NewBuffer(jsonData))
+	if err != nil {
+		s.logger.Errorf("Failed to create new request: %v", err)
+		return err
+	}
+
+	if webhook.Secret != "" {
+		signature := generateHMACSignature(jsonData, webhook.Secret)
+		req.Header.Set("X-Signature", signature)
+	}
+
+	req = req.WithContext(ctx)
+	// Set the content type to application/json
+	req.Header.Set("Content-Type", "application/json")
+	// Add a timestamp to the request header
+	timestamp := time.Now().UTC().Format(time.RFC3339)
+	req.Header.Set("X-Timestamp", timestamp)
+
+	// Send the POST request
+	client := &http.Client{}
+	resp, err := client.Do(req)
+	if err != nil {
+		s.logger.Errorf("Failed to send request: %v", err)
+		return err
+	}
+	defer func(Body io.ReadCloser) {
+		_ = Body.Close()
+	}(resp.Body)
+
+	// Print the response status
+	s.logger.Errorf("Failed to send request: %v", err)
+
+	// st
+
+	return nil
+}
+
+func generateHMACSignature(data []byte, secretKey string) string {
+	h := hmac.New(sha256.New, []byte(secretKey))
+	h.Write(data)
+	return hex.EncodeToString(h.Sum(nil))
 }

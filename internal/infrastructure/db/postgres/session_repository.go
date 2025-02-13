@@ -5,7 +5,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
 	"payloop/internal/domain/entities"
-	"payloop/internal/domain/entities/sessions"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 )
@@ -48,7 +47,7 @@ func (r SessionRepository) FindById(ctx context.Context, orgId string, id string
 	return session, nil
 }
 
-func (r SessionRepository) Create(ctx context.Context, input sessions.CreateSessionInput) (entities.Session, error) {
+func (r SessionRepository) Create(ctx context.Context, input entities.Session) (entities.Session, error) {
 	var session entities.Session
 
 	query := `INSERT INTO sessions (org_id,id,cart_id, created_at, updated_at) 

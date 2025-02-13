@@ -36,10 +36,6 @@ func (s *CartService) GetCart(org_id string, id string) (entities.Cart, error) {
 	return s.cartRepository.FindById(context.Background(), org_id, id)
 }
 
-func (s *CartService) CreateCart(ctx context.Context, input carts.CreateCartInput) (entities.Cart, error) {
-	return s.cartRepository.Create(ctx, input)
-}
-
 // AddProduct adds product to cart. It returns updated cart.
 func (s *CartService) AddProduct(ctx context.Context, input carts.AddProductCommand) (entities.Cart, error) {
 
@@ -52,8 +48,7 @@ func (s *CartService) AddProduct(ctx context.Context, input carts.AddProductComm
 
 	price, err := s.priceRepository.FindById(ctx, input.OrgId, input.PriceId)
 	if err != nil {
-		s.logger.Error(`failed to find price`, err)
-		return entities.Cart{}, err
+		return entities.Cart{}, lib.NewCustomError(lib.NotFoundError, "Price not found", err)
 	}
 	product, err := s.productRepository.FindById(ctx, input.OrgId, input.ProductId)
 	if err != nil {

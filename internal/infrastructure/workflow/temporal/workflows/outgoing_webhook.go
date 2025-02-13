@@ -18,7 +18,6 @@ func OutgoingWebhookWorkflow(ctx temporal.Context, payload workflow.OutgoingWebh
 
 	// ACTIVITY
 	// Send the webhook
-	var sendWebhookResult workflow.Result
 	ctx1 := temporal.WithActivityOptions(ctx, temporal.ActivityOptions{
 		StartToCloseTimeout: 15 * time.Second,
 		RetryPolicy: &temporalio.RetryPolicy{
@@ -28,12 +27,18 @@ func OutgoingWebhookWorkflow(ctx temporal.Context, payload workflow.OutgoingWebh
 		},
 	})
 	err := temporal.ExecuteActivity(ctx1, a.SendWebhook, payload).
-		Get(ctx1, &sendWebhookResult)
+		Get(ctx1, nil)
 	if err != nil {
 		logger.Error("[SendWebhook] failed with error: ", "Error", err.Error())
+		// Todo the webhook delivery failed and wont be retried.
+		// We should log the error and return a non-retryable error
 		return workflow.Result{}, temporalio.NewNonRetryableApplicationError("SendWebhook failed", "webhook", err)
 	}
 
-	logger.Info("Workflow completed.")
-	return sendWebhookResult, nil
+	logger.Info("[outgoing_webhook] Workflow completed.")
+	return workflow.Result{
+		Success: true,
+		Message: "sent",
+		Payload: nil,
+	}, nil
 }

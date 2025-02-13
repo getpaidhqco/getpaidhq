@@ -6,7 +6,6 @@ import (
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/domain/entities"
-	"payloop/internal/domain/entities/carts"
 	"payloop/internal/domain/entities/sessions"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -32,15 +31,16 @@ func NewSessionService(sessionRepository repositories.SessionRepository,
 	}
 }
 
-func (s *SessionService) CreateSession(ctx context.Context, input sessions.CreateSessionRequest) (entities.Session, error) {
+func (s *SessionService) CreateSession(ctx context.Context, input sessions.CreateSessionInput) (entities.Session, error) {
 	cartData := cart.New(cart.CreateCartOptions{
 		Currency: input.Currency,
 		Items:    make([]cart.Item, 0),
 	})
 
-	cartInstance, err := s.cartRepository.Create(ctx, carts.CreateCartInput{
+	cartInstance, err := s.cartRepository.Create(ctx, entities.Cart{
 		OrgId:    input.OrgId,
-		Cart:     cartData,
+		Id:       lib.GenerateId("cart"),
+		Data:     cartData,
 		Metadata: nil,
 	})
 	if err != nil {
@@ -49,11 +49,10 @@ func (s *SessionService) CreateSession(ctx context.Context, input sessions.Creat
 	}
 
 	session, err := s.sessionRepository.Create(ctx,
-		sessions.CreateSessionInput{
-			OrgId:    input.OrgId,
-			Id:       lib.GenerateId("session"),
-			CartId:   cartInstance.Id,
-			Metadata: nil,
+		entities.Session{
+			OrgId:  input.OrgId,
+			Id:     lib.GenerateId("session"),
+			CartId: cartInstance.Id,
 		})
 
 	_ = s.pubsub.Publish(input.OrgId, topic.SessionCreated, session)

@@ -90,7 +90,7 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload workflow.WorkflowPaylo
 		Execution:      childWE,
 	}).Get(ctx1, nil)
 
-	logger.Info("Workflow completed.")
+	logger.Info("[payment_success] Workflow completed.")
 	return workflow.Result{
 		Success: true,
 		Message: "PaymentSuccessWorkflow completed",

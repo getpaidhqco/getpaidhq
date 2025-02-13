@@ -3,7 +3,7 @@ package controllers
 import (
 	"github.com/gin-gonic/gin"
 	"io"
-	"net/http"
+	"payloop/internal/api"
 	"payloop/internal/application/services"
 	"payloop/internal/lib"
 )
@@ -28,10 +28,8 @@ func (u WebhookController) Process(c *gin.Context) {
 	u.logger.Debug("Processing webhook")
 	err = u.webhookService.HandlePaymentWebhook(c.Request.Context(), jsonData)
 	if err != nil {
-		u.logger.Error(err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 

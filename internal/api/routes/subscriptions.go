@@ -16,6 +16,7 @@ func (s SubscriptionRoutes) Setup() {
 	s.logger.Info("Setting up Subscription")
 	api := s.handler.Gin.Group("/api")
 	{
+		api.GET("/subscriptions", s.subscriptionController.List)
 		api.GET("/subscriptions/:id", s.subscriptionController.Get)
 		api.POST("/subscriptions", s.subscriptionController.Create)
 		api.PUT("/subscriptions/:id/pause", s.subscriptionController.Pause)
@@ -23,6 +24,7 @@ func (s SubscriptionRoutes) Setup() {
 		api.PUT("/subscriptions/:id/resume", s.subscriptionController.Resume)
 		api.PATCH("/subscriptions/:id", s.subscriptionController.Update)
 	}
+	
 }
 
 // NewSubscriptionRoutes creates new user controller

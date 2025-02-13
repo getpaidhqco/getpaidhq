@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"payloop/internal/api/dto/request"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/domain/entities"
@@ -191,6 +192,16 @@ func (s *SubscriptionService) Pause(ctx context.Context, input subscriptions.Pau
 	return subscription, nil
 }
 
+func (s *SubscriptionService) List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Subscription, error) {
+	subs, err := s.subscriptionRepository.Find(ctx, orgId, pagination)
+	if err != nil {
+		s.logger.Error("Failed to list subscriptions", err.Error())
+		return nil, err
+	}
+
+	return subs, nil
+}
+
 func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input subscriptions.ResumeSubscriptionInput) (entities.Subscription, error) {
 	s.logger.Info("Resuming subscription", "orgId", input.OrgId, "id", input.Id)
 
@@ -360,7 +371,7 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 	subscription.Retries = 0
 	subscription.NextRetryAt = nil
 
-	if subscription.CyclesProcessed >= subscription.Cycles {
+	if subscription.Cycles != 0 && subscription.CyclesProcessed >= subscription.Cycles {
 		subscription.Status = entities.SubscriptionStatusCompleted
 		subscription.EndsAt = &lastCharge
 		subscription.RenewsAt = nil

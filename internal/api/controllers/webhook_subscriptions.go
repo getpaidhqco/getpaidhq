@@ -1,9 +1,8 @@
 package controllers
 
 import (
-	"errors"
 	"github.com/gin-gonic/gin"
-	"net/http"
+	"payloop/internal/api"
 	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/services"
@@ -17,7 +16,13 @@ type WebhookSubscriptionController struct {
 	logger                     lib.Logger
 }
 
-func NewWebhookSubscriptionController(webhookSubscriptionService services.WebhookSubscriptionService, cartService services.CartService, logger lib.Logger) WebhookSubscriptionController {
+func NewWebhookSubscriptionController(
+	webhookSubscriptionService services.WebhookSubscriptionService,
+	cartService services.CartService,
+	logger lib.Logger,
+	workflow services.WorkflowService,
+) WebhookSubscriptionController {
+
 	return WebhookSubscriptionController{
 		webhookSubscriptionService: webhookSubscriptionService,
 		cartService:                cartService,
@@ -31,9 +36,8 @@ func (s WebhookSubscriptionController) Create(c *gin.Context) {
 	var input request.CreateWebhookSubscriptionRequest
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
@@ -45,23 +49,8 @@ func (s WebhookSubscriptionController) Create(c *gin.Context) {
 	})
 
 	if err != nil {
-		var serr lib.CustomError
-		if errors.As(err, &serr) {
-			if serr.Type == lib.NotFoundError {
-				c.JSON(http.StatusNotFound, gin.H{
-					"error":   serr.Type,
-					"message": serr.Message,
-					"details": serr.Err,
-				})
-				return
-			}
-		}
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "internal_error",
-			"message": "An internal error occurred.",
-			"details": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 

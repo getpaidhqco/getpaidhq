@@ -120,7 +120,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			subscription.Status == entities.SubscriptionStatusTrial ||
 			subscription.Status == entities.SubscriptionStatusRetry
 		if !activeOrTrial {
-			logger.Info("Subscription is not active, skipping billing cycle")
+			logger.Info("Subscription is not active, skipping billing cycle", "status", subscription.Status)
 			continue
 		}
 

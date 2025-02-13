@@ -282,10 +282,11 @@ model OrderItem {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  org          Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  Variant      Variant? @relation(fields: [variantOrgId, variantId], references: [orgId, id])
+  org          Org            @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  Variant      Variant?       @relation(fields: [variantOrgId, variantId], references: [orgId, id])
   variantOrgId String?
   variantId    String?
+  Subscription Subscription[]
 
   @@id([orgId, id])
   @@map("order_items")
@@ -343,6 +344,9 @@ model Subscription {
 
   orderId String @map("order_id")
   order   Order  @relation(fields: [orgId, orderId], references: [orgId, id])
+
+  orderItemId String    @map("order_item_id")
+  orderItem   OrderItem @relation(fields: [orgId, orderItemId], references: [orgId, id])
 
   customerId String   @map("customer_id")
   customer   Customer @relation(fields: [orgId, customerId], references: [orgId, id])

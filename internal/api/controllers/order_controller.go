@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"github.com/gin-gonic/gin"
-	"net/http"
+	"payloop/internal/api"
 	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/request"
 	app_lib "payloop/internal/application/lib/authz"
@@ -28,28 +28,25 @@ func NewOrderController(orderService services.OrderService, logger lib.Logger, a
 }
 
 func (o OrderController) CreateOrder(c *gin.Context) {
+	var input request.CreateOrderRequest
 	user, _ := c.Get("user")
 	authUser := user.(authn.User)
+
 	allowed := o.authz.Enforce(authUser, app_lib.CreateOrder, "")
 	if !allowed {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "Unauthorized",
-		})
+		apiErr := api.NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
-	var input request.CreateOrderRequest
-
 	if err := c.ShouldBindJSON(&input); err != nil {
-		o.logger.Error(err)
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
 	order, psp, err := o.service.CreateOrderFromCart(c.Request.Context(), orders.CreateOrderInput{
-		OrgId: input.OrgId,
+		OrgId: authUser.OrgId,
 		Customer: orders.CreateOrderCommandCustomer{
 			ID:       input.Customer.ID,
 			Email:    input.Customer.Email,
@@ -60,10 +57,8 @@ func (o OrderController) CreateOrder(c *gin.Context) {
 		Metadata: nil,
 	})
 	if err != nil {
-		o.logger.Error(err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 

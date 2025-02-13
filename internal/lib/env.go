@@ -23,6 +23,8 @@ type Env struct {
 
 	PaystackApiKey  string `mapstructure:"PAYSTACK_API_KEY"`
 	CedarPolicyFile string `mapstructure:"CEDAR_POLICY"`
+
+	ClerkSecretKey string `mapstructure:"CLERK_SECRET"`
 }
 
 // NewEnv creates a new environment

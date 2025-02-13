@@ -6,7 +6,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
 	"payloop/internal/domain/entities"
-	"payloop/internal/domain/entities/carts"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 )
@@ -49,7 +48,7 @@ func (r CartRepository) FindById(ctx context.Context, orgId string, id string) (
 	return cart, nil
 }
 
-func (r CartRepository) Create(ctx context.Context, input carts.CreateCartInput) (entities.Cart, error) {
+func (r CartRepository) Create(ctx context.Context, input entities.Cart) (entities.Cart, error) {
 	cartId := lib.GenerateId("cart")
 
 	query := `INSERT INTO carts (org_id,id,data,metadata,created_at,updated_at) 
@@ -60,7 +59,7 @@ func (r CartRepository) Create(ctx context.Context, input carts.CreateCartInput)
 	_, err := r.Pool.Exec(ctx, query, pgx.NamedArgs{
 		"org_id":   input.OrgId,
 		"id":       cartId,
-		"data":     input.Cart,
+		"data":     input.Data,
 		"metadata": metaJson,
 	})
 
@@ -70,8 +69,9 @@ func (r CartRepository) Create(ctx context.Context, input carts.CreateCartInput)
 	}
 
 	return entities.Cart{
+		OrgId:  input.OrgId,
 		Id:     cartId,
-		Data:   input.Cart,
+		Data:   input.Data,
 		Status: "",
 		Total:  0,
 	}, nil

@@ -1,10 +1,9 @@
 package controllers
 
 import (
-	"errors"
 	"github.com/gin-gonic/gin"
-	"github.com/go-playground/validator/v10"
 	"net/http"
+	"payloop/internal/api"
 	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/api/dto/response"
@@ -13,8 +12,6 @@ import (
 	"payloop/internal/domain/entities/subscriptions"
 	"payloop/internal/lib"
 )
-
-var validate *validator.Validate
 
 // UserController data type
 type SubscriptionController struct {
@@ -82,11 +79,8 @@ func (s SubscriptionController) Pause(c *gin.Context) {
 	id := c.Param("id")
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		if errs, ok := err.(validator.ValidationErrors); ok {
-			c.JSON(http.StatusBadRequest, gin.H{"errors": response.FormatValidationErrors(errs)})
-			return
-		}
-		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
@@ -96,23 +90,8 @@ func (s SubscriptionController) Pause(c *gin.Context) {
 		Reason: input.Reason,
 	})
 	if err != nil {
-		var serr lib.CustomError
-		if errors.As(err, &serr) {
-			if serr.Type == lib.NotFoundError {
-				c.JSON(http.StatusNotFound, gin.H{
-					"error":   serr.Type,
-					"message": serr.Message,
-					"details": serr.Err,
-				})
-				return
-			}
-		}
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "internal_error",
-			"message": "An internal error occurred.",
-			"details": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
@@ -126,9 +105,8 @@ func (s SubscriptionController) Resume(c *gin.Context) {
 	id := c.Param("id")
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
@@ -138,23 +116,8 @@ func (s SubscriptionController) Resume(c *gin.Context) {
 		ResumeBehavior: input.ResumeBehavior,
 	})
 	if err != nil {
-		var serr lib.CustomError
-		if errors.As(err, &serr) {
-			if serr.Type == lib.NotFoundError {
-				c.JSON(http.StatusNotFound, gin.H{
-					"error":   serr.Type,
-					"message": serr.Message,
-					"details": serr.Err,
-				})
-				return
-			}
-		}
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "internal_error",
-			"message": "An internal error occurred.",
-			"details": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
@@ -168,9 +131,8 @@ func (s SubscriptionController) Cancel(c *gin.Context) {
 	id := c.Param("id")
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{
-			"error": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
@@ -180,23 +142,8 @@ func (s SubscriptionController) Cancel(c *gin.Context) {
 		Reason: input.Reason,
 	})
 	if err != nil {
-		var serr lib.CustomError
-		if errors.As(err, &serr) {
-			if serr.Type == lib.NotFoundError {
-				c.JSON(http.StatusNotFound, gin.H{
-					"error":   serr.Type,
-					"message": serr.Message,
-					"details": serr.Err,
-				})
-				return
-			}
-		}
-
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "internal_error",
-			"message": "An internal error occurred.",
-			"details": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
@@ -209,9 +156,8 @@ func (s SubscriptionController) Create(c *gin.Context) {
 	user, _ := c.Get("user")
 	orgId := user.(authn.User).OrgId
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
@@ -230,11 +176,33 @@ func (s SubscriptionController) Create(c *gin.Context) {
 		Metadata:           nil,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
 	c.JSON(200, subscription)
+}
+
+// List all subscriptions
+func (s SubscriptionController) List(c *gin.Context) {
+	user, _ := c.Get("user")
+	orgId := user.(authn.User).OrgId
+	pagination := request.GetPagination(c)
+
+	subs, err := s.subscriptionService.List(c.Request.Context(), orgId, pagination)
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	c.JSON(200, response.ListResponse{
+		Data: subs,
+		Meta: response.Meta{
+			Total: len(subs),
+			Page:  pagination.Page,
+			Limit: pagination.Limit,
+		},
+	})
 }

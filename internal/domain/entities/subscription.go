@@ -54,6 +54,8 @@ type Subscription struct {
 	OrgId              string                 `json:"org_id"`
 	Id                 string                 `json:"id"`
 	OrderId            string                 `json:"order_id"`
+	OrderItemId        string                 `json:"order_item_id"`
+	OrderItem          OrderItem              `json:"order_item"`
 	CustomerId         string                 `json:"customer_id"`
 	Status             SubscriptionStatus     `json:"status"`
 	PaymentMethodId    *string                `json:"payment_method_id,omitempty"`
@@ -143,6 +145,44 @@ func (s Subscription) CalculateNextBillingDate() time.Time {
 	return nextBillingDate
 }
 
+// SetActivation sets the activation date for a subscription based on the trial interval
+func (s *Subscription) SetActivationDates() *Subscription {
+	price := s.OrderItem.Price
+	var startDate = time.Now().UTC()
+	var trialEndsAt *time.Time
+	var endsAt *time.Time
+	if s.OrderItem.Price.TrialInterval != prices.BillingIntervalNone {
+		switch s.OrderItem.Price.TrialInterval {
+		case "minute":
+			startDate = startDate.Add(time.Minute * time.Duration(s.OrderItem.Price.TrialIntervalQty))
+		case "hour":
+			startDate = startDate.Add(time.Hour * time.Duration(s.OrderItem.Price.TrialIntervalQty))
+		case "day":
+			startDate = startDate.AddDate(0, 0, s.OrderItem.Price.TrialIntervalQty)
+		case "week":
+			startDate = startDate.AddDate(0, 0, s.OrderItem.Price.TrialIntervalQty*7)
+		case "month":
+			startDate = startDate.AddDate(0, s.OrderItem.Price.TrialIntervalQty, 0)
+		case "year":
+			startDate = startDate.AddDate(s.OrderItem.Price.TrialIntervalQty, 0, 0)
+		}
+
+		trialEndsAt = &startDate
+	}
+
+	if s.OrderItem.Price.Cycles > 0 {
+		endsAtV := calculateNextDate(price.BillingInterval, price.Cycles*price.BillingIntervalQty, startDate)
+		endsAt = &endsAtV
+	}
+
+	s.TrialEndsAt = trialEndsAt
+	s.EndsAt = endsAt
+	s.RenewsAt = &startDate
+	s.StartDate = startDate
+
+	return s
+}
+
 func calculateNextDate(interval prices.BillingInterval, qty int, startDate time.Time) time.Time {
 	switch interval {
 	case "minute":
@@ -164,49 +204,18 @@ func calculateNextDate(interval prices.BillingInterval, qty int, startDate time.
 // NewSubscriptionFromItem creates a new Subscription from a payloop-cart Item
 func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 
-	var startDate = time.Now().UTC()
-	var trialEndsAt *time.Time
-	var endsAt *time.Time
-	if item.Price.TrialInterval != prices.BillingIntervalNone {
-		switch item.Price.TrialInterval {
-		case "minute":
-			startDate = startDate.Add(time.Minute * time.Duration(item.Price.TrialIntervalQty))
-		case "hour":
-			startDate = startDate.Add(time.Hour * time.Duration(item.Price.TrialIntervalQty))
-		case "day":
-			startDate = startDate.AddDate(0, 0, item.Price.TrialIntervalQty)
-		case "week":
-			startDate = startDate.AddDate(0, 0, item.Price.TrialIntervalQty*7)
-		case "month":
-			startDate = startDate.AddDate(0, item.Price.TrialIntervalQty, 0)
-		case "year":
-			startDate = startDate.AddDate(item.Price.TrialIntervalQty, 0, 0)
-		}
-
-		trialEndsAt = &startDate
-	}
-
-	if item.Price.Cycles > 0 {
-		endsAtV := calculateNextDate(item.Price.BillingInterval, item.Price.Cycles*item.Price.BillingIntervalQty, startDate)
-		endsAt = &endsAtV
-	}
-
 	return Subscription{
 		OrgId:              item.OrgId,
 		Id:                 lib.GenerateId("sub"),
 		OrderId:            item.OrderId,
+		OrderItemId:        item.Id,
+		OrderItem:          item,
 		Status:             SubscriptionStatusPending,
-		StartDate:          startDate,
-		EndDate:            nil,
 		BillingInterval:    item.Price.BillingInterval,
 		BillingIntervalQty: item.Price.BillingIntervalQty,
 		Cycles:             item.Price.Cycles,
-		BillingAnchor:      startDate.Day(),
-		TrialEndsAt:        trialEndsAt,
 		CancelAt:           nil,
-		EndsAt:             endsAt,
 		LastCharge:         nil,
-		RenewsAt:           &startDate,
 		Retries:            0,
 		NextRetryAt:        nil,
 		Currency:           item.Price.Currency,

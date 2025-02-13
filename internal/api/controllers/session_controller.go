@@ -2,7 +2,8 @@ package controllers
 
 import (
 	"github.com/gin-gonic/gin"
-	"net/http"
+	"payloop/internal/api"
+	"payloop/internal/api/authn"
 	services2 "payloop/internal/application/services"
 	"payloop/internal/domain/entities/sessions"
 	"payloop/internal/lib"
@@ -24,21 +25,25 @@ func NewSessionController(sessionService services2.SessionService, cartService s
 
 func (s SessionController) Create(c *gin.Context) {
 	var input sessions.CreateSessionRequest
+	user, _ := c.Get("user")
+	authUser := user.(authn.User)
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error":   "invalid input",
-			"message": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
 	s.logger.Debug("Creating session", "input", input)
-	session, err := s.sessionService.CreateSession(c.Request.Context(), input)
+	session, err := s.sessionService.CreateSession(c.Request.Context(), sessions.CreateSessionInput{
+		OrgId:    authUser.OrgId,
+		Currency: input.Currency,
+		Country:  input.Country,
+		Metadata: nil,
+	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 

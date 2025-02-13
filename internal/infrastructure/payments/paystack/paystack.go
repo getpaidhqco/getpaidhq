@@ -99,7 +99,7 @@ func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.Cha
 		}
 	}
 
-	p.logger.Info("charged payment", "response", response)
+	p.logger.Info("charged payment", "response", response.GatewayResponse)
 	return payment_providers.ChargePaymentResponse{
 		Success:       true,
 		Psp:           PAYSTACK,

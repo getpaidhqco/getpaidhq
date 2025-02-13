@@ -1,14 +1,13 @@
 package response
 
 import (
-	"github.com/gin-gonic/gin"
 	"github.com/go-playground/validator/v10"
 )
 
-func FormatValidationErrors(errs validator.ValidationErrors) []gin.H {
-	errors := make([]gin.H, len(errs))
+func FormatValidationErrors(errs validator.ValidationErrors) []map[string]string {
+	errors := make([]map[string]string, len(errs))
 	for i, fe := range errs {
-		errors[i] = gin.H{
+		errors[i] = map[string]string{
 			"field":   fe.Field(),
 			"error":   fe.Tag(),
 			"message": validationErrorToText(fe),

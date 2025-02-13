@@ -1,9 +1,8 @@
 package request
 
 type AddItemRequest struct {
-	OrgId     string `json:"org_id"`
-	ProductId string `json:"product_id"`
-	PriceId   string `json:"price_id"`
+	ProductId string `json:"product_id" binding:"required"`
+	PriceId   string `json:"price_id" binding:"required"`
 	Quantity  int    `json:"quantity"`
 }
 

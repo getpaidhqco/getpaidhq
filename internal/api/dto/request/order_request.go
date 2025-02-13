@@ -11,7 +11,6 @@ type CartItem struct {
 }
 
 type CreateOrderRequest struct {
-	OrgId    string                     `json:"org_id" binding:"required"` // TODO should be resolved from the API authn
 	Customer CreateOrderRequestCustomer `json:"customer" binding:"required"`
 	CartId   string                     `json:"cart_id"`
 
