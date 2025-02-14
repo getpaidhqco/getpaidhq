@@ -8,6 +8,7 @@ import (
 	"payloop/internal/lib"
 )
 
+// swagger:response apiError
 type ApiError struct {
 	Code    string      `json:"code"`
 	Message string      `json:"message"`

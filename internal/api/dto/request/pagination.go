@@ -12,6 +12,7 @@ const (
 	LimitTag     = "limit"
 )
 
+// swagger:parameters listSubscriptions
 type Pagination struct {
 	Page      int    `json:"page"`
 	Limit     int    `json:"limit"`
@@ -23,9 +24,10 @@ type Pagination struct {
 func GetPagination(c *gin.Context) Pagination {
 
 	page, err := strconv.Atoi(c.DefaultQuery(PageTag, PageDefault))
-	if err != nil {
+	if err != nil || page < 1 {
 		page = 1
 	}
+
 	limit, err := strconv.Atoi(c.DefaultQuery(LimitTag, LimitDefault))
 	if err != nil {
 		limit = 10

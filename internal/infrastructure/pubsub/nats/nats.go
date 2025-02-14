@@ -6,6 +6,7 @@ import (
 	"github.com/nats-io/nats.go"
 	pubsub "payloop/internal/application/lib/events"
 	"payloop/internal/lib"
+	"time"
 )
 
 type NatsPubSub struct {
@@ -26,10 +27,11 @@ func NewNatsPubSub(logger lib.Logger) pubsub.PubSub {
 
 func (n NatsPubSub) Publish(orgId, topic string, message interface{}) error {
 	data, _ := json.Marshal(pubsub.Payload{
-		Id:    lib.GenerateId("evt"),
-		OrgId: orgId,
-		Topic: topic,
-		Data:  message,
+		Id:        lib.GenerateId("evt"),
+		OrgId:     orgId,
+		Topic:     topic,
+		Data:      message,
+		CreatedAt: time.Now().UTC(),
 	})
 	n.logger.Debug(fmt.Sprintf("[nats] publishing topic [%s]", topic))
 	err := n.Conn.Publish(topic, data)

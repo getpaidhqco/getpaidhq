@@ -7,8 +7,12 @@ type Action string
 const (
 	CreateOrg Action = "CreateOrg"
 
-	CreateCart         Action = "create_cart"
-	CreateOrder        Action = "CreateOrder"
+	CreateCart  Action = "create_cart"
+	CreateOrder Action = "CreateOrder"
+
+	CreateProduct Action = "CreateProduct"
+	ListProducts  Action = "ListProducts"
+
 	AddProductToCart   Action = "AddProductToCart"
 	RemoveItemFromCart Action = "RemoveItemFromCart"
 	ProcessWebhook     Action = "ProcessWebhook"

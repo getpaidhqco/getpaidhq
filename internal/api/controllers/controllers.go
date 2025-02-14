@@ -13,4 +13,5 @@ var Module = fx.Options(
 	fx.Provide(NewSubscriptionController),
 	fx.Provide(NewWebhookSubscriptionController),
 	fx.Provide(NewHealthController),
+	fx.Provide(NewProductController),
 )

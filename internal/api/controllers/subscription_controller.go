@@ -27,15 +27,15 @@ func NewSubscriptionController(subscriptionService services.SubscriptionService,
 }
 
 func (s SubscriptionController) Get(c *gin.Context) {
-	// TODO
-	orgId := "mollie"
+	user, _ := c.Get("user")
+	authUser := user.(authn.User)
+	orgId := authUser.OrgId
 	subscriptionId := c.Param("id")
 
 	subscription, err := s.subscriptionService.FindById(c.Request.Context(), orgId, subscriptionId)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
@@ -50,9 +50,8 @@ func (s SubscriptionController) Update(c *gin.Context) {
 	id := c.Param("id")
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
@@ -124,6 +123,21 @@ func (s SubscriptionController) Resume(c *gin.Context) {
 	c.JSON(200, subscription)
 }
 
+// Cancel a subscription
+// swagger:route GET /api/subscriptions/{id}/cancel subscriptions cancelSubscription
+// Cancels a subscription based on the ID
+//
+// Produces:
+// - application/json
+//
+// Consumes:
+// - application/json
+//
+// Schemes: http
+//
+// Responses:
+// default: apiError
+// 200: subscription
 func (s SubscriptionController) Cancel(c *gin.Context) {
 	var input request.PauseSubscriptionRequest
 	user, _ := c.Get("user")
@@ -185,6 +199,20 @@ func (s SubscriptionController) Create(c *gin.Context) {
 }
 
 // List all subscriptions
+// swagger:route GET /api/subscriptions subscription listSubscriptions
+// Returns a list of subscriptions based on the pagination
+//
+// Produces:
+// - application/json
+//
+// Consumes:
+// - application/json
+//
+// Schemes: http
+//
+// Responses:
+// default: apiError
+// 200: listResponse
 func (s SubscriptionController) List(c *gin.Context) {
 	user, _ := c.Get("user")
 	orgId := user.(authn.User).OrgId

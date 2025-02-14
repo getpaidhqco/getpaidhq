@@ -3,8 +3,7 @@ package topic
 const (
 	TopicPaymentChargeSuccess = "payment.charge.success"
 	TopicChargeFailed         = "charge.failed"
-	TopicTransferSuccess      = "transfer.success"
-	TopicTransferFailed       = "transfer.failed"
+	ProductCreated            = "product.created"
 
 	OrderCompleted = "order.completed"
 
