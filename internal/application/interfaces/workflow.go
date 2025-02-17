@@ -6,6 +6,10 @@ import (
 	"payloop/internal/domain/payment_providers"
 )
 
+type WorkflowService interface {
+	HandleOutboundWebhook(topic string, data []byte)
+}
+
 type Engine interface {
 	StartWorkflow(ctx context.Context, id WorkflowType, payload interface{}) (Result, error)
 	StartSubscriptionWorkflow(ctx context.Context, subscription entities.Subscription) (Result, error)

@@ -2,6 +2,7 @@ package services
 
 import (
 	"go.uber.org/fx"
+	"payloop/internal/application/services/subscriptions"
 )
 
 // Module exports services present
@@ -13,6 +14,7 @@ var Module = fx.Options(
 	fx.Provide(NewCartService),
 	fx.Provide(NewWebhookService),
 	fx.Provide(NewSubscriptionService),
+	fx.Provide(subscriptions.NewSubscriptionService),
 	fx.Provide(NewWebhookSubscriptionService),
 	fx.Provide(NewWorkflowService),
 	fx.Provide(NewProductService),

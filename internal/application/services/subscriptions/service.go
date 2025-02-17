@@ -1,4 +1,4 @@
-package services
+package subscriptions
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/subscriptions"
-
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -18,18 +17,17 @@ import (
 )
 
 type SubscriptionService struct {
-	sessionRepository           repositories.SessionRepository
-	cartRepository              repositories.CartRepository
-	orderRepository             repositories.OrderRepository
-	customerRepository          repositories.CustomerRepository
-	subscriptionRepository      repositories.SubscriptionRepository
-	paymentRepository           repositories.PaymentRepository
-	orderItemRepository         repositories.OrderItemRepository
-	workflowService             interfaces.WorkflowService
-	paymentGateway              payment_providers.Gateway
-	pubsub                      events.PubSub
-	subscriptionActivityService interfaces.SubscriptionActivityService
-	logger                      logger.Logger
+	sessionRepository      repositories.SessionRepository
+	cartRepository         repositories.CartRepository
+	orderRepository        repositories.OrderRepository
+	customerRepository     repositories.CustomerRepository
+	subscriptionRepository repositories.SubscriptionRepository
+	paymentRepository      repositories.PaymentRepository
+	orderItemRepository    repositories.OrderItemRepository
+	workflowService        interfaces.WorkflowService
+	paymentGateway         payment_providers.Gateway
+	pubsub                 events.PubSub
+	logger                 logger.Logger
 }
 
 func NewSubscriptionService(
@@ -43,8 +41,7 @@ func NewSubscriptionService(
 	pubsub events.PubSub,
 	paymentGateway payment_providers.Gateway,
 	logger logger.Logger,
-	subs interfaces.SubscriptionActivityService,
-) interfaces.SubscriptionService {
+) interfaces.SubscriptionActivityService {
 
 	_, err := pubsub.Subscribe("subscription.workflow.>", func(topic string, data []byte) {
 		logger.Infof("Received message from %s", topic)
@@ -55,17 +52,16 @@ func NewSubscriptionService(
 	}
 
 	return SubscriptionService{
-		customerRepository:          customerRepository,
-		sessionRepository:           sessionRepository,
-		paymentRepository:           paymentRepository,
-		cartRepository:              cartRepository,
-		orderRepository:             orderRepository,
-		orderItemRepository:         orderItemRepository,
-		subscriptionRepository:      subscriptionRepository,
-		pubsub:                      pubsub,
-		logger:                      logger,
-		subscriptionActivityService: subs,
-		paymentGateway:              paymentGateway,
+		customerRepository:     customerRepository,
+		sessionRepository:      sessionRepository,
+		paymentRepository:      paymentRepository,
+		cartRepository:         cartRepository,
+		orderRepository:        orderRepository,
+		orderItemRepository:    orderItemRepository,
+		subscriptionRepository: subscriptionRepository,
+		pubsub:                 pubsub,
+		logger:                 logger,
+		paymentGateway:         paymentGateway,
 	}
 }
 

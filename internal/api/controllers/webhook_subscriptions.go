@@ -20,7 +20,6 @@ func NewWebhookSubscriptionController(
 	webhookSubscriptionService services.WebhookSubscriptionService,
 	cartService services.CartService,
 	logger logger.Logger,
-	workflow services.WorkflowService,
 ) WebhookSubscriptionController {
 
 	return WebhookSubscriptionController{

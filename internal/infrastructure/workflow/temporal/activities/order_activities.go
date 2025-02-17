@@ -20,7 +20,7 @@ import (
 
 type OrderActivities struct {
 	orderService           interfaces.OrderService
-	subscriptionService    interfaces.SubscriptionService
+	subscriptionService    interfaces.SubscriptionActivityService
 	subscriptionRepository repositories.SubscriptionRepository
 	settingRepository      repositories.SettingRepository
 	paymentRepository      repositories.PaymentRepository
@@ -31,12 +31,12 @@ type OrderActivities struct {
 func NewOrderActivities(
 	orderService interfaces.OrderService,
 	settingRepository repositories.SettingRepository,
-	subscriptionService interfaces.SubscriptionService,
+	subscriptionService interfaces.SubscriptionActivityService,
 	subscriptionRepository repositories.SubscriptionRepository,
 	pubsub events.PubSub,
 	paymentRepository repositories.PaymentRepository,
 	paymentGateway payment_providers.Gateway,
-) types.OrderActivities {
+) OrderActivities {
 	return OrderActivities{
 		paymentGateway:         paymentGateway,
 		orderService:           orderService,
@@ -48,7 +48,7 @@ func NewOrderActivities(
 	}
 }
 
-func (a OrderActivities) CompleteOrder(ctx context.Context, paymentContext payment_providers.PaymentWebhookContext) (interfaces.Result, error) {
+func (a *OrderActivities) CompleteOrder(ctx context.Context, paymentContext payment_providers.PaymentWebhookContext) (interfaces.Result, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("CompleteOrder", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId)
 
@@ -70,7 +70,7 @@ func (a OrderActivities) CompleteOrder(ctx context.Context, paymentContext payme
 	}, nil
 }
 
-func (a OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
+func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("GetOrderSubscriptions: ", "[OrgId]", orgId, "[OrderId]", orderId)
 
@@ -81,7 +81,7 @@ func (a OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId string
 
 // ChargeCustomerForBillingPeriod is responsible for charging the customer for the billing period and to
 // update the subscription status to reflect the billing period
-func (a OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, subscription entities.Subscription) (payments.ChargeResult, error) {
+func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, subscription entities.Subscription) (payments.ChargeResult, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("ChargeCustomerForBillingPeriod", "id", subscription.Id, "Amount", subscription.Amount)
 
@@ -141,7 +141,7 @@ func (a OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, sub
 
 }
 
-func (a OrderActivities) HandleChargeResult(ctx context.Context, subscription entities.Subscription, chargeResult payments.ChargeResult) (entities.Subscription, error) {
+func (a *OrderActivities) HandleChargeResult(ctx context.Context, subscription entities.Subscription, chargeResult payments.ChargeResult) (entities.Subscription, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("HandleChargeResult", "id", subscription.Id)
 
@@ -163,7 +163,7 @@ func (a OrderActivities) HandleChargeResult(ctx context.Context, subscription en
 //
 // At the moment this is not an Application level concern, only a Temporal concern, so use the
 // repositories directly here instead of a Service implementation.
-func (a OrderActivities) StoreSubscriptionWorkflowContext(ctx context.Context, input types.StoreSubscriptionWorkflowContextInput) error {
+func (a *OrderActivities) StoreSubscriptionWorkflowContext(ctx context.Context, input types.StoreSubscriptionWorkflowContextInput) error {
 	logger := activity.GetLogger(ctx)
 	logger.Info("StoreSubscriptionWorkflowContext", "OrgId", input.OrgId, "SubscriptionId", input.SubscriptionId, "Execution", input.Execution)
 	executionBytes, err := json.Marshal(input.Execution)
@@ -182,6 +182,6 @@ func (a OrderActivities) StoreSubscriptionWorkflowContext(ctx context.Context, i
 	return err
 }
 
-func (a OrderActivities) GetSubscription(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
+func (a *OrderActivities) GetSubscription(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
 	return a.subscriptionRepository.FindById(ctx, orgId, id)
 }

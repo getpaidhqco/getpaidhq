@@ -13,7 +13,6 @@ import (
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/infrastructure/workflow/temporal/activities"
-	"payloop/internal/infrastructure/workflow/temporal/types"
 	"payloop/internal/infrastructure/workflow/temporal/workflows"
 	"payloop/internal/lib"
 )
@@ -23,25 +22,20 @@ type Temporal struct {
 	client client.Client
 	worker worker.Worker
 
-	orderActivities types.OrderActivities
+	orderActivities activities.OrderActivities
 
-	// services
-	orderService      interfaces.OrderService
-	sessionService    interfaces.SessionService
 	settingRepository repositories.SettingRepository
 	pubsub            events.PubSub
 }
 
 func NewTemporalEngine(
 	logger logger.Logger,
-	orderService interfaces.OrderService,
-	sessionService interfaces.SessionService,
-	a types.OrderActivities,
+	orderActivities activities.OrderActivities,
 	webhookActivities activities.OutgoingWebhookActivities,
 	settingRepository repositories.SettingRepository,
 	pubsub events.PubSub,
 ) interfaces.Engine {
-	// The client is a heavyweight object that should be created once per process.
+	// The client is orderActivities heavyweight object that should be created once per process.
 	// Set our Zap logger so that workflows and activities can use it
 	c, err := client.Dial(client.Options{
 		HostPort: client.DefaultHostPort,
@@ -61,9 +55,7 @@ func NewTemporalEngine(
 	w.RegisterWorkflow(workflows.SubscriptionWorkflow)
 	w.RegisterWorkflow(workflows.OutgoingWebhookWorkflow)
 
-	// Activities
-
-	w.RegisterActivity(&a)
+	w.RegisterActivity(&orderActivities)
 	w.RegisterActivity(&webhookActivities)
 
 	// Start the worker
@@ -77,9 +69,7 @@ func NewTemporalEngine(
 		logger:            logger,
 		client:            c,
 		worker:            w,
-		orderService:      orderService,
-		sessionService:    sessionService,
-		orderActivities:   a,
+		orderActivities:   orderActivities,
 		pubsub:            pubsub,
 		settingRepository: settingRepository,
 	}

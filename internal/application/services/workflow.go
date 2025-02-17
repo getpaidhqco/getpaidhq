@@ -24,7 +24,7 @@ func NewWorkflowService(
 	idempotencyRepo repositories.IdempotencyKeyRepository,
 	pubsub events.PubSub,
 	engine interfaces.Engine,
-) WorkflowService {
+) interfaces.WorkflowService {
 	service := WorkflowService{
 		logger:          logger,
 		whsRepo:         whsRepo,
