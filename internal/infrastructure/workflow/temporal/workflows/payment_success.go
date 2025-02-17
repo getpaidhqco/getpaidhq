@@ -5,17 +5,18 @@ import (
 	"fmt"
 	"go.temporal.io/api/enums/v1"
 	temporalio "go.temporal.io/sdk/temporal"
+	"payloop/internal/application/interfaces"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/payment_providers"
-	"payloop/internal/domain/workflow"
 	"payloop/internal/infrastructure/workflow/temporal/activities"
+	"payloop/internal/infrastructure/workflow/temporal/types"
 	"time"
 
 	temporal "go.temporal.io/sdk/workflow"
 )
 
 // Execute executes tasks for processing a successful payment
-func PaymentSuccessWorkflow(ctx temporal.Context, payload workflow.WorkflowPayload) (workflow.Result, error) {
+func PaymentSuccessWorkflow(ctx temporal.Context, payload interfaces.WorkflowPayload) (interfaces.Result, error) {
 	logger := temporal.GetLogger(ctx)
 	logger.Info("PaymentSuccessWorkflow started")
 
@@ -23,14 +24,14 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload workflow.WorkflowPaylo
 	paymentWebhookContext, err := payment_providers.ParsePaymentWebhookContext(payload.Data)
 	if err != nil {
 		logger.Error("Invalid payload data", "err", err.Error())
-		return workflow.Result{}, errors.New("invalid payload data, expected payment_providers.PaymentWebhookContext ")
+		return interfaces.Result{}, errors.New("invalid payload data, expected payment_providers.PaymentWebhookContext ")
 	}
 
 	var a *activities.OrderActivities
 
 	// ACTIVITY
 	// Complete the Order
-	var completeOrderResult workflow.Result
+	var completeOrderResult interfaces.Result
 	ctx1 := temporal.WithActivityOptions(ctx, temporal.ActivityOptions{
 		StartToCloseTimeout: 10 * time.Second,
 		RetryPolicy: &temporalio.RetryPolicy{
@@ -41,7 +42,7 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload workflow.WorkflowPaylo
 	err = temporal.ExecuteActivity(ctx1, a.CompleteOrder, paymentWebhookContext).Get(ctx1, &completeOrderResult)
 	if err != nil {
 		logger.Error("[Complete Order] failed with error: ", "Error", err.Error())
-		return workflow.Result{}, temporalio.NewApplicationError("Complete Order failed", "", err)
+		return interfaces.Result{}, temporalio.NewApplicationError("Complete Order failed", "", err)
 	}
 
 	// ACTIVITY
@@ -75,7 +76,7 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload workflow.WorkflowPaylo
 		logger.Error("Unable to start subscription workflow.", "err", err.Error())
 		// update the subscription so that we can retry
 
-		return workflow.Result{
+		return interfaces.Result{
 			Success: false,
 			Message: "Can't spawn child workflow",
 			Payload: completeOrderResult.Payload,
@@ -84,14 +85,14 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload workflow.WorkflowPaylo
 
 	// ACTIVITY
 	// store the child workflow execution details against the subscription
-	err = temporal.ExecuteActivity(ctx1, a.StoreSubscriptionWorkflowContext, activities.StoreSubscriptionWorkflowContextInput{
+	err = temporal.ExecuteActivity(ctx1, a.StoreSubscriptionWorkflowContext, types.StoreSubscriptionWorkflowContextInput{
 		OrgId:          paymentWebhookContext.OrgId,
 		SubscriptionId: subscription.Id,
 		Execution:      childWE,
 	}).Get(ctx1, nil)
 
 	logger.Info("[payment_success] Workflow completed.")
-	return workflow.Result{
+	return interfaces.Result{
 		Success: true,
 		Message: "PaymentSuccessWorkflow completed",
 		Payload: completeOrderResult.Payload,

@@ -2,59 +2,92 @@ package lib
 
 import (
 	"fmt"
+	slogzap "github.com/samber/slog-zap/v2"
 	"go.uber.org/fx/fxevent"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"log"
+	"log/slog"
+	"payloop/internal/application/lib/logger"
 )
 
-// Logger structure
-type Logger struct {
-	*zap.SugaredLogger
-}
-
-type GinLogger struct {
-	*Logger
-}
-
-type FxLogger struct {
-	*Logger
-}
-
 var (
-	globalLogger *Logger
+	globalLogger logger.Logger
 	zapLogger    *zap.Logger
 )
 
+type GinLogger struct {
+	logger.Logger
+}
+
+type FxLogger struct {
+	logger.Logger
+}
+
 // GetLogger get the logger
-func GetLogger() Logger {
+func GetLogger() logger.Logger {
 	if globalLogger == nil {
-		logger := newLogger(NewEnv())
-		globalLogger = &logger
+		ll := newLogger(NewEnv())
+		globalLogger = ll
 	}
-	return *globalLogger
+	return globalLogger
 }
 
-// GetGinLogger get the gin logger
-func (l Logger) GetGinLogger() GinLogger {
-	logger := zapLogger.WithOptions(
-		zap.WithCaller(false),
-	)
-	return GinLogger{
-		Logger: newSugaredLogger(logger),
-	}
+type MyLogger struct {
+	logger *slog.Logger
 }
 
-// GetZapLogger get the zap logger
-func (l Logger) GetZapLogger() *zap.Logger {
-	return zapLogger
+// Implementing all methods of logger.Logger to MyLogger
+func (l MyLogger) Debug(msg string, keysAndValues ...interface{}) {
+	l.logger.Debug(msg, keysAndValues...)
 }
 
-// GetFxLogger gets logger for go-fx
-func (l *Logger) GetFxLogger() fxevent.Logger {
-	logger := zapLogger.WithOptions(
-		zap.WithCaller(false),
-	)
-	return &FxLogger{Logger: newSugaredLogger(logger)}
+func (l MyLogger) Info(msg string, keysAndValues ...interface{}) {
+	l.logger.Info(msg, keysAndValues...)
+}
+
+func (l MyLogger) Warn(msg string, keysAndValues ...interface{}) {
+	l.logger.Warn(msg, keysAndValues...)
+}
+
+func (l MyLogger) Error(msg string, keysAndValues ...interface{}) {
+	l.logger.Error(msg, keysAndValues...)
+}
+
+func (l MyLogger) With(args ...interface{}) logger.Logger {
+	return MyLogger{logger: l.logger.With(args...)}
+}
+
+func (l MyLogger) Sync() error {
+	return nil
+}
+
+func (l MyLogger) Panic(args ...interface{}) {
+	l.logger.Error("PANIC", args...)
+}
+
+func (l MyLogger) Fatalf(msg string, keysAndValues ...interface{}) {
+	log.Fatal(msg, keysAndValues)
+}
+
+func (l MyLogger) Fatal(msg string, keysAndValues ...interface{}) {
+	log.Fatal(msg, keysAndValues)
+}
+
+func (l MyLogger) Infof(template string, args ...interface{}) {
+	l.logger.Debug(template, args...)
+}
+func (l MyLogger) Debugf(template string, args ...interface{}) {
+	l.logger.Debug(template, args...)
+}
+func (l MyLogger) Errorf(template string, args ...interface{}) {
+	l.logger.Debug(template, args...)
+}
+func (l MyLogger) Panicf(template string, args ...interface{}) {
+	l.logger.Debug(template, args...)
+}
+func (l MyLogger) Warnf(template string, args ...interface{}) {
+	l.logger.Debug(template, args...)
 }
 
 // LogEvent log event for fx logger
@@ -124,15 +157,8 @@ func (l *FxLogger) LogEvent(event fxevent.Event) {
 	}
 }
 
-func newSugaredLogger(logger *zap.Logger) *Logger {
-	return &Logger{
-		SugaredLogger: logger.Sugar(),
-	}
-}
-
 // newLogger sets up logger
-func newLogger(env Env) Logger {
-
+func newLogger(env Env) logger.Logger {
 	config := zap.NewDevelopmentConfig()
 	logOutput := env.LogOutput
 
@@ -164,14 +190,21 @@ func newLogger(env Env) Logger {
 	config.Level.SetLevel(level)
 
 	zapLogger, _ = config.Build()
-	logger := newSugaredLogger(zapLogger)
 
-	return *logger
+	handler := slogzap.Option{
+		Level:  slog.LevelDebug,
+		Logger: zapLogger,
+	}.NewZapHandler()
+	l := slog.New(handler)
+
+	return MyLogger{
+		logger: l,
+	}
 }
 
 // Write interface implementation for gin-framework
 func (l GinLogger) Write(p []byte) (n int, err error) {
-	l.Info(string(p))
+	l.Infof(string(p))
 	return len(p), nil
 }
 
@@ -181,4 +214,16 @@ func (l FxLogger) Printf(str string, args ...interface{}) {
 		l.Debugf(str, args)
 	}
 	l.Debug(str)
+}
+
+func GetZapLogger() *zap.Logger {
+	return zapLogger
+}
+
+// GetFxLogger gets logger for go-fx
+func GetFxLogger() fxevent.Logger {
+	//logger := zapLogger.WithOptions(
+	//	zap.WithCaller(false),
+	//)
+	return &FxLogger{Logger: globalLogger}
 }

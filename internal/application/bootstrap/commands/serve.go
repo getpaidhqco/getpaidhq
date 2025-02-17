@@ -4,6 +4,7 @@ import (
 	"github.com/spf13/cobra"
 	"payloop/internal/api/middlewares"
 	"payloop/internal/api/routes"
+	"payloop/internal/application/lib/logger"
 
 	"payloop/internal/lib"
 )
@@ -23,7 +24,7 @@ func (s *ServeCommand) Run() lib.CommandRunner {
 		env lib.Env,
 		router lib.RequestHandler,
 		route routes.Routes,
-		logger lib.Logger,
+		logger logger.Logger,
 		database lib.Database,
 	) {
 		middleware.Setup()

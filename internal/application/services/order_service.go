@@ -3,8 +3,10 @@ package services
 import (
 	"context"
 	"errors"
+	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/entities/payments"
@@ -26,7 +28,7 @@ type OrderService struct {
 	paymentGateway         payment_providers.Gateway
 	pubsub                 events.PubSub
 	db                     lib.Database
-	logger                 lib.Logger
+	logger                 logger.Logger
 }
 
 func NewOrderService(
@@ -40,8 +42,8 @@ func NewOrderService(
 	paymentGateway payment_providers.Gateway,
 	pubsub events.PubSub,
 	db lib.Database,
-	logger lib.Logger,
-) OrderService {
+	logger logger.Logger,
+) interfaces.OrderService {
 	return OrderService{
 		customerRepository:     customerRepository,
 		sessionRepository:      sessionRepository,
@@ -57,7 +59,7 @@ func NewOrderService(
 	}
 }
 
-func (s *OrderService) CreateOrderFromCart(ctx context.Context, input orders.CreateOrderInput) (entities.Order, payment_providers.InitPaymentResponse, error) {
+func (s OrderService) CreateOrderFromCart(ctx context.Context, input orders.CreateOrderInput) (entities.Order, payment_providers.InitPaymentResponse, error) {
 	s.logger.Info("Creating order for cart", "cart", input.CartId)
 	orgId := input.OrgId
 	orderId := lib.GenerateId("order")
@@ -151,7 +153,7 @@ func (s *OrderService) CreateOrderFromCart(ctx context.Context, input orders.Cre
 // 4. A payment method is created for the customer
 // It all happens here for now because it must be part of the same transaction..not sure if this is the best way
 // or if we can have transactions in temporal workflows
-func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOrderCommand) (entities.Order, error) {
+func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOrderCommand) (entities.Order, error) {
 	s.logger.Info("Completing order", "order_id", input.OrderId)
 	orgId := input.OrgId
 	orderId := input.OrderId
@@ -210,7 +212,7 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input orders.CompleteO
 			subscription.LastCharge = &subscription.StartDate
 			subscription.TotalRevenue = subscription.Amount
 			subscription.CyclesProcessed = 1
-			
+
 			renewsAt := subscription.CalculateNextBillingDate()
 			subscription.RenewsAt = &renewsAt
 		} else {

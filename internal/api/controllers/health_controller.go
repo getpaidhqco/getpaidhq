@@ -2,15 +2,15 @@ package controllers
 
 import (
 	"github.com/gin-gonic/gin"
-	"payloop/internal/lib"
+	"payloop/internal/application/lib/logger"
 )
 
 // HealthController data type
 type HealthController struct {
-	logger lib.Logger
+	logger logger.Logger
 }
 
-func NewHealthController(logger lib.Logger) HealthController {
+func NewHealthController(logger logger.Logger) HealthController {
 	return HealthController{
 		logger: logger,
 	}

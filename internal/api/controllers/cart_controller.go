@@ -7,9 +7,9 @@ import (
 	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/mapper"
 	"payloop/internal/api/dto/request"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/application/services"
 	"payloop/internal/domain/entities/carts"
-	"payloop/internal/lib"
 )
 
 var validate *validator.Validate
@@ -17,11 +17,11 @@ var validate *validator.Validate
 // CartController data type
 type CartController struct {
 	cartService services.CartService
-	logger      lib.Logger
+	logger      logger.Logger
 }
 
 // NewCartController creates new Cart controller
-func NewCartController(cartService services.CartService, logger lib.Logger) CartController {
+func NewCartController(cartService services.CartService, logger logger.Logger) CartController {
 	return CartController{
 		cartService: cartService,
 		logger:      logger,

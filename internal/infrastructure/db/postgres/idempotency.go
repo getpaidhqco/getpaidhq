@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 	"time"
@@ -9,10 +10,10 @@ import (
 
 type IdempotencyKeyRepository struct {
 	*lib.PgDatabase
-	logger lib.Logger
+	logger logger.Logger
 }
 
-func NewIdempotencyKeyRepository(database lib.Database, logger lib.Logger) repositories.IdempotencyKeyRepository {
+func NewIdempotencyKeyRepository(database lib.Database, logger logger.Logger) repositories.IdempotencyKeyRepository {
 	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")

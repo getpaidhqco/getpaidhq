@@ -2,11 +2,12 @@ package routes
 
 import (
 	"payloop/internal/api/controllers"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
 )
 
 type OrgsRoutes struct {
-	logger     lib.Logger
+	logger     logger.Logger
 	handler    lib.RequestHandler
 	controller controllers.OrgController
 }
@@ -22,7 +23,7 @@ func (s OrgsRoutes) Setup() {
 
 // NewOrgsRoutes creates new user controller
 func NewOrgsRoutes(
-	logger lib.Logger,
+	logger logger.Logger,
 	handler lib.RequestHandler,
 	controller controllers.OrgController,
 ) OrgsRoutes {

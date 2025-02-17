@@ -5,16 +5,17 @@ import (
 	"fmt"
 	"github.com/nats-io/nats.go"
 	pubsub "payloop/internal/application/lib/events"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
 	"time"
 )
 
 type NatsPubSub struct {
 	*nats.Conn
-	logger lib.Logger
+	logger logger.Logger
 }
 
-func NewNatsPubSub(logger lib.Logger) pubsub.PubSub {
+func NewNatsPubSub(logger logger.Logger) pubsub.PubSub {
 	nc, err := nats.Connect(nats.DefaultURL)
 	if err != nil {
 		panic(err)

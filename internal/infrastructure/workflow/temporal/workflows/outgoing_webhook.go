@@ -2,6 +2,7 @@ package workflows
 
 import (
 	temporalio "go.temporal.io/sdk/temporal"
+	"payloop/internal/application/interfaces"
 	"payloop/internal/domain/workflow"
 	"payloop/internal/infrastructure/workflow/temporal/activities"
 	"time"
@@ -10,7 +11,7 @@ import (
 )
 
 // OutgoingWebhookWorkflow is a Temporal Workflow that delivers a webhook payload to a subscriber
-func OutgoingWebhookWorkflow(ctx temporal.Context, payload workflow.OutgoingWebhookPayload) (workflow.Result, error) {
+func OutgoingWebhookWorkflow(ctx temporal.Context, payload workflow.OutgoingWebhookPayload) (interfaces.Result, error) {
 	logger := temporal.GetLogger(ctx)
 	logger.Info("OutgoingWebhookWorkflow started")
 
@@ -32,11 +33,11 @@ func OutgoingWebhookWorkflow(ctx temporal.Context, payload workflow.OutgoingWebh
 		logger.Error("[SendWebhook] failed with error: ", "Error", err.Error())
 		// Todo the webhook delivery failed and wont be retried.
 		// We should log the error and return a non-retryable error
-		return workflow.Result{}, temporalio.NewNonRetryableApplicationError("SendWebhook failed", "webhook", err)
+		return interfaces.Result{}, temporalio.NewNonRetryableApplicationError("SendWebhook failed", "webhook", err)
 	}
 
 	logger.Info("[outgoing_webhook] Workflow completed.")
-	return workflow.Result{
+	return interfaces.Result{
 		Success: true,
 		Message: "sent",
 		Payload: nil,

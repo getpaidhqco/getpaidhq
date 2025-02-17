@@ -5,21 +5,22 @@ import (
 	"payloop/internal/api"
 	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/request"
+	"payloop/internal/application/interfaces"
 	app_lib "payloop/internal/application/lib/authz"
-	"payloop/internal/application/services"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/lib"
 )
 
 // OrderController data type
 type OrderController struct {
-	service services.OrderService
-	logger  lib.Logger
+	service interfaces.OrderService
+	logger  logger.Logger
 	authz   app_lib.Authz
 }
 
 // NewOrderController creates new order controller
-func NewOrderController(orderService services.OrderService, logger lib.Logger, authz app_lib.Authz) OrderController {
+func NewOrderController(orderService interfaces.OrderService, logger logger.Logger, authz app_lib.Authz) OrderController {
 	return OrderController{
 		service: orderService,
 		logger:  logger,

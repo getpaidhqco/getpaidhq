@@ -5,6 +5,7 @@ import (
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -14,12 +15,12 @@ type ProductService struct {
 	productRepository repositories.ProductRepository
 	cartRepository    repositories.CartRepository
 	pubsub            events.PubSub
-	logger            lib.Logger
+	logger            logger.Logger
 }
 
 func NewProductService(productRepository repositories.ProductRepository,
 	cartRepository repositories.CartRepository,
-	logger lib.Logger,
+	logger logger.Logger,
 	pubsub events.PubSub,
 ) ProductService {
 	return ProductService{

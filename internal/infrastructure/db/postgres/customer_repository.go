@@ -3,6 +3,7 @@ package postgres
 import (
 	"context"
 	"github.com/jackc/pgx/v5"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -12,10 +13,10 @@ import (
 
 type CustomerRepository struct {
 	*lib.PgDatabase
-	logger lib.Logger
+	logger logger.Logger
 }
 
-func NewCustomerRepository(database lib.Database, logger lib.Logger) repositories.CustomerRepository {
+func NewCustomerRepository(database lib.Database, logger logger.Logger) repositories.CustomerRepository {
 	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
@@ -47,7 +48,7 @@ func (r CustomerRepository) Create(ctx context.Context, entity entities.Customer
 	if tx != nil {
 		p = tx.(queryRower)
 	}
-	
+
 	var customer entities.Customer
 	query := `INSERT INTO customers (org_id, id, email, name, created_at, updated_at) 
 		VALUES (@org_id, @id, @email, @name, now(), now())

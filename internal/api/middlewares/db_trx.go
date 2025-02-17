@@ -2,6 +2,7 @@ package middlewares
 
 import (
 	"net/http"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
 
 	"github.com/gin-gonic/gin"
@@ -10,7 +11,7 @@ import (
 // DatabaseTrx middleware for transactions support for database
 type DatabaseTrx struct {
 	handler lib.RequestHandler
-	logger  lib.Logger
+	logger  logger.Logger
 	db      lib.Database
 }
 
@@ -27,7 +28,7 @@ func statusInList(status int, statusList []int) bool {
 // NewDatabaseTrx creates new database transactions middleware
 func NewDatabaseTrx(
 	handler lib.RequestHandler,
-	logger lib.Logger,
+	logger logger.Logger,
 	db lib.Database,
 ) DatabaseTrx {
 	return DatabaseTrx{

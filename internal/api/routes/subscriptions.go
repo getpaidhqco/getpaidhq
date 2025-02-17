@@ -2,11 +2,12 @@ package routes
 
 import (
 	"payloop/internal/api/controllers"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
 )
 
 type SubscriptionRoutes struct {
-	logger                 lib.Logger
+	logger                 logger.Logger
 	handler                lib.RequestHandler
 	subscriptionController controllers.SubscriptionController
 }
@@ -24,12 +25,12 @@ func (s SubscriptionRoutes) Setup() {
 		api.PUT("/subscriptions/:id/resume", s.subscriptionController.Resume)
 		api.PATCH("/subscriptions/:id", s.subscriptionController.Update)
 	}
-	
+
 }
 
 // NewSubscriptionRoutes creates new user controller
 func NewSubscriptionRoutes(
-	logger lib.Logger,
+	logger logger.Logger,
 	handler lib.RequestHandler,
 	subscriptionController controllers.SubscriptionController,
 ) SubscriptionRoutes {

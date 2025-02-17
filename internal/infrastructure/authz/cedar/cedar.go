@@ -7,16 +7,17 @@ import (
 	"os"
 	"payloop/internal/api/authn"
 	"payloop/internal/application/lib/authz"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
 )
 
 type CedarAuthz struct {
-	logger    lib.Logger
+	logger    logger.Logger
 	policySet *cedar.PolicySet
 	entities  cedar.EntityMap
 }
 
-func NewCedarAuthz(logger lib.Logger, env lib.Env) authz.Authz {
+func NewCedarAuthz(logger logger.Logger, env lib.Env) authz.Authz {
 	config, err := openConfig(env.CedarPolicyFile)
 	if err != nil {
 		log.Fatal("☠️ cannot read cedar policy")

@@ -2,18 +2,19 @@ package middlewares
 
 import (
 	cors "github.com/rs/cors/wrapper/gin"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
 )
 
 // CorsMiddleware middleware for cors
 type CorsMiddleware struct {
 	handler lib.RequestHandler
-	logger  lib.Logger
+	logger  logger.Logger
 	env     lib.Env
 }
 
 // NewCorsMiddleware creates new cors middleware
-func NewCorsMiddleware(handler lib.RequestHandler, logger lib.Logger, env lib.Env) CorsMiddleware {
+func NewCorsMiddleware(handler lib.RequestHandler, logger logger.Logger, env lib.Env) CorsMiddleware {
 	return CorsMiddleware{
 		handler: handler,
 		logger:  logger,

@@ -3,26 +3,27 @@ package services
 import (
 	"context"
 	"encoding/json"
+	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/domain/workflow"
-	"payloop/internal/lib"
 )
 
 type WorkflowService struct {
-	logger          lib.Logger
+	logger          logger.Logger
 	idempotencyRepo repositories.IdempotencyKeyRepository
 	whsRepo         repositories.WebhookSubscriptionRepository
 	pubsub          events.PubSub
-	engine          workflow.Engine
+	engine          interfaces.Engine
 }
 
 func NewWorkflowService(
-	logger lib.Logger,
+	logger logger.Logger,
 	whsRepo repositories.WebhookSubscriptionRepository,
 	idempotencyRepo repositories.IdempotencyKeyRepository,
 	pubsub events.PubSub,
-	engine workflow.Engine,
+	engine interfaces.Engine,
 ) WorkflowService {
 	service := WorkflowService{
 		logger:          logger,
@@ -61,7 +62,7 @@ func (s WorkflowService) HandleOutboundWebhook(topic string, data []byte) {
 	}
 
 	for _, sub := range subs {
-		result, err := s.engine.StartWorkflow(context.TODO(), workflow.OutgoingWebhook, workflow.OutgoingWebhookPayload{
+		result, err := s.engine.StartWorkflow(context.TODO(), interfaces.OutgoingWebhook, workflow.OutgoingWebhookPayload{
 			WebhookSubscription: sub,
 			Event:               payload,
 		})

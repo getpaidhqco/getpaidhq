@@ -8,18 +8,19 @@ import (
 	"net/http"
 	apiauthn "payloop/internal/api/authn"
 	"payloop/internal/application/lib/authn"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
 	"strings"
 )
 
 type ClerkMiddleware struct {
 	handler lib.RequestHandler
-	logger  lib.Logger
+	logger  logger.Logger
 	env     lib.Env
 	client  clerkapi.Client
 }
 
-func NewClerkMiddleware(handler lib.RequestHandler, logger lib.Logger, env lib.Env) authn.Authenticator {
+func NewClerkMiddleware(handler lib.RequestHandler, logger logger.Logger, env lib.Env) authn.Authenticator {
 
 	client, err := clerkapi.NewClient(env.ClerkSecretKey)
 	if err != nil {

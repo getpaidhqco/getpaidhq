@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	paystacklib "github.com/mdwt/paystack-go"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/lib"
 	"strconv"
@@ -13,13 +14,13 @@ import (
 var PAYSTACK = "Paystack"
 
 type Paystack struct {
-	logger lib.Logger
+	logger logger.Logger
 	env    lib.Env
 }
 
-func NewPaystackGateway(logger lib.Logger, env lib.Env) payment_providers.Gateway {
+func NewPaystackGateway(logger logger.Logger, env lib.Env) payment_providers.Gateway {
 	if env.PaystackApiKey == "" {
-		logger.Fatal("Paystack API key is required")
+		logger.Fatalf("Paystack API key is required")
 	}
 	return Paystack{
 		env:    env,

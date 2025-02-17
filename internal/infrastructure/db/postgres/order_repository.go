@@ -8,6 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -15,10 +16,10 @@ import (
 
 type OrderRepository struct {
 	*lib.PgDatabase
-	logger lib.Logger
+	logger logger.Logger
 }
 
-func NewOrderRepository(database lib.Database, logger lib.Logger) repositories.OrderRepository {
+func NewOrderRepository(database lib.Database, logger logger.Logger) repositories.OrderRepository {
 	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")

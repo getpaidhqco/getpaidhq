@@ -4,6 +4,7 @@ import (
 	"context"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -11,11 +12,11 @@ import (
 
 type SessionRepository struct {
 	*lib.PgDatabase
-	logger             lib.Logger
+	logger             logger.Logger
 	customerRepository repositories.CustomerRepository
 }
 
-func NewSessionRepository(database lib.Database, customerRepository repositories.CustomerRepository, logger lib.Logger) repositories.SessionRepository {
+func NewSessionRepository(database lib.Database, customerRepository repositories.CustomerRepository, logger logger.Logger) repositories.SessionRepository {
 	logger.Debug("Creating new Session Repository")
 	pgDatabase, ok := database.(*lib.PgDatabase)
 	if !ok {

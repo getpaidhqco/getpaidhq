@@ -2,17 +2,18 @@ package cedar
 
 import (
 	"payloop/internal/application/lib/authz"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
 )
 
 type CedarMiddleware struct {
 	handler lib.RequestHandler
-	logger  lib.Logger
+	logger  logger.Logger
 	env     lib.Env
 	client  authz.Authz
 }
 
-func NewCedarMiddleware(handler lib.RequestHandler, logger lib.Logger, env lib.Env) CedarMiddleware {
+func NewCedarMiddleware(handler lib.RequestHandler, logger logger.Logger, env lib.Env) CedarMiddleware {
 
 	client := NewCedarAuthz(logger, env)
 

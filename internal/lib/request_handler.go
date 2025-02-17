@@ -2,6 +2,7 @@ package lib
 
 import (
 	"github.com/gin-gonic/gin"
+	"payloop/internal/application/lib/logger"
 )
 
 // RequestHandler function
@@ -10,8 +11,7 @@ type RequestHandler struct {
 }
 
 // NewRequestHandler creates a new request handler
-func NewRequestHandler(logger Logger) RequestHandler {
-	gin.DefaultWriter = logger.GetGinLogger()
+func NewRequestHandler(logger logger.Logger) RequestHandler {
 	engine := gin.Default()
 	return RequestHandler{Gin: engine}
 }

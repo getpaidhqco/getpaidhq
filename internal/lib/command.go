@@ -23,7 +23,7 @@ type Command interface {
 	//
 	// For example,
 	//  Command{
-	//   Run: func(l lib.Logger) {
+	//   Run: func(l logger.Logger) {
 	// 	   l.Info("i am working")
 	// 	 },
 	//  }

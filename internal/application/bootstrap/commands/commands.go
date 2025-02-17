@@ -30,7 +30,7 @@ func WrapSubCommand(name string, cmd lib.Command, opt fx.Option) *cobra.Command 
 			logger := lib.GetLogger()
 			opts := fx.Options(
 				fx.WithLogger(func() fxevent.Logger {
-					return logger.GetFxLogger()
+					return lib.GetFxLogger()
 				}),
 				fx.Invoke(cmd.Run()),
 			)
@@ -39,7 +39,7 @@ func WrapSubCommand(name string, cmd lib.Command, opt fx.Option) *cobra.Command 
 			err := app.Start(ctx)
 			defer app.Stop(ctx)
 			if err != nil {
-				logger.Fatal(err)
+				logger.Fatal("errpr", err)
 			}
 		},
 	}

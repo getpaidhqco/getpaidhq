@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/webhooks"
 	"payloop/internal/domain/repositories"
@@ -20,14 +21,14 @@ import (
 )
 
 type WebhookSubscriptionService struct {
-	logger          lib.Logger
+	logger          logger.Logger
 	idempotencyRepo repositories.IdempotencyKeyRepository
 	whsRepo         repositories.WebhookSubscriptionRepository
 	pubsub          events.PubSub
 }
 
 func NewWebhookSubscriptionService(
-	logger lib.Logger,
+	logger logger.Logger,
 	whsRepo repositories.WebhookSubscriptionRepository,
 	idempotencyRepo repositories.IdempotencyKeyRepository,
 	pubsub events.PubSub,

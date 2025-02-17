@@ -7,6 +7,7 @@ import (
 	"payloop/internal/api/dto/request"
 	"payloop/internal/api/dto/response"
 	app_lib "payloop/internal/application/lib/authz"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/application/services"
 	"payloop/internal/domain/entities"
 	"payloop/internal/lib"
@@ -15,12 +16,12 @@ import (
 // ProductController data type
 type ProductController struct {
 	productService services.ProductService
-	logger         lib.Logger
+	logger         logger.Logger
 	authz          app_lib.Authz
 }
 
 // NewProductController creates new product controller
-func NewProductController(productService services.ProductService, logger lib.Logger, authz app_lib.Authz) ProductController {
+func NewProductController(productService services.ProductService, logger logger.Logger, authz app_lib.Authz) ProductController {
 	return ProductController{
 		productService: productService,
 		logger:         logger,

@@ -6,9 +6,9 @@ import (
 	"go.uber.org/fx"
 	"go.uber.org/fx/fxevent"
 	"payloop/internal/api/middlewares"
+	"payloop/internal/application/interfaces"
 	"payloop/internal/application/services"
 	"payloop/internal/domain/payment_providers"
-	"payloop/internal/domain/workflow"
 	"payloop/internal/infrastructure/db/postgres"
 	"payloop/internal/infrastructure/payments/paystack"
 	"payloop/internal/lib"
@@ -28,12 +28,12 @@ func TestTemporal_StartWorkflow(t *testing.T) {
 		Module,
 	), fx.Options(
 		fx.WithLogger(func() fxevent.Logger {
-			return logger.GetFxLogger()
+			return lib.GetFxLogger()
 		}),
-		fx.Invoke(func(temporal workflow.Engine) {
+		fx.Invoke(func(temporal interfaces.Engine) {
 			logger.Info("Starting application")
 
-			_, err := temporal.StartWorkflow(ctx, workflow.PaymentSuccess, payment_providers.PaymentWebhookContext{
+			_, err := temporal.StartWorkflow(ctx, interfaces.PaymentSuccess, payment_providers.PaymentWebhookContext{
 				Type:    payment_providers.PaymentSuccess,
 				OrgId:   "mollie",
 				OrderId: "ord_2sLCjd8HuOCXkp8HSON6JG3MsCw",

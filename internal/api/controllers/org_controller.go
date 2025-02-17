@@ -3,19 +3,19 @@ package controllers
 import (
 	"github.com/gin-gonic/gin"
 	"net/http"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/application/services"
 	"payloop/internal/domain/entities/orgs"
-	"payloop/internal/lib"
 )
 
 // OrgController data type
 type OrgController struct {
 	service services.OrgService
-	logger  lib.Logger
+	logger  logger.Logger
 }
 
 // NewOrgController creates new user controller
-func NewOrgController(service services.OrgService, logger lib.Logger) OrgController {
+func NewOrgController(service services.OrgService, logger logger.Logger) OrgController {
 	return OrgController{
 		service: service,
 		logger:  logger,
@@ -26,7 +26,7 @@ func (u OrgController) Create(c *gin.Context) {
 	var input orgs.CreateOrgInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		u.logger.Error(err)
+		u.logger.Error("", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
 		})
@@ -36,7 +36,7 @@ func (u OrgController) Create(c *gin.Context) {
 	u.logger.Debug("Creating tenant", "input", input)
 	t, err := u.service.Create(c.Request.Context(), input)
 	if err != nil {
-		u.logger.Error(err)
+		u.logger.Error("", err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"error": err.Error(),
 		})

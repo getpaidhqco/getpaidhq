@@ -4,8 +4,10 @@ import (
 	"context"
 	"errors"
 	"payloop/internal/api/dto/request"
+	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/subscriptions"
 	"payloop/internal/domain/payment_providers"
@@ -24,7 +26,7 @@ type SubscriptionService struct {
 	orderItemRepository    repositories.OrderItemRepository
 	paymentGateway         payment_providers.Gateway
 	pubsub                 events.PubSub
-	logger                 lib.Logger
+	logger                 logger.Logger
 }
 
 func NewSubscriptionService(
@@ -37,8 +39,9 @@ func NewSubscriptionService(
 	paymentRepository repositories.PaymentRepository,
 	pubsub events.PubSub,
 	paymentGateway payment_providers.Gateway,
-	logger lib.Logger,
-) SubscriptionService {
+	logger logger.Logger,
+	engine interfaces.Engine,
+) interfaces.SubscriptionService {
 
 	_, err := pubsub.Subscribe("subscription.workflow.>", func(topic string, data []byte) {
 		logger.Infof("Received message from %s", topic)
@@ -62,7 +65,7 @@ func NewSubscriptionService(
 	}
 }
 
-func (s *SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
+func (s SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
 	s.logger.Info("CreateSubscriptionsForOrder", "orgId", orgId, "orderId", orderId)
 	var subscriptions []entities.Subscription
 	order, err := s.orderRepository.FindById(ctx, orgId, orderId)
@@ -95,7 +98,7 @@ func (s *SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, o
 	return subscriptions, nil
 }
 
-func (s *SubscriptionService) Create(ctx context.Context, input entities.CreateSubscriptionInput) (entities.Subscription, error) {
+func (s SubscriptionService) Create(ctx context.Context, input entities.CreateSubscriptionInput) (entities.Subscription, error) {
 	s.logger.Info("Creating new subscription", "orgId", input.OrgId)
 
 	subscription := entities.NewFromCreateInput(input)
@@ -111,7 +114,7 @@ func (s *SubscriptionService) Create(ctx context.Context, input entities.CreateS
 	return subscription, nil
 }
 
-func (s *SubscriptionService) Update(ctx context.Context, input subscriptions.UpdateSubscriptionInput) (entities.Subscription, error) {
+func (s SubscriptionService) Update(ctx context.Context, input subscriptions.UpdateSubscriptionInput) (entities.Subscription, error) {
 	s.logger.Info("Updating subscription", "orgId", input.OrgId, "id", input.Id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
@@ -135,7 +138,7 @@ func (s *SubscriptionService) Update(ctx context.Context, input subscriptions.Up
 	return newSub, err
 }
 
-func (s *SubscriptionService) FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
+func (s SubscriptionService) FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
 	s.logger.Info("Fetching", "orgId", orgId, "id", id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, id)
@@ -147,7 +150,7 @@ func (s *SubscriptionService) FindById(ctx context.Context, orgId string, id str
 	return subscription, nil
 }
 
-func (s *SubscriptionService) Activate(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
+func (s SubscriptionService) Activate(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
 	s.logger.Info("Marking subscription active", "orgId", orgId, "id", id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, id)
@@ -166,7 +169,7 @@ func (s *SubscriptionService) Activate(ctx context.Context, orgId string, id str
 	return subscription, nil
 }
 
-func (s *SubscriptionService) Pause(ctx context.Context, input subscriptions.PauseSubscriptionInput) (entities.Subscription, error) {
+func (s SubscriptionService) Pause(ctx context.Context, input subscriptions.PauseSubscriptionInput) (entities.Subscription, error) {
 	s.logger.Info("Pausing subscription", "orgId", input.OrgId, "id", input.Id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
@@ -192,7 +195,7 @@ func (s *SubscriptionService) Pause(ctx context.Context, input subscriptions.Pau
 	return subscription, nil
 }
 
-func (s *SubscriptionService) List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Subscription, error) {
+func (s SubscriptionService) List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Subscription, error) {
 	subs, err := s.subscriptionRepository.Find(ctx, orgId, pagination)
 	if err != nil {
 		s.logger.Error("Failed to list subscriptions", err.Error())
@@ -202,7 +205,7 @@ func (s *SubscriptionService) List(ctx context.Context, orgId string, pagination
 	return subs, nil
 }
 
-func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input subscriptions.ResumeSubscriptionInput) (entities.Subscription, error) {
+func (s SubscriptionService) ResumeSubscription(ctx context.Context, input subscriptions.ResumeSubscriptionInput) (entities.Subscription, error) {
 	s.logger.Info("Resuming subscription", "orgId", input.OrgId, "id", input.Id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
@@ -260,7 +263,7 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input subs
 // CancelSubscription
 // A canceled subscription will continue through its current billing cycle. At the end of the current billing cycle the subscription will expire and the customer will no longer be billed.
 // Canceled subscriptions can be reactivated until the end of the billing cycle
-func (s *SubscriptionService) CancelSubscription(ctx context.Context, input subscriptions.CancelSubscriptionInput) (entities.Subscription, error) {
+func (s SubscriptionService) CancelSubscription(ctx context.Context, input subscriptions.CancelSubscriptionInput) (entities.Subscription, error) {
 	s.logger.Info("Pausing subscription", "orgId", input.OrgId, "id", input.Id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
@@ -296,7 +299,7 @@ func (s *SubscriptionService) CancelSubscription(ctx context.Context, input subs
 	return subscription, nil
 }
 
-//func (s *SubscriptionService) ProcessSubscriptionCharge(ctx context.Context, input subscriptions.ProcessSubscriptionChargeInput) (payments.ChargeResult, error) {
+//func (s SubscriptionService) ProcessSubscriptionCharge(ctx context.Context, input subscriptions.ProcessSubscriptionChargeInput) (payments.ChargeResult, error) {
 //
 //	subscription := input.Subscription
 //	s.logger.Info("Processing subscription charge", "orgId", subscription.OrgId, "id", subscription.Id)
@@ -306,7 +309,7 @@ func (s *SubscriptionService) CancelSubscription(ctx context.Context, input subs
 //	return newSub, nil
 //}
 
-func (s *SubscriptionService) GetSubscriptionCustomer(ctx context.Context, subscription entities.Subscription) (entities.Customer, error) {
+func (s SubscriptionService) GetSubscriptionCustomer(ctx context.Context, subscription entities.Subscription) (entities.Customer, error) {
 	customer, err := s.customerRepository.FindById(ctx, subscription.OrgId, subscription.CustomerId)
 	if err != nil {
 		s.logger.Error("Failed to find customer", err.Error())
@@ -316,7 +319,7 @@ func (s *SubscriptionService) GetSubscriptionCustomer(ctx context.Context, subsc
 	return customer, nil
 }
 
-func (s *SubscriptionService) GetSubscriptionPaymentMethod(ctx context.Context, subscription entities.Subscription) (entities.PaymentMethod, error) {
+func (s SubscriptionService) GetSubscriptionPaymentMethod(ctx context.Context, subscription entities.Subscription) (entities.PaymentMethod, error) {
 	s.logger.Info("Fetching payment method for subscription", "orgId", subscription.OrgId, "subscriptionId", subscription.Id)
 
 	paymentMethod, err := s.customerRepository.FindPaymentMethodById(ctx, subscription.OrgId, *subscription.PaymentMethodId)
@@ -328,7 +331,7 @@ func (s *SubscriptionService) GetSubscriptionPaymentMethod(ctx context.Context, 
 	return paymentMethod, nil
 }
 
-func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context, input subscriptions.SubscriptionChargeInput) (entities.Subscription, error) {
+func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context, input subscriptions.SubscriptionChargeInput) (entities.Subscription, error) {
 	s.logger.Info("Recording subscription payment and updating subscription")
 	subscription := input.Subscription
 	charge := input.ChargeResult
@@ -403,7 +406,7 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 	return newSub, nil
 }
 
-func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context, input subscriptions.SubscriptionChargeInput) (entities.Subscription, error) {
+func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context, input subscriptions.SubscriptionChargeInput) (entities.Subscription, error) {
 	s.logger.Info("Charge failure happened", "orgId", input.Subscription.OrgId, "id", input.Subscription.Id)
 
 	subscription := input.Subscription

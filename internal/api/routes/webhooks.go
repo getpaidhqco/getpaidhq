@@ -2,11 +2,12 @@ package routes
 
 import (
 	"payloop/internal/api/controllers"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
 )
 
 type WebhookRoutes struct {
-	logger            lib.Logger
+	logger            logger.Logger
 	handler           lib.RequestHandler
 	webhookController controllers.WebhookController
 }
@@ -22,7 +23,7 @@ func (s WebhookRoutes) Setup() {
 
 // NewWebhookRoutes creates new user controller
 func NewWebhookRoutes(
-	logger lib.Logger,
+	logger logger.Logger,
 	handler lib.RequestHandler,
 	webhookController controllers.WebhookController,
 ) WebhookRoutes {

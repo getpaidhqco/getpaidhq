@@ -3,8 +3,10 @@ package services
 import (
 	"context"
 	cart "github.com/mdwt/payloop-cart"
+	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/sessions"
 	"payloop/internal/domain/repositories"
@@ -15,14 +17,14 @@ type SessionService struct {
 	sessionRepository repositories.SessionRepository
 	cartRepository    repositories.CartRepository
 	pubsub            events.PubSub
-	logger            lib.Logger
+	logger            logger.Logger
 }
 
 func NewSessionService(sessionRepository repositories.SessionRepository,
 	cartRepository repositories.CartRepository,
-	logger lib.Logger,
+	logger logger.Logger,
 	pubsub events.PubSub,
-) SessionService {
+) interfaces.SessionService {
 	return SessionService{
 		sessionRepository: sessionRepository,
 		cartRepository:    cartRepository,
@@ -31,7 +33,7 @@ func NewSessionService(sessionRepository repositories.SessionRepository,
 	}
 }
 
-func (s *SessionService) CreateSession(ctx context.Context, input sessions.CreateSessionInput) (entities.Session, error) {
+func (s SessionService) CreateSession(ctx context.Context, input sessions.CreateSessionInput) (entities.Session, error) {
 	cartData := cart.New(cart.CreateCartOptions{
 		Currency: input.Currency,
 		Items:    make([]cart.Item, 0),

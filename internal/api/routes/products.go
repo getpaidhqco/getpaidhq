@@ -6,11 +6,12 @@ import (
 	"payloop/internal/api/authn"
 	"payloop/internal/api/controllers"
 	"payloop/internal/application/lib/authz"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
 )
 
 type ProductRoutes struct {
-	logger            lib.Logger
+	logger            logger.Logger
 	handler           lib.RequestHandler
 	productController controllers.ProductController
 	authz             authz.Authz
@@ -44,7 +45,7 @@ func (s ProductRoutes) checkAuthz(action authz.Action) gin.HandlerFunc {
 
 // NewProductRoutes creates new user controller
 func NewProductRoutes(
-	logger lib.Logger,
+	logger logger.Logger,
 	handler lib.RequestHandler,
 	productController controllers.ProductController,
 	authz authz.Authz,

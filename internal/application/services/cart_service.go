@@ -5,6 +5,7 @@ import (
 	"errors"
 	cartlib "github.com/mdwt/payloop-cart"
 	carttypes "github.com/mdwt/payloop-cart/types"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/carts"
 	"payloop/internal/domain/repositories"
@@ -16,12 +17,12 @@ type CartService struct {
 	cartRepository    repositories.CartRepository
 	priceRepository   repositories.PriceRepository
 	productRepository repositories.ProductRepository
-	logger            lib.Logger
+	logger            logger.Logger
 }
 
 func NewCartService(repo repositories.CartRepository,
 	priceRepository repositories.PriceRepository,
-	logger lib.Logger,
+	logger logger.Logger,
 	productRepository repositories.ProductRepository,
 ) CartService {
 	return CartService{

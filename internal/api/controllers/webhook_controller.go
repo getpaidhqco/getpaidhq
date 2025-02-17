@@ -4,18 +4,18 @@ import (
 	"github.com/gin-gonic/gin"
 	"io"
 	"payloop/internal/api"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/application/services"
-	"payloop/internal/lib"
 )
 
 // WebhookController data type
 type WebhookController struct {
 	webhookService services.WebhookService
-	logger         lib.Logger
+	logger         logger.Logger
 }
 
 // NewWebhookController creates new user controller
-func NewWebhookController(service services.WebhookService, logger lib.Logger) WebhookController {
+func NewWebhookController(service services.WebhookService, logger logger.Logger) WebhookController {
 	return WebhookController{
 		webhookService: service,
 		logger:         logger,

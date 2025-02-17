@@ -34,6 +34,21 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		return subscription, err
 	}
 
+	err = workflow.SetUpdateHandlerWithOptions(ctx, "subscription.paused", func(ctx workflow.Context, newSub entities.Subscription) (entities.Subscription, error) {
+		// 👉 An Update handler can mutate the Workflow state and return a value.
+		var prevSub entities.Subscription
+		prevSub, subscription = subscription, newSub
+		return prevSub, nil
+	}, workflow.UpdateHandlerOptions{
+		Validator: func(ctx workflow.Context, newSub entities.Subscription) error {
+			//if _, ok := greeting[newLanguage]; !ok {
+			//	// 👉 In an Update validator you return any error to reject the Update.
+			//	return fmt.Errorf("not a valid subscription", newSub)
+			//}
+			return nil
+		},
+	})
+
 	// Register signal handler for cancelling the subscription
 	var signalSubscription entities.Subscription
 	pausedChannel := workflow.GetSignalChannel(ctx, "subscription.paused")

@@ -7,19 +7,19 @@ import (
 	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/api/dto/response"
-	"payloop/internal/application/services"
+	"payloop/internal/application/interfaces"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/subscriptions"
-	"payloop/internal/lib"
 )
 
 // UserController data type
 type SubscriptionController struct {
-	subscriptionService services.SubscriptionService
-	logger              lib.Logger
+	subscriptionService interfaces.SubscriptionService
+	logger              logger.Logger
 }
 
-func NewSubscriptionController(subscriptionService services.SubscriptionService, logger lib.Logger) SubscriptionController {
+func NewSubscriptionController(subscriptionService interfaces.SubscriptionService, logger logger.Logger) SubscriptionController {
 	return SubscriptionController{
 		subscriptionService: subscriptionService,
 		logger:              logger,

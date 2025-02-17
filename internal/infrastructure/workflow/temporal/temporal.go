@@ -7,44 +7,45 @@ import (
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 	temporal "go.temporal.io/sdk/workflow"
+	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
-	"payloop/internal/application/services"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
-	"payloop/internal/domain/workflow"
 	"payloop/internal/infrastructure/workflow/temporal/activities"
+	"payloop/internal/infrastructure/workflow/temporal/types"
 	"payloop/internal/infrastructure/workflow/temporal/workflows"
 	"payloop/internal/lib"
 )
 
 type Temporal struct {
-	logger lib.Logger
+	logger logger.Logger
 	client client.Client
 	worker worker.Worker
 
-	orderActivities activities.OrderActivities
+	orderActivities types.OrderActivities
 
 	// services
-	orderService      services.OrderService
-	sessionService    services.SessionService
+	orderService      interfaces.OrderService
+	sessionService    interfaces.SessionService
 	settingRepository repositories.SettingRepository
 	pubsub            events.PubSub
 }
 
 func NewTemporalEngine(
-	logger lib.Logger,
-	orderService services.OrderService,
-	sessionService services.SessionService,
-	a activities.OrderActivities,
+	logger logger.Logger,
+	orderService interfaces.OrderService,
+	sessionService interfaces.SessionService,
+	a types.OrderActivities,
 	webhookActivities activities.OutgoingWebhookActivities,
 	settingRepository repositories.SettingRepository,
 	pubsub events.PubSub,
-) workflow.Engine {
+) interfaces.Engine {
 	// The client is a heavyweight object that should be created once per process.
 	// Set our Zap logger so that workflows and activities can use it
 	c, err := client.Dial(client.Options{
 		HostPort: client.DefaultHostPort,
-		Logger:   NewZapAdapter(logger.GetZapLogger()),
+		Logger:   NewZapAdapter(lib.GetZapLogger()),
 	})
 	if err != nil {
 		logger.Error("Unable to create client: ", err.Error())
@@ -68,7 +69,7 @@ func NewTemporalEngine(
 	// Start the worker
 	err = w.Start()
 	if err != nil {
-		logger.Fatalln("Unable to start worker", err)
+		panic(err)
 	}
 
 	logger.Infof("Temporal engine initialized with worker")
@@ -97,7 +98,7 @@ func NewTemporalEngine(
 	return t
 }
 
-func (t Temporal) StartWorkflow(ctx context.Context, id workflow.WorkflowType, payload interface{}) (workflow.Result, error) {
+func (t Temporal) StartWorkflow(ctx context.Context, id interfaces.WorkflowType, payload interface{}) (interfaces.Result, error) {
 
 	switch id {
 	case "payment.success":
@@ -109,29 +110,29 @@ func (t Temporal) StartWorkflow(ctx context.Context, id workflow.WorkflowType, p
 		}
 
 		// payload is payment_providers.PaymentWebhookContext
-		data := workflow.WorkflowPayload{
+		data := interfaces.WorkflowPayload{
 			Data: payload,
 		}
 
 		we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, workflows.PaymentSuccessWorkflow, data)
 		if err != nil {
 			t.logger.Error("Unable to execute workflow", "err", err.Error())
-			return workflow.Result{}, err
+			return interfaces.Result{}, err
 		}
 
-		var result workflow.Result
+		var result interfaces.Result
 		err = we.Get(ctx, &result)
 		if err != nil {
 			t.logger.Error("Unable to get workflow result", "err", err.Error())
-			return workflow.Result{}, err
+			return interfaces.Result{}, err
 		}
 		t.logger.Info("Finished workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID(), "result", result)
-		return workflow.Result{
+		return interfaces.Result{
 			Success: true,
 			Message: "success",
 			Payload: result,
 		}, nil
-	case workflow.OutgoingWebhook:
+	case interfaces.OutgoingWebhook:
 		workflowId := lib.GenerateId("webhook_out")
 		// start workflow
 		workflowOptions := client.StartWorkflowOptions{
@@ -142,28 +143,28 @@ func (t Temporal) StartWorkflow(ctx context.Context, id workflow.WorkflowType, p
 		we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, workflows.OutgoingWebhookWorkflow, payload)
 		if err != nil {
 			t.logger.Error("Unable to execute workflow", "err", err.Error())
-			return workflow.Result{}, err
+			return interfaces.Result{}, err
 		}
 
-		var result workflow.Result
+		var result interfaces.Result
 		err = we.Get(ctx, &result)
 		if err != nil {
 			t.logger.Error("Unable to get workflow result", "err", err.Error())
-			return workflow.Result{}, err
+			return interfaces.Result{}, err
 		}
 		t.logger.Info("Finished workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID(), "result", result)
-		return workflow.Result{
+		return interfaces.Result{
 			Success: true,
 			Message: "success",
 			Payload: result,
 		}, nil
 	default:
-		return workflow.Result{}, nil
+		return interfaces.Result{}, nil
 	}
 
 }
 
-func (t Temporal) StartSubscriptionWorkflow(ctx context.Context, subscription entities.Subscription) (workflow.Result, error) {
+func (t Temporal) StartSubscriptionWorkflow(ctx context.Context, subscription entities.Subscription) (interfaces.Result, error) {
 
 	workflowId := fmt.Sprintf(`subscription_[%s]_[%s]`, subscription.OrgId, subscription.Id)
 	// start workflow
@@ -175,17 +176,17 @@ func (t Temporal) StartSubscriptionWorkflow(ctx context.Context, subscription en
 	we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, workflows.SubscriptionWorkflow, subscription)
 	if err != nil {
 		t.logger.Error("Unable to execute workflow", "err", err.Error())
-		return workflow.Result{}, err
+		return interfaces.Result{}, err
 	}
 
-	var result workflow.Result
+	var result interfaces.Result
 	err = we.Get(ctx, &result)
 	if err != nil {
 		t.logger.Error("Unable to get workflow result", "err", err.Error())
-		return workflow.Result{}, err
+		return interfaces.Result{}, err
 	}
 	t.logger.Info("Finished workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID(), "result", result)
-	return workflow.Result{
+	return interfaces.Result{
 		Success: true,
 		Message: "success",
 		Payload: result,
@@ -197,6 +198,25 @@ func (t Temporal) StartSubscriptionWorkflow(ctx context.Context, subscription en
 func (t Temporal) HandleSubscriptionEvent(topic string, data []byte) error {
 	t.logger.Infof("Received topic [%s]", topic)
 	// Unmarshal the event data
+	var eventData events.Payload
+	var sub entities.Subscription
+
+	err := json.Unmarshal(data, &eventData)
+	if err != nil {
+		t.logger.Error("Failed to unmarshal event data", "error", err)
+		return err
+	}
+
+	dataBytes, err := json.Marshal(eventData.Data)
+	if err != nil {
+		t.logger.Error("Failed to marshal subscription data", "error", err)
+		return err
+	}
+	err = json.Unmarshal(dataBytes, &sub)
+	if err != nil {
+		t.logger.Error("Failed to unmarshal event data to Subscription", "error", err)
+		return err
+	}
 
 	switch topic {
 	case "subscription.created":
@@ -223,13 +243,8 @@ func (t Temporal) HandleSubscriptionEvent(topic string, data []byte) error {
 	case "subscription.activated":
 		fallthrough
 	case "subscription.cancelled":
-		var eventData entities.Subscription
-		err := json.Unmarshal(data, &eventData)
-		if err != nil {
-			t.logger.Error("Failed to unmarshal event data", "error", err)
-			return err
-		}
-		setting, err := t.settingRepository.FindById(context.TODO(), eventData.OrgId, eventData.Id, "temporal-workflow")
+
+		setting, err := t.settingRepository.FindById(context.TODO(), eventData.OrgId, sub.Id, "temporal-workflow")
 		if err != nil {
 			t.logger.Error("Failed to get setting", "error", err)
 			return err
@@ -242,7 +257,7 @@ func (t Temporal) HandleSubscriptionEvent(topic string, data []byte) error {
 			return err
 		}
 
-		err = t.client.SignalWorkflow(context.Background(), we.ID, we.RunID, topic, eventData)
+		err = t.client.SignalWorkflow(context.Background(), we.ID, we.RunID, topic, sub)
 		if err != nil {
 			t.logger.Error("Unable to signal workflow: %v", err)
 		}

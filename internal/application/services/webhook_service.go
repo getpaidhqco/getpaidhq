@@ -4,24 +4,24 @@ import (
 	"context"
 	"crypto/md5"
 	"encoding/hex"
+	"payloop/internal/application/interfaces"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
-	"payloop/internal/domain/workflow"
-	"payloop/internal/lib"
 	"time"
 )
 
 type WebhookService struct {
-	logger          lib.Logger
+	logger          logger.Logger
 	payments        payment_providers.Gateway
-	workflowEngine  workflow.Engine
+	workflowEngine  interfaces.Engine
 	idempotencyRepo repositories.IdempotencyKeyRepository
 }
 
 func NewWebhookService(
-	logger lib.Logger,
+	logger logger.Logger,
 	payments payment_providers.Gateway,
-	workflowEngine workflow.Engine,
+	workflowEngine interfaces.Engine,
 	idempotencyRepo repositories.IdempotencyKeyRepository,
 ) WebhookService {
 	return WebhookService{
@@ -75,7 +75,7 @@ func (s *WebhookService) startWorkflow(ctx context.Context, event payment_provid
 	switch event.Type {
 	case payment_providers.PaymentSuccess:
 		// start workflow
-		s.workflowEngine.StartWorkflow(ctx, workflow.PaymentSuccess, event)
+		s.workflowEngine.StartWorkflow(ctx, interfaces.PaymentSuccess, event)
 	default:
 		s.logger.Info("Unknown webhook type", "type", event.Type)
 

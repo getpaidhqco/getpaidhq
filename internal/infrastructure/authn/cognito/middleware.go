@@ -13,12 +13,12 @@ import (
 
 type CognitoMiddleware struct {
 	handler lib.RequestHandler
-	logger  lib.Logger
+	logger  logger.Logger
 	env     lib.Env
 	client  Cognito
 }
 
-func NewCognitoMiddleware(handler lib.RequestHandler, logger lib.Logger, env lib.Env) CognitoMiddleware {
+func NewCognitoMiddleware(handler lib.RequestHandler, logger logger.Logger, env lib.Env) CognitoMiddleware {
 
 	client, err := NewCognitoClient(env)
 	if err != nil {

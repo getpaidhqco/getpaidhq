@@ -5,6 +5,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
+	"payloop/internal/application/lib/logger"
 	"sync"
 )
 
@@ -52,7 +53,7 @@ func (c PgCommitter) GetClient() interface{} {
 type PgDatabase struct {
 	*pgxpool.Pool
 	pgx.Tx
-	logger Logger
+	logger logger.Logger
 }
 
 var (
@@ -60,7 +61,7 @@ var (
 	pgOnce     sync.Once
 )
 
-func NewDatabase(env Env, logger Logger) *PgDatabase {
+func NewDatabase(env Env, logger logger.Logger) *PgDatabase {
 	logger.Info("Connecting to database", "url", env.DBUrl)
 
 	pgOnce.Do(func() {

@@ -2,11 +2,12 @@ package routes
 
 import (
 	"payloop/internal/api/controllers"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
 )
 
 type HealthRoutes struct {
-	logger           lib.Logger
+	logger           logger.Logger
 	handler          lib.RequestHandler
 	healthController controllers.HealthController
 }
@@ -21,7 +22,7 @@ func (s HealthRoutes) Setup() {
 }
 
 func NewHealthRoutes(
-	logger lib.Logger,
+	logger logger.Logger,
 	handler lib.RequestHandler,
 	healthController controllers.HealthController,
 ) HealthRoutes {
