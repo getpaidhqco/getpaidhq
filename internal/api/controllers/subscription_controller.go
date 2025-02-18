@@ -160,7 +160,7 @@ func (s SubscriptionController) Cancel(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, subscription)
+	c.JSON(200, response.NewFromEntity(subscription))
 }
 
 // List all subscriptions
@@ -189,9 +189,13 @@ func (s SubscriptionController) List(c *gin.Context) {
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
+	var subscriptionResponses []response.Subscription
+	for _, sub := range subs {
+		subscriptionResponses = append(subscriptionResponses, response.NewFromEntity(sub))
+	}
 
 	c.JSON(200, response.ListResponse{
-		Data: subs,
+		Data: subscriptionResponses,
 		Meta: response.Meta{
 			Total: total,
 			Page:  pagination.Page,

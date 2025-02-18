@@ -39,7 +39,7 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
    FROM subscriptions s
    JOIN customers c ON s.org_id=c.org_id AND s.customer_id = c.id
    WHERE s.org_id = @org_id AND s.id = @id;`
-	
+
 	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
 		"org_id": orgId,
 		"id":     id,
@@ -323,20 +323,53 @@ func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subs
 }
 
 func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p request.Pagination) ([]entities.Subscription, int, error) {
+
+	r.logger.Debugf("[%s][%s]", p.SortOrder, p.SortBy)
+
 	var subscriptions = make([]entities.Subscription, 0)
 	var count int
-	query := `SELECT org_id, id, order_id, customer_id, status, payment_method_id, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at, count(*) OVER()
-			  FROM subscriptions
-			  WHERE org_id = @org_id
-		      ORDER BY CASE WHEN @sortorder = 'asc' THEN @sortby END, 
-         	  CASE WHEN @sortorder = 'desc' THEN @sortby END DESC
-			  LIMIT @lim OFFSET @off;`
+	query := `SELECT s.org_id, s.id, s.order_id, s.order_item_id, s.customer_id, s.status, s.payment_method_id, s.start_date, s.end_date,
+       s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at,
+       s.last_charge, s.renews_at, s.retries, s.next_retry, s.currency, s.amount, s.metadata, s.cycles_processed,
+       s.total_revenue, s.cancelled_at, s.created_at, s.updated_at,
+       c.org_id, c.id, c.name, c.email, c.created_at, c.updated_at,
+       count(*) OVER()
+   FROM subscriptions s
+   JOIN customers c ON s.org_id=c.org_id AND s.customer_id = c.id
+			  WHERE s.org_id = @org_id
+	ORDER BY
+    -- Simplified to NULL if not sorting in ascending order.
+    CASE
+        WHEN @sort_dir = 'asc' THEN
+            CASE @sort_col
+                -- Check for each possible value of sort_col.
+                WHEN 'created_at' THEN s.created_at
+                --- etc.
+                ELSE NULL
+                END
+        ELSE
+            NULL
+        END
+        ASC ,
+
+    -- Same as before, but for sort_dir = 'desc'
+    CASE WHEN @sort_dir = 'desc' THEN
+             CASE @sort_col
+                 WHEN 'created_at' THEN s.created_at
+                 ELSE NULL
+                 END
+         ELSE
+             NULL
+        END
+        DESC
+	LIMIT @lim OFFSET @off;`
+
 	rows, err := r.Pool.Query(ctx, query, pgx.NamedArgs{
-		"org_id":    orgId,
-		"lim":       p.Limit,
-		"off":       p.Offset,
-		"sortby":    p.SortBy,
-		"sortorder": p.SortOrder,
+		"org_id":   orgId,
+		"lim":      p.Limit,
+		"off":      p.Offset,
+		"sort_col": p.SortBy,
+		"sort_dir": p.SortOrder,
 	})
 	if err != nil {
 		r.logger.Error(`failed to find Subscriptions`, err.Error())
@@ -346,10 +379,13 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
 
 	for rows.Next() {
 		var subscription entities.Subscription
+		var customer entities.Customer
+
 		err := rows.Scan(
 			&subscription.OrgId,
 			&subscription.Id,
 			&subscription.OrderId,
+			&subscription.OrderItemId,
 			&subscription.CustomerId,
 			&subscription.Status,
 			&subscription.PaymentMethodId,
@@ -374,12 +410,21 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
 			&subscription.CancelledAt,
 			&subscription.CreatedAt,
 			&subscription.UpdatedAt,
+
+			&customer.OrgId,
+			&customer.Id,
+			&customer.Name,
+			&customer.Email,
+			&customer.CreatedAt,
+			&customer.UpdatedAt,
+
 			&count,
 		)
 		if err != nil {
 			r.logger.Error(`failed to scan Subscription`, err.Error())
 			return nil, 0, err
 		}
+		subscription.Customer = customer
 		subscriptions = append(subscriptions, subscription)
 	}
 

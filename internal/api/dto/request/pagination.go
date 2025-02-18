@@ -32,7 +32,7 @@ func GetPagination(c *gin.Context) Pagination {
 	if err != nil {
 		limit = 10
 	}
-	sortOrder := c.DefaultQuery("sort_order", "asc")
+	sortOrder := c.DefaultQuery("sort_order", "desc")
 	sortBy := c.DefaultQuery("sort_by", "created_at")
 
 	return Pagination{
