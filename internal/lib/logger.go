@@ -132,10 +132,10 @@ func (l *FxLogger) LogEvent(event fxevent.Event) {
 			)
 		}
 	case *fxevent.Supplied:
-		l.Logger.Debug("supplied: ", zap.String("type", e.TypeName), zap.Error(e.Err))
+		l.Logger.Debug("supplied: ", slog.String("type", e.TypeName), slog.Any("err", e.Err))
 	case *fxevent.Provided:
 		for _, rtype := range e.OutputTypeNames {
-			l.Logger.Debug("provided: ", e.ConstructorName, " => ", rtype)
+			l.Logger.Debug("provided: ", slog.String(e.ConstructorName, rtype))
 		}
 	case *fxevent.Decorated:
 		for _, rtype := range e.OutputTypeNames {
@@ -145,20 +145,20 @@ func (l *FxLogger) LogEvent(event fxevent.Event) {
 			)
 		}
 	case *fxevent.Invoking:
-		l.Logger.Debug("invoking: ", e.FunctionName)
+		l.Logger.Debug("invoking: ", slog.String("func", e.FunctionName))
 	case *fxevent.Started:
 		if e.Err == nil {
 			l.Logger.Debug("started")
 		}
 	case *fxevent.LoggerInitialized:
 		if e.Err == nil {
-			l.Logger.Debug("initialized: custom fxevent.Logger -> ", e.ConstructorName)
+			l.Logger.Debug("initialized: custom fxevent.Logger -> ", slog.String("f", e.ConstructorName))
 		}
 	}
 }
 
 // newLogger sets up logger
-func newLogger(env Env) logger.Logger {
+func newLogger(env Env, opts ...zap.Option) logger.Logger {
 	config := zap.NewDevelopmentConfig()
 	logOutput := env.LogOutput
 
@@ -189,7 +189,7 @@ func newLogger(env Env) logger.Logger {
 	}
 	config.Level.SetLevel(level)
 
-	zapLogger, _ = config.Build()
+	zapLogger, _ = config.Build(opts...)
 
 	handler := slogzap.Option{
 		Level:  slog.LevelDebug,
@@ -222,8 +222,5 @@ func GetZapLogger() *zap.Logger {
 
 // GetFxLogger gets logger for go-fx
 func GetFxLogger() fxevent.Logger {
-	//logger := zapLogger.WithOptions(
-	//	zap.WithCaller(false),
-	//)
-	return &FxLogger{Logger: globalLogger}
+	return &FxLogger{Logger: newLogger(NewEnv(), zap.WithCaller(false))}
 }
