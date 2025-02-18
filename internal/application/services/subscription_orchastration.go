@@ -164,7 +164,7 @@ func (s SubscriptionOrchestrationService) ResumeSubscription(ctx context.Context
 	}
 
 	// update the subscription workflow
-	err = s.workflowEngine.UpdateSubscriptionWorkflow(ctx, "resume", newSub)
+	err = s.workflowEngine.UpdateSubscriptionWorkflow(ctx, topic.TopicSubscriptionResumed, newSub)
 	if err != nil {
 		s.logger.Error("Failed to update workflow", err.Error())
 		var serr lib.CustomError

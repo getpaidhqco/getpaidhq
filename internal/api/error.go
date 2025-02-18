@@ -54,6 +54,9 @@ func NewApiErrorFromError(err error) ApiError {
 	}
 
 	if errors.As(err, &serr) {
+		if serr.Err == nil {
+			return NewApiError(serr.Type, serr.Message, nil)
+		}
 		return NewApiError(serr.Type, serr.Message, serr.Err.Error())
 	}
 

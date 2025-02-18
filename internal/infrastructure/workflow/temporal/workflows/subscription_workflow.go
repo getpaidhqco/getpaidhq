@@ -27,27 +27,24 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 	logger.Info("SubscriptionWorkflow started", "Subscription:", subscription.Id)
 	var a *activities.OrderActivities
 	// Register query handler for subscription details
-	err := workflow.SetQueryHandler(ctx, "getSubscriptionDetails", func() (entities.Subscription, error) {
+	err := workflow.SetQueryHandler(ctx, "get-state", func() (entities.Subscription, error) {
 		return subscription, nil
 	})
 	if err != nil {
 		return subscription, err
 	}
 
-	err = workflow.SetUpdateHandlerWithOptions(ctx, "subscription.paused", func(ctx workflow.Context, newSub entities.Subscription) (entities.Subscription, error) {
-		// 👉 An Update handler can mutate the Workflow state and return a value.
+	handler := func(ctx workflow.Context, newSub entities.Subscription) (entities.Subscription, error) {
+		// 👉 update the subscription state
 		var prevSub entities.Subscription
 		prevSub, subscription = subscription, newSub
 		return prevSub, nil
-	}, workflow.UpdateHandlerOptions{
-		Validator: func(ctx workflow.Context, newSub entities.Subscription) error {
-			//if _, ok := greeting[newLanguage]; !ok {
-			//	// 👉 In an Update validator you return any error to reject the Update.
-			//	return fmt.Errorf("not a valid subscription", newSub)
-			//}
-			return nil
-		},
-	})
+	}
+
+	err = workflow.SetUpdateHandler(ctx, "subscription.paused", handler)
+	err = workflow.SetUpdateHandler(ctx, "subscription.cancelled", handler)
+	err = workflow.SetUpdateHandler(ctx, "subscription.resumed", handler)
+	err = workflow.SetUpdateHandler(ctx, "subscription.activated", handler)
 
 	// Register signal handler for cancelling the subscription
 	var signalSubscription entities.Subscription
@@ -83,15 +80,22 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		// Remember to use workflow.Now(ctx) to get the current time
 		if subscription.RenewsAt == nil {
 			logger.Info("Subscription has no next billing date, ending workflow...")
+			// TODO report this error
 			break
 		}
 		duration := subscription.RenewsAt.Sub(workflow.Now(ctx))
 		ok, err := workflow.AwaitWithTimeout(ctx, duration, func() bool {
+			rollover := workflow.GetInfo(ctx).GetContinueAsNewSuggested()
 			return subscription.Status == entities.SubscriptionStatusPaused ||
-				subscription.Status == entities.SubscriptionStatusCancelled
+				subscription.Status == entities.SubscriptionStatusCancelled ||
+				rollover
 		})
 		if err != nil {
 			logger.Error("cancellation received", "Error", err.Error(), "status", subscription.Status)
+		}
+		if workflow.GetInfo(ctx).GetContinueAsNewSuggested() {
+			logger.Info("--- ContinueAsNewSuggested", "status", subscription.Status, "size", workflow.GetInfo(ctx).GetCurrentHistorySize())
+			return subscription, workflow.NewContinueAsNewError(ctx, SubscriptionWorkflow, subscription)
 		}
 		if !ok {
 			logger.Info(fmt.Sprintf("[%s][%s] Next billing date reached [%s]", subscription.OrgId, subscription.Id, subscription.RenewsAt))

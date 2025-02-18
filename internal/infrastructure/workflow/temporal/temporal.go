@@ -7,6 +7,7 @@ import (
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 	temporal "go.temporal.io/sdk/workflow"
+	"log/slog"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/logger"
@@ -198,7 +199,7 @@ func (t Temporal) UpdateSubscriptionWorkflow(ctx context.Context, updateName str
 		Args:         []interface{}{subscription},
 	})
 	if err != nil {
-		t.logger.Error("Failed to get setting", "error", err)
+		t.logger.Error("Failed to update workflow", "error", slog.String("err", err.Error()))
 		return err
 	}
 

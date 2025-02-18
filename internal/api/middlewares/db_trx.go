@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"log/slog"
 	"net/http"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
@@ -71,7 +72,7 @@ func (m DatabaseTrx) Setup() {
 				m.logger.Error("trx commit error: ", err)
 			}
 		} else {
-			m.logger.Debug("rolling back transaction due to status code:", c.Writer.Status())
+			m.logger.Debug("rolling back transaction due to status code:", slog.Int("err", c.Writer.Status()))
 			_ = txHandle.Rollback(c.Request.Context())
 		}
 	})

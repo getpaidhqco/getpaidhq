@@ -75,19 +75,19 @@ func (l MyLogger) Fatal(msg string, keysAndValues ...interface{}) {
 }
 
 func (l MyLogger) Infof(template string, args ...interface{}) {
-	l.logger.Debug(template, args...)
+	l.logger.Debug(fmt.Sprintf(template, args...))
 }
 func (l MyLogger) Debugf(template string, args ...interface{}) {
-	l.logger.Debug(template, args...)
+	l.logger.Debug(fmt.Sprintf(template, args...))
 }
 func (l MyLogger) Errorf(template string, args ...interface{}) {
-	l.logger.Debug(template, args...)
+	l.logger.Error(fmt.Sprintf(template, args...))
 }
 func (l MyLogger) Panicf(template string, args ...interface{}) {
-	l.logger.Debug(template, args...)
+	l.logger.Error(fmt.Sprintf(template, args...))
 }
 func (l MyLogger) Warnf(template string, args ...interface{}) {
-	l.logger.Debug(template, args...)
+	l.logger.Debug(fmt.Sprintf(template, args...))
 }
 
 // LogEvent log event for fx logger
