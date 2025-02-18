@@ -255,10 +255,6 @@ func (t Temporal) HandleSubscriptionEvent(topic string, data []byte) error {
 
 	switch topic {
 	case "subscription.paused":
-		fallthrough
-	case "subscription.activated":
-		fallthrough
-	case "subscription.cancelled":
 		we, err := t.getExecution(sub)
 		if err != nil {
 			return err
@@ -266,7 +262,7 @@ func (t Temporal) HandleSubscriptionEvent(topic string, data []byte) error {
 
 		err = t.client.SignalWorkflow(context.Background(), we.ID, we.RunID, topic, sub)
 		if err != nil {
-			t.logger.Error("Unable to signal workflow: %v", err)
+			t.logger.Error("Unable to signal workflow: %v", slog.String("err", err.Error()))
 		}
 		return nil
 	default:

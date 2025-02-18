@@ -57,6 +57,7 @@ type Subscription struct {
 	OrderItemId        string                 `json:"order_item_id"`
 	OrderItem          OrderItem              `json:"-"`
 	CustomerId         string                 `json:"customer_id"`
+	Customer           Customer               `json:"-"`
 	Status             SubscriptionStatus     `json:"status"`
 	PaymentMethodId    *string                `json:"payment_method_id,omitempty"`
 	StartDate          time.Time              `json:"start_date"`

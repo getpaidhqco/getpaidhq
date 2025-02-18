@@ -30,9 +30,16 @@ func NewSubscriptionRepository(database lib.Database, logger logger.Logger) repo
 
 func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
 	var subscription entities.Subscription
-	query := `SELECT org_id, id, order_id, customer_id, status, payment_method_id, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at
-			  FROM subscriptions
-			  WHERE org_id = @org_id AND id = @id;`
+	var customer entities.Customer
+	query := `SELECT s.org_id, s.id, s.order_id, s.order_item_id, s.customer_id, s.status, s.payment_method_id, s.start_date, s.end_date,
+       s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at,
+       s.last_charge, s.renews_at, s.retries, s.next_retry, s.currency, s.amount, s.metadata, s.cycles_processed,
+       s.total_revenue, s.cancelled_at, s.created_at, s.updated_at,
+       c.org_id, c.id, c.name, c.email, c.created_at, c.updated_at
+   FROM subscriptions s
+   JOIN customers c ON s.org_id=c.org_id AND s.customer_id = c.id
+   WHERE s.org_id = @org_id AND s.id = @id;`
+	
 	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
 		"org_id": orgId,
 		"id":     id,
@@ -40,6 +47,7 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 		&subscription.OrgId,
 		&subscription.Id,
 		&subscription.OrderId,
+		&subscription.OrderItemId,
 		&subscription.CustomerId,
 		&subscription.Status,
 		&subscription.PaymentMethodId,
@@ -64,14 +72,18 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 		&subscription.CancelledAt,
 		&subscription.CreatedAt,
 		&subscription.UpdatedAt,
+		&customer.OrgId,
+		&customer.Id,
+		&customer.Name,
+		&customer.Email,
+		&customer.CreatedAt,
+		&customer.UpdatedAt,
 	)
 	if err != nil {
-		if err == pgx.ErrNoRows {
-			return entities.Subscription{}, lib.NewCustomError(lib.NotFoundError, "Subscription not found", err)
-		}
 		r.logger.Error(`failed to find Subscription by id`, err.Error())
-		return entities.Subscription{}, lib.NewCustomError(lib.InternalError, "failed to find Subscription by id", err)
+		return entities.Subscription{}, err
 	}
+	subscription.Customer = customer
 	return subscription, nil
 }
 
@@ -310,9 +322,10 @@ func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subs
 	return subscription, nil
 }
 
-func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p request.Pagination) ([]entities.Subscription, error) {
+func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p request.Pagination) ([]entities.Subscription, int, error) {
 	var subscriptions = make([]entities.Subscription, 0)
-	query := `SELECT org_id, id, order_id, customer_id, status, payment_method_id, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at
+	var count int
+	query := `SELECT org_id, id, order_id, customer_id, status, payment_method_id, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at, count(*) OVER()
 			  FROM subscriptions
 			  WHERE org_id = @org_id
 		      ORDER BY CASE WHEN @sortorder = 'asc' THEN @sortby END, 
@@ -327,7 +340,7 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
 	})
 	if err != nil {
 		r.logger.Error(`failed to find Subscriptions`, err.Error())
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -361,18 +374,19 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
 			&subscription.CancelledAt,
 			&subscription.CreatedAt,
 			&subscription.UpdatedAt,
+			&count,
 		)
 		if err != nil {
 			r.logger.Error(`failed to scan Subscription`, err.Error())
-			return nil, err
+			return nil, 0, err
 		}
 		subscriptions = append(subscriptions, subscription)
 	}
 
 	if rows.Err() != nil {
 		r.logger.Error(`rows iteration error`, rows.Err().Error())
-		return nil, rows.Err()
+		return nil, 0, rows.Err()
 	}
 
-	return subscriptions, nil
+	return subscriptions, count, nil
 }

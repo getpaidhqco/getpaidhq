@@ -192,14 +192,14 @@ func (s SubscriptionService) PauseSubscription(ctx context.Context, input subscr
 	return subscription, nil
 }
 
-func (s SubscriptionService) List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Subscription, error) {
-	subs, err := s.subscriptionRepository.Find(ctx, orgId, pagination)
+func (s SubscriptionService) List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Subscription, int, error) {
+	subs, total, err := s.subscriptionRepository.Find(ctx, orgId, pagination)
 	if err != nil {
 		s.logger.Error("Failed to list subscriptions", err.Error())
-		return nil, err
+		return nil, 0, err
 	}
 
-	return subs, nil
+	return subs, total, nil
 }
 
 func (s SubscriptionService) ResumeSubscription(ctx context.Context, input subscriptions.ResumeSubscriptionInput) (entities.Subscription, error) {
@@ -257,7 +257,7 @@ func (s SubscriptionService) ResumeSubscription(ctx context.Context, input subsc
 // A canceled subscription will continue through its current billing cycle. At the end of the current billing cycle the subscription will expire and the customer will no longer be billed.
 // Canceled subscriptions can be reactivated until the end of the billing cycle
 func (s SubscriptionService) CancelSubscription(ctx context.Context, input subscriptions.CancelSubscriptionInput) (entities.Subscription, error) {
-	s.logger.Info("Pausing subscription", "orgId", input.OrgId, "id", input.Id)
+	s.logger.Info("Cancelling subscription", "orgId", input.OrgId, "id", input.Id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
@@ -271,7 +271,7 @@ func (s SubscriptionService) CancelSubscription(ctx context.Context, input subsc
 
 	if subscription.Status == entities.SubscriptionStatusCancelled {
 		s.logger.Info("Subscription is already cancelled")
-		return subscription, nil
+		return subscription, lib.NewCustomError(lib.BadRequestError, "subscription is already cancelled", nil)
 	}
 
 	// set the subscription status to cancelled
@@ -285,9 +285,6 @@ func (s SubscriptionService) CancelSubscription(ctx context.Context, input subsc
 		s.logger.Error("Failed to update subscription", err.Error())
 		return entities.Subscription{}, err
 	}
-
-	// publi
-	_ = s.pubsub.Publish(subscription.OrgId, topic.TopicSubscriptionCancelled, subscription)
 
 	return subscription, nil
 }

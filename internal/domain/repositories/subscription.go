@@ -11,5 +11,5 @@ type SubscriptionRepository interface {
 	Create(ctx context.Context, entity entities.Subscription) (entities.Subscription, error)
 	Update(ctx context.Context, entity entities.Subscription) (entities.Subscription, error)
 	FindByOrderId(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error)
-	Find(ctx context.Context, orgId string, p request.Pagination) ([]entities.Subscription, error)
+	Find(ctx context.Context, orgId string, p request.Pagination) ([]entities.Subscription, int, error)
 }

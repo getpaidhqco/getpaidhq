@@ -185,7 +185,7 @@ func (s SubscriptionOrchestrationService) ResumeSubscription(ctx context.Context
 // Canceled subscriptions can be reactivated until the end of the billing cycle
 func (s SubscriptionOrchestrationService) CancelSubscription(ctx context.Context, input subscriptions.CancelSubscriptionInput) (entities.Subscription, error) {
 
-	subscription, err := s.SubscriptionService.FindById(ctx, input.OrgId, input.Id)
+	subscription, err := s.SubscriptionService.CancelSubscription(ctx, input)
 	if err != nil {
 		var serr lib.CustomError
 		if errors.As(err, &serr) {
@@ -195,7 +195,7 @@ func (s SubscriptionOrchestrationService) CancelSubscription(ctx context.Context
 	}
 
 	// update the workflow
-	err = s.workflowEngine.UpdateSubscriptionWorkflow(ctx, "cancel", subscription)
+	err = s.workflowEngine.UpdateSubscriptionWorkflow(ctx, topic.TopicSubscriptionCancelled, subscription)
 	if err != nil {
 		s.logger.Error("Failed to update workflow", err.Error())
 		var serr lib.CustomError

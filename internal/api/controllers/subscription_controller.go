@@ -38,7 +38,7 @@ func (s SubscriptionController) Get(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, subscription)
+	c.JSON(200, response.NewFromEntity(subscription))
 }
 
 // Update This only lets you change the subscription settings that have no impact on the billed amount.
@@ -183,7 +183,7 @@ func (s SubscriptionController) List(c *gin.Context) {
 	orgId := user.(authn.User).OrgId
 	pagination := request.GetPagination(c)
 
-	subs, err := s.subsOrchastration.List(c.Request.Context(), orgId, pagination)
+	subs, total, err := s.subsOrchastration.List(c.Request.Context(), orgId, pagination)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -193,7 +193,7 @@ func (s SubscriptionController) List(c *gin.Context) {
 	c.JSON(200, response.ListResponse{
 		Data: subs,
 		Meta: response.Meta{
-			Total: len(subs),
+			Total: total,
 			Page:  pagination.Page,
 			Limit: pagination.Limit,
 		},

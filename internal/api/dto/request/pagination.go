@@ -25,7 +25,7 @@ func GetPagination(c *gin.Context) Pagination {
 
 	page, err := strconv.Atoi(c.DefaultQuery(PageTag, PageDefault))
 	if err != nil || page < 1 {
-		page = 1
+		page = 0
 	}
 
 	limit, err := strconv.Atoi(c.DefaultQuery(LimitTag, LimitDefault))
@@ -38,7 +38,7 @@ func GetPagination(c *gin.Context) Pagination {
 	return Pagination{
 		Page:      page,
 		Limit:     limit,
-		Offset:    (page - 1) * limit,
+		Offset:    page * limit,
 		SortBy:    sortBy,
 		SortOrder: sortOrder,
 	}
