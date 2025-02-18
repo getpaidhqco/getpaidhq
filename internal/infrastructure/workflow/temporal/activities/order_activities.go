@@ -20,7 +20,7 @@ import (
 
 type OrderActivities struct {
 	orderService           interfaces.OrderService
-	subscriptionService    interfaces.SubscriptionActivityService
+	subscriptionService    interfaces.SubscriptionService
 	subscriptionRepository repositories.SubscriptionRepository
 	settingRepository      repositories.SettingRepository
 	paymentRepository      repositories.PaymentRepository
@@ -31,7 +31,7 @@ type OrderActivities struct {
 func NewOrderActivities(
 	orderService interfaces.OrderService,
 	settingRepository repositories.SettingRepository,
-	subscriptionService interfaces.SubscriptionActivityService,
+	subscriptionService interfaces.SubscriptionService,
 	subscriptionRepository repositories.SubscriptionRepository,
 	pubsub events.PubSub,
 	paymentRepository repositories.PaymentRepository,

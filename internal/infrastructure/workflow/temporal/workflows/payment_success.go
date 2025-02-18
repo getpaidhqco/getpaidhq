@@ -47,7 +47,6 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload interfaces.WorkflowPay
 
 	// ACTIVITY
 	// Prepare the subscriptions for the order
-	// TODO prepare the subscriptions for the order, returning a list of subscriptions
 	var subscriptions []entities.Subscription
 	ctx2 := temporal.WithActivityOptions(ctx, temporal.ActivityOptions{
 		StartToCloseTimeout: 10000 * time.Second,

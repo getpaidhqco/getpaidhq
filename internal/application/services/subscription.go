@@ -10,7 +10,6 @@ import (
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/subscriptions"
-
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -18,18 +17,17 @@ import (
 )
 
 type SubscriptionService struct {
-	sessionRepository           repositories.SessionRepository
-	cartRepository              repositories.CartRepository
-	orderRepository             repositories.OrderRepository
-	customerRepository          repositories.CustomerRepository
-	subscriptionRepository      repositories.SubscriptionRepository
-	paymentRepository           repositories.PaymentRepository
-	orderItemRepository         repositories.OrderItemRepository
-	workflowService             interfaces.WorkflowService
-	paymentGateway              payment_providers.Gateway
-	pubsub                      events.PubSub
-	subscriptionActivityService interfaces.SubscriptionActivityService
-	logger                      logger.Logger
+	sessionRepository      repositories.SessionRepository
+	cartRepository         repositories.CartRepository
+	orderRepository        repositories.OrderRepository
+	customerRepository     repositories.CustomerRepository
+	subscriptionRepository repositories.SubscriptionRepository
+	paymentRepository      repositories.PaymentRepository
+	orderItemRepository    repositories.OrderItemRepository
+	workflowService        interfaces.WorkflowService
+	paymentGateway         payment_providers.Gateway
+	pubsub                 events.PubSub
+	logger                 logger.Logger
 }
 
 func NewSubscriptionService(
@@ -43,7 +41,6 @@ func NewSubscriptionService(
 	pubsub events.PubSub,
 	paymentGateway payment_providers.Gateway,
 	logger logger.Logger,
-	subs interfaces.SubscriptionActivityService,
 ) interfaces.SubscriptionService {
 
 	_, err := pubsub.Subscribe("subscription.workflow.>", func(topic string, data []byte) {
@@ -55,17 +52,16 @@ func NewSubscriptionService(
 	}
 
 	return SubscriptionService{
-		customerRepository:          customerRepository,
-		sessionRepository:           sessionRepository,
-		paymentRepository:           paymentRepository,
-		cartRepository:              cartRepository,
-		orderRepository:             orderRepository,
-		orderItemRepository:         orderItemRepository,
-		subscriptionRepository:      subscriptionRepository,
-		pubsub:                      pubsub,
-		logger:                      logger,
-		subscriptionActivityService: subs,
-		paymentGateway:              paymentGateway,
+		customerRepository:     customerRepository,
+		sessionRepository:      sessionRepository,
+		paymentRepository:      paymentRepository,
+		cartRepository:         cartRepository,
+		orderRepository:        orderRepository,
+		orderItemRepository:    orderItemRepository,
+		subscriptionRepository: subscriptionRepository,
+		pubsub:                 pubsub,
+		logger:                 logger,
+		paymentGateway:         paymentGateway,
 	}
 }
 
@@ -173,7 +169,7 @@ func (s SubscriptionService) Activate(ctx context.Context, orgId string, id stri
 	return subscription, nil
 }
 
-func (s SubscriptionService) Pause(ctx context.Context, input subscriptions.PauseSubscriptionInput) (entities.Subscription, error) {
+func (s SubscriptionService) PauseSubscription(ctx context.Context, input subscriptions.PauseSubscriptionInput) (entities.Subscription, error) {
 	s.logger.Info("Pausing subscription", "orgId", input.OrgId, "id", input.Id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
@@ -192,9 +188,6 @@ func (s SubscriptionService) Pause(ctx context.Context, input subscriptions.Paus
 		s.logger.Error("Failed to update subscription", err.Error())
 		return entities.Subscription{}, err
 	}
-
-	// publi
-	_ = s.pubsub.Publish(subscription.OrgId, topic.TopicSubscriptionPaused, subscription)
 
 	return subscription, nil
 }
@@ -257,11 +250,7 @@ func (s SubscriptionService) ResumeSubscription(ctx context.Context, input subsc
 		return entities.Subscription{}, err
 	}
 
-	// Publish the resume event
-	_ = s.pubsub.Publish(subscription.OrgId, topic.TopicSubscriptionActivated, newSub)
-	_ = s.pubsub.Publish(subscription.OrgId, topic.TopicSubscriptionResumed, newSub)
-
-	return subscription, nil
+	return newSub, nil
 }
 
 // CancelSubscription
@@ -303,7 +292,7 @@ func (s SubscriptionService) CancelSubscription(ctx context.Context, input subsc
 	return subscription, nil
 }
 
-//func (s SubscriptionService) ProcessSubscriptionCharge(ctx context.Context, input subscriptions.ProcessSubscriptionChargeInput) (payments.ChargeResult, error) {
+//func (s SubscriptionOrchestrationService) ProcessSubscriptionCharge(ctx context.Context, input subscriptions.ProcessSubscriptionChargeInput) (payments.ChargeResult, error) {
 //
 //	subscription := input.Subscription
 //	s.logger.Info("Processing subscription charge", "orgId", subscription.OrgId, "id", subscription.Id)

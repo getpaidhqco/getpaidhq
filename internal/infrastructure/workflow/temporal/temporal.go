@@ -158,7 +158,6 @@ func (t Temporal) StartSubscriptionWorkflow(ctx context.Context, subscription en
 
 	workflowId := fmt.Sprintf(`subscription_[%s]_[%s]`, subscription.OrgId, subscription.Id)
 	// start workflow
-	// TODO move subscriptions to their own task queue
 	workflowOptions := client.StartWorkflowOptions{
 		ID:        workflowId,
 		TaskQueue: "events",
@@ -182,6 +181,51 @@ func (t Temporal) StartSubscriptionWorkflow(ctx context.Context, subscription en
 		Payload: result,
 	}, nil
 
+}
+
+func (t Temporal) UpdateSubscriptionWorkflow(ctx context.Context, updateName string, subscription entities.Subscription) error {
+
+	we, err := t.getExecution(subscription)
+	if err != nil {
+		return err
+	}
+
+	updateHandle, err := t.client.UpdateWorkflow(ctx, client.UpdateWorkflowOptions{
+		WorkflowID:   we.ID,
+		RunID:        we.RunID,
+		UpdateName:   updateName,
+		WaitForStage: client.WorkflowUpdateStageCompleted,
+		Args:         []interface{}{subscription},
+	})
+	if err != nil {
+		t.logger.Error("Failed to get setting", "error", err)
+		return err
+	}
+
+	var oldSub entities.Subscription
+	err = updateHandle.Get(ctx, &oldSub)
+	if err != nil {
+		t.logger.Error("Failed to get setting", "error", err)
+	}
+	return nil
+}
+
+// HandleSubscriptionEvent forwards subscription events on to the appropriate workflow
+func (t Temporal) getExecution(subscription entities.Subscription) (temporal.Execution, error) {
+	setting, err := t.settingRepository.FindById(context.TODO(), subscription.OrgId, subscription.Id, "temporal-workflow")
+	if err != nil {
+		t.logger.Error("Failed to get setting", "error", err)
+		return temporal.Execution{}, err
+	}
+
+	var we temporal.Execution
+	err = json.Unmarshal([]byte(setting.Value), &we)
+	if err != nil {
+		t.logger.Error("Failed to unmarshal setting value", "error", err)
+		return temporal.Execution{}, err
+	}
+
+	return we, nil
 }
 
 // HandleSubscriptionEvent forwards subscription events on to the appropriate workflow
@@ -209,41 +253,13 @@ func (t Temporal) HandleSubscriptionEvent(topic string, data []byte) error {
 	}
 
 	switch topic {
-	case "subscription.created":
-		var eventData entities.Subscription
-		err := json.Unmarshal(data, &eventData)
-		if err != nil {
-			t.logger.Error("Failed to unmarshal event data", "error", err)
-			return err
-		}
-		// TODO this should be done from somewhere else
-		t.logger.Infof("Starting subscription workflow [%s][%s]", eventData.OrgId, eventData.Id)
-		_, err = t.StartSubscriptionWorkflow(context.TODO(), eventData)
-		if err != nil {
-			t.logger.Error("Failed to start subscription workflow", "error", err)
-			_ = t.pubsub.Publish(eventData.OrgId, "subscription.workflow.startup.failed", map[string]interface{}{
-				"subscription": eventData,
-				"error":        err.Error(),
-			})
-		}
-
-		return err
 	case "subscription.paused":
 		fallthrough
 	case "subscription.activated":
 		fallthrough
 	case "subscription.cancelled":
-
-		setting, err := t.settingRepository.FindById(context.TODO(), eventData.OrgId, sub.Id, "temporal-workflow")
+		we, err := t.getExecution(sub)
 		if err != nil {
-			t.logger.Error("Failed to get setting", "error", err)
-			return err
-		}
-
-		var we temporal.Execution
-		err = json.Unmarshal([]byte(setting.Value), &we)
-		if err != nil {
-			t.logger.Error("Failed to unmarshal setting value", "error", err)
 			return err
 		}
 

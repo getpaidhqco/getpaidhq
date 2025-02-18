@@ -7,23 +7,22 @@ import (
 	"payloop/internal/domain/entities/subscriptions"
 )
 
-type SubscriptionService interface {
-	CreateSubscriptionsForOrder(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error)
-	Create(ctx context.Context, input entities.CreateSubscriptionInput) (entities.Subscription, error)
+// SubscriptionOrchestrationService is a service that provides orchestration of subscription operations
+// It's a superset of SubscriptionService and provides additional workflow operations
+type SubscriptionOrchestrationService interface {
+	SubscriptionService
 	Update(ctx context.Context, input subscriptions.UpdateSubscriptionInput) (entities.Subscription, error)
-	FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error)
 	Activate(ctx context.Context, orgId string, id string) (entities.Subscription, error)
-	Pause(ctx context.Context, input subscriptions.PauseSubscriptionInput) (entities.Subscription, error)
-	List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Subscription, error)
+	PauseSubscription(ctx context.Context, input subscriptions.PauseSubscriptionInput) (entities.Subscription, error)
 	ResumeSubscription(ctx context.Context, input subscriptions.ResumeSubscriptionInput) (entities.Subscription, error)
 	CancelSubscription(ctx context.Context, input subscriptions.CancelSubscriptionInput) (entities.Subscription, error)
 }
 
-type SubscriptionActivityService interface {
+type SubscriptionService interface {
 	CreateSubscriptionsForOrder(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error)
 	FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error)
 	Activate(ctx context.Context, orgId string, id string) (entities.Subscription, error)
-	Pause(ctx context.Context, input subscriptions.PauseSubscriptionInput) (entities.Subscription, error)
+	PauseSubscription(ctx context.Context, input subscriptions.PauseSubscriptionInput) (entities.Subscription, error)
 	List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Subscription, error)
 	ResumeSubscription(ctx context.Context, input subscriptions.ResumeSubscriptionInput) (entities.Subscription, error)
 	CancelSubscription(ctx context.Context, input subscriptions.CancelSubscriptionInput) (entities.Subscription, error)

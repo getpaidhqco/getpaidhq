@@ -9,20 +9,19 @@ import (
 	"payloop/internal/api/dto/response"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
-	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/subscriptions"
 )
 
 // UserController data type
 type SubscriptionController struct {
-	subscriptionService interfaces.SubscriptionService
-	logger              logger.Logger
+	subsOrchastration interfaces.SubscriptionOrchestrationService
+	logger            logger.Logger
 }
 
-func NewSubscriptionController(subscriptionService interfaces.SubscriptionService, logger logger.Logger) SubscriptionController {
+func NewSubscriptionController(subscriptionService interfaces.SubscriptionOrchestrationService, logger logger.Logger) SubscriptionController {
 	return SubscriptionController{
-		subscriptionService: subscriptionService,
-		logger:              logger,
+		subsOrchastration: subscriptionService,
+		logger:            logger,
 	}
 }
 
@@ -32,7 +31,7 @@ func (s SubscriptionController) Get(c *gin.Context) {
 	orgId := authUser.OrgId
 	subscriptionId := c.Param("id")
 
-	subscription, err := s.subscriptionService.FindById(c.Request.Context(), orgId, subscriptionId)
+	subscription, err := s.subsOrchastration.FindById(c.Request.Context(), orgId, subscriptionId)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -55,7 +54,7 @@ func (s SubscriptionController) Update(c *gin.Context) {
 		return
 	}
 
-	subscription, err := s.subscriptionService.Update(c.Request.Context(), subscriptions.UpdateSubscriptionInput{
+	subscription, err := s.subsOrchastration.Update(c.Request.Context(), subscriptions.UpdateSubscriptionInput{
 		OrgId:    orgId,
 		Id:       id,
 		Status:   input.Status,
@@ -83,7 +82,7 @@ func (s SubscriptionController) Pause(c *gin.Context) {
 		return
 	}
 
-	subscription, err := s.subscriptionService.Pause(c.Request.Context(), subscriptions.PauseSubscriptionInput{
+	subscription, err := s.subsOrchastration.PauseSubscription(c.Request.Context(), subscriptions.PauseSubscriptionInput{
 		OrgId:  orgId,
 		Id:     id,
 		Reason: input.Reason,
@@ -109,7 +108,7 @@ func (s SubscriptionController) Resume(c *gin.Context) {
 		return
 	}
 
-	subscription, err := s.subscriptionService.ResumeSubscription(c.Request.Context(), subscriptions.ResumeSubscriptionInput{
+	subscription, err := s.subsOrchastration.ResumeSubscription(c.Request.Context(), subscriptions.ResumeSubscriptionInput{
 		OrgId:          orgId,
 		Id:             id,
 		ResumeBehavior: input.ResumeBehavior,
@@ -150,44 +149,10 @@ func (s SubscriptionController) Cancel(c *gin.Context) {
 		return
 	}
 
-	subscription, err := s.subscriptionService.CancelSubscription(c.Request.Context(), subscriptions.CancelSubscriptionInput{
+	subscription, err := s.subsOrchastration.CancelSubscription(c.Request.Context(), subscriptions.CancelSubscriptionInput{
 		OrgId:  orgId,
 		Id:     id,
 		Reason: input.Reason,
-	})
-	if err != nil {
-		apiErr := api.NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
-	}
-
-	c.JSON(200, subscription)
-}
-
-// Create a new subscription in pending status
-func (s SubscriptionController) Create(c *gin.Context) {
-	var input request.CreateSubscriptionRequest
-	user, _ := c.Get("user")
-	orgId := user.(authn.User).OrgId
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := api.NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
-	}
-
-	s.logger.Debug("Creating subscription", "orgId", orgId, "input", input)
-
-	subscription, err := s.subscriptionService.Create(c.Request.Context(), entities.CreateSubscriptionInput{
-		OrgId:              orgId,
-		PaymentMethodId:    input.PaymentMethodId,
-		Amount:             input.Amount,
-		Currency:           input.Currency,
-		BillingInterval:    input.BillingInterval,
-		BillingIntervalQty: input.BillingIntervalQty,
-		Cycles:             input.Cycles,
-		TrialInterval:      input.TrialInterval,
-		TrialIntervalQty:   input.TrialIntervalQty,
-		Metadata:           nil,
 	})
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
@@ -218,7 +183,7 @@ func (s SubscriptionController) List(c *gin.Context) {
 	orgId := user.(authn.User).OrgId
 	pagination := request.GetPagination(c)
 
-	subs, err := s.subscriptionService.List(c.Request.Context(), orgId, pagination)
+	subs, err := s.subsOrchastration.List(c.Request.Context(), orgId, pagination)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)

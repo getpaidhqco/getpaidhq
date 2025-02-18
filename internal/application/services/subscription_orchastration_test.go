@@ -16,7 +16,6 @@ import (
 
 func TestSubscriptionService_E2E(t *testing.T) {
 	ctx := context.Background()
-	logger := lib.GetLogger()
 	orgId := "mollie"
 	orderId := "ord_2sekVdNeZmszN7Eiz2sIjeoG9z4"
 
@@ -37,7 +36,7 @@ func TestSubscriptionService_E2E(t *testing.T) {
 		nats.Module,
 	), fx.Options(
 		fx.WithLogger(func() fxevent.Logger {
-			return logger.GetFxLogger()
+			return lib.GetFxLogger()
 		}),
 		fx.Invoke(func(service SubscriptionService) {
 
