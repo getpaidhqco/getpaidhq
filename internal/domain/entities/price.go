@@ -10,6 +10,7 @@ import (
 type Price struct {
 	OrgId              string                 `json:"org_id"`
 	Id                 string                 `json:"id"`
+	VariantId          string                 `json:"variant_id"`
 	Category           prices.PriceCategory   `json:"category"`
 	Scheme             prices.PriceScheme     `json:"scheme"`
 	Cycles             int                    `json:"cycles"`

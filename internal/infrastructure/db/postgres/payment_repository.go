@@ -96,7 +96,7 @@ func (r PaymentRepository) Create(ctx context.Context, entity entities.Payment) 
 		&entity.UpdatedAt,
 	)
 	if err != nil {
-		r.logger.Error(`failed to create Payment`, err.Error())
+		r.logger.Error(`failed to create Payment`, "err", err.Error())
 		return entities.Payment{}, err
 	}
 

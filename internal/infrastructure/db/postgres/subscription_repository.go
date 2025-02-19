@@ -32,7 +32,7 @@ func NewSubscriptionRepository(database lib.Database, logger logger.Logger) repo
 func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
 	var subscription models.Subscription
 	var customer models.Customer
-	query := `SELECT s.org_id, s.id, s.order_id, s.order_item_id, s.customer_id, s.status, s.payment_method_id, s.start_date, s.end_date,
+	query := `SELECT s.org_id, s.id, s.psp_id, s.order_id, s.order_item_id, s.customer_id, s.status, s.payment_method_id, s.start_date, s.end_date,
        s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at,
        s.last_charge, 
        s.renews_at,
@@ -51,6 +51,7 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 	}).Scan(
 		&subscription.OrgId,
 		&subscription.Id,
+		&subscription.PspId,
 		&subscription.OrderId,
 		&subscription.OrderItemId,
 		&subscription.CustomerId,
@@ -120,8 +121,8 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 	defer rows.Close()
 
 	for rows.Next() {
-		var subscription entities.Subscription
-		var orderItem entities.OrderItem
+		var subscription models.Subscription
+		var orderItem models.OrderItem
 		err := rows.Scan(
 			&subscription.OrgId,
 			&subscription.Id,
@@ -163,11 +164,11 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 			&orderItem.UpdatedAt,
 		)
 		if err != nil {
-			r.logger.Error(`failed to scan Subscription`, err.Error())
+			r.logger.Error(`failed to scan Subscription`, "err", err.Error())
 			return nil, err
 		}
 		subscription.OrderItem = orderItem
-		subscriptions = append(subscriptions, subscription)
+		subscriptions = append(subscriptions, subscription.ToEntity())
 	}
 
 	if rows.Err() != nil {
@@ -184,13 +185,13 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 	if tx != nil {
 		p = tx.(queryRower)
 	}
-	query := `INSERT INTO subscriptions (org_id, id, order_id, order_item_id, customer_id, status, 
+	query := `INSERT INTO subscriptions (org_id, id, psp_id, order_id, order_item_id, customer_id, status, 
                            start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, 
                            trial_ends_at, cancel_at, ends_at, last_charge, renews_at, 
                            current_period_start, current_period_end, retries, next_retry, 
                            currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, 
                            created_at, updated_at) 
-			  VALUES (@org_id, @id, @order_id, @order_item_id, @customer_id, @status, 
+			  VALUES (@org_id, @id, @psp_id, @order_id, @order_item_id, @customer_id, @status, 
 			          @start_date, @end_date, @billing_interval, @billing_interval_qty, @cycles, @billing_anchor, 
 			          @trial_ends_at, @cancel_at, @ends_at, @last_charge, @renews_at, 
 			          @current_period_start, @current_period_end, @retries, @next_retry, 
@@ -201,6 +202,7 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 	_, err := p.Exec(ctx, query, pgx.NamedArgs{
 		"org_id":               entity.OrgId,
 		"id":                   entity.Id,
+		"psp_id":               entity.PspId,
 		"order_id":             entity.OrderId,
 		"order_item_id":        entity.OrderItemId,
 		"customer_id":          entity.CustomerId,

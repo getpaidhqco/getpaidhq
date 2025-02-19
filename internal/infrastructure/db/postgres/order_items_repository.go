@@ -7,6 +7,7 @@ import (
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
+	"payloop/internal/infrastructure/db/postgres/models"
 	"payloop/internal/lib"
 )
 
@@ -27,12 +28,18 @@ func NewOrderItemRepository(database lib.Database, logger logger.Logger) reposit
 }
 
 func (r OrderItemRepository) FindById(ctx context.Context, orgId string, id string) (entities.OrderItem, error) {
-	var orderItem entities.OrderItem
-	var price entities.Price
+	var orderItem models.OrderItem
+	var price models.Price
 	var metadata []byte
 
-	query := `SELECT oi.org_id, oi.id, oi.order_id, oi.price_id, oi.description, oi.quantity, oi.metadata, oi.created_at, oi.updated_at,
-			  p.org_id, p.id, p.trial_interval, p.trial_interval_qty, p.billing_interval, p.billing_interval_qty, p.currency, p.unit_price, p.tax_code
+	query := `SELECT oi.org_id, oi.id, oi.order_id, oi.price_id, oi.description, 
+       oi.quantity, oi.metadata, oi.created_at, oi.updated_at,
+			  
+       p.org_id, p.id, p.variant_id, p.category, p.scheme,
+       p.currency, p.unit_price, p.min_price, p.suggested_price,
+       p.billing_interval, p.billing_interval_qty, p.trial_interval,
+       p.trial_interval_qty, p.tax_code, p.metadata, p.created_at, p.updated_at
+    
 			  FROM order_items oi
 			  JOIN prices p ON oi.price_id = p.id
 			  WHERE oi.org_id = $1 AND oi.id = $2`
@@ -50,13 +57,21 @@ func (r OrderItemRepository) FindById(ctx context.Context, orgId string, id stri
 
 		&price.OrgId,
 		&price.Id,
-		&price.TrialInterval,
-		&price.TrialIntervalQty,
-		&price.BillingInterval,
-		&price.BillingIntervalQty,
+		&price.VariantId,
+		&price.Category,
+		&price.Scheme,
 		&price.Currency,
 		&price.UnitPrice,
+		&price.MinPrice,
+		&price.SuggestedPrice,
+		&price.BillingInterval,
+		&price.BillingIntervalQty,
+		&price.TrialInterval,
+		&price.TrialIntervalQty,
 		&price.TaxCode,
+		&price.Metadata,
+		&price.CreatedAt,
+		&price.UpdatedAt,
 	)
 	if err != nil {
 		return entities.OrderItem{}, err
@@ -68,7 +83,7 @@ func (r OrderItemRepository) FindById(ctx context.Context, orgId string, id stri
 	}
 
 	orderItem.Price = price
-	return orderItem, nil
+	return orderItem.ToEntity(), nil
 }
 
 // Create inserts a new order item into the database
@@ -79,15 +94,14 @@ func (r OrderItemRepository) Create(ctx context.Context, orderItem entities.Orde
 		p = tx.(queryRower)
 	}
 	query := `INSERT INTO order_items (org_id, id, order_id, price_id, description, quantity, metadata, created_at, updated_at)
-				  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-				  RETURNING org_id, id, order_id, price_id, description, quantity, metadata, created_at, updated_at`
+				  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) `
 
 	metadata, err := json.Marshal(orderItem.Metadata)
 	if err != nil {
 		return entities.OrderItem{}, err
 	}
 
-	err = p.QueryRow(ctx, query,
+	_, err = p.Exec(ctx, query,
 		orderItem.OrgId,
 		orderItem.Id,
 		orderItem.OrderId,
@@ -97,50 +111,12 @@ func (r OrderItemRepository) Create(ctx context.Context, orderItem entities.Orde
 		metadata,
 		orderItem.CreatedAt,
 		orderItem.UpdatedAt,
-	).Scan(
-		&orderItem.OrgId,
-		&orderItem.Id,
-		&orderItem.OrderId,
-		&orderItem.PriceId,
-		&orderItem.Description,
-		&orderItem.Quantity,
-		&metadata,
-		&orderItem.CreatedAt,
-		&orderItem.UpdatedAt,
 	)
 	if err != nil {
 		return entities.OrderItem{}, err
 	}
 
-	err = json.Unmarshal(metadata, &orderItem.Metadata)
-	if err != nil {
-		return entities.OrderItem{}, err
-	}
-
-	// Join with Price
-	var price entities.Price
-	priceQuery := `SELECT org_id, id, category, scheme, cycles, trial_interval, trial_interval_qty, billing_interval, billing_interval_qty, currency, unit_price, tax_code
-					   FROM prices WHERE id = $1`
-	err = r.Pool.QueryRow(ctx, priceQuery, orderItem.PriceId).Scan(
-		&price.OrgId,
-		&price.Id,
-		&price.Category,
-		&price.Scheme,
-		&price.Cycles,
-		&price.TrialInterval,
-		&price.TrialIntervalQty,
-		&price.BillingInterval,
-		&price.BillingIntervalQty,
-		&price.Currency,
-		&price.UnitPrice,
-		&price.TaxCode,
-	)
-	if err != nil {
-		return entities.OrderItem{}, err
-	}
-
-	orderItem.Price = price
-	return orderItem, nil
+	return r.FindById(ctx, orderItem.OrgId, orderItem.Id)
 }
 
 // FindByOrderId retrieves order items by order Id

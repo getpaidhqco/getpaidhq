@@ -9,13 +9,14 @@ import (
 type Subscription struct {
 	OrgId              string      `json:"org_id"`
 	Id                 string      `json:"id"`
+	PspId              string      `json:"psp_id"`
 	OrderId            string      `json:"order_id"`
 	OrderItemId        string      `json:"order_item_id"`
 	OrderItem          OrderItem   `json:"-"`
 	CustomerId         string      `json:"customer_id"`
 	Customer           Customer    `json:"-"`
 	Status             string      `json:"status"`
-	PaymentMethodId    string      `json:"payment_method_id,omitempty"`
+	PaymentMethodId    pgtype.Text `json:"payment_method_id,omitempty"`
 	StartDate          pgtype.Date `json:"start_date"`
 	EndDate            pgtype.Date `json:"end_date"`
 	BillingInterval    string      `json:"billing_interval"`
@@ -48,13 +49,14 @@ func (s *Subscription) ToEntity() entities.Subscription {
 	return entities.Subscription{
 		OrgId:              s.OrgId,
 		Id:                 s.Id,
+		PspId:              s.PspId,
 		OrderId:            s.OrderId,
 		OrderItemId:        s.OrderItemId,
-		OrderItem:          *s.OrderItem.ToEntity(),
+		OrderItem:          s.OrderItem.ToEntity(),
 		CustomerId:         s.CustomerId,
-		Customer:           *s.Customer.ToEntity(),
+		Customer:           s.Customer.ToEntity(),
 		Status:             entities.SubscriptionStatus(s.Status),
-		PaymentMethodId:    s.PaymentMethodId,
+		PaymentMethodId:    s.PaymentMethodId.String,
 		StartDate:          s.StartDate.Time,
 		EndDate:            s.EndDate.Time,
 		BillingInterval:    prices.BillingInterval(s.BillingInterval),

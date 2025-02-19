@@ -15,8 +15,8 @@ type Customer struct {
 	UpdatedAt pgtype.Date `json:"updated_at"`
 }
 
-func (c *Customer) ToEntity() *entities.Customer {
-	return &entities.Customer{
+func (c *Customer) ToEntity() entities.Customer {
+	return entities.Customer{
 		OrgId:     c.OrgId,
 		Id:        c.Id,
 		Name:      c.Name,

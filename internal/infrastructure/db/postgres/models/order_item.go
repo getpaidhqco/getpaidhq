@@ -18,8 +18,8 @@ type OrderItem struct {
 	UpdatedAt   pgtype.Date       `json:"updated_at"`
 }
 
-func (oi *OrderItem) ToEntity() *entities.OrderItem {
-	return &entities.OrderItem{
+func (oi *OrderItem) ToEntity() entities.OrderItem {
+	return entities.OrderItem{
 		OrgId:       oi.OrgId,
 		Id:          oi.Id,
 		OrderId:     oi.OrderId,

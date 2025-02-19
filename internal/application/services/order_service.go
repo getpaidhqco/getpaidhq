@@ -116,14 +116,15 @@ func (s OrderService) CreateOrderFromCart(ctx context.Context, input orders.Crea
 			UpdatedAt:   time.Now(),
 		})
 		if err != nil {
-			s.logger.Error("Failed to create order item", "item", item, err.Error())
+			s.logger.Error("Failed to create order item", "item", item, "err", err.Error())
 			return entities.Order{}, payment_providers.InitPaymentResponse{}, err
 		}
 
 		if orderItem.Price.Category == prices.PriceCategorySubscription {
 			subscription := entities.NewSubscriptionFromOrderItem(orderItem)
 			subscription.CustomerId = customer.Id
-
+			subscription.PspId = input.PspId
+			
 			_, err := s.subscriptionRepository.Create(ctx, subscription)
 			if err != nil {
 				s.logger.Error("Failed to create subscription", "item", item, err.Error())
