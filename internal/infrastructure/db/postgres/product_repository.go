@@ -69,24 +69,48 @@ func (r ProductRepository) FindById(ctx context.Context, orgId string, id string
 	return product, nil
 }
 
-func (r ProductRepository) Find(ctx context.Context, orgId string, p request.Pagination) ([]entities.Product, error) {
+func (r ProductRepository) Find(ctx context.Context, orgId string, p request.Pagination) ([]entities.Product, int, error) {
 	var products = make([]entities.Product, 0)
-	query := `SELECT org_id, id, name, description, metadata, created_at, updated_at
-			  FROM products
+	var count int
+	query := `SELECT org_id, id, name, description, metadata, created_at, updated_at, count(*) OVER()
+			  FROM products 
 			  WHERE org_id = @org_id
-			  ORDER BY CASE WHEN @sortorder = 'asc' THEN @sortby END, 
-			  CASE WHEN @sortorder = 'desc' THEN @sortby END DESC
+			ORDER BY
+				-- Simplified to NULL if not sorting in ascending order.
+				CASE
+					WHEN @sort_dir = 'asc' THEN
+						CASE @sort_col
+							-- Check for each possible value of sort_col.
+							WHEN 'created_at' THEN created_at
+							--- etc.
+							ELSE NULL
+							END
+					ELSE
+						NULL
+					END
+					ASC ,
+			
+				-- Same as before, but for sort_dir = 'desc'
+				CASE WHEN @sort_dir = 'desc' THEN
+						 CASE @sort_col
+							 WHEN 'created_at' THEN created_at
+							 ELSE NULL
+							 END
+					 ELSE
+						 NULL
+					END
+					DESC
 			  LIMIT @lim OFFSET @off;`
 	rows, err := r.Pool.Query(ctx, query, pgx.NamedArgs{
-		"org_id":    orgId,
-		"lim":       p.Limit,
-		"off":       p.Offset,
-		"sortby":    p.SortBy,
-		"sortorder": p.SortOrder,
+		"org_id":   orgId,
+		"lim":      p.Limit,
+		"off":      p.Offset,
+		"sort_col": p.SortBy,
+		"sort_dir": p.SortDirection,
 	})
 	if err != nil {
 		r.logger.Error(`failed to find Products`, err.Error())
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -100,18 +124,19 @@ func (r ProductRepository) Find(ctx context.Context, orgId string, p request.Pag
 			&product.Metadata,
 			&product.CreatedAt,
 			&product.UpdatedAt,
+			&count,
 		)
 		if err != nil {
 			r.logger.Error(`failed to scan Product`, err.Error())
-			return nil, err
+			return nil, 0, err
 		}
 		products = append(products, product)
 	}
 
 	if rows.Err() != nil {
 		r.logger.Error(`rows iteration error`, rows.Err().Error())
-		return nil, rows.Err()
+		return nil, 0, rows.Err()
 	}
 
-	return products, nil
+	return products, count, nil
 }

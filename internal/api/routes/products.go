@@ -23,6 +23,7 @@ func (s ProductRoutes) Setup() {
 	api := s.handler.Gin.Group("/api")
 	{
 		api.GET("/products", s.checkAuthz(authz.ListProducts), s.productController.List)
+		api.GET("/products/:id", s.checkAuthz(authz.GetProduct), s.productController.Get)
 		api.POST("/products", s.checkAuthz(authz.CreateProduct), s.productController.Create)
 	}
 }

@@ -14,11 +14,11 @@ const (
 
 // swagger:parameters listSubscriptions
 type Pagination struct {
-	Page      int    `json:"page"`
-	Limit     int    `json:"limit"`
-	Offset    int    `json:"offset"`
-	SortOrder string `json:"sort_order"`
-	SortBy    string `json:"sort_by"`
+	Page          int    `json:"page"`
+	Limit         int    `json:"limit"`
+	Offset        int    `json:"offset"`
+	SortDirection string `json:"sort_order"`
+	SortBy        string `json:"sort_by"`
 }
 
 func GetPagination(c *gin.Context) Pagination {
@@ -36,10 +36,10 @@ func GetPagination(c *gin.Context) Pagination {
 	sortBy := c.DefaultQuery("sort_by", "created_at")
 
 	return Pagination{
-		Page:      page,
-		Limit:     limit,
-		Offset:    page * limit,
-		SortBy:    sortBy,
-		SortOrder: sortOrder,
+		Page:          page,
+		Limit:         limit,
+		Offset:        page * limit,
+		SortBy:        sortBy,
+		SortDirection: sortOrder,
 	}
 }

@@ -215,6 +215,8 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 
 			renewsAt := subscription.CalculateNextBillingDate()
 			subscription.RenewsAt = &renewsAt
+			subscription.CurrentPeriodStart = subscription.StartDate
+			subscription.CurrentPeriodEnd = renewsAt
 		} else {
 			subscription.SetActivationDates()
 			subscription.Status = entities.SubscriptionStatusTrial

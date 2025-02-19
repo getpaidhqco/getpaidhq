@@ -31,7 +31,7 @@ func NewProductService(productRepository repositories.ProductRepository,
 	}
 }
 
-func (s *ProductService) CreateProduct(ctx context.Context, input entities.CreateProductInput) (entities.Product, error) {
+func (s ProductService) CreateProduct(ctx context.Context, input entities.CreateProductInput) (entities.Product, error) {
 
 	product, err := s.productRepository.Create(ctx,
 		entities.Product{
@@ -44,12 +44,22 @@ func (s *ProductService) CreateProduct(ctx context.Context, input entities.Creat
 	return product, err
 }
 
-func (s *ProductService) List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Product, error) {
-	subs, err := s.productRepository.Find(ctx, orgId, pagination)
+func (s ProductService) List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Product, int, error) {
+	subs, total, err := s.productRepository.Find(ctx, orgId, pagination)
 	if err != nil {
-		s.logger.Error("Failed to list subscriptions", err.Error())
-		return nil, err
+		s.logger.Error("Failed to list products", err.Error())
+		return nil, 0, err
 	}
 
-	return subs, nil
+	return subs, total, nil
+}
+
+func (s ProductService) FindById(ctx context.Context, orgId string, id string) (entities.Product, error) {
+	product, err := s.productRepository.FindById(ctx, orgId, id)
+	if err != nil {
+		s.logger.Error("Failed to list products", err.Error())
+		return entities.Product{}, err
+	}
+
+	return product, nil
 }

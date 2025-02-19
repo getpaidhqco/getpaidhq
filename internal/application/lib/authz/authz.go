@@ -12,6 +12,7 @@ const (
 
 	CreateProduct Action = "CreateProduct"
 	ListProducts  Action = "ListProducts"
+	GetProduct    Action = "GetProduct"
 
 	AddProductToCart   Action = "AddProductToCart"
 	RemoveItemFromCart Action = "RemoveItemFromCart"

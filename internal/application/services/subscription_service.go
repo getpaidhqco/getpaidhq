@@ -182,6 +182,11 @@ func (s SubscriptionService) PauseSubscription(ctx context.Context, input subscr
 		return entities.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
 	}
 
+	if subscription.Status == entities.SubscriptionStatusPaused {
+		s.logger.Info("Subscription is already paused")
+		return subscription, lib.NewCustomError(lib.BadRequestError, "subscription is paused already", nil)
+	}
+
 	subscription.Status = entities.SubscriptionStatusPaused
 	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
@@ -365,13 +370,19 @@ func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context
 	subscription.NextRetryAt = nil
 
 	if subscription.Cycles != 0 && subscription.CyclesProcessed >= subscription.Cycles {
+		// this is the last charge for a subscription
 		subscription.Status = entities.SubscriptionStatusCompleted
 		subscription.EndsAt = &lastCharge
 		subscription.RenewsAt = nil
+		subscription.CurrentPeriodEnd = time.Time{}
+		subscription.CurrentPeriodStart = time.Time{}
 	} else {
+		// this is a normal recurring charge that needs to move to the new billing cycle
 		subscription.Status = entities.SubscriptionStatusActive
 		nextCharge := subscription.CalculateNextBillingDate()
 		subscription.RenewsAt = &nextCharge
+		subscription.CurrentPeriodStart = subscription.CurrentPeriodEnd
+		subscription.CurrentPeriodEnd = nextCharge
 	}
 
 	s.logger.Infof("[%s][%s] subscription charged, updating with new values [%s]",

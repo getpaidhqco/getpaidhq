@@ -102,10 +102,10 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, su
 	fmt.Println(randomNumber)
 
 	chargeResult := a.paymentGateway.ChargePayment(ctx, payment_providers.ChargePaymentCommand{
-		OrgId:     subscription.OrgId,
-		Amount:    subscription.Amount,
-		Currency:  subscription.Currency,
-		Reference: fmt.Sprintf("%s_%d_%d", subscription.Id, subscription.CyclesProcessed+1, randomNumber),
+		OrgId:    subscription.OrgId,
+		Amount:   subscription.Amount,
+		Currency: subscription.Currency,
+		//Reference: fmt.Sprintf("%s_%d_%d", subscription.Id, subscription.CyclesProcessed+1, randomNumber),
 		PaymentMethod: payment_providers.PaymentMethod{
 			PspId:       paymentMethod.Id,
 			Name:        paymentMethod.Name,

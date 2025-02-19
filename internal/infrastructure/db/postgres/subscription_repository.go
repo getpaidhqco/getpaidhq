@@ -33,7 +33,11 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 	var customer entities.Customer
 	query := `SELECT s.org_id, s.id, s.order_id, s.order_item_id, s.customer_id, s.status, s.payment_method_id, s.start_date, s.end_date,
        s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at,
-       s.last_charge, s.renews_at, s.retries, s.next_retry, s.currency, s.amount, s.metadata, s.cycles_processed,
+       s.last_charge, 
+       s.renews_at,
+       s.current_period_start,
+       s.current_period_end,
+       s.retries, s.next_retry, s.currency, s.amount, s.metadata, s.cycles_processed,
        s.total_revenue, s.cancelled_at, s.created_at, s.updated_at,
        c.org_id, c.id, c.name, c.email, c.created_at, c.updated_at
    FROM subscriptions s
@@ -62,6 +66,8 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 		&subscription.EndsAt,
 		&subscription.LastCharge,
 		&subscription.RenewsAt,
+		&subscription.CurrentPeriodStart,
+		&subscription.CurrentPeriodEnd,
 		&subscription.Retries,
 		&subscription.NextRetryAt,
 		&subscription.Currency,
@@ -90,9 +96,12 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
 
 	var subscriptions = make([]entities.Subscription, 0)
-	query := `SELECT s.org_id, s.id, s.order_id, s.order_item_id, s.customer_id, s.status, s.payment_method_id, s.start_date, s.end_date, 
+	query := `SELECT s.org_id, s.id, s.order_id, s.order_item_id, s.customer_id, 
+       s.status, s.payment_method_id, s.start_date, s.end_date, 
        s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at, 
-       s.last_charge, s.renews_at, s.retries, s.next_retry, s.currency, s.amount, s.metadata, s.cycles_processed, 
+       s.last_charge, s.renews_at, 
+       s.current_period_start,
+       s.current_period_end, s.retries, s.next_retry, s.currency, s.amount, s.metadata, s.cycles_processed, 
        s.total_revenue, s.cancelled_at, s.created_at, s.updated_at, 
       
        oi.org_id, oi.id, oi.price_id, oi.quantity, oi.description,oi.created_at, oi.updated_at
@@ -131,6 +140,8 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 			&subscription.EndsAt,
 			&subscription.LastCharge,
 			&subscription.RenewsAt,
+			&subscription.CurrentPeriodStart,
+			&subscription.CurrentPeriodEnd,
 			&subscription.Retries,
 			&subscription.NextRetryAt,
 			&subscription.Currency,
@@ -172,19 +183,21 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 	if tx != nil {
 		p = tx.(queryRower)
 	}
-
-	var subscription entities.Subscription
 	query := `INSERT INTO subscriptions (org_id, id, order_id, order_item_id, customer_id, status, 
                            start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, 
-                           trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, 
+                           trial_ends_at, cancel_at, ends_at, last_charge, renews_at, 
+                           current_period_start, current_period_end, retries, next_retry, 
                            currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, 
                            created_at, updated_at) 
-			  VALUES (@org_id, @id, @order_id, @order_item_id, @customer_id, @status, @start_date, @end_date, @billing_interval, @billing_interval_qty, @cycles, @billing_anchor, @trial_ends_at, @cancel_at, @ends_at, @last_charge, @renews_at, @retries, @next_retry, @currency, @amount, @metadata, @cycles_processed, @total_revenue, @cancelled_at, NOW(), NOW())
-			  RETURNING org_id, id, order_id, order_item_id, customer_id, status, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at`
-
+			  VALUES (@org_id, @id, @order_id, @order_item_id, @customer_id, @status, 
+			          @start_date, @end_date, @billing_interval, @billing_interval_qty, @cycles, @billing_anchor, 
+			          @trial_ends_at, @cancel_at, @ends_at, @last_charge, @renews_at, 
+			          @current_period_start, @current_period_end, @retries, @next_retry, 
+			          @currency, @amount, @metadata, @cycles_processed, @total_revenue, @cancelled_at,
+			          NOW(), NOW())
+`
 	metaJson, _ := json.Marshal(entity.Metadata)
-
-	err := p.QueryRow(ctx, query, pgx.NamedArgs{
+	_, err := p.Exec(ctx, query, pgx.NamedArgs{
 		"org_id":               entity.OrgId,
 		"id":                   entity.Id,
 		"order_id":             entity.OrderId,
@@ -202,6 +215,8 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 		"ends_at":              entity.EndsAt,
 		"last_charge":          entity.LastCharge,
 		"renews_at":            entity.RenewsAt,
+		"current_period_start": entity.CurrentPeriodStart,
+		"current_period_end":   entity.CurrentPeriodEnd,
 		"retries":              entity.Retries,
 		"next_retry":           entity.NextRetryAt,
 		"currency":             entity.Currency,
@@ -210,57 +225,47 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 		"cycles_processed":     entity.CyclesProcessed,
 		"total_revenue":        entity.TotalRevenue,
 		"cancelled_at":         entity.CancelledAt,
-	}).Scan(
-		&subscription.OrgId,
-		&subscription.Id,
-		&subscription.OrderId,
-		&subscription.OrderItemId,
-		&subscription.CustomerId,
-		&subscription.Status,
-		&subscription.StartDate,
-		&subscription.EndDate,
-		&subscription.BillingInterval,
-		&subscription.BillingIntervalQty,
-		&subscription.Cycles,
-		&subscription.BillingAnchor,
-		&subscription.TrialEndsAt,
-		&subscription.CancelAt,
-		&subscription.EndsAt,
-		&subscription.LastCharge,
-		&subscription.RenewsAt,
-		&subscription.Retries,
-		&subscription.NextRetryAt,
-		&subscription.Currency,
-		&subscription.Amount,
-		&subscription.Metadata,
-		&subscription.CyclesProcessed,
-		&subscription.TotalRevenue,
-		&subscription.CancelledAt,
-		&subscription.CreatedAt,
-		&subscription.UpdatedAt,
-	)
+	})
 
 	if err != nil {
 		r.logger.Error(`failed to insert Subscription`, err.Error())
 		return entities.Subscription{}, err
 	}
 
-	subscription.OrderId = entity.OrderId
-
-	return subscription, nil
+	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
 func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subscription) (entities.Subscription, error) {
 
 	query := `UPDATE subscriptions
-			  SET status=@status, payment_method_id=@payment_method_id, start_date=@start_date, end_date=@end_date, billing_interval=@billing_interval, billing_interval_qty=@billing_interval_qty, cycles=@cycles, billing_anchor=@billing_anchor, trial_ends_at=@trial_ends_at, cancel_at=@cancel_at, ends_at=@ends_at, last_charge=@last_charge, renews_at=@renews_at, retries=@retries, next_retry=@next_retry, currency=@currency, amount=@amount, metadata=@metadata, cycles_processed=@cycles_processed, total_revenue=@total_revenue, cancelled_at=@cancelled_at, updated_at=NOW()
+			  SET status=@status, payment_method_id=@payment_method_id, 
+			      start_date=@start_date, end_date=@end_date, 
+			      billing_interval=@billing_interval,
+			      billing_interval_qty=@billing_interval_qty, 
+			      cycles=@cycles, 
+			      billing_anchor=@billing_anchor, 
+			      trial_ends_at=@trial_ends_at, 
+			      cancel_at=@cancel_at, 
+			      ends_at=@ends_at, 
+			      last_charge=@last_charge, 
+			      renews_at=@renews_at, 
+			      current_period_start=@current_period_start, 
+			      current_period_end=@current_period_end, 
+			      retries=@retries, 
+			      next_retry=@next_retry, 
+			      currency=@currency, 
+			      amount=@amount, 
+			      metadata=@metadata, 
+			      cycles_processed=@cycles_processed, 
+			      total_revenue=@total_revenue, 
+			      cancelled_at=@cancelled_at, 
+			      updated_at=NOW()
 			  WHERE org_id=@org_id AND id=@id
-			  RETURNING org_id, id, order_id, customer_id, payment_method_id, status, start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, trial_ends_at, cancel_at, ends_at, last_charge, renews_at, retries, next_retry, currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, created_at, updated_at`
+`
 
 	metaJson, _ := json.Marshal(entity.Metadata)
 
-	var subscription entities.Subscription
-	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
+	_, err := r.Pool.Exec(ctx, query, pgx.NamedArgs{
 		"org_id":               entity.OrgId,
 		"id":                   entity.Id,
 		"status":               entity.Status,
@@ -276,6 +281,8 @@ func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subs
 		"ends_at":              entity.EndsAt,
 		"last_charge":          entity.LastCharge,
 		"renews_at":            entity.RenewsAt,
+		"current_period_start": entity.CurrentPeriodStart,
+		"current_period_end":   entity.CurrentPeriodEnd,
 		"retries":              entity.Retries,
 		"next_retry":           entity.NextRetryAt,
 		"currency":             entity.Currency,
@@ -284,47 +291,19 @@ func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subs
 		"cycles_processed":     entity.CyclesProcessed,
 		"total_revenue":        entity.TotalRevenue,
 		"cancelled_at":         entity.CancelledAt,
-	}).Scan(
-		&subscription.OrgId,
-		&subscription.Id,
-		&subscription.OrderId,
-		&subscription.CustomerId,
-		&subscription.PaymentMethodId,
-		&subscription.Status,
-		&subscription.StartDate,
-		&subscription.EndDate,
-		&subscription.BillingInterval,
-		&subscription.BillingIntervalQty,
-		&subscription.Cycles,
-		&subscription.BillingAnchor,
-		&subscription.TrialEndsAt,
-		&subscription.CancelAt,
-		&subscription.EndsAt,
-		&subscription.LastCharge,
-		&subscription.RenewsAt,
-		&subscription.Retries,
-		&subscription.NextRetryAt,
-		&subscription.Currency,
-		&subscription.Amount,
-		&subscription.Metadata,
-		&subscription.CyclesProcessed,
-		&subscription.TotalRevenue,
-		&subscription.CancelledAt,
-		&subscription.CreatedAt,
-		&subscription.UpdatedAt,
-	)
+	})
 
 	if err != nil {
 		r.logger.Error(`failed to update Subscription`, err.Error())
 		return entities.Subscription{}, err
 	}
 
-	return subscription, nil
+	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
 func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p request.Pagination) ([]entities.Subscription, int, error) {
 
-	r.logger.Debugf("[%s][%s]", p.SortOrder, p.SortBy)
+	r.logger.Debugf("sort_dir[%s] sort_col[%s]", p.SortDirection, p.SortBy)
 
 	var subscriptions = make([]entities.Subscription, 0)
 	var count int
@@ -369,7 +348,7 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
 		"lim":      p.Limit,
 		"off":      p.Offset,
 		"sort_col": p.SortBy,
-		"sort_dir": p.SortOrder,
+		"sort_dir": p.SortDirection,
 	})
 	if err != nil {
 		r.logger.Error(`failed to find Subscriptions`, err.Error())

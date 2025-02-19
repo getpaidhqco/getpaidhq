@@ -367,6 +367,8 @@ model Subscription {
   endsAt             DateTime?       @map("ends_at")
   lastCharge         DateTime?       @map("last_charge")
   renewsAt           DateTime?       @map("renews_at")
+  currentPeriodStart DateTime?       @map("current_period_start")
+  currentPeriodEnd   DateTime?       @map("current_period_end")
 
   retries   Int?
   nextRetry DateTime? @map("next_retry")
