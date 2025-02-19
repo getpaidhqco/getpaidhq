@@ -10,7 +10,7 @@ import (
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/subscriptions"
-	"payloop/internal/domain/payment_providers"
+	"payloop/internal/domain/factories"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 	"time"
@@ -25,7 +25,7 @@ type SubscriptionService struct {
 	paymentRepository      repositories.PaymentRepository
 	orderItemRepository    repositories.OrderItemRepository
 	workflowService        interfaces.WorkflowService
-	paymentGateway         payment_providers.Gateway
+	gatewayFactory         factories.GatewayFactory
 	pubsub                 events.PubSub
 	logger                 logger.Logger
 }
@@ -39,7 +39,7 @@ func NewSubscriptionService(
 	orderRepository repositories.OrderRepository,
 	paymentRepository repositories.PaymentRepository,
 	pubsub events.PubSub,
-	paymentGateway payment_providers.Gateway,
+	gatewayFactory factories.GatewayFactory,
 	logger logger.Logger,
 ) interfaces.SubscriptionService {
 
@@ -61,7 +61,7 @@ func NewSubscriptionService(
 		subscriptionRepository: subscriptionRepository,
 		pubsub:                 pubsub,
 		logger:                 logger,
-		paymentGateway:         paymentGateway,
+		gatewayFactory:         gatewayFactory,
 	}
 }
 

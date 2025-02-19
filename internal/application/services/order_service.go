@@ -11,6 +11,7 @@ import (
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/entities/payments"
 	"payloop/internal/domain/entities/prices"
+	"payloop/internal/domain/factories"
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -25,7 +26,7 @@ type OrderService struct {
 	subscriptionRepository repositories.SubscriptionRepository
 	orderItemRepository    repositories.OrderItemRepository
 	paymentRepository      repositories.PaymentRepository
-	paymentGateway         payment_providers.Gateway
+	gatewayFactory         factories.GatewayFactory
 	pubsub                 events.PubSub
 	db                     lib.Database
 	logger                 logger.Logger
@@ -39,7 +40,7 @@ func NewOrderService(
 	orderItemRepository repositories.OrderItemRepository,
 	subscriptionRepository repositories.SubscriptionRepository,
 	paymentRepository repositories.PaymentRepository,
-	paymentGateway payment_providers.Gateway,
+	gatewayFactory factories.GatewayFactory,
 	pubsub events.PubSub,
 	db lib.Database,
 	logger logger.Logger,
@@ -51,11 +52,12 @@ func NewOrderService(
 		subscriptionRepository: subscriptionRepository,
 		orderRepository:        orderRepository,
 		logger:                 logger,
+		gatewayFactory:         gatewayFactory,
 		paymentRepository:      paymentRepository,
 		pubsub:                 pubsub,
 		db:                     db,
-		paymentGateway:         paymentGateway,
-		orderItemRepository:    orderItemRepository,
+
+		orderItemRepository: orderItemRepository,
 	}
 }
 
@@ -130,8 +132,13 @@ func (s OrderService) CreateOrderFromCart(ctx context.Context, input orders.Crea
 		}
 	}
 
+	gw, err := s.gatewayFactory.NewGateway(ctx, orgId, input.PspId)
+	if err != nil {
+		s.logger.Error("Failed to get gateway", err.Error())
+		return entities.Order{}, payment_providers.InitPaymentResponse{}, err
+	}
 	// initialise the payment session with the payment processor
-	pspResponse, err := s.paymentGateway.InitPayment(ctx, payment_providers.InitPaymentCommand{
+	pspResponse, err := gw.InitPayment(ctx, payment_providers.InitPaymentCommand{
 		OrgId:    orgId,
 		Cart:     cart.Data,
 		Order:    order,

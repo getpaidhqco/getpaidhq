@@ -14,6 +14,7 @@ import (
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/entities/payments"
 	"payloop/internal/domain/entities/subscriptions"
+	"payloop/internal/domain/factories"
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/infrastructure/workflow/temporal/types"
@@ -26,7 +27,7 @@ type OrderActivities struct {
 	settingRepository      repositories.SettingRepository
 	paymentRepository      repositories.PaymentRepository
 	pubsub                 events.PubSub
-	paymentGateway         payment_providers.Gateway
+	gatewayFactory         factories.GatewayFactory
 }
 
 func NewOrderActivities(
@@ -36,10 +37,10 @@ func NewOrderActivities(
 	subscriptionRepository repositories.SubscriptionRepository,
 	pubsub events.PubSub,
 	paymentRepository repositories.PaymentRepository,
-	paymentGateway payment_providers.Gateway,
+	gatewayFactory factories.GatewayFactory,
 ) OrderActivities {
 	return OrderActivities{
-		paymentGateway:         paymentGateway,
+		gatewayFactory:         gatewayFactory,
 		orderService:           orderService,
 		subscriptionService:    subscriptionService,
 		subscriptionRepository: subscriptionRepository,
@@ -86,6 +87,12 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, su
 	logger := activity.GetLogger(ctx)
 	logger.Info("ChargeCustomerForBillingPeriod", "id", subscription.Id, "Amount", subscription.Amount)
 
+	gw, err := a.gatewayFactory.NewGateway(ctx, subscription.OrgId, subscription.PspId)
+	if err != nil {
+		logger.Error("Failed to get gateway", err.Error())
+		return payments.ChargeResult{}, err
+	}
+
 	customer, err := a.subscriptionService.GetSubscriptionCustomer(ctx, subscription)
 	if err != nil {
 		logger.Error("failed to get customer", "error", err.Error())
@@ -101,7 +108,7 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, su
 	randomNumber := rand.Intn(101) // Generate a random number between 0 and 100
 	fmt.Println(randomNumber)
 
-	chargeResult := a.paymentGateway.ChargePayment(ctx, payment_providers.ChargePaymentCommand{
+	chargeResult := gw.ChargePayment(ctx, payment_providers.ChargePaymentCommand{
 		OrgId:    subscription.OrgId,
 		Amount:   subscription.Amount,
 		Currency: subscription.Currency,

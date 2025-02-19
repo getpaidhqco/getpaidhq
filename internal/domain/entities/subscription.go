@@ -53,6 +53,7 @@ const (
 type Subscription struct {
 	OrgId              string                 `json:"org_id"`
 	Id                 string                 `json:"id"`
+	PspId              string                 `json:"psp_id"`
 	OrderId            string                 `json:"order_id"`
 	OrderItemId        string                 `json:"order_item_id"`
 	OrderItem          OrderItem              `json:"-"`

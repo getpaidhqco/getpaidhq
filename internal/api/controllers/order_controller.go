@@ -48,6 +48,7 @@ func (o OrderController) CreateOrder(c *gin.Context) {
 
 	order, psp, err := o.service.CreateOrderFromCart(c.Request.Context(), orders.CreateOrderInput{
 		OrgId: authUser.OrgId,
+		PspId: input.PspId,
 		Customer: orders.CreateOrderCommandCustomer{
 			ID:       input.Customer.ID,
 			Email:    input.Customer.Email,

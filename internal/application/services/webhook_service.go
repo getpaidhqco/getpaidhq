@@ -6,27 +6,29 @@ import (
 	"encoding/hex"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/factories"
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
+	"payloop/internal/infrastructure/payments/paystack"
 	"time"
 )
 
 type WebhookService struct {
 	logger          logger.Logger
-	payments        payment_providers.Gateway
+	gatewayFactory  factories.GatewayFactory
 	workflowEngine  interfaces.Engine
 	idempotencyRepo repositories.IdempotencyKeyRepository
 }
 
 func NewWebhookService(
 	logger logger.Logger,
-	payments payment_providers.Gateway,
+	gatewayFactory factories.GatewayFactory,
 	workflowEngine interfaces.Engine,
 	idempotencyRepo repositories.IdempotencyKeyRepository,
 ) WebhookService {
 	return WebhookService{
 		logger:          logger,
-		payments:        payments,
+		gatewayFactory:  gatewayFactory,
 		workflowEngine:  workflowEngine,
 		idempotencyRepo: idempotencyRepo,
 	}
@@ -57,7 +59,15 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, input []byte)
 		return err
 	}
 
-	webhook, err := s.payments.ParseWebhook(ctx, input)
+	// TODO - figure out which parser to use
+	parser := paystack.NewWebhookParser(s.logger)
+	err = parser.ValidateWebhook(ctx, input)
+	if err != nil {
+		s.logger.Error("Failed to validate webhook", err.Error())
+		return err
+	}
+	
+	webhook, err := parser.ParseWebhook(ctx, input)
 	if err != nil {
 		s.logger.Errorf("failed to parse webhook", err.Error())
 		return err

@@ -342,6 +342,10 @@ model Subscription {
   orgId String @map("org_id")
   id    String @default(cuid())
 
+  pspId String @map("psp_id")
+
+  status SubscriptionStatus
+
   orderId String @map("order_id")
   order   Order  @relation(fields: [orgId, orderId], references: [orgId, id])
 
@@ -350,8 +354,6 @@ model Subscription {
 
   customerId String   @map("customer_id")
   customer   Customer @relation(fields: [orgId, customerId], references: [orgId, id])
-
-  status SubscriptionStatus
 
   paymentMethodId String?        @map("payment_method_id")
   paymentMethod   PaymentMethod? @relation(fields: [orgId, paymentMethodId], references: [orgId, id])

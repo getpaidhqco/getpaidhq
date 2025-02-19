@@ -6,7 +6,7 @@ import (
 )
 
 type UserService struct {
-	repository repositories.UserRepository `json:"repository,omitempty"`
+	repository repositories.UserRepository `json:"orgRepository,omitempty"`
 }
 
 func NewUserService(repo postgres.UserRepository) UserService {

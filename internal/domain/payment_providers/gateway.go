@@ -10,6 +10,9 @@ import (
 type Gateway interface {
 	InitPayment(ctx context.Context, input InitPaymentCommand) (InitPaymentResponse, error)
 	ChargePayment(ctx context.Context, input ChargePaymentCommand) ChargePaymentResponse
+}
+
+type WebhookParser interface {
 	ValidateWebhook(ctx context.Context, data []byte) error
 	ParseWebhook(ctx context.Context, data []byte) (PaymentWebhookContext, error)
 }

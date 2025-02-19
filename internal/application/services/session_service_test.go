@@ -4,13 +4,12 @@ import (
 	"context"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/fx"
-	"go.uber.org/fx/fxevent"
 	"payloop/internal/api/middlewares"
 	"payloop/internal/domain/entities/carts"
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/entities/sessions"
+	"payloop/internal/domain/factories"
 	"payloop/internal/infrastructure/db/postgres"
-	"payloop/internal/infrastructure/payments/paystack"
 	"payloop/internal/lib"
 	"testing"
 )
@@ -19,7 +18,7 @@ func TestSessionService_CreateSession(t *testing.T) {
 	ctx := context.Background()
 	logger := lib.GetLogger()
 	orgId := "mollie"
-	request := sessions.CreateSessionRequest{
+	request := sessions.CreateSessionInput{
 		OrgId:    orgId,
 		Currency: "ZAR",
 		Country:  "ZA",
@@ -31,11 +30,8 @@ func TestSessionService_CreateSession(t *testing.T) {
 		Module,
 		middlewares.Module,
 		postgres.Module,
-		paystack.Module,
+		factories.Module,
 	), fx.Options(
-		fx.WithLogger(func() fxevent.Logger {
-			return logger.GetFxLogger()
-		}),
 		fx.Invoke(func(orderService OrderService, sessionService SessionService, cartService CartService) {
 
 			session, err := sessionService.CreateSession(ctx, request)

@@ -6,10 +6,10 @@ import (
 	"payloop/internal/api/middlewares"
 	"payloop/internal/api/routes"
 	"payloop/internal/application/services"
+	"payloop/internal/domain/factories"
 	"payloop/internal/infrastructure/authn/clerk"
 	"payloop/internal/infrastructure/authz/cedar"
 	"payloop/internal/infrastructure/db/postgres"
-	"payloop/internal/infrastructure/payments/paystack"
 	"payloop/internal/infrastructure/pubsub/nats"
 	"payloop/internal/infrastructure/workflow/temporal"
 	"payloop/internal/lib"
@@ -21,6 +21,8 @@ var CommonModules = fx.Options(
 	lib.Module,
 	services.Module,
 	middlewares.Module,
+	factories.Module,
+	
 	postgres.Module,
 
 	// Authn & Authz
@@ -28,8 +30,6 @@ var CommonModules = fx.Options(
 	clerk.Module,
 	cedar.Module,
 
-	// Payment provider
-	paystack.Module,
 
 	// Workflow engine
 	temporal.Module,

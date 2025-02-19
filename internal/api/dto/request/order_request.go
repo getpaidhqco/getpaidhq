@@ -13,6 +13,7 @@ type CartItem struct {
 type CreateOrderRequest struct {
 	Customer CreateOrderRequestCustomer `json:"customer" binding:"required"`
 	CartId   string                     `json:"cart_id"`
+	PspId    string                     `json:"psp_id"`
 
 	// Cart is required if CartId is not provided
 	Cart     CartInput         `json:"cart"`

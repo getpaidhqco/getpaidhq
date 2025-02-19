@@ -5,9 +5,11 @@ import (
 	"errors"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
+	"log/slog"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
+	"payloop/internal/infrastructure/db/postgres/models"
 	"payloop/internal/lib"
 )
 
@@ -38,8 +40,12 @@ func (r PriceRepository) WithTrx(trxHandle interface{}) PriceRepository {
 }
 
 func (r PriceRepository) FindById(ctx context.Context, orgId string, id string) (entities.Price, error) {
-	var price entities.Price
-	err := r.Pool.QueryRow(ctx, `SELECT org_id,id,billing_interval,billing_interval_qty,category,scheme,cycles,currency,unit_price,trial_interval,trial_interval_qty,tax_code 
+	var price models.Price
+	err := r.Pool.QueryRow(ctx, `SELECT org_id,id,billing_interval,billing_interval_qty,
+       category,scheme,cycles,currency,unit_price,
+       trial_interval,trial_interval_qty,tax_code,
+       updated_at,
+       updated_at
 							FROM prices WHERE org_id=@org_id AND id=@id`,
 		pgx.NamedArgs{
 			"org_id": orgId,
@@ -57,11 +63,13 @@ func (r PriceRepository) FindById(ctx context.Context, orgId string, id string) 
 		&price.TrialInterval,
 		&price.TrialIntervalQty,
 		&price.TaxCode,
+		&price.UpdatedAt,
+		&price.CreatedAt,
 	)
 
 	if err != nil {
-		r.logger.Error(`failed to find Price`, err.Error())
+		r.logger.Error(`failed to find Price`, slog.String("err", err.Error()))
 		return entities.Price{}, errors.New("not found")
 	}
-	return price, nil
+	return price.ToEntity(), nil
 }

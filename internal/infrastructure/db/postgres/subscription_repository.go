@@ -358,8 +358,8 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
 	defer rows.Close()
 
 	for rows.Next() {
-		var subscription entities.Subscription
-		var customer entities.Customer
+		var subscription models.Subscription
+		var customer models.Customer
 
 		err := rows.Scan(
 			&subscription.OrgId,
@@ -405,7 +405,7 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
 			return nil, 0, err
 		}
 		subscription.Customer = customer
-		subscriptions = append(subscriptions, subscription)
+		subscriptions = append(subscriptions, subscription.ToEntity())
 	}
 
 	if rows.Err() != nil {

@@ -9,10 +9,11 @@ type CartItem struct {
 }
 
 type CreateOrderInput struct {
-	OrgId     string                     `json:"org_id" binding:"required"` // TODO should be resolved from the API authn
+	OrgId     string                     `json:"org_id" binding:"required"`
 	Customer  CreateOrderCommandCustomer `json:"customer" binding:"required"`
 	CartId    string                     `json:"cart_id"`
 	CartItems []CartItem                 `json:"items"`
+	PspId     string                     `json:"psp_id" binding:"required"`
 	Metadata  map[string]string          `json:"metadata"`
 }
 
