@@ -316,6 +316,24 @@ func (s SubscriptionService) GetSubscriptionPaymentMethod(ctx context.Context, s
 	return paymentMethod, nil
 }
 
+func (s SubscriptionService) FindSubscriptionPayments(ctx context.Context, pk entities.EntityKey, pagination request.Pagination) ([]entities.Payment, int, error) {
+	s.logger.Info("Fetching payment method for subscription", "orgId", pk.OrgId, "id", pk.Id)
+
+	payments, total, err := s.paymentRepository.FindBySubscriptionId(ctx, pk.OrgId, pk.Id, entities.Pagination{
+		Page:          pagination.Page,
+		Limit:         pagination.Limit,
+		Offset:        pagination.Offset,
+		SortDirection: pagination.SortDirection,
+		SortBy:        pagination.SortBy,
+	})
+	if err != nil {
+		s.logger.Error("Failed to find payment method", err.Error())
+		return nil, 0, err
+	}
+
+	return payments, total, nil
+}
+
 func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context, input subscriptions.SubscriptionChargeInput) (entities.Subscription, error) {
 	s.logger.Info("Recording subscription payment and updating subscription")
 	subscription := input.Subscription

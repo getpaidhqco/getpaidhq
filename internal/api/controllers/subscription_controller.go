@@ -9,6 +9,7 @@ import (
 	"payloop/internal/api/dto/response"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/subscriptions"
 )
 
@@ -196,6 +197,36 @@ func (s SubscriptionController) List(c *gin.Context) {
 
 	c.JSON(200, response.ListResponse{
 		Data: subscriptionResponses,
+		Meta: response.Meta{
+			Total: total,
+			Page:  pagination.Page,
+			Limit: pagination.Limit,
+		},
+	})
+}
+
+func (s SubscriptionController) ListPayments(c *gin.Context) {
+	user, _ := c.Get("user")
+	orgId := user.(authn.User).OrgId
+	pagination := request.GetPagination(c)
+	id := c.Param("id")
+
+	payments, total, err := s.subsOrchastration.FindSubscriptionPayments(c.Request.Context(), entities.EntityKey{
+		OrgId: orgId,
+		Id:    id,
+	}, pagination)
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+	var rsp []response.Payment
+	for _, p := range payments {
+		rsp = append(rsp, response.NewPaymentFromEntity(p))
+	}
+
+	c.JSON(200, response.ListResponse{
+		Data: rsp,
 		Meta: response.Meta{
 			Total: total,
 			Page:  pagination.Page,

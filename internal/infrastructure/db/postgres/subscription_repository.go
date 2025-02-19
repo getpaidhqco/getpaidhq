@@ -98,7 +98,7 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
 
 	var subscriptions = make([]entities.Subscription, 0)
-	query := `SELECT s.org_id, s.id, s.order_id, s.order_item_id, s.customer_id, 
+	query := `SELECT s.org_id, s.id, s.psp_id, s.order_id, s.order_item_id, s.customer_id, 
        s.status, s.payment_method_id, s.start_date, s.end_date, 
        s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at, 
        s.last_charge, s.renews_at, 
@@ -126,6 +126,7 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 		err := rows.Scan(
 			&subscription.OrgId,
 			&subscription.Id,
+			&subscription.PspId,
 			&subscription.OrderId,
 			&subscription.OrderItemId,
 			&subscription.CustomerId,

@@ -24,6 +24,7 @@ type SubscriptionService interface {
 	Activate(ctx context.Context, orgId string, id string) (entities.Subscription, error)
 	PauseSubscription(ctx context.Context, input subscriptions.PauseSubscriptionInput) (entities.Subscription, error)
 	List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Subscription, int, error)
+	FindSubscriptionPayments(ctx context.Context, pk entities.EntityKey, pagination request.Pagination) ([]entities.Payment, int, error)
 	ResumeSubscription(ctx context.Context, input subscriptions.ResumeSubscriptionInput) (entities.Subscription, error)
 	CancelSubscription(ctx context.Context, input subscriptions.CancelSubscriptionInput) (entities.Subscription, error)
 	GetSubscriptionCustomer(ctx context.Context, subscription entities.Subscription) (entities.Customer, error)

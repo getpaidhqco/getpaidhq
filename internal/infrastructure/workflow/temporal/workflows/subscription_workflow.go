@@ -167,6 +167,10 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			// a system error occurred when attempting to charge the customer
 			// can't proceed with the subscription for now
 			logger.Error("system error when attempting the charge", "Error", err.Error())
+
+			err = workflow.ExecuteActivity(chargeCtx, a.ErrorState, subscription, err).
+				Get(chargeCtx, nil)
+
 			return subscription, err
 		}
 
@@ -176,7 +180,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		updateCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 			StartToCloseTimeout: 15 * time.Second,
 			RetryPolicy: &temporalio.RetryPolicy{
-				InitialInterval:    time.Second * 10,
+				InitialInterval:    time.Minute * 10,
 				BackoffCoefficient: 1.0,
 			},
 		})

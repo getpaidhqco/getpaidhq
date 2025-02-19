@@ -1,0 +1,45 @@
+package models
+
+import (
+	"github.com/jackc/pgx/v5/pgtype"
+	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/payments"
+)
+
+type Payment struct {
+	OrgId          string            `json:"org_id"`
+	Id             string            `json:"id"`
+	PspId          string            `json:"psp_id"`
+	Reference      string            `json:"reference"`
+	OrderId        string            `json:"order_id"`
+	SubscriptionId string            `json:"subscription_id"`
+	Status         string            `json:"status"`
+	Currency       string            `json:"currency"`
+	Amount         int               `json:"amount"`
+	PspFee         int               `json:"psp_fee"`
+	PlatformFee    int               `json:"platform_fee"`
+	NetAmount      int               `json:"net_amount"`
+	Metadata       map[string]string `json:"metadata"`
+	CreatedAt      pgtype.Date       `json:"created_at"`
+	UpdatedAt      pgtype.Date       `json:"updated_at"`
+}
+
+func (s *Payment) ToEntity() entities.Payment {
+	return entities.Payment{
+		OrgId:          s.OrgId,
+		Id:             s.Id,
+		PspId:          s.PspId,
+		Reference:      s.Reference,
+		OrderId:        s.OrderId,
+		SubscriptionId: s.SubscriptionId,
+		Status:         payments.PaymentStatus(s.Status),
+		Currency:       s.Currency,
+		Amount:         s.Amount,
+		PspFee:         s.PspFee,
+		PlatformFee:    s.PlatformFee,
+		NetAmount:      s.NetAmount,
+		Metadata:       s.Metadata,
+		CreatedAt:      s.CreatedAt.Time,
+		UpdatedAt:      s.UpdatedAt.Time,
+	}
+}

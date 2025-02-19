@@ -83,9 +83,15 @@ func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId strin
 
 // ChargeCustomerForBillingPeriod is responsible for charging the customer for the billing period and to
 // update the subscription status to reflect the billing period
-func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, subscription entities.Subscription) (payments.ChargeResult, error) {
+func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, currentSub entities.Subscription) (payments.ChargeResult, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("ChargeCustomerForBillingPeriod", "id", subscription.Id, "Amount", subscription.Amount)
+	logger.Info("ChargeCustomerForBillingPeriod", "id", currentSub.Id, "Amount", currentSub.Amount)
+
+	subscription, err := a.subscriptionRepository.FindById(ctx, currentSub.OrgId, currentSub.Id)
+	if err != nil {
+		logger.Error("Failed to find subscription", "error", err.Error())
+		return payments.ChargeResult{}, err
+	}
 
 	gw, err := a.gatewayFactory.NewGateway(ctx, subscription.OrgId, subscription.PspId)
 	if err != nil {
@@ -192,6 +198,22 @@ func (a *OrderActivities) StoreSubscriptionWorkflowContext(ctx context.Context, 
 	})
 
 	return err
+}
+
+func (a *OrderActivities) ErrorState(ctx context.Context, subscription entities.Subscription, err error) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("ErrorState", "OrgId", subscription.OrgId, "SubscriptionId", subscription.Id, "err", err.Error())
+
+	subscription.Status = entities.SubscriptionStatusError
+	subscription.Metadata["error"] = err.Error()
+
+	_, err = a.subscriptionRepository.Update(ctx, subscription)
+	if err != nil {
+		logger.Error("Failed to update subscription", "error", err.Error())
+		return err
+	}
+
+	return nil
 }
 
 func (a *OrderActivities) GetSubscription(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
