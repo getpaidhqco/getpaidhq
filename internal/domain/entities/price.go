@@ -4,6 +4,7 @@ import (
 	cart "github.com/mdwt/payloop-cart"
 	"github.com/mdwt/payloop-cart/types"
 	"payloop/internal/domain/entities/prices"
+	"time"
 )
 
 type Price struct {
@@ -20,15 +21,13 @@ type Price struct {
 	BillingIntervalQty int                    `json:"billing_interval_qty"`
 	TrialInterval      prices.BillingInterval `json:"trial_interval"`
 	TrialIntervalQty   int                    `json:"trial_interval_qty"`
-	TaxCode            *string                `json:"tax_code"`
+	TaxCode            string                 `json:"tax_code"`
 	Metadata           map[string]string      `json:"metadata"`
+	CreatedAt          time.Time              `json:"created_at"`
+	UpdatedAt          time.Time              `json:"updated_at"`
 }
 
 func (p Price) ToCartItemPrice() cart.Price {
-	if p.TaxCode == nil {
-		p.TaxCode = new(string)
-	}
-
 	return cart.Price{
 		Id:                 p.Id,
 		Category:           types.PriceCategory(p.Category),
@@ -40,6 +39,6 @@ func (p Price) ToCartItemPrice() cart.Price {
 		BillingIntervalQty: p.BillingIntervalQty,
 		TrialInterval:      types.BillingInterval(p.TrialInterval),
 		TrialIntervalQty:   p.TrialIntervalQty,
-		TaxCode:            *p.TaxCode,
+		TaxCode:            p.TaxCode,
 	}
 }

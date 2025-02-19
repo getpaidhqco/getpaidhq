@@ -151,7 +151,7 @@ func (s OrderService) CreateOrderFromCart(ctx context.Context, input orders.Crea
 // 2. The subscriptions are updated to reflect the payment received
 // 3. A payment is created for the order
 // 4. A payment method is created for the customer
-// It all happens here for now because it must be part of the same transaction..not sure if this is the best way
+// It all happens here for now because it must be part of the same transaction. not sure if this is the best way
 // or if we can have transactions in temporal workflows
 func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOrderCommand) (entities.Order, error) {
 	s.logger.Info("Completing order", "order_id", input.OrderId)
@@ -209,19 +209,19 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 			subscriptionId = subscription.Id
 			subscription.SetActivationDates()
 			subscription.Status = entities.SubscriptionStatusActive
-			subscription.LastCharge = &subscription.StartDate
+			subscription.LastCharge = subscription.StartDate
 			subscription.TotalRevenue = subscription.Amount
 			subscription.CyclesProcessed = 1
 
 			renewsAt := subscription.CalculateNextBillingDate()
-			subscription.RenewsAt = &renewsAt
+			subscription.RenewsAt = renewsAt
 			subscription.CurrentPeriodStart = subscription.StartDate
 			subscription.CurrentPeriodEnd = renewsAt
 		} else {
 			subscription.SetActivationDates()
 			subscription.Status = entities.SubscriptionStatusTrial
 		}
-		subscription.PaymentMethodId = &paymentMethod.Id
+		subscription.PaymentMethodId = paymentMethod.Id
 
 		_, err := s.subscriptionRepository.Update(ctx, subscription)
 		if err != nil {

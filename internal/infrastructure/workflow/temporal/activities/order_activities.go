@@ -125,11 +125,12 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, su
 
 	if chargeResult.Success {
 		result := payments.ChargeResult{
-			Amount:   chargeResult.AmountCharged,
-			Status:   payments.PaymentStatusSucceeded,
-			Currency: subscription.Currency,
-			PspId:    chargeResult.PspId,
-			RawData:  string(rawData),
+			Amount:    chargeResult.AmountCharged,
+			Status:    payments.PaymentStatusSucceeded,
+			Currency:  subscription.Currency,
+			PspId:     chargeResult.PspId,
+			Reference: chargeResult.Reference,
+			RawData:   string(rawData),
 		}
 		return result, nil
 	} else {

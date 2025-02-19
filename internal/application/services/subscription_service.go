@@ -67,17 +67,17 @@ func NewSubscriptionService(
 
 func (s SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
 	s.logger.Info("CreateSubscriptionsForOrder", "orgId", orgId, "orderId", orderId)
-	var subscriptions []entities.Subscription
+	var subs []entities.Subscription
 	order, err := s.orderRepository.FindById(ctx, orgId, orderId)
 	if err != nil {
 		s.logger.Error("Failed to find order", err.Error())
-		return subscriptions, err
+		return subs, err
 	}
 
 	orderItems, err := s.orderItemRepository.FindByOrderId(ctx, orgId, orderId)
 	if err != nil {
 		s.logger.Error("Failed to find order items", err.Error())
-		return subscriptions, err
+		return subs, err
 	}
 
 	for _, item := range orderItems {
@@ -89,13 +89,13 @@ func (s SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, or
 		_, err := s.subscriptionRepository.Create(ctx, subscription)
 		if err != nil {
 			s.logger.Error("Failed to create subscription", "item", item, err.Error())
-			return subscriptions, err
+			return subs, err
 		}
-		subscriptions = append(subscriptions, subscription)
+		subs = append(subs, subscription)
 	}
 
-	s.logger.Info("Subscriptions created", "count", len(subscriptions))
-	return subscriptions, nil
+	s.logger.Info("Subscriptions created", "count", len(subs))
+	return subs, nil
 }
 
 func (s SubscriptionService) Create(ctx context.Context, input entities.CreateSubscriptionInput) (entities.Subscription, error) {
@@ -237,7 +237,7 @@ func (s SubscriptionService) ResumeSubscription(ctx context.Context, input subsc
 			return entities.Subscription{}, lib.NewCustomError(lib.BadRequestError, "next billing date is in the past", errors.New("next billing date is in the past"))
 		}
 		// set the next billing date to the next billing date
-		subscription.RenewsAt = &nextCharge
+		subscription.RenewsAt = nextCharge
 	}
 
 	if behaviour == subscriptions.StartNewBillingPeriod {
@@ -245,7 +245,7 @@ func (s SubscriptionService) ResumeSubscription(ctx context.Context, input subsc
 		// add a bit of a buffer to avoid charging immediately
 		nextCharge := time.Now().UTC().Add(time.Second * 20)
 		subscription.BillingAnchor = nextCharge.Day()
-		subscription.RenewsAt = &nextCharge
+		subscription.RenewsAt = nextCharge
 	}
 	subscription.Status = entities.SubscriptionStatusActive
 
@@ -284,7 +284,7 @@ func (s SubscriptionService) CancelSubscription(ctx context.Context, input subsc
 	cancelledAt := time.Now().UTC()
 	subscription.Status = entities.SubscriptionStatusCancelled
 	subscription.CancelAt = subscription.RenewsAt
-	subscription.CancelledAt = &cancelledAt
+	subscription.CancelledAt = cancelledAt
 	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
 		s.logger.Error("Failed to update subscription", err.Error())
@@ -293,16 +293,6 @@ func (s SubscriptionService) CancelSubscription(ctx context.Context, input subsc
 
 	return subscription, nil
 }
-
-//func (s SubscriptionOrchestrationService) ProcessSubscriptionCharge(ctx context.Context, input subscriptions.ProcessSubscriptionChargeInput) (payments.ChargeResult, error) {
-//
-//	subscription := input.Subscription
-//	s.logger.Info("Processing subscription charge", "orgId", subscription.OrgId, "id", subscription.Id)
-//
-//	chargeResult, err := s.paymentGateway.ChargePayment(ctx, subscription)
-//
-//	return newSub, nil
-//}
 
 func (s SubscriptionService) GetSubscriptionCustomer(ctx context.Context, subscription entities.Subscription) (entities.Customer, error) {
 	customer, err := s.customerRepository.FindById(ctx, subscription.OrgId, subscription.CustomerId)
@@ -317,7 +307,7 @@ func (s SubscriptionService) GetSubscriptionCustomer(ctx context.Context, subscr
 func (s SubscriptionService) GetSubscriptionPaymentMethod(ctx context.Context, subscription entities.Subscription) (entities.PaymentMethod, error) {
 	s.logger.Info("Fetching payment method for subscription", "orgId", subscription.OrgId, "subscriptionId", subscription.Id)
 
-	paymentMethod, err := s.customerRepository.FindPaymentMethodById(ctx, subscription.OrgId, *subscription.PaymentMethodId)
+	paymentMethod, err := s.customerRepository.FindPaymentMethodById(ctx, subscription.OrgId, subscription.PaymentMethodId)
 	if err != nil {
 		s.logger.Error("Failed to find payment method", err.Error())
 		return entities.PaymentMethod{}, err
@@ -338,11 +328,13 @@ func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context
 
 	matadata := make(map[string]string)
 	matadata["psp_id"] = charge.PspId
+	matadata["reference"] = charge.Reference
 
 	payment := entities.Payment{
 		OrgId:          subscription.OrgId,
 		Id:             lib.GenerateId("pmt"),
 		PspId:          charge.PspId,
+		Reference:      charge.Reference,
 		OrderId:        subscription.OrderId,
 		SubscriptionId: subscription.Id,
 
@@ -365,22 +357,22 @@ func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context
 	lastCharge := time.Now().UTC()
 	subscription.CyclesProcessed++
 	subscription.TotalRevenue += subscription.Amount
-	subscription.LastCharge = &lastCharge
+	subscription.LastCharge = lastCharge
 	subscription.Retries = 0
-	subscription.NextRetryAt = nil
+	subscription.NextRetryAt = time.Time{}
 
 	if subscription.Cycles != 0 && subscription.CyclesProcessed >= subscription.Cycles {
 		// this is the last charge for a subscription
 		subscription.Status = entities.SubscriptionStatusCompleted
-		subscription.EndsAt = &lastCharge
-		subscription.RenewsAt = nil
+		subscription.EndsAt = lastCharge
+		subscription.RenewsAt = time.Time{}
 		subscription.CurrentPeriodEnd = time.Time{}
 		subscription.CurrentPeriodStart = time.Time{}
 	} else {
 		// this is a normal recurring charge that needs to move to the new billing cycle
 		subscription.Status = entities.SubscriptionStatusActive
 		nextCharge := subscription.CalculateNextBillingDate()
-		subscription.RenewsAt = &nextCharge
+		subscription.RenewsAt = nextCharge
 		subscription.CurrentPeriodStart = subscription.CurrentPeriodEnd
 		subscription.CurrentPeriodEnd = nextCharge
 	}
@@ -423,13 +415,13 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 		// update the subscription status
 		subscription.Status = entities.SubscriptionStatusRetry
 		nextCharge := subscription.CalculateNextBillingDate()
-		subscription.RenewsAt = &nextCharge
-		subscription.NextRetryAt = &nextCharge
+		subscription.RenewsAt = nextCharge
+		subscription.NextRetryAt = nextCharge
 		subscription.Retries++
 	} else {
 		subscription.Status = entities.SubscriptionStatusPastDue
 		subscription.Retries = 0
-		subscription.NextRetryAt = nil
+		subscription.NextRetryAt = time.Time{}
 
 		_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusPastDue, subscription)
 	}

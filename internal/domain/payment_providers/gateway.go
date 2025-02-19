@@ -34,6 +34,7 @@ type ChargePaymentResponse struct {
 	Retryable     bool   `json:"retryable"`
 	Psp           string `json:"psp"`
 	PspId         string `json:"psp_id"`
+	Reference     string `json:"reference"`
 	Currency      string `json:"currency"`
 	AmountCharged int    `json:"amount_charged"`
 	PaymentType   string `json:"payment_type"`

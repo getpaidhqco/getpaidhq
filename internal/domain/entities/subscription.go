@@ -59,31 +59,31 @@ type Subscription struct {
 	CustomerId         string                 `json:"customer_id"`
 	Customer           Customer               `json:"-"`
 	Status             SubscriptionStatus     `json:"status"`
-	PaymentMethodId    *string                `json:"payment_method_id,omitempty"`
+	PaymentMethodId    string                 `json:"payment_method_id,omitempty"`
 	StartDate          time.Time              `json:"start_date"`
-	EndDate            *time.Time             `json:"end_date"`
+	EndDate            time.Time              `json:"end_date"`
 	BillingInterval    prices.BillingInterval `json:"billing_interval"`
 	BillingIntervalQty int                    `json:"billing_interval_qty"`
 	Cycles             int                    `json:"cycles"`
 	BillingAnchor      int                    `json:"billing_anchor"`
-	TrialEndsAt        *time.Time             `json:"trial_ends_at"`
-	CancelAt           *time.Time             `json:"cancel_at"`
-	EndsAt             *time.Time             `json:"ends_at"`
-	LastCharge         *time.Time             `json:"last_charge"`
-	RenewsAt           *time.Time             `json:"renews_at"`
+	TrialEndsAt        time.Time              `json:"trial_ends_at"`
+	CancelAt           time.Time              `json:"cancel_at"`
+	EndsAt             time.Time              `json:"ends_at"`
+	LastCharge         time.Time              `json:"last_charge"`
+	RenewsAt           time.Time              `json:"renews_at"`
 
 	CurrentPeriodStart time.Time `json:"current_period_start"`
 	CurrentPeriodEnd   time.Time `json:"current_period_end"`
 
-	Retries     int        `json:"retries"`
-	NextRetryAt *time.Time `json:"next_retry"`
+	Retries     int       `json:"retries"`
+	NextRetryAt time.Time `json:"next_retry"`
 
 	Currency        string            `json:"currency"`
 	Amount          int               `json:"amount"`
 	Metadata        map[string]string `json:"metadata"`
 	CyclesProcessed int               `json:"cycles_processed"`
 	TotalRevenue    int               `json:"total_revenue"`
-	CancelledAt     *time.Time        `json:"cancelled_at"`
+	CancelledAt     time.Time         `json:"cancelled_at"`
 	CreatedAt       time.Time         `json:"created_at"`
 	UpdatedAt       time.Time         `json:"updated_at"`
 }
@@ -104,28 +104,28 @@ func (s Subscription) CalculateNextBillingDate() time.Time {
 	var nextBillingDate time.Time
 	if s.Status == SubscriptionStatusRetry {
 		// Next retry date is in the future
-		if s.NextRetryAt != nil && s.NextRetryAt.After(time.Now().UTC()) {
-			return *s.NextRetryAt
+		if !s.NextRetryAt.IsZero() && s.NextRetryAt.After(time.Now().UTC()) {
+			return s.NextRetryAt
 		}
 
 		// Next retry already happened, use as base
-		if s.NextRetryAt != nil && s.NextRetryAt.Before(time.Now().UTC()) {
+		if !s.NextRetryAt.IsZero() && s.NextRetryAt.Before(time.Now().UTC()) {
 			nextBillingDate = time.Now().UTC()
 		} else {
 			// Retry hasn't happened yet, use last charge date as base
-			nextBillingDate = *s.LastCharge
+			nextBillingDate = s.LastCharge
 		}
 
 		return nextBillingDate.Add(time.Minute * 1)
 	}
 
 	nextBillingDate = s.StartDate
-	if s.LastCharge == nil && s.CyclesProcessed == 0 {
+	if s.LastCharge.IsZero() && s.CyclesProcessed == 0 {
 		return nextBillingDate
 	}
 
-	if s.LastCharge != nil && s.LastCharge.After(nextBillingDate) {
-		nextBillingDate = *s.LastCharge
+	if !s.LastCharge.IsZero() && s.LastCharge.After(nextBillingDate) {
+		nextBillingDate = s.LastCharge
 	}
 
 	switch s.BillingInterval {
@@ -150,8 +150,8 @@ func (s Subscription) CalculateNextBillingDate() time.Time {
 func (s *Subscription) SetActivationDates() *Subscription {
 	price := s.OrderItem.Price
 	var startDate = time.Now().UTC()
-	var trialEndsAt *time.Time
-	var endsAt *time.Time
+	var trialEndsAt time.Time
+	var endsAt time.Time
 	if s.OrderItem.Price.TrialInterval != prices.BillingIntervalNone {
 		switch s.OrderItem.Price.TrialInterval {
 		case "minute":
@@ -168,17 +168,17 @@ func (s *Subscription) SetActivationDates() *Subscription {
 			startDate = startDate.AddDate(s.OrderItem.Price.TrialIntervalQty, 0, 0)
 		}
 
-		trialEndsAt = &startDate
+		trialEndsAt = startDate
 	}
 
 	if s.OrderItem.Price.Cycles > 0 {
 		endsAtV := calculateNextDate(price.BillingInterval, price.Cycles*price.BillingIntervalQty, startDate)
-		endsAt = &endsAtV
+		endsAt = endsAtV
 	}
 
 	s.TrialEndsAt = trialEndsAt
 	s.EndsAt = endsAt
-	s.RenewsAt = &startDate
+	s.RenewsAt = startDate
 	s.StartDate = startDate
 
 	return s
@@ -215,16 +215,11 @@ func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 		BillingInterval:    item.Price.BillingInterval,
 		BillingIntervalQty: item.Price.BillingIntervalQty,
 		Cycles:             item.Price.Cycles,
-		CancelAt:           nil,
-		LastCharge:         nil,
 		Retries:            0,
-		NextRetryAt:        nil,
 		Currency:           item.Price.Currency,
 		Amount:             item.Price.UnitPrice,
-		Metadata:           nil,
 		CyclesProcessed:    0,
 		TotalRevenue:       0,
-		CancelledAt:        nil,
 		CreatedAt:          time.Now().UTC(),
 		UpdatedAt:          time.Now().UTC(),
 	}
@@ -234,7 +229,7 @@ func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 func NewFromCreateInput(input CreateSubscriptionInput) Subscription {
 
 	var startDate = time.Now().UTC()
-	var trialEndsAt *time.Time
+	var trialEndsAt time.Time
 	if input.TrialInterval != prices.BillingIntervalNone {
 		switch input.TrialInterval {
 		case "minute":
@@ -251,7 +246,7 @@ func NewFromCreateInput(input CreateSubscriptionInput) Subscription {
 			startDate = startDate.AddDate(input.TrialIntervalQty, 0, 0)
 		}
 
-		trialEndsAt = &startDate
+		trialEndsAt = startDate
 	}
 
 	return Subscription{
@@ -259,24 +254,16 @@ func NewFromCreateInput(input CreateSubscriptionInput) Subscription {
 		Id:                 lib.GenerateId("sub"),
 		Status:             SubscriptionStatusPending,
 		StartDate:          startDate,
-		EndDate:            nil,
 		BillingInterval:    input.BillingInterval,
 		BillingIntervalQty: input.BillingIntervalQty,
 		Cycles:             0,
 		BillingAnchor:      startDate.Day(),
 		TrialEndsAt:        trialEndsAt,
-		CancelAt:           nil,
-		EndsAt:             nil,
-		LastCharge:         nil,
-		RenewsAt:           nil,
 		Retries:            0,
-		NextRetryAt:        nil,
 		Currency:           input.Currency,
 		Amount:             input.Amount,
-		Metadata:           nil,
 		CyclesProcessed:    0,
 		TotalRevenue:       0,
-		CancelledAt:        nil,
 		CreatedAt:          time.Now().UTC(),
 		UpdatedAt:          time.Now().UTC(),
 	}

@@ -9,6 +9,7 @@ type Payment struct {
 	OrgId          string                 `json:"org_id"`
 	Id             string                 `json:"id"`
 	PspId          string                 `json:"psp_id"`
+	Reference      string                 `json:"reference"`
 	OrderId        string                 `json:"order_id"`
 	SubscriptionId string                 `json:"subscription_id"`
 	Status         payments.PaymentStatus `json:"status"`

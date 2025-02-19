@@ -38,7 +38,7 @@ func (s SubscriptionController) Get(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, response.NewFromEntity(subscription))
+	c.JSON(200, response.NewSubscriptionFromEntity(subscription))
 }
 
 // Update This only lets you change the subscription settings that have no impact on the billed amount.
@@ -160,7 +160,7 @@ func (s SubscriptionController) Cancel(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, response.NewFromEntity(subscription))
+	c.JSON(200, response.NewSubscriptionFromEntity(subscription))
 }
 
 // List all subscriptions
@@ -191,7 +191,7 @@ func (s SubscriptionController) List(c *gin.Context) {
 	}
 	var subscriptionResponses []response.Subscription
 	for _, sub := range subs {
-		subscriptionResponses = append(subscriptionResponses, response.NewFromEntity(sub))
+		subscriptionResponses = append(subscriptionResponses, response.NewSubscriptionFromEntity(sub))
 	}
 
 	c.JSON(200, response.ListResponse{

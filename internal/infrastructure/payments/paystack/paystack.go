@@ -105,6 +105,7 @@ func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.Cha
 		Success:       true,
 		Psp:           PAYSTACK,
 		PspId:         strconv.FormatInt(response.ID, 10),
+		Reference:     response.Reference,
 		AmountCharged: response.Amount,
 		Currency:      response.Currency,
 		PaymentType:   response.Channel,

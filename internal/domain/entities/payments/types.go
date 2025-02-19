@@ -20,5 +20,6 @@ type ChargeResult struct {
 	ErrorCode   string        `json:"error_code"`
 	Currency    string        `json:"currency"`
 	PspId       string        `json:"psp_id"`
+	Reference   string        `json:"reference"`
 	RawData     string        `json:"raw_data"`
 }

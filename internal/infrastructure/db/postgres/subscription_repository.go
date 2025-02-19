@@ -9,6 +9,7 @@ import (
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
+	"payloop/internal/infrastructure/db/postgres/models"
 	"payloop/internal/lib"
 )
 
@@ -29,8 +30,8 @@ func NewSubscriptionRepository(database lib.Database, logger logger.Logger) repo
 }
 
 func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
-	var subscription entities.Subscription
-	var customer entities.Customer
+	var subscription models.Subscription
+	var customer models.Customer
 	query := `SELECT s.org_id, s.id, s.order_id, s.order_item_id, s.customer_id, s.status, s.payment_method_id, s.start_date, s.end_date,
        s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at,
        s.last_charge, 
@@ -90,7 +91,7 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 		return entities.Subscription{}, err
 	}
 	subscription.Customer = customer
-	return subscription, nil
+	return subscription.ToEntity(), nil
 }
 
 func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {

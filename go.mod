@@ -1,8 +1,6 @@
 module payloop
 
-go 1.23.2
-
-toolchain go1.23.5
+go 1.24
 
 require (
 	github.com/cedar-policy/cedar-go v1.1.0
