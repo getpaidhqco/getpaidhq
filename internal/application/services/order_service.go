@@ -7,7 +7,6 @@ import (
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
-	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/entities/payments"
@@ -134,7 +133,7 @@ func (s OrderService) CreateOrderFromCart(ctx context.Context, input orders.Crea
 		}
 	}
 
-	gw, err := s.gatewayFactory.NewGateway(ctx, orgId, common.Gateway(input.PspId))
+	gw, err := s.gatewayFactory.NewGateway(ctx, orgId, input.PspId)
 	if err != nil {
 		s.logger.Error("Failed to get gateway", err.Error())
 		return entities.Order{}, payment_providers.InitPaymentResponse{}, err

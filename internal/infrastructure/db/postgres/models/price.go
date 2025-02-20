@@ -2,6 +2,7 @@ package models
 
 import (
 	"github.com/jackc/pgx/v5/pgtype"
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/prices"
 )
@@ -35,7 +36,7 @@ func (p *Price) ToEntity() entities.Price {
 		Category:           prices.PriceCategory(p.Category),
 		Scheme:             prices.PriceScheme(p.Scheme),
 		Cycles:             p.Cycles,
-		Currency:           p.Currency,
+		Currency:           common.Currency(p.Currency),
 		UnitPrice:          p.UnitPrice,
 		MinPrice:           p.MinPrice.Int64,
 		SuggestedPrice:     p.SuggestedPrice.Int64,

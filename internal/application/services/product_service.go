@@ -6,9 +6,12 @@ import (
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/prices"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
+	"time"
 )
 
 type ProductService struct {
@@ -62,4 +65,43 @@ func (s ProductService) FindById(ctx context.Context, orgId string, id string) (
 	}
 
 	return product, nil
+}
+
+func (s ProductService) CreateProductPrice(ctx context.Context, input entities.CreatePriceInput) (entities.Price, error) {
+
+	if input.BillingInterval == "" {
+		input.BillingInterval = prices.BillingIntervalNone
+	}
+	if input.TrialInterval == "" {
+		input.TrialInterval = prices.BillingIntervalNone
+	}
+
+	price, err := s.productRepository.CreatePrice(ctx, entities.Price{
+		OrgId:              input.OrgId,
+		Id:                 lib.GenerateId("price"),
+		VariantId:          input.VariantId,
+		Category:           input.Category,
+		Scheme:             input.Scheme,
+		Cycles:             input.Cycles,
+		Currency:           common.Currency(input.Currency),
+		UnitPrice:          input.UnitPrice,
+		MinPrice:           input.MinPrice,
+		SuggestedPrice:     input.SuggestedPrice,
+		BillingInterval:    input.BillingInterval,
+		BillingIntervalQty: input.BillingIntervalQty,
+		TrialInterval:      input.TrialInterval,
+		TrialIntervalQty:   input.TrialIntervalQty,
+		TaxCode:            input.TaxCode,
+		Metadata:           input.Metadata,
+		CreatedAt:          time.Now(),
+		UpdatedAt:          time.Now(),
+	})
+
+	if err != nil {
+		s.logger.Error("Failed to create product price", err.Error())
+		return entities.Price{}, err
+	}
+
+	_ = s.pubsub.Publish(input.OrgId, topic.PriceCreated, price)
+	return price, nil
 }

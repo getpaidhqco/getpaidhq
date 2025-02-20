@@ -25,6 +25,9 @@ func (s ProductRoutes) Setup() {
 		api.GET("/products", s.checkAuthz(authz.ListProducts), s.productController.List)
 		api.GET("/products/:id", s.checkAuthz(authz.GetProduct), s.productController.Get)
 		api.POST("/products", s.checkAuthz(authz.CreateProduct), s.productController.Create)
+
+		// TODO move to a separate controller
+		api.POST("/prices", s.checkAuthz(authz.CreatePrice), s.productController.CreatePrice)
 	}
 }
 

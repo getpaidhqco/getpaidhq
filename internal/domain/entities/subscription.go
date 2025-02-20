@@ -218,7 +218,7 @@ func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 		BillingIntervalQty: item.Price.BillingIntervalQty,
 		Cycles:             item.Price.Cycles,
 		Retries:            0,
-		Currency:           item.Price.Currency,
+		Currency:           string(item.Price.Currency),
 		Amount:             item.Price.UnitPrice,
 		CyclesProcessed:    0,
 		TotalRevenue:       0,

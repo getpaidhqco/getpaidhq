@@ -5,6 +5,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 	"log"
+	"log/slog"
 	"payloop/internal/application/lib/logger"
 	"sync"
 )
@@ -65,7 +66,11 @@ func NewDatabase(env Env, logger logger.Logger) *PgDatabase {
 	logger.Info("Connecting to database", "url", env.DBUrl)
 
 	pgOnce.Do(func() {
-		pool, err := pgxpool.New(context.TODO(), env.DBUrl)
+		dbConfig, err := pgxpool.ParseConfig(env.DBUrl)
+		dbConfig.ConnConfig.Tracer = &myQueryTracer{
+			logger: logger,
+		}
+		pool, err := pgxpool.NewWithConfig(context.TODO(), dbConfig)
 		if err != nil {
 			logger.Error("could not connect to database", "error", err)
 			return
@@ -81,7 +86,38 @@ func NewDatabase(env Env, logger logger.Logger) *PgDatabase {
 	if pgInstance == nil {
 		log.Fatalf("could not connect to database")
 	}
+
 	return pgInstance
+}
+
+type myQueryTracer struct {
+	logger logger.Logger
+}
+
+func (l *myQueryTracer) TraceQueryEnd(ctx context.Context, conn *pgx.Conn, data pgx.TraceQueryEndData) {
+	// Failure
+	if data.Err != nil {
+		l.logger.
+			Error("query end",
+				slog.String("error", data.Err.Error()),
+				slog.String("command_tag", data.CommandTag.String()),
+			)
+		return
+	}
+
+	// Success
+	l.logger.
+		Info("query end",
+			slog.String("command_tag", data.CommandTag.String()),
+		)
+}
+
+func (l *myQueryTracer) TraceQueryStart(ctx context.Context, conn *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	l.logger.Info("query start",
+		slog.String("sql", data.SQL),
+		slog.Any("args", data.Args),
+	)
+	return ctx
 }
 
 func (d *PgDatabase) Ping(ctx context.Context) error {

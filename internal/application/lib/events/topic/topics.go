@@ -5,6 +5,8 @@ const (
 	TopicChargeFailed         = "charge.failed"
 	ProductCreated            = "product.created"
 
+	PriceCreated = "price.created"
+
 	OrderCompleted = "order.completed"
 
 	TopicSubscriptionCreated   = "subscription.created"

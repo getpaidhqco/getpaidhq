@@ -9,6 +9,7 @@ import (
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
+	"payloop/internal/infrastructure/db/postgres/models"
 	"payloop/internal/lib"
 )
 
@@ -139,4 +140,68 @@ func (r ProductRepository) Find(ctx context.Context, orgId string, p request.Pag
 	}
 
 	return products, count, nil
+}
+
+func (r ProductRepository) CreatePrice(ctx context.Context, entity entities.Price) (entities.Price, error) {
+	var price models.Price
+
+	r.logger.Debug("BillingInterval value: ", entity.BillingInterval)
+	query := `INSERT INTO prices (org_id, id, variant_id, category, scheme, cycles, currency, 
+                    unit_price, min_price, suggested_price, billing_interval, billing_interval_qty, 
+                    trial_interval, trial_interval_qty, tax_code, metadata,
+                    created_at, updated_at)
+        VALUES (@org_id, @id, @variant_id, @category, @scheme, @cycles, @currency, 
+                @unit_price, @min_price, @suggested_price, @billing_interval, @billing_interval_qty, 
+                @trial_interval, @trial_interval_qty, @tax_code, @metadata,
+                NOW(), NOW())
+		RETURNING org_id, id, variant_id, category, scheme, cycles, currency, 
+                    unit_price, min_price, suggested_price, billing_interval, billing_interval_qty, 
+                    trial_interval, trial_interval_qty, tax_code, metadata,
+                    created_at, updated_at
+       `
+
+	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
+		"org_id":               entity.OrgId,
+		"id":                   entity.Id,
+		"variant_id":           entity.VariantId,
+		"category":             entity.Category,
+		"scheme":               entity.Scheme,
+		"cycles":               entity.Cycles,
+		"currency":             entity.Currency,
+		"unit_price":           entity.UnitPrice,
+		"min_price":            entity.MinPrice,
+		"suggested_price":      entity.SuggestedPrice,
+		"billing_interval":     entity.BillingInterval,
+		"billing_interval_qty": entity.BillingIntervalQty,
+		"trial_interval":       entity.TrialInterval,
+		"trial_interval_qty":   entity.TrialIntervalQty,
+		"tax_code":             entity.TaxCode,
+		"metadata":             entity.Metadata,
+	}).Scan(
+
+		&price.OrgId,
+		&price.Id,
+		&price.VariantId,
+		&price.Category,
+		&price.Scheme,
+		&price.Cycles,
+		&price.Currency,
+		&price.UnitPrice,
+		&price.MinPrice,
+		&price.SuggestedPrice,
+		&price.BillingInterval,
+		&price.BillingIntervalQty,
+		&price.TrialInterval,
+		&price.TrialIntervalQty,
+		&price.TaxCode,
+		&price.Metadata,
+		&price.CreatedAt,
+		&price.UpdatedAt,
+	)
+
+	if err != nil {
+		r.logger.Error(`failed to create Price`, err.Error())
+		return entities.Price{}, err
+	}
+	return price.ToEntity(), nil
 }

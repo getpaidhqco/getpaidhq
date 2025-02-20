@@ -103,3 +103,41 @@ func (s ProductController) List(c *gin.Context) {
 		},
 	})
 }
+
+// List all subscriptions
+func (s ProductController) CreatePrice(c *gin.Context) {
+	var input request.CreateProductPriceRequest
+	user, _ := c.Get("user")
+	orgId := user.(authn.User).OrgId
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	price, err := s.productService.CreateProductPrice(c.Request.Context(), entities.CreatePriceInput{
+		OrgId:              orgId,
+		VariantId:          input.VariantId,
+		Category:           input.Category,
+		Scheme:             input.Scheme,
+		Cycles:             input.Cycles,
+		Currency:           input.Currency,
+		UnitPrice:          input.UnitPrice,
+		MinPrice:           input.MinPrice,
+		SuggestedPrice:     input.SuggestedPrice,
+		BillingInterval:    input.BillingInterval,
+		BillingIntervalQty: input.BillingIntervalQty,
+		TrialInterval:      input.TrialInterval,
+		TrialIntervalQty:   input.TrialIntervalQty,
+		TaxCode:            input.TaxCode,
+		Metadata:           input.Metadata,
+	})
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	c.JSON(200, price)
+}
