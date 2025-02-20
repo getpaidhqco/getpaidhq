@@ -6,10 +6,10 @@ import (
 	"encoding/hex"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/factories"
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
-	"payloop/internal/infrastructure/payments/paystack"
 	"time"
 )
 
@@ -36,7 +36,7 @@ func NewWebhookService(
 
 // HandlePaymentWebhook parses a payment webhook and checks if it is valid. If valid, it publishes
 // a payment event to the event bus.
-func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, input []byte) error {
+func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, psp common.Gateway, input []byte) error {
 	s.logger.Infof("HandlePaymentWebhook: %s", string(input))
 
 	hash := md5.Sum(input)
@@ -59,8 +59,7 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, input []byte)
 		return err
 	}
 
-	// TODO - figure out which parser to use
-	parser := paystack.NewWebhookParser(s.logger)
+	parser := s.gatewayFactory.NewWebhookParser(psp)
 	err = parser.ValidateWebhook(ctx, input)
 	if err != nil {
 		s.logger.Error("Failed to validate webhook", err.Error())

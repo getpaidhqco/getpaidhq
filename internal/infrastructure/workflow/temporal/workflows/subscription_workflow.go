@@ -154,7 +154,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		// Charge the customer
 		var chargeResult payments.ChargeResult
 		chargeCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-			StartToCloseTimeout: time.Second * 15,
+			StartToCloseTimeout: time.Second * 60,
 			RetryPolicy: &temporalio.RetryPolicy{
 				InitialInterval:    time.Minute * 2,
 				BackoffCoefficient: 1.0,

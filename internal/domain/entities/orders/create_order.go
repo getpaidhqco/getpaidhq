@@ -18,6 +18,7 @@ type CreateOrderInput struct {
 	CartItems []CartItem                 `json:"items"`
 	PspId     common.Gateway             `json:"psp_id" binding:"required"`
 	Metadata  map[string]string          `json:"metadata"`
+	Options   map[string]string          `json:"options"`
 }
 
 type CompleteOrderCommand struct {

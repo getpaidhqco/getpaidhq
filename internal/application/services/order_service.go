@@ -145,6 +145,7 @@ func (s OrderService) CreateOrderFromCart(ctx context.Context, input orders.Crea
 		Cart:     cart.Data,
 		Order:    order,
 		Customer: customer,
+		Options:  input.Options,
 	})
 	if err != nil {
 		s.logger.Error("Failed to initialise payment gateway", err.Error())
@@ -185,7 +186,7 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 	paymentMethod, err := s.customerRepository.CreatePaymentMethod(ctx, entities.PaymentMethod{
 		OrgId:      orgId,
 		Id:         lib.GenerateId("payment_method"),
-		Psp:        input.PaymentContext.Psp,
+		Psp:        string(input.PaymentContext.Psp),
 		Token:      input.PaymentContext.PaymentMethod.Token,
 		Name:       "Default",
 		CustomerId: order.CustomerId,

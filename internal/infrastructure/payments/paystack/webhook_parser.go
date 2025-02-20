@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/payment_providers"
 	"strconv"
 )
@@ -51,7 +52,7 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (payment_p
 			RawData: data,
 			OrgId:   webhook.Metadata.OrgID,
 			OrderId: webhook.Metadata.OrderID,
-			Psp:     PAYSTACK,
+			Psp:     common.Paystack,
 			Status:  "success",
 			Payment: payment_providers.Payment{
 				Currency:    webhook.Currency,

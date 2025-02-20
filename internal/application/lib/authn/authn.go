@@ -5,7 +5,7 @@ import (
 	"payloop/internal/api/authn"
 )
 
-var PublicPaths = []string{"/api/health", "/api/notify"}
+var PublicPaths = []string{"/api/health", "/api/notify", "/api/notify/cdc"}
 
 type Authenticator interface {
 	Setup()

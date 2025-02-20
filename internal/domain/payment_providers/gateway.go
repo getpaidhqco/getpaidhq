@@ -19,18 +19,21 @@ type WebhookParser interface {
 }
 
 type ChargePaymentCommand struct {
-	OrgId         string
-	Amount        int64
-	Currency      string
-	Reference     string
-	PaymentMethod PaymentMethod
-	Customer      entities.Customer
+	OrgId          string
+	OrderId        string
+	SubscriptionId string
+	Amount         int64
+	Currency       string
+	Reference      string
+	PaymentMethod  PaymentMethod
+	Customer       entities.Customer
 }
 type InitPaymentCommand struct {
 	OrgId    string
 	Cart     cart.Cart
 	Order    entities.Order
 	Customer entities.Customer
+	Options  map[string]string
 }
 
 type ChargePaymentResponse struct {
@@ -89,7 +92,7 @@ type PaymentWebhookContext struct {
 	Type          PaymentWebhookType `json:"type"`
 	OrgId         string             `json:"org_id"`
 	OrderId       string             `json:"order_id"`
-	Psp           string             `json:"psp"`
+	Psp           common.Gateway     `json:"psp"`
 	Status        string             `json:"status"`
 	Payment       Payment            `json:"payment"`
 	Customer      Customer           `json:"customer"`

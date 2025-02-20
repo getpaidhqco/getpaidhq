@@ -5,6 +5,7 @@ import (
 	"payloop/internal/api"
 	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/request"
+	"payloop/internal/api/dto/response"
 	"payloop/internal/application/interfaces"
 	app_lib "payloop/internal/application/lib/authz"
 	"payloop/internal/application/lib/logger"
@@ -49,15 +50,17 @@ func (o OrderController) CreateOrder(c *gin.Context) {
 
 	order, psp, err := o.service.CreateOrderFromCart(c.Request.Context(), orders.CreateOrderInput{
 		OrgId: authUser.OrgId,
-		PspId: common.Gateway(input.PspId),
 		Customer: orders.CreateOrderCommandCustomer{
 			ID:       input.Customer.ID,
 			Email:    input.Customer.Email,
 			Name:     input.Customer.Name,
 			Metadata: nil,
 		},
-		CartId:   input.CartId,
-		Metadata: nil,
+		CartId:    input.CartId,
+		CartItems: nil,
+		PspId:     common.Gateway(input.PspId),
+		Metadata:  nil,
+		Options:   input.Options,
 	})
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
@@ -66,7 +69,7 @@ func (o OrderController) CreateOrder(c *gin.Context) {
 	}
 
 	c.JSON(200, map[string]interface{}{
-		"order": order,
-		"psp":   psp,
+		"order": response.NewOrderFromEntity(order),
+		"psp":   psp.PspResponse,
 	})
 }

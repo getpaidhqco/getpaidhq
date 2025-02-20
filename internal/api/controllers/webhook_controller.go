@@ -5,6 +5,8 @@ import (
 	"io"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/application/services"
+	"payloop/internal/domain/common"
+	"strings"
 )
 
 // WebhookController data type
@@ -23,9 +25,16 @@ func NewWebhookController(service services.WebhookService, logger logger.Logger)
 
 func (u WebhookController) Process(c *gin.Context) {
 	jsonData, err := io.ReadAll(c.Request.Body)
+	var psp common.Gateway
 
+	if strings.Contains(c.Request.URL.Path, "cdc") {
+		u.logger.Debug("CheckoutDotCom")
+		psp = common.CheckoutDotCom
+	} else {
+		psp = common.Paystack
+	}
 	u.logger.Debug("Processing webhook")
-	err = u.webhookService.HandlePaymentWebhook(c.Request.Context(), jsonData)
+	err = u.webhookService.HandlePaymentWebhook(c.Request.Context(), psp, jsonData)
 	if err != nil {
 		// we log the error and report it, but we always respond positively to the webhook
 		u.logger.Errorf("Error processing webhook: %s", err.Error())

@@ -18,6 +18,7 @@ func (s WebhookRoutes) Setup() {
 	api := s.handler.Gin.Group("/api")
 	{
 		api.POST("/notify", s.webhookController.Process)
+		api.POST("/notify/cdc", s.webhookController.Process)
 	}
 }
 

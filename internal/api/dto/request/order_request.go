@@ -18,6 +18,7 @@ type CreateOrderRequest struct {
 	// Cart is required if CartId is not provided
 	Cart     CartInput         `json:"cart"`
 	Metadata map[string]string `json:"metadata"`
+	Options  map[string]string `json:"options"`
 }
 
 type CreateOrderRequestCustomer struct {
