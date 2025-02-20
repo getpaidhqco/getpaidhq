@@ -156,8 +156,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		chargeCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 			StartToCloseTimeout: time.Second * 15,
 			RetryPolicy: &temporalio.RetryPolicy{
-				MaximumAttempts:    2,
-				InitialInterval:    time.Second * 15,
+				InitialInterval:    time.Minute * 2,
 				BackoffCoefficient: 1.0,
 			},
 		})
@@ -165,11 +164,8 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			Get(chargeCtx, &chargeResult)
 		if err != nil {
 			// a system error occurred when attempting to charge the customer
-			// can't proceed with the subscription for now
-			logger.Error("system error when attempting the charge", "Error", err.Error())
-
-			err = workflow.ExecuteActivity(chargeCtx, a.ErrorState, subscription, err).
-				Get(chargeCtx, nil)
+			// This shouldn't be reached because of the retry policy which will retry forever
+			// The workflow can be stopped using updates
 
 			return subscription, err
 		}

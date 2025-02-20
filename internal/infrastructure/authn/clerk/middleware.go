@@ -40,6 +40,12 @@ func NewClerkMiddleware(handler lib.RequestHandler, logger logger.Logger, env li
 func (m ClerkMiddleware) Setup() {
 	m.logger.Info("Setting up clerk middleware")
 	m.handler.Gin.Use(func(c *gin.Context) {
+
+		if isPublicPath(c.Request.URL.Path) {
+			c.Next()
+			return
+		}
+
 		token, err := tokenFromAuthHeader(c.Request)
 		if err != nil {
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"message": "invalid Authorization header"})
@@ -53,6 +59,15 @@ func (m ClerkMiddleware) Setup() {
 		c.Set("user", user)
 		c.Next()
 	})
+}
+
+func isPublicPath(path string) bool {
+	for _, publicPath := range authn.PublicPaths {
+		if path == publicPath {
+			return true
+		}
+	}
+	return false
 }
 
 func MapClerkRoleToUserRole(role string) apiauthn.UserRole {
