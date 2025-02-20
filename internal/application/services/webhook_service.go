@@ -37,7 +37,7 @@ func NewWebhookService(
 // HandlePaymentWebhook parses a payment webhook and checks if it is valid. If valid, it publishes
 // a payment event to the event bus.
 func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, input []byte) error {
-	s.logger.Info("Webhook ")
+	s.logger.Infof("HandlePaymentWebhook: %s", string(input))
 
 	hash := md5.Sum(input)
 	hashHex := hex.EncodeToString(hash[:])
@@ -66,7 +66,7 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, input []byte)
 		s.logger.Error("Failed to validate webhook", err.Error())
 		return err
 	}
-	
+
 	webhook, err := parser.ParseWebhook(ctx, input)
 	if err != nil {
 		s.logger.Errorf("failed to parse webhook", err.Error())

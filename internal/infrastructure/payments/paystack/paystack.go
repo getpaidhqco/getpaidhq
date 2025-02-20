@@ -5,6 +5,7 @@ import (
 	"errors"
 	paystacklib "github.com/mdwt/paystack-go"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/payment_providers"
 	"strconv"
 )
@@ -75,7 +76,10 @@ func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.Cha
 		AuthorizationCode: paymentMethod.Token,
 		Reference:         input.Reference,
 		Currency:          input.Currency,
-		Metadata:          nil,
+		Metadata: paystacklib.Metadata{
+			"org_id": input.OrgId,
+			"type":   "recurring",
+		},
 	}
 
 	response, err := client.Transaction.ChargeAuthorization(ctx, request)
@@ -86,7 +90,7 @@ func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.Cha
 			return payment_providers.ChargePaymentResponse{
 				Success:     false,
 				Retryable:   true,
-				Psp:         PAYSTACK,
+				Psp:         common.Paystack,
 				PspResponse: paystackErr,
 			}
 		}
@@ -94,7 +98,7 @@ func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.Cha
 		return payment_providers.ChargePaymentResponse{
 			Success:     false,
 			Retryable:   false,
-			Psp:         PAYSTACK,
+			Psp:         common.Paystack,
 			PspResponse: err,
 		}
 	}
@@ -102,11 +106,11 @@ func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.Cha
 	p.logger.Info("charged payment", "response", response.GatewayResponse)
 	return payment_providers.ChargePaymentResponse{
 		Success:       true,
-		Psp:           PAYSTACK,
+		Psp:           common.Paystack,
 		PspId:         strconv.FormatInt(response.ID, 10),
 		Reference:     response.Reference,
-		AmountCharged: response.Amount,
-		Currency:      response.Currency,
+		AmountCharged: int64(response.Amount),
+		Currency:      common.Currency(response.Currency),
 		PaymentType:   response.Channel,
 		PspResponse:   response,
 	}

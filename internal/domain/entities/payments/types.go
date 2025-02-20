@@ -14,7 +14,7 @@ const (
 )
 
 type ChargeResult struct {
-	Amount      int           `json:"amount"`
+	Amount      int64         `json:"amount"`
 	Status      PaymentStatus `json:"status"`
 	ErrorReason string        `json:"error_reason"`
 	ErrorCode   string        `json:"error_code"`

@@ -3,6 +3,7 @@ package payment_providers
 import (
 	"context"
 	cart "github.com/mdwt/payloop-cart"
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
 	"time"
 )
@@ -19,7 +20,7 @@ type WebhookParser interface {
 
 type ChargePaymentCommand struct {
 	OrgId         string
-	Amount        int
+	Amount        int64
 	Currency      string
 	Reference     string
 	PaymentMethod PaymentMethod
@@ -33,14 +34,14 @@ type InitPaymentCommand struct {
 }
 
 type ChargePaymentResponse struct {
-	Success       bool   `json:"success"`
-	Retryable     bool   `json:"retryable"`
-	Psp           string `json:"psp"`
-	PspId         string `json:"psp_id"`
-	Reference     string `json:"reference"`
-	Currency      string `json:"currency"`
-	AmountCharged int    `json:"amount_charged"`
-	PaymentType   string `json:"payment_type"`
+	Success       bool            `json:"success"`
+	Retryable     bool            `json:"retryable"`
+	Psp           common.Gateway  `json:"psp"`
+	PspId         string          `json:"psp_id"`
+	Reference     string          `json:"reference"`
+	Currency      common.Currency `json:"currency"`
+	AmountCharged int64           `json:"amount_charged"`
+	PaymentType   string          `json:"payment_type"`
 
 	PspResponse interface{} `json:"psp_response"`
 }
@@ -52,6 +53,7 @@ type InitPaymentResponse struct {
 type PaymentWebhookType string
 
 const (
+	Noop           PaymentWebhookType = "noop"
 	PaymentSuccess PaymentWebhookType = "payment.success"
 )
 
@@ -68,7 +70,7 @@ type Payment struct {
 	Currency    string    `json:"currency"`
 	Reference   string    `json:"reference"`
 	PspId       string    `json:"psp_id"`
-	Amount      int       `json:"amount"`
+	Amount      int64     `json:"amount"`
 	PaidAt      time.Time `json:"paid_at"`
 	PspFee      int       `json:"psp_fee"`
 	PlatformFee int       `json:"platform_fee"`

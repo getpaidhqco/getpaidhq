@@ -2,6 +2,7 @@ package models
 
 import (
 	"github.com/jackc/pgx/v5/pgtype"
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/prices"
 )
@@ -36,10 +37,10 @@ type Subscription struct {
 	NextRetryAt pgtype.Date `json:"next_retry"`
 
 	Currency        string            `json:"currency"`
-	Amount          int               `json:"amount"`
+	Amount          int64             `json:"amount"`
 	Metadata        map[string]string `json:"metadata"`
 	CyclesProcessed int               `json:"cycles_processed"`
-	TotalRevenue    int               `json:"total_revenue"`
+	TotalRevenue    int64             `json:"total_revenue"`
 	CancelledAt     pgtype.Date       `json:"cancelled_at"`
 	CreatedAt       pgtype.Date       `json:"created_at"`
 	UpdatedAt       pgtype.Date       `json:"updated_at"`
@@ -49,7 +50,7 @@ func (s *Subscription) ToEntity() entities.Subscription {
 	return entities.Subscription{
 		OrgId:              s.OrgId,
 		Id:                 s.Id,
-		PspId:              s.PspId,
+		PspId:              common.Gateway(s.PspId),
 		OrderId:            s.OrderId,
 		OrderItemId:        s.OrderItemId,
 		OrderItem:          s.OrderItem.ToEntity(),

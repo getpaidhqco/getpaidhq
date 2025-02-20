@@ -1,6 +1,9 @@
 package orders
 
-import "payloop/internal/domain/payment_providers"
+import (
+	"payloop/internal/domain/common"
+	"payloop/internal/domain/payment_providers"
+)
 
 type CartItem struct {
 	ProductId string `json:"product_id" binding:"required"`
@@ -13,7 +16,7 @@ type CreateOrderInput struct {
 	Customer  CreateOrderCommandCustomer `json:"customer" binding:"required"`
 	CartId    string                     `json:"cart_id"`
 	CartItems []CartItem                 `json:"items"`
-	PspId     string                     `json:"psp_id" binding:"required"`
+	PspId     common.Gateway             `json:"psp_id" binding:"required"`
 	Metadata  map[string]string          `json:"metadata"`
 }
 

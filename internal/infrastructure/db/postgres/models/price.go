@@ -14,7 +14,7 @@ type Price struct {
 	Scheme             string            `json:"scheme"`
 	Cycles             int               `json:"cycles"`
 	Currency           string            `json:"currency"`
-	UnitPrice          int               `json:"unit_price"`
+	UnitPrice          int64             `json:"unit_price"`
 	MinPrice           pgtype.Int8       `json:"min_price"`
 	SuggestedPrice     pgtype.Int8       `json:"suggested_price"`
 	BillingInterval    string            `json:"billing_interval"`
@@ -37,8 +37,8 @@ func (p *Price) ToEntity() entities.Price {
 		Cycles:             p.Cycles,
 		Currency:           p.Currency,
 		UnitPrice:          p.UnitPrice,
-		MinPrice:           int(p.MinPrice.Int64),
-		SuggestedPrice:     int(p.SuggestedPrice.Int64),
+		MinPrice:           p.MinPrice.Int64,
+		SuggestedPrice:     p.SuggestedPrice.Int64,
 		BillingInterval:    prices.BillingInterval(p.BillingInterval),
 		BillingIntervalQty: p.BillingIntervalQty,
 		TrialInterval:      prices.BillingInterval(p.TrialInterval),

@@ -15,9 +15,9 @@ type Price struct {
 	Scheme             prices.PriceScheme     `json:"scheme"`
 	Cycles             int                    `json:"cycles"`
 	Currency           string                 `json:"currency"`
-	UnitPrice          int                    `json:"unit_price"`
-	MinPrice           int                    `json:"min_price"`
-	SuggestedPrice     int                    `json:"suggested_price"`
+	UnitPrice          int64                  `json:"unit_price"`
+	MinPrice           int64                  `json:"min_price"`
+	SuggestedPrice     int64                  `json:"suggested_price"`
 	BillingInterval    prices.BillingInterval `json:"billing_interval"`
 	BillingIntervalQty int                    `json:"billing_interval_qty"`
 	TrialInterval      prices.BillingInterval `json:"trial_interval"`
@@ -34,12 +34,12 @@ func (p Price) ToCartItemPrice() cart.Price {
 		Category:           types.PriceCategory(p.Category),
 		Scheme:             types.PriceScheme(p.Scheme),
 		Currency:           p.Currency,
-		Cycles:             p.Cycles,
+		Cycles:             int64(p.Cycles),
 		UnitPrice:          p.UnitPrice,
 		BillingInterval:    types.BillingInterval(p.BillingInterval),
-		BillingIntervalQty: p.BillingIntervalQty,
+		BillingIntervalQty: int64(p.BillingIntervalQty),
 		TrialInterval:      types.BillingInterval(p.TrialInterval),
-		TrialIntervalQty:   p.TrialIntervalQty,
+		TrialIntervalQty:   int64(p.TrialIntervalQty),
 		TaxCode:            p.TaxCode,
 	}
 }

@@ -12,7 +12,7 @@ type TransactionSuccessful struct {
 	Domain          string      `json:"domain"`
 	Status          string      `json:"status"`
 	Reference       string      `json:"reference"`
-	Amount          int         `json:"amount"`
+	Amount          int64       `json:"amount"`
 	Message         interface{} `json:"message"`
 	GatewayResponse string      `json:"gateway_response"`
 	PaidAt          time.Time   `json:"paid_at"`
@@ -20,16 +20,11 @@ type TransactionSuccessful struct {
 	Channel         string      `json:"channel"`
 	Currency        string      `json:"currency"`
 	IPAddress       string      `json:"ip_address"`
-	Metadata        struct {
-		CartID       string `json:"cart_id"`
-		CustomFields []struct {
-			DisplayName  string `json:"display_name"`
-			VariableName string `json:"variable_name"`
-			Value        string `json:"value"`
-		} `json:"custom_fields"`
-		OrderID string `json:"order_id"`
-		OrgID   string `json:"org_id"`
-	} `json:"metadata"`
+
+	// we dont specify a json tag here because we need to handle it as a special case
+	// it's sometimes returned as a string and sometimes an object, so unmarhalling fails
+	Metadata Metadata `json:"-"`
+
 	FeesBreakdown interface{} `json:"fees_breakdown"`
 	Log           interface{} `json:"log"`
 	Fees          int         `json:"fees"`
@@ -78,4 +73,16 @@ type TransactionSuccessful struct {
 		EntryPoint string      `json:"entry_point"`
 		Identifier interface{} `json:"identifier"`
 	} `json:"source"`
+}
+
+type Metadata struct {
+	CartID       string `json:"cart_id"`
+	CustomFields []struct {
+		DisplayName  string `json:"display_name"`
+		VariableName string `json:"variable_name"`
+		Value        string `json:"value"`
+	} `json:"custom_fields"`
+	OrderID string `json:"order_id"`
+	Type    string `json:"type"`
+	OrgID   string `json:"org_id"`
 }

@@ -12,7 +12,7 @@ type Order struct {
 	SessionId  string            `json:"session_id"`
 	CartId     string            `json:"cart_id"`
 	Currency   string            `json:"currency"`
-	Total      int               `json:"total"`
+	Total      int64             `json:"total"`
 	Metadata   map[string]string `json:"metadata"`
 	CreatedAt  time.Time         `json:"created_at"`
 	UpdatedAt  time.Time         `json:"updated_at"`

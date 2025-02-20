@@ -15,10 +15,10 @@ type Payment struct {
 	SubscriptionId string            `json:"subscription_id"`
 	Status         string            `json:"status"`
 	Currency       string            `json:"currency"`
-	Amount         int               `json:"amount"`
-	PspFee         int               `json:"psp_fee"`
-	PlatformFee    int               `json:"platform_fee"`
-	NetAmount      int               `json:"net_amount"`
+	Amount         int64             `json:"amount"`
+	PspFee         int64             `json:"psp_fee"`
+	PlatformFee    int64             `json:"platform_fee"`
+	NetAmount      int64             `json:"net_amount"`
 	Metadata       map[string]string `json:"metadata"`
 	CreatedAt      pgtype.Date       `json:"created_at"`
 	UpdatedAt      pgtype.Date       `json:"updated_at"`

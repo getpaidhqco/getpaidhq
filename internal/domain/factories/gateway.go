@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
+	"payloop/internal/infrastructure/payments/checkout_com"
 	"payloop/internal/infrastructure/payments/paystack"
 	"payloop/internal/lib"
 )
@@ -25,15 +27,15 @@ func NewGatewayFactory(
 	}
 }
 
-func (s GatewayFactory) NewGateway(ctx context.Context, orgId string, id string) (payment_providers.Gateway, error) {
-	setting, err := s.settingRepository.FindById(ctx, orgId, "payment_processors", id)
+func (s GatewayFactory) NewGateway(ctx context.Context, orgId string, id common.Gateway) (payment_providers.Gateway, error) {
+	setting, err := s.settingRepository.FindById(ctx, orgId, "payment_processors", string(id))
 	if err != nil {
 		s.logger.Error("Failed to get setting", "error", err)
 		return nil, err
 	}
 
 	switch id {
-	case "Paystack":
+	case common.Paystack:
 		var config paystack.PaystackConfig
 		err = json.Unmarshal([]byte(setting.Value), &config)
 		if err != nil {
@@ -42,6 +44,15 @@ func (s GatewayFactory) NewGateway(ctx context.Context, orgId string, id string)
 		}
 
 		return paystack.NewPaystackGateway(s.logger, config), nil
+	case common.CheckoutDotCom:
+		var config checkout_com.CheckoutDotComConfig
+		err = json.Unmarshal([]byte(setting.Value), &config)
+		if err != nil {
+			s.logger.Error("Failed to unmarshal setting value", "error", err)
+			return nil, err
+		}
+
+		return checkout_com.NewCheckoutDotComGateway(s.logger, config), nil
 	default:
 		return nil, lib.NewCustomError(lib.BadRequestError, "Invalid payment processor", nil)
 	}

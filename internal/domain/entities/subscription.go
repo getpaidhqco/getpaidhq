@@ -2,6 +2,7 @@ package entities
 
 import (
 	"payloop/internal/application/lib/events/topic"
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities/prices"
 	"payloop/internal/lib"
 	"time"
@@ -13,7 +14,7 @@ type CreateSubscriptionInput struct {
 	PaymentMethodId string `json:"payment_method_id" binding:"required"`
 	Activate        bool   `json:"activate"`
 
-	Amount   int    `json:"amount"  binding:"required"`
+	Amount   int64  `json:"amount"  binding:"required"`
 	Currency string `json:"currency"  binding:"required"`
 
 	BillingInterval    prices.BillingInterval `json:"billing_interval"  binding:"required"`
@@ -53,7 +54,7 @@ const (
 type Subscription struct {
 	OrgId              string                 `json:"org_id"`
 	Id                 string                 `json:"id"`
-	PspId              string                 `json:"psp_id"`
+	PspId              common.Gateway         `json:"psp_id"`
 	OrderId            string                 `json:"order_id"`
 	OrderItemId        string                 `json:"order_item_id"`
 	OrderItem          OrderItem              `json:"-"`
@@ -80,10 +81,10 @@ type Subscription struct {
 	NextRetryAt time.Time `json:"next_retry"`
 
 	Currency        string            `json:"currency"`
-	Amount          int               `json:"amount"`
+	Amount          int64             `json:"amount"`
 	Metadata        map[string]string `json:"metadata"`
 	CyclesProcessed int               `json:"cycles_processed"`
-	TotalRevenue    int               `json:"total_revenue"`
+	TotalRevenue    int64             `json:"total_revenue"`
 	CancelledAt     time.Time         `json:"cancelled_at"`
 	CreatedAt       time.Time         `json:"created_at"`
 	UpdatedAt       time.Time         `json:"updated_at"`

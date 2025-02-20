@@ -8,6 +8,7 @@ import (
 	"payloop/internal/application/interfaces"
 	app_lib "payloop/internal/application/lib/authz"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/lib"
 )
@@ -48,7 +49,7 @@ func (o OrderController) CreateOrder(c *gin.Context) {
 
 	order, psp, err := o.service.CreateOrderFromCart(c.Request.Context(), orders.CreateOrderInput{
 		OrgId: authUser.OrgId,
-		PspId: input.PspId,
+		PspId: common.Gateway(input.PspId),
 		Customer: orders.CreateOrderCommandCustomer{
 			ID:       input.Customer.ID,
 			Email:    input.Customer.Email,

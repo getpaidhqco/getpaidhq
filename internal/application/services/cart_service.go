@@ -62,7 +62,7 @@ func (s *CartService) AddProduct(ctx context.Context, input carts.AddProductComm
 		ProductId:   product.Id,
 		Price:       price.ToCartItemPrice(),
 		Description: product.Name,
-		Quantity:    input.Quantity,
+		Quantity:    int64(input.Quantity),
 	})
 	if err != nil {
 		s.logger.Error(`failed to add product to cart`, err)
@@ -129,7 +129,7 @@ func (s *CartService) AdjustItem(ctx context.Context, input carts.AdjustCommand)
 			TaxCode:            "exempt",
 		},
 		Description: "New Product",
-		Quantity:    input.Quantity,
+		Quantity:    int64(input.Quantity),
 	})
 	if err != nil {
 		s.logger.Error(`failed to add product to cart`, err)

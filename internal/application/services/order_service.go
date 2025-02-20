@@ -7,6 +7,7 @@ import (
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/entities/payments"
@@ -110,7 +111,7 @@ func (s OrderService) CreateOrderFromCart(ctx context.Context, input orders.Crea
 			OrderId:     orderId,
 			PriceId:     item.Price.Id,
 			Description: item.Description,
-			Quantity:    item.Quantity,
+			Quantity:    int(item.Quantity),
 			Metadata:    nil,
 			CreatedAt:   time.Now(),
 			UpdatedAt:   time.Now(),
@@ -124,7 +125,7 @@ func (s OrderService) CreateOrderFromCart(ctx context.Context, input orders.Crea
 			subscription := entities.NewSubscriptionFromOrderItem(orderItem)
 			subscription.CustomerId = customer.Id
 			subscription.PspId = input.PspId
-			
+
 			_, err := s.subscriptionRepository.Create(ctx, subscription)
 			if err != nil {
 				s.logger.Error("Failed to create subscription", "item", item, err.Error())
@@ -133,7 +134,7 @@ func (s OrderService) CreateOrderFromCart(ctx context.Context, input orders.Crea
 		}
 	}
 
-	gw, err := s.gatewayFactory.NewGateway(ctx, orgId, input.PspId)
+	gw, err := s.gatewayFactory.NewGateway(ctx, orgId, common.Gateway(input.PspId))
 	if err != nil {
 		s.logger.Error("Failed to get gateway", err.Error())
 		return entities.Order{}, payment_providers.InitPaymentResponse{}, err

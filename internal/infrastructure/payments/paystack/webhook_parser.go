@@ -34,10 +34,21 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (payment_p
 	case "charge.success":
 		webhook, err := p.parseChargeSuccess(payload.Data)
 		if err != nil {
-			p.logger.Errorf("failed to parse charge success", err.Error())
+			p.logger.Errorf("failed to parse charge success: %s", err.Error())
 			return payment_providers.PaymentWebhookContext{}, err
 		}
+
+		if webhook.Metadata.Type == "recurring" {
+			// we can safely ignore recurring payments as the result is handled sync
+			return payment_providers.PaymentWebhookContext{
+				Type:    payment_providers.Noop,
+				RawData: data,
+			}, nil
+		}
+
 		return payment_providers.PaymentWebhookContext{
+			Type:    payment_providers.PaymentSuccess,
+			RawData: data,
 			OrgId:   webhook.Metadata.OrgID,
 			OrderId: webhook.Metadata.OrderID,
 			Psp:     PAYSTACK,
@@ -66,8 +77,6 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (payment_p
 				IsRecurring: webhook.Authorization.Reusable,
 				Token:       webhook.Authorization.AuthorizationCode,
 			},
-			Type:    payment_providers.PaymentSuccess,
-			RawData: data,
 		}, nil
 
 	case "charge.failed":
@@ -86,13 +95,39 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (payment_p
 func (p WebhookParser) parseChargeSuccess(data interface{}) (TransactionSuccessful, error) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
-		return TransactionSuccessful{}, errors.New("failed to marshal data to JSON")
+		return TransactionSuccessful{}, err
 	}
 
 	var payload TransactionSuccessful
-	if err := json.Unmarshal(jsonData, &payload); err != nil {
-		return TransactionSuccessful{}, errors.New("failed to unmarshal JSON to TransactionSuccessful")
+	var metadata Metadata
+	// metadata field is sometimes a string, and sometimes a struct
+	var temp struct {
+		Metadata json.RawMessage `json:"metadata"`
 	}
+	if err := json.Unmarshal(jsonData, &temp); err != nil {
+		return TransactionSuccessful{}, err
+	}
+
+	// Try to unmarshal Metadata as a string
+	var str string
+	if err := json.Unmarshal(temp.Metadata, &str); err == nil {
+		// It's a string, so marshal it back to a struct
+		if err := json.Unmarshal([]byte(str), &metadata); err != nil {
+			return TransactionSuccessful{}, err
+		}
+	} else {
+		// It's a struct, so use it directly
+		if err := json.Unmarshal(temp.Metadata, &metadata); err != nil {
+			return TransactionSuccessful{}, err
+		}
+	}
+
+	// Unmarshal the rest of the payload
+	if err := json.Unmarshal(jsonData, &payload); err != nil {
+		return TransactionSuccessful{}, err
+	}
+
+	payload.Metadata = metadata
 
 	p.logger.Info("handling charge success", "reference", payload.Reference)
 	return payload, nil

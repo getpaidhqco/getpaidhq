@@ -10,7 +10,7 @@ type Subscription struct {
 	Id          string                      `json:"id"`
 	Status      entities.SubscriptionStatus `json:"status"`
 	Currency    string                      `json:"currency"`
-	Amount      int                         `json:"amount"`
+	Amount      int64                       `json:"amount"`
 	OrderId     string                      `json:"order_id"`
 	OrderItemId string                      `json:"order_item_id"`
 
@@ -37,7 +37,7 @@ type Subscription struct {
 
 	Metadata        map[string]string `json:"metadata"`
 	CyclesProcessed int               `json:"cycles_processed"`
-	TotalRevenue    int               `json:"total_revenue"`
+	TotalRevenue    int64             `json:"total_revenue"`
 	CancelledAt     time.Time         `json:"cancelled_at,omitempty,omitzero"`
 	CreatedAt       time.Time         `json:"created_at"`
 	UpdatedAt       time.Time         `json:"updated_at"`

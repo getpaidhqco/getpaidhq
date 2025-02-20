@@ -93,7 +93,7 @@ func (t Temporal) StartWorkflow(ctx context.Context, id interfaces.WorkflowType,
 
 	switch id {
 	case "payment.success":
-		workflowId := lib.GenerateId("wf")
+		workflowId := lib.GenerateId("payment_success")
 		// start workflow
 		workflowOptions := client.StartWorkflowOptions{
 			ID:        workflowId,
