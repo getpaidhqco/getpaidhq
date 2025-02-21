@@ -77,7 +77,15 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 	var orderCart entities.Cart
 
 	var createPspSession = true
+	if input.SessionId == "" && input.PaymentMethodId == "" {
+		return orders.CreateOrderResponse{}, lib.NewCustomError(
+			lib.ValidationError,
+			"You must specify a payment method or session_id",
+			nil,
+		)
+	}
 	if input.SessionId == "" {
+		// no session, so we need to have a payment method
 		createPspSession = false
 	}
 

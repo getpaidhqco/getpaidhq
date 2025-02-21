@@ -6,6 +6,7 @@ import (
 	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/mapper"
 	"payloop/internal/api/dto/request"
+	"payloop/internal/api/dto/response"
 	"payloop/internal/application/interfaces"
 	app_lib "payloop/internal/application/lib/authz"
 	"payloop/internal/application/lib/logger"
@@ -77,7 +78,10 @@ func (o OrderController) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, rsp)
+	c.JSON(200, map[string]interface{}{
+		"order": response.NewOrderFromEntity(rsp.Order),
+		"psp":   rsp.Psp.PspResponse,
+	})
 }
 
 func (o OrderController) CompleteOrder(c *gin.Context) {
@@ -99,5 +103,5 @@ func (o OrderController) CompleteOrder(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, rsp)
+	c.JSON(200, response.NewOrderFromEntity(rsp))
 }
