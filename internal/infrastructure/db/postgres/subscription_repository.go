@@ -30,6 +30,8 @@ func NewSubscriptionRepository(database lib.Database, logger logger.Logger) repo
 }
 
 func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
+	tx := r.getTransactionFromContext(ctx)
+
 	var subscription models.Subscription
 	var customer models.Customer
 	query := `SELECT s.org_id, s.id, s.psp_id, s.order_id, s.order_item_id, s.customer_id, s.status, s.payment_method_id, s.start_date, s.end_date,
@@ -45,7 +47,7 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
    JOIN customers c ON s.org_id=c.org_id AND s.customer_id = c.id
    WHERE s.org_id = @org_id AND s.id = @id;`
 
-	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
+	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
 		"org_id": orgId,
 		"id":     id,
 	}).Scan(
@@ -96,7 +98,7 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 }
 
 func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
-
+	tx := r.getTransactionFromContext(ctx)
 	var subscriptions = make([]entities.Subscription, 0)
 	query := `SELECT s.org_id, s.id, s.psp_id, s.order_id, s.order_item_id, s.customer_id, 
        s.status, s.payment_method_id, s.start_date, s.end_date, 
@@ -110,7 +112,7 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 			FROM subscriptions s
 			JOIN order_items oi ON s.org_id = oi.org_id AND s.order_id = oi.order_id
 			WHERE s.org_id = @org_id AND s.order_id = @order_id;`
-	rows, err := r.Pool.Query(ctx, query, pgx.NamedArgs{
+	rows, err := tx.Query(ctx, query, pgx.NamedArgs{
 		"org_id":   orgId,
 		"order_id": orderId,
 	})
@@ -181,11 +183,7 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 }
 
 func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subscription) (entities.Subscription, error) {
-	var p QueryRower = r.Pool
-	tx := ctx.Value(lib.DBTransaction)
-	if tx != nil {
-		p = tx.(QueryRower)
-	}
+	tx := r.getTransactionFromContext(ctx)
 	query := `INSERT INTO subscriptions (org_id, id, psp_id, order_id, order_item_id, customer_id, status, 
                            start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, 
                            trial_ends_at, cancel_at, ends_at, last_charge, renews_at, 
@@ -200,7 +198,7 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 			          NOW(), NOW())
 `
 	metaJson, _ := json.Marshal(entity.Metadata)
-	_, err := p.Exec(ctx, query, pgx.NamedArgs{
+	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
 		"org_id":               entity.OrgId,
 		"id":                   entity.Id,
 		"psp_id":               entity.PspId,
@@ -240,7 +238,7 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 }
 
 func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subscription) (entities.Subscription, error) {
-
+	tx := r.getTransactionFromContext(ctx)
 	query := `UPDATE subscriptions
 			  SET status=@status, payment_method_id=@payment_method_id, 
 			      start_date=@start_date, end_date=@end_date, 
@@ -269,7 +267,7 @@ func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subs
 
 	metaJson, _ := json.Marshal(entity.Metadata)
 
-	_, err := r.Pool.Exec(ctx, query, pgx.NamedArgs{
+	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
 		"org_id":               entity.OrgId,
 		"id":                   entity.Id,
 		"status":               entity.Status,
@@ -306,7 +304,7 @@ func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subs
 }
 
 func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p request.Pagination) ([]entities.Subscription, int, error) {
-
+	tx := r.getTransactionFromContext(ctx)
 	r.logger.Debugf("sort_dir[%s] sort_col[%s]", p.SortDirection, p.SortBy)
 
 	var subscriptions = make([]entities.Subscription, 0)
@@ -347,7 +345,7 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
         DESC
 	LIMIT @lim OFFSET @off;`
 
-	rows, err := r.Pool.Query(ctx, query, pgx.NamedArgs{
+	rows, err := tx.Query(ctx, query, pgx.NamedArgs{
 		"org_id":   orgId,
 		"lim":      p.Limit,
 		"off":      p.Offset,

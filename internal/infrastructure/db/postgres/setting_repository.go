@@ -28,8 +28,10 @@ func NewSettingRepository(database lib.Database, logger logger.Logger) repositor
 }
 
 func (r SettingRepository) FindById(ctx context.Context, orgId string, parentId string, id string) (entities.Setting, error) {
+	tx := r.getTransactionFromContext(ctx)
+
 	var setting entities.Setting
-	err := r.Pool.QueryRow(ctx,
+	err := tx.QueryRow(ctx,
 		`SELECT org_id,parent_id,id,value_type,value FROM settings WHERE org_id=@org_id AND parent_id=@parent_id AND id=@id`,
 
 		pgx.NamedArgs{
@@ -52,7 +54,7 @@ func (r SettingRepository) FindById(ctx context.Context, orgId string, parentId 
 }
 
 func (r SettingRepository) Create(ctx context.Context, entity entities.Setting) (entities.Setting, error) {
-
+	tx := r.getTransactionFromContext(ctx)
 	var setting entities.Setting
 
 	query := `INSERT INTO settings (org_id, parent_id, id, value, value_type, created_at, updated_at) 
@@ -60,7 +62,7 @@ func (r SettingRepository) Create(ctx context.Context, entity entities.Setting) 
 			  ON CONFLICT (org_id, parent_id, id) DO UPDATE SET value = EXCLUDED.value, value_type = EXCLUDED.value_type, updated_at = NOW()
 			  RETURNING org_id, parent_id, id, value, value_type`
 
-	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
+	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
 		"org_id":     entity.OrgId,
 		"parent_id":  entity.ParentId,
 		"id":         entity.Id,

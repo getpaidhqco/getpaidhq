@@ -41,6 +41,8 @@ func (r OrderRepository) WithTrx(trxHandle interface{}) OrderRepository {
 }
 
 func (r OrderRepository) FindById(ctx context.Context, orgId string, id string) (entities.Order, error) {
+	tx := r.getTransactionFromContext(ctx)
+
 	var order entities.Order
 	var customer entities.Customer
 
@@ -50,7 +52,7 @@ func (r OrderRepository) FindById(ctx context.Context, orgId string, id string) 
 			  JOIN customers c ON orders.org_id=c.org_id AND orders.customer_id = c.id
 			  WHERE orders.org_id = $1 AND orders.id = $2`
 
-	err := r.Pool.QueryRow(ctx, query, orgId, id).Scan(
+	err := tx.QueryRow(ctx, query, orgId, id).Scan(
 		&order.OrgId,
 		&order.Id,
 		&order.CustomerId,
@@ -89,11 +91,7 @@ func (r OrderRepository) FindById(ctx context.Context, orgId string, id string) 
 }
 
 func (r OrderRepository) Create(ctx context.Context, entity entities.Order) (entities.Order, error) {
-	var p QueryRower = r.Pool
-	tx := ctx.Value(lib.DBTransaction)
-	if tx != nil {
-		p = tx.(QueryRower)
-	}
+	tx := r.getTransactionFromContext(ctx)
 
 	var order entities.Order
 
@@ -103,7 +101,7 @@ func (r OrderRepository) Create(ctx context.Context, entity entities.Order) (ent
 
 	metaJson, _ := json.Marshal(entity.Metadata)
 
-	err := p.QueryRow(ctx, query, pgx.NamedArgs{
+	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
 		"org_id":      entity.OrgId,
 		"id":          entity.Id,
 		"customer_id": entity.CustomerId,
@@ -139,6 +137,7 @@ func (r OrderRepository) Create(ctx context.Context, entity entities.Order) (ent
 
 // Update updates an existing order in the database and joins with the customer
 func (r OrderRepository) Update(ctx context.Context, entity entities.Order) (entities.Order, error) {
+	tx := r.getTransactionFromContext(ctx)
 
 	query := `UPDATE orders
 				SET customer_id = @customer_id, cart_id = @cart_id, reference = @reference, status = @status, session_id = @session_id, currency = @currency, total = @total, metadata = @metadata, updated_at = NOW()
@@ -146,7 +145,7 @@ func (r OrderRepository) Update(ctx context.Context, entity entities.Order) (ent
 
 	metaJson, _ := json.Marshal(entity.Metadata)
 
-	_, err := r.Pool.Exec(ctx, query, pgx.NamedArgs{
+	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
 		"org_id":      entity.OrgId,
 		"id":          entity.Id,
 		"customer_id": entity.CustomerId,

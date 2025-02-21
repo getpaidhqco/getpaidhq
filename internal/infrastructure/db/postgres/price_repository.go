@@ -29,19 +29,49 @@ func NewPriceRepository(database lib.Database, logger logger.Logger) repositorie
 	}
 }
 
-// WithTrx enables repository with transaction
-func (r PriceRepository) WithTrx(trxHandle interface{}) PriceRepository {
-	if trxHandle == nil {
-		r.logger.Warn("Transaction Database not found in gin context. ")
-		return r
+func (r PriceRepository) Create(ctx context.Context, entity entities.Price) (entities.Price, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	query := `INSERT INTO prices (org_id, id, variant_id, category, scheme, cycles, currency, 
+                    unit_price, min_price, suggested_price, billing_interval, billing_interval_qty, 
+                    trial_interval, trial_interval_qty, tax_code, metadata,
+                    created_at, updated_at)
+        VALUES (@org_id, @id, @variant_id, @category, @scheme, @cycles, @currency, 
+                @unit_price, @min_price, @suggested_price, @billing_interval, @billing_interval_qty, 
+                @trial_interval, @trial_interval_qty, @tax_code, @metadata,
+                NOW(), NOW())
+       `
+
+	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
+		"org_id":               entity.OrgId,
+		"id":                   entity.Id,
+		"variant_id":           entity.VariantId,
+		"category":             entity.Category,
+		"scheme":               entity.Scheme,
+		"cycles":               entity.Cycles,
+		"currency":             entity.Currency,
+		"unit_price":           entity.UnitPrice,
+		"min_price":            entity.MinPrice,
+		"suggested_price":      entity.SuggestedPrice,
+		"billing_interval":     entity.BillingInterval,
+		"billing_interval_qty": entity.BillingIntervalQty,
+		"trial_interval":       entity.TrialInterval,
+		"trial_interval_qty":   entity.TrialIntervalQty,
+		"tax_code":             entity.TaxCode,
+		"metadata":             entity.Metadata,
+	})
+
+	if err != nil {
+		r.logger.Error(`failed to create Price`, err.Error())
+		return entities.Price{}, err
 	}
-	r.PgDatabase.Tx = trxHandle.(pgx.Tx)
-	return r
+	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
 func (r PriceRepository) FindById(ctx context.Context, orgId string, id string) (entities.Price, error) {
+	tx := r.getTransactionFromContext(ctx)
 	var price models.Price
-	err := r.Pool.QueryRow(ctx, `SELECT org_id,id,billing_interval,billing_interval_qty,
+	err := tx.QueryRow(ctx, `SELECT org_id,id,billing_interval,billing_interval_qty,
        category,scheme,cycles,currency,unit_price,
        trial_interval,trial_interval_qty,tax_code,
        updated_at,

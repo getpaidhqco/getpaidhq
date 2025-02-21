@@ -5,6 +5,7 @@ import (
 	"github.com/mdwt/payloop-cart/types"
 	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities/prices"
+	"payloop/internal/lib"
 	"time"
 )
 
@@ -27,6 +28,38 @@ type Price struct {
 	Metadata           map[string]string      `json:"metadata"`
 	CreatedAt          time.Time              `json:"created_at"`
 	UpdatedAt          time.Time              `json:"updated_at"`
+}
+
+// Factory function to create a Price with default values
+func NewPrice(orgId, variantId string, input CreatePriceInput) Price {
+
+	if input.BillingInterval == "" {
+		input.BillingInterval = prices.BillingIntervalNone
+	}
+	if input.TrialInterval == "" {
+		input.TrialInterval = prices.BillingIntervalNone
+	}
+
+	return Price{
+		OrgId:              orgId,
+		Id:                 lib.GenerateId("price"),
+		VariantId:          variantId,
+		Category:           input.Category,
+		Scheme:             input.Scheme,
+		Cycles:             input.Cycles,
+		Currency:           common.Currency(input.Currency),
+		UnitPrice:          input.UnitPrice,
+		MinPrice:           input.MinPrice,
+		SuggestedPrice:     input.SuggestedPrice,
+		BillingInterval:    input.BillingInterval,
+		BillingIntervalQty: input.BillingIntervalQty,
+		TrialInterval:      input.TrialInterval,
+		TrialIntervalQty:   input.TrialIntervalQty,
+		TaxCode:            input.TaxCode,
+		Metadata:           input.Metadata,
+		CreatedAt:          time.Now().UTC(),
+		UpdatedAt:          time.Now().UTC(),
+	}
 }
 
 func (p Price) ToCartItemPrice() cart.Price {

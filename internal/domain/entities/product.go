@@ -11,10 +11,3 @@ type Product struct {
 	CreatedAt   time.Time         `json:"created_at"`
 	UpdatedAt   time.Time         `json:"updated_at"`
 }
-
-type CreateProductInput struct {
-	OrgId       string            `json:"org_id"`
-	Name        string            `json:"name" binding:"required"`
-	Description string            `json:"description"`
-	Metadata    map[string]string `json:"metadata"`
-}

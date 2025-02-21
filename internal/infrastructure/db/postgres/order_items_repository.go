@@ -28,6 +28,8 @@ func NewOrderItemRepository(database lib.Database, logger logger.Logger) reposit
 }
 
 func (r OrderItemRepository) FindById(ctx context.Context, orgId string, id string) (entities.OrderItem, error) {
+	tx := r.getTransactionFromContext(ctx)
+
 	var orderItem models.OrderItem
 	var price models.Price
 	var metadata []byte
@@ -44,7 +46,7 @@ func (r OrderItemRepository) FindById(ctx context.Context, orgId string, id stri
 			  JOIN prices p ON oi.price_id = p.id
 			  WHERE oi.org_id = $1 AND oi.id = $2`
 
-	err := r.Pool.QueryRow(ctx, query, orgId, id).Scan(
+	err := tx.QueryRow(ctx, query, orgId, id).Scan(
 		&orderItem.OrgId,
 		&orderItem.Id,
 		&orderItem.OrderId,
@@ -88,11 +90,7 @@ func (r OrderItemRepository) FindById(ctx context.Context, orgId string, id stri
 
 // Create inserts a new order item into the database
 func (r OrderItemRepository) Create(ctx context.Context, orderItem entities.OrderItem) (entities.OrderItem, error) {
-	var p QueryRower = r.Pool
-	tx := ctx.Value(lib.DBTransaction)
-	if tx != nil {
-		p = tx.(QueryRower)
-	}
+	tx := r.getTransactionFromContext(ctx)
 	query := `INSERT INTO order_items (org_id, id, order_id, price_id, description, quantity, metadata, created_at, updated_at)
 				  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) `
 
@@ -101,7 +99,7 @@ func (r OrderItemRepository) Create(ctx context.Context, orderItem entities.Orde
 		return entities.OrderItem{}, err
 	}
 
-	_, err = p.Exec(ctx, query,
+	_, err = tx.Exec(ctx, query,
 		orderItem.OrgId,
 		orderItem.Id,
 		orderItem.OrderId,
@@ -121,6 +119,7 @@ func (r OrderItemRepository) Create(ctx context.Context, orderItem entities.Orde
 
 // FindByOrderId retrieves order items by order Id
 func (r OrderItemRepository) FindByOrderId(ctx context.Context, orgId string, orderId string) ([]entities.OrderItem, error) {
+	tx := r.getTransactionFromContext(ctx)
 	var orderItems []entities.OrderItem
 
 	query := `SELECT oi.org_id, oi.id, oi.order_id, oi.price_id, oi.description, oi.quantity, oi.metadata, oi.created_at, oi.updated_at,
@@ -129,7 +128,7 @@ func (r OrderItemRepository) FindByOrderId(ctx context.Context, orgId string, or
 			  JOIN prices p ON oi.price_id = p.id
 			  WHERE oi.org_id = $1 AND oi.order_id = $2`
 
-	rows, err := r.Pool.Query(ctx, query, orgId, orderId)
+	rows, err := tx.Query(ctx, query, orgId, orderId)
 	if err != nil {
 		return nil, err
 	}
@@ -183,6 +182,8 @@ func (r OrderItemRepository) FindByOrderId(ctx context.Context, orgId string, or
 
 // Update modifies an existing order item in the database
 func (r OrderItemRepository) Update(ctx context.Context, orderItem entities.OrderItem) (entities.OrderItem, error) {
+	tx := r.getTransactionFromContext(ctx)
+
 	query := `UPDATE order_items
 			  SET price_id = $1, description = $2, quantity = $3, metadata = $4, updated_at = $5
 			  WHERE org_id = $6 AND id = $7
@@ -193,7 +194,7 @@ func (r OrderItemRepository) Update(ctx context.Context, orderItem entities.Orde
 		return entities.OrderItem{}, err
 	}
 
-	err = r.Pool.QueryRow(ctx, query,
+	err = tx.QueryRow(ctx, query,
 		orderItem.Description,
 		orderItem.Quantity,
 		metadata,

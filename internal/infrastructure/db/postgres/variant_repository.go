@@ -106,7 +106,9 @@ func (r VariantRepository) FindById(ctx context.Context, orgId string, id string
 			r.logger.Error(`failed to scan Variant and Price`, slog.String("err", err.Error()))
 			return entities.Variant{}, err
 		}
-		variant.Prices = append(variant.Prices, price)
+		if price.OrgId.Valid {
+			variant.Prices = append(variant.Prices, price)
+		}
 	}
 
 	if rows.Err() != nil {

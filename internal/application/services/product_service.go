@@ -41,15 +41,15 @@ func NewProductService(
 	}
 }
 
-func (s ProductService) CreateProduct(ctx context.Context, input entities.CreateProductInput) (entities.Product, error) {
+func (s ProductService) CreateProduct(ctx context.Context, orgId string, request request.CreateProductRequest) (entities.Product, error) {
 
 	product, err := s.productRepository.Create(ctx,
 		entities.Product{
-			OrgId:       input.OrgId,
+			OrgId:       orgId,
 			Id:          lib.GenerateId("prod"),
-			Name:        input.Name,
-			Description: input.Description,
-			Metadata:    input.Metadata,
+			Name:        request.Name,
+			Description: request.Description,
+			Metadata:    request.Metadata,
 			CreatedAt:   time.Now().UTC(),
 			UpdatedAt:   time.Now().UTC(),
 		})
@@ -57,21 +57,49 @@ func (s ProductService) CreateProduct(ctx context.Context, input entities.Create
 		s.logger.Error("Failed to create product", err.Error())
 		return entities.Product{}, err
 	}
-	variant, err := s.variantRepository.Create(ctx,
-		entities.Variant{
-			OrgId:     input.OrgId,
-			Id:        lib.GenerateId("var"),
-			ProductID: product.Id,
-			Name:      "Default",
-			CreatedAt: time.Now().UTC(),
-			UpdatedAt: time.Now().UTC(),
-		})
-	if err != nil {
-		s.logger.Error("Failed to create product", err.Error())
-		return entities.Product{}, err
+
+	for _, v := range request.Variants {
+		variant, err := s.variantRepository.Create(ctx,
+			entities.Variant{
+				OrgId:     orgId,
+				Id:        lib.GenerateId("var"),
+				ProductId: product.Id,
+				Name:      v.Name,
+				CreatedAt: time.Now().UTC(),
+				UpdatedAt: time.Now().UTC(),
+			})
+		if err != nil {
+			s.logger.Error("Failed to create variant", err.Error())
+			return entities.Product{}, err
+		}
+
+		for _, p := range v.Prices {
+			_, err := s.priceRepository.Create(ctx,
+				entities.NewPrice(orgId, variant.Id, entities.CreatePriceInput{
+					OrgId:              orgId,
+					VariantId:          variant.Id,
+					Category:           p.Category,
+					Scheme:             p.Scheme,
+					Cycles:             p.Cycles,
+					Currency:           p.Currency,
+					UnitPrice:          p.UnitPrice,
+					MinPrice:           p.MinPrice,
+					SuggestedPrice:     p.SuggestedPrice,
+					BillingInterval:    p.BillingInterval,
+					BillingIntervalQty: p.BillingIntervalQty,
+					TrialInterval:      p.TrialInterval,
+					TrialIntervalQty:   p.TrialIntervalQty,
+					TaxCode:            p.TaxCode,
+					Metadata:           p.Metadata,
+				}))
+			if err != nil {
+				s.logger.Error("Failed to create price", err.Error())
+				return entities.Product{}, err
+			}
+		}
 	}
 
-	_ = s.pubsub.Publish(input.OrgId, topic.ProductCreated, product)
+	_ = s.pubsub.Publish(orgId, topic.ProductCreated, product)
 	return product, err
 }
 
@@ -104,7 +132,7 @@ func (s ProductService) CreateProductPrice(ctx context.Context, input entities.C
 		input.TrialInterval = prices.BillingIntervalNone
 	}
 
-	price, err := s.productRepository.CreatePrice(ctx, entities.Price{
+	price, err := s.priceRepository.Create(ctx, entities.Price{
 		OrgId:              input.OrgId,
 		Id:                 lib.GenerateId("price"),
 		VariantId:          input.VariantId,

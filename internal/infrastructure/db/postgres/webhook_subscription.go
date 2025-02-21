@@ -25,10 +25,12 @@ func NewWebhookSubscriptionRepository(database lib.Database, logger logger.Logge
 }
 
 func (r WebhookSubscriptionRepository) Create(ctx context.Context, subscription entities.WebhookSubscription) (entities.WebhookSubscription, error) {
+	tx := r.getTransactionFromContext(ctx)
+
 	query := `INSERT INTO webhook_subscriptions (org_id, id, events, url, secret, created_at, updated_at) 
 			  VALUES ($1, $2, $3, $4, $5, $6, $7)
 			  RETURNING org_id, id, events, url, secret, created_at, updated_at`
-	err := r.Pool.QueryRow(ctx, query, subscription.OrgID, subscription.Id, subscription.Events, subscription.URL, subscription.Secret, subscription.CreatedAt, subscription.UpdatedAt).
+	err := tx.QueryRow(ctx, query, subscription.OrgID, subscription.Id, subscription.Events, subscription.URL, subscription.Secret, subscription.CreatedAt, subscription.UpdatedAt).
 		Scan(&subscription.OrgID, &subscription.Id, &subscription.Events, &subscription.URL, &subscription.Secret, &subscription.CreatedAt, &subscription.UpdatedAt)
 	if err != nil {
 		r.logger.Error("failed to insert WebhookSubscription", err)
@@ -38,9 +40,11 @@ func (r WebhookSubscriptionRepository) Create(ctx context.Context, subscription 
 }
 
 func (r WebhookSubscriptionRepository) GetByID(ctx context.Context, orgId string, id string) (entities.WebhookSubscription, error) {
+	tx := r.getTransactionFromContext(ctx)
+
 	var subscription entities.WebhookSubscription
 	query := `SELECT org_id, id, events, url, secret, created_at, updated_at FROM webhook_subscriptions WHERE org_id=$1 AND id = $2`
-	err := r.Pool.QueryRow(ctx, query, orgId, id).
+	err := tx.QueryRow(ctx, query, orgId, id).
 		Scan(
 			&subscription.OrgID,
 			&subscription.Id,
@@ -58,8 +62,10 @@ func (r WebhookSubscriptionRepository) GetByID(ctx context.Context, orgId string
 }
 
 func (r WebhookSubscriptionRepository) FindByEvent(ctx context.Context, orgId string, event string) ([]entities.WebhookSubscription, error) {
+	tx := r.getTransactionFromContext(ctx)
+
 	query := `SELECT org_id, id, events, url, secret, created_at, updated_at FROM webhook_subscriptions WHERE org_id=$1 AND $2 = ANY(events)`
-	rows, err := r.Pool.Query(ctx, query, orgId, event)
+	rows, err := tx.Query(ctx, query, orgId, event)
 	if err != nil {
 		r.logger.Error("failed to find WebhookSubscriptions by event", err)
 		return nil, err
@@ -94,9 +100,11 @@ func (r WebhookSubscriptionRepository) FindByEvent(ctx context.Context, orgId st
 }
 
 func (r WebhookSubscriptionRepository) Update(ctx context.Context, subscription entities.WebhookSubscription) (entities.WebhookSubscription, error) {
+	tx := r.getTransactionFromContext(ctx)
+
 	query := `UPDATE webhook_subscriptions SET events = $1, url = $2, secret = $3, updated_at = $4 WHERE id = $5
 			  RETURNING org_id, id, events, url, secret, created_at, updated_at`
-	err := r.Pool.QueryRow(ctx, query, subscription.Events, subscription.URL, subscription.Secret, subscription.UpdatedAt, subscription.Id).
+	err := tx.QueryRow(ctx, query, subscription.Events, subscription.URL, subscription.Secret, subscription.UpdatedAt, subscription.Id).
 		Scan(&subscription.OrgID, &subscription.Id, &subscription.Events, &subscription.URL, &subscription.Secret, &subscription.CreatedAt, &subscription.UpdatedAt)
 	if err != nil {
 		r.logger.Error("failed to update WebhookSubscription", err)
@@ -106,8 +114,10 @@ func (r WebhookSubscriptionRepository) Update(ctx context.Context, subscription 
 }
 
 func (r WebhookSubscriptionRepository) Delete(ctx context.Context, id string) error {
+	tx := r.getTransactionFromContext(ctx)
+
 	query := `DELETE FROM webhook_subscriptions WHERE id = $1`
-	_, err := r.Pool.Exec(ctx, query, id)
+	_, err := tx.Exec(ctx, query, id)
 	if err != nil {
 		r.logger.Error("failed to delete WebhookSubscription", err)
 		return err

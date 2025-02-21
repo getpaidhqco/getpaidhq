@@ -10,7 +10,7 @@ type Variant struct {
 	Id          string            `json:"id"`
 	ProductId   string            `json:"product_id"`
 	Name        string            `json:"name"`
-	Description string            `json:"description"`
+	Description pgtype.Text       `json:"description"`
 	Metadata    map[string]string `json:"metadata"`
 	Prices      []Price           `json:"prices"`
 	CreatedAt   pgtype.Date       `json:"created_at"`
@@ -24,7 +24,7 @@ func (p *Variant) ToEntity() entities.Variant {
 		Id:          p.Id,
 		ProductId:   p.ProductId,
 		Name:        p.Name,
-		Description: p.Description,
+		Description: p.Description.String,
 		Metadata:    p.Metadata,
 		Prices:      convertPricesToEntities(p.Prices),
 		CreatedAt:   p.CreatedAt.Time,

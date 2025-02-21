@@ -29,12 +29,14 @@ func NewPaymentRepository(database lib.Database, logger logger.Logger) repositor
 }
 
 func (r PaymentRepository) FindById(ctx context.Context, orgId string, id string) (entities.Payment, error) {
+	tx := r.getTransactionFromContext(ctx)
+
 	var payment entities.Payment
 	query := `SELECT org_id, id, reference, order_id, subscription_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, created_at, updated_at
 		          FROM payments
 		          WHERE org_id = $1 AND id = $2`
 
-	err := r.Pool.QueryRow(ctx, query, orgId, id).
+	err := tx.QueryRow(ctx, query, orgId, id).
 		Scan(
 			&payment.OrgId,
 			&payment.Id,
@@ -59,6 +61,8 @@ func (r PaymentRepository) FindById(ctx context.Context, orgId string, id string
 	return payment, nil
 }
 func (r PaymentRepository) FindBySubscriptionId(ctx context.Context, orgId string, id string, p entities.Pagination) ([]entities.Payment, int, error) {
+	tx := r.getTransactionFromContext(ctx)
+
 	var payments []entities.Payment
 	var total int
 	query := `SELECT org_id, id, psp_id, reference, order_id, subscription_id,
@@ -70,7 +74,7 @@ func (r PaymentRepository) FindBySubscriptionId(ctx context.Context, orgId strin
 LIMIT @lim OFFSET @off;
 	         `
 
-	rows, err := r.Pool.Query(ctx, query, pgx.NamedArgs{
+	rows, err := tx.Query(ctx, query, pgx.NamedArgs{
 		"org_id":   orgId,
 		"id":       id,
 		"lim":      p.Limit,
@@ -120,11 +124,13 @@ LIMIT @lim OFFSET @off;
 }
 
 func (r PaymentRepository) Create(ctx context.Context, entity entities.Payment) (entities.Payment, error) {
+	tx := r.getTransactionFromContext(ctx)
+
 	query := `INSERT INTO payments (org_id, id, psp_id,reference,order_id, subscription_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, created_at, updated_at)
 	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
 	          RETURNING org_id, id, psp_id, reference, order_id, subscription_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, created_at, updated_at`
 
-	err := r.Pool.QueryRow(ctx, query,
+	err := tx.QueryRow(ctx, query,
 		entity.OrgId,
 		entity.Id,
 		entity.PspId,

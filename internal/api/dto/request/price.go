@@ -2,7 +2,7 @@ package request
 
 import "payloop/internal/domain/entities/prices"
 
-type CreateProductPriceRequest struct {
+type CreatePriceRequest struct {
 	VariantId          string                 `json:"variant_id" binding:"required"`
 	Category           prices.PriceCategory   `json:"category"  binding:"required"`
 	Scheme             prices.PriceScheme     `json:"scheme"  binding:"required"`

@@ -30,12 +30,14 @@ func NewSessionRepository(database lib.Database, customerRepository repositories
 }
 
 func (r SessionRepository) FindById(ctx context.Context, orgId string, id string) (entities.Session, error) {
+	tx := r.getTransactionFromContext(ctx)
+
 	var session entities.Session
 
 	query := `INSERT INTO sessions (org_id,id,cart_id, created_at, updated_at) 
 			  VALUES (@org_id,@id,@cart_id, NOW(), NOW())`
 
-	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
+	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
 		"org_id": orgId,
 		"id":     id,
 	}).Scan(&session)
@@ -49,13 +51,15 @@ func (r SessionRepository) FindById(ctx context.Context, orgId string, id string
 }
 
 func (r SessionRepository) Create(ctx context.Context, input entities.Session) (entities.Session, error) {
+	tx := r.getTransactionFromContext(ctx)
+
 	var session entities.Session
 
 	query := `INSERT INTO sessions (org_id,id,cart_id, created_at, updated_at) 
 			  VALUES (@org_id,@id,@cart_id, NOW(), NOW())
 			  RETURNING (org_id,id,cart_id)`
 
-	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
+	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
 		"org_id":  input.OrgId,
 		"id":      input.Id,
 		"cart_id": input.CartId,

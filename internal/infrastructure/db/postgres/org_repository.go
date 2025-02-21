@@ -30,13 +30,15 @@ func NewOrgRepository(database lib.Database, logger logger.Logger) repositories.
 }
 
 func (r OrgRepository) Create(ctx context.Context, input orgs.CreateOrgInput) (entities.Org, error) {
+	tx := r.getTransactionFromContext(ctx)
+
 	OrgId := "t_" + ksuid.New().String()
 	var Org entities.Org
 	query := `INSERT INTO orgs (id, name, description, created_at, updated_at) 
 			  VALUES (@id, @name, @description, NOW(), NOW())
 			  RETURNING (id,name,description,created_at,updated_at)`
 
-	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
+	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
 		"id":          OrgId,
 		"name":        input.Name,
 		"description": input.Description,

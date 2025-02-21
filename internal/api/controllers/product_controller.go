@@ -63,12 +63,7 @@ func (s ProductController) Create(c *gin.Context) {
 		return
 	}
 
-	product, err := s.productService.CreateProduct(c.Request.Context(), entities.CreateProductInput{
-		OrgId:       authUser.OrgId,
-		Name:        input.Name,
-		Description: input.Description,
-		Metadata:    input.Metadata,
-	})
+	product, err := s.productService.CreateProduct(c.Request.Context(), authUser.OrgId, input)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -108,7 +103,7 @@ func (s ProductController) List(c *gin.Context) {
 
 // List all subscriptions
 func (s ProductController) CreatePrice(c *gin.Context) {
-	var input request.CreateProductPriceRequest
+	var input request.CreatePriceRequest
 	user, _ := c.Get("user")
 	orgId := user.(authn.User).OrgId
 

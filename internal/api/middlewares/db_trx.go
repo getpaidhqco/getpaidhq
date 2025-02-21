@@ -1,6 +1,7 @@
 package middlewares
 
 import (
+	"context"
 	"log/slog"
 	"net/http"
 	"payloop/internal/application/lib/logger"
@@ -62,7 +63,8 @@ func (m DatabaseTrx) Setup() {
 			}
 		}()
 
-		c.Set(lib.DBTransaction, txHandle)
+		reqCtx := context.WithValue(c.Request.Context(), lib.DBTransaction, txHandle)
+		c.Request = c.Request.WithContext(reqCtx)
 		c.Next()
 
 		// commit transaction on success status
