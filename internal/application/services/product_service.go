@@ -16,18 +16,25 @@ import (
 
 type ProductService struct {
 	productRepository repositories.ProductRepository
+	variantRepository repositories.VariantRepository
+	priceRepository   repositories.PriceRepository
 	cartRepository    repositories.CartRepository
 	pubsub            events.PubSub
 	logger            logger.Logger
 }
 
-func NewProductService(productRepository repositories.ProductRepository,
+func NewProductService(
+	productRepository repositories.ProductRepository,
+	variantRepository repositories.VariantRepository,
+	priceRepository repositories.PriceRepository,
 	cartRepository repositories.CartRepository,
 	logger logger.Logger,
 	pubsub events.PubSub,
 ) ProductService {
 	return ProductService{
 		productRepository: productRepository,
+		variantRepository: variantRepository,
+		priceRepository:   priceRepository,
 		cartRepository:    cartRepository,
 		logger:            logger,
 		pubsub:            pubsub,
@@ -38,10 +45,31 @@ func (s ProductService) CreateProduct(ctx context.Context, input entities.Create
 
 	product, err := s.productRepository.Create(ctx,
 		entities.Product{
-			OrgId: input.OrgId,
-			Id:    lib.GenerateId("product"),
-			Name:  input.Name,
+			OrgId:       input.OrgId,
+			Id:          lib.GenerateId("prod"),
+			Name:        input.Name,
+			Description: input.Description,
+			Metadata:    input.Metadata,
+			CreatedAt:   time.Now().UTC(),
+			UpdatedAt:   time.Now().UTC(),
 		})
+	if err != nil {
+		s.logger.Error("Failed to create product", err.Error())
+		return entities.Product{}, err
+	}
+	variant, err := s.variantRepository.Create(ctx,
+		entities.Variant{
+			OrgId:     input.OrgId,
+			Id:        lib.GenerateId("var"),
+			ProductID: product.Id,
+			Name:      "Default",
+			CreatedAt: time.Now().UTC(),
+			UpdatedAt: time.Now().UTC(),
+		})
+	if err != nil {
+		s.logger.Error("Failed to create product", err.Error())
+		return entities.Product{}, err
+	}
 
 	_ = s.pubsub.Publish(input.OrgId, topic.ProductCreated, product)
 	return product, err

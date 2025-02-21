@@ -9,12 +9,12 @@ import (
 )
 
 type IdempotencyKeyRepository struct {
-	*lib.PgDatabase
+	*PgDatabase
 	logger logger.Logger
 }
 
 func NewIdempotencyKeyRepository(database lib.Database, logger logger.Logger) repositories.IdempotencyKeyRepository {
-	pgDatabase, ok := database.(*lib.PgDatabase)
+	pgDatabase, ok := database.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

@@ -11,14 +11,14 @@ import (
 )
 
 type SessionRepository struct {
-	*lib.PgDatabase
+	*PgDatabase
 	logger             logger.Logger
 	customerRepository repositories.CustomerRepository
 }
 
 func NewSessionRepository(database lib.Database, customerRepository repositories.CustomerRepository, logger logger.Logger) repositories.SessionRepository {
 	logger.Debug("Creating new Session Repository")
-	pgDatabase, ok := database.(*lib.PgDatabase)
+	pgDatabase, ok := database.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

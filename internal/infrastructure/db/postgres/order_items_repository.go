@@ -12,12 +12,12 @@ import (
 )
 
 type OrderItemRepository struct {
-	*lib.PgDatabase
+	*PgDatabase
 	logger logger.Logger
 }
 
 func NewOrderItemRepository(database lib.Database, logger logger.Logger) repositories.OrderItemRepository {
-	pgDatabase, ok := database.(*lib.PgDatabase)
+	pgDatabase, ok := database.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}
@@ -88,10 +88,10 @@ func (r OrderItemRepository) FindById(ctx context.Context, orgId string, id stri
 
 // Create inserts a new order item into the database
 func (r OrderItemRepository) Create(ctx context.Context, orderItem entities.OrderItem) (entities.OrderItem, error) {
-	var p queryRower = r.Pool
+	var p QueryRower = r.Pool
 	tx := ctx.Value(lib.DBTransaction)
 	if tx != nil {
-		p = tx.(queryRower)
+		p = tx.(QueryRower)
 	}
 	query := `INSERT INTO order_items (org_id, id, order_id, price_id, description, quantity, metadata, created_at, updated_at)
 				  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) `

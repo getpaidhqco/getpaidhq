@@ -8,12 +8,12 @@ import (
 )
 
 type UserRepository struct {
-	*lib.PgDatabase
+	*PgDatabase
 	logger logger.Logger
 }
 
 func NewUserRepository(database lib.Database, logger logger.Logger) UserRepository {
-	pgDatabase, ok := database.(*lib.PgDatabase)
+	pgDatabase, ok := database.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

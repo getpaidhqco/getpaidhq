@@ -14,12 +14,12 @@ import (
 )
 
 type SubscriptionRepository struct {
-	*lib.PgDatabase
+	*PgDatabase
 	logger logger.Logger
 }
 
 func NewSubscriptionRepository(database lib.Database, logger logger.Logger) repositories.SubscriptionRepository {
-	pgDatabase, ok := database.(*lib.PgDatabase)
+	pgDatabase, ok := database.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}
@@ -181,10 +181,10 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 }
 
 func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subscription) (entities.Subscription, error) {
-	var p queryRower = r.Pool
+	var p QueryRower = r.Pool
 	tx := ctx.Value(lib.DBTransaction)
 	if tx != nil {
-		p = tx.(queryRower)
+		p = tx.(QueryRower)
 	}
 	query := `INSERT INTO subscriptions (org_id, id, psp_id, order_id, order_item_id, customer_id, status, 
                            start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, 

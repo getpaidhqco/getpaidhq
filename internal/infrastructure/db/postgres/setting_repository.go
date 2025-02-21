@@ -12,12 +12,12 @@ import (
 )
 
 type SettingRepository struct {
-	*lib.PgDatabase
+	*PgDatabase
 	logger logger.Logger
 }
 
 func NewSettingRepository(database lib.Database, logger logger.Logger) repositories.SettingRepository {
-	pgDatabase, ok := database.(*lib.PgDatabase)
+	pgDatabase, ok := database.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

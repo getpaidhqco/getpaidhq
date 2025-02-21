@@ -1,0 +1,124 @@
+package postgres
+
+import (
+	"context"
+	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgxpool"
+	"log"
+	"log/slog"
+	"payloop/internal/application/lib/logger"
+	"payloop/internal/lib"
+	"sync"
+)
+
+type PgDatabase struct {
+	*pgxpool.Pool
+	pgx.Tx
+	logger logger.Logger
+}
+
+func (r PgDatabase) getTransactionFromContext(ctx context.Context) QueryRower {
+	var p QueryRower = r.Pool
+	tx := ctx.Value(lib.DBTransaction)
+	if tx != nil {
+		p = tx.(QueryRower)
+	}
+
+	return p
+}
+
+var (
+	pgInstance *PgDatabase
+	pgOnce     sync.Once
+)
+
+func NewDatabase(env lib.Env, logger logger.Logger) *PgDatabase {
+	logger.Info("Connecting to database", "url", env.DBUrl)
+
+	pgOnce.Do(func() {
+		dbConfig, err := pgxpool.ParseConfig(env.DBUrl)
+		//dbConfig.ConnConfig.Tracer = &myQueryTracer{
+		//	logger: logger,
+		//}
+		pool, err := pgxpool.NewWithConfig(context.TODO(), dbConfig)
+		if err != nil {
+			logger.Error("could not connect to database", "error", err)
+			return
+		}
+
+		pgInstance = &PgDatabase{
+			pool,
+			nil,
+			logger,
+		}
+	})
+
+	if pgInstance == nil {
+		log.Fatalf("could not connect to database")
+	}
+
+	return pgInstance
+}
+
+type myQueryTracer struct {
+	logger logger.Logger
+}
+
+func (l *myQueryTracer) TraceQueryEnd(ctx context.Context, conn *pgx.Conn, data pgx.TraceQueryEndData) {
+	// Failure
+	if data.Err != nil {
+		l.logger.
+			Error("query end",
+				slog.String("error", data.Err.Error()),
+				slog.String("command_tag", data.CommandTag.String()),
+			)
+		return
+	}
+
+	// Success
+	l.logger.
+		Info("query end",
+			slog.String("command_tag", data.CommandTag.String()),
+		)
+}
+
+func (l *myQueryTracer) TraceQueryStart(ctx context.Context, conn *pgx.Conn, data pgx.TraceQueryStartData) context.Context {
+	l.logger.Info("query start",
+		slog.String("sql", data.SQL),
+		slog.Any("args", data.Args),
+	)
+	return ctx
+}
+
+func (d *PgDatabase) Ping(ctx context.Context) error {
+	return d.Ping(ctx)
+}
+
+func (d *PgDatabase) Close() {
+	d.logger.Info("Closing database connection")
+	d.Pool.Close()
+}
+
+func (d *PgDatabase) Begin(ctx context.Context) (lib.Committer, error) {
+	tx, err := d.Pool.Begin(ctx)
+	if err != nil {
+		return nil, err
+	}
+	return PgCommitter{
+		tx,
+	}, nil
+}
+
+type PgCommitter struct {
+	pgx.Tx
+}
+
+func (c PgCommitter) Commit(ctx context.Context) error {
+	return c.Tx.Commit(ctx)
+}
+func (c PgCommitter) Rollback(ctx context.Context) error {
+	return c.Tx.Rollback(ctx)
+}
+func (c PgCommitter) GetClient() interface{} {
+	return c.Tx
+}

@@ -6,12 +6,12 @@ import (
 )
 
 type Product struct {
-	Id          string             `json:"id"`
-	Name        string             `json:"name"`
-	Description *string            `json:"description"`
-	Metadata    *map[string]string `json:"metadata"`
-	CreatedAt   time.Time          `json:"created_at"`
-	UpdatedAt   time.Time          `json:"updated_at"`
+	Id          string            `json:"id"`
+	Name        string            `json:"name"`
+	Description string            `json:"description,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+	CreatedAt   time.Time         `json:"created_at"`
+	UpdatedAt   time.Time         `json:"updated_at"`
 }
 
 func NewProductFromEntity(entity entities.Product) Product {

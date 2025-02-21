@@ -15,12 +15,12 @@ import (
 )
 
 type OrderRepository struct {
-	*lib.PgDatabase
+	*PgDatabase
 	logger logger.Logger
 }
 
 func NewOrderRepository(database lib.Database, logger logger.Logger) repositories.OrderRepository {
-	pgDatabase, ok := database.(*lib.PgDatabase)
+	pgDatabase, ok := database.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}
@@ -89,10 +89,10 @@ func (r OrderRepository) FindById(ctx context.Context, orgId string, id string) 
 }
 
 func (r OrderRepository) Create(ctx context.Context, entity entities.Order) (entities.Order, error) {
-	var p queryRower = r.Pool
+	var p QueryRower = r.Pool
 	tx := ctx.Value(lib.DBTransaction)
 	if tx != nil {
-		p = tx.(queryRower)
+		p = tx.(QueryRower)
 	}
 
 	var order entities.Order

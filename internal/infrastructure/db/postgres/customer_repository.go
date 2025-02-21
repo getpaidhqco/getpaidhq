@@ -12,12 +12,12 @@ import (
 )
 
 type CustomerRepository struct {
-	*lib.PgDatabase
+	*PgDatabase
 	logger logger.Logger
 }
 
 func NewCustomerRepository(database lib.Database, logger logger.Logger) repositories.CustomerRepository {
-	pgDatabase, ok := database.(*lib.PgDatabase)
+	pgDatabase, ok := database.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}
@@ -43,10 +43,10 @@ func (r CustomerRepository) FindById(ctx context.Context, orgId string, id strin
 }
 
 func (r CustomerRepository) Create(ctx context.Context, entity entities.Customer) (entities.Customer, error) {
-	var p queryRower = r.Pool
+	var p QueryRower = r.Pool
 	tx := ctx.Value(lib.DBTransaction)
 	if tx != nil {
-		p = tx.(queryRower)
+		p = tx.(QueryRower)
 	}
 
 	var customer entities.Customer

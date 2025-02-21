@@ -14,12 +14,12 @@ import (
 )
 
 type PriceRepository struct {
-	*lib.PgDatabase
+	*PgDatabase
 	logger logger.Logger
 }
 
 func NewPriceRepository(database lib.Database, logger logger.Logger) repositories.PriceRepository {
-	pgDatabase, ok := database.(*lib.PgDatabase)
+	pgDatabase, ok := database.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

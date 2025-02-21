@@ -12,12 +12,12 @@ import (
 )
 
 type CartRepository struct {
-	*lib.PgDatabase
+	*PgDatabase
 	logger logger.Logger
 }
 
 func NewCartRepository(database lib.Database, logger logger.Logger) repositories.CartRepository {
-	pgDatabase, ok := database.(*lib.PgDatabase)
+	pgDatabase, ok := database.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}
@@ -28,14 +28,10 @@ func NewCartRepository(database lib.Database, logger logger.Logger) repositories
 }
 
 func (r CartRepository) FindById(ctx context.Context, orgId string, id string) (entities.Cart, error) {
-	var p queryRower = r.Pool
-	tx := ctx.Value(lib.DBTransaction)
-	if tx != nil {
-		p = tx.(queryRower)
-	}
+	tx := r.getTransactionFromContext(ctx)
 
 	var cart entities.Cart
-	err := p.QueryRow(ctx, `SELECT org_id,id,data FROM carts WHERE org_id=@org_id AND id=@id`, pgx.NamedArgs{
+	err := tx.QueryRow(ctx, `SELECT org_id,id,data FROM carts WHERE org_id=@org_id AND id=@id`, pgx.NamedArgs{
 		"org_id": orgId,
 		"id":     id,
 	}).Scan(&cart.OrgId,
@@ -50,16 +46,16 @@ func (r CartRepository) FindById(ctx context.Context, orgId string, id string) (
 }
 
 func (r CartRepository) Create(ctx context.Context, input entities.Cart) (entities.Cart, error) {
-	cartId := lib.GenerateId("cart")
+	tx := r.getTransactionFromContext(ctx)
 
 	query := `INSERT INTO carts (org_id,id,data,metadata,created_at,updated_at) 
 			  VALUES (@org_id,@id,@data,@metadata,NOW(), NOW())`
 
 	metaJson, _ := json.Marshal(input.Metadata)
 
-	_, err := r.Pool.Exec(ctx, query, pgx.NamedArgs{
+	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
 		"org_id":   input.OrgId,
-		"id":       cartId,
+		"id":       input.Id,
 		"data":     input.Data,
 		"metadata": metaJson,
 	})
@@ -71,7 +67,7 @@ func (r CartRepository) Create(ctx context.Context, input entities.Cart) (entiti
 
 	return entities.Cart{
 		OrgId:  input.OrgId,
-		Id:     cartId,
+		Id:     input.Id,
 		Data:   input.Data,
 		Status: "",
 		Total:  0,
@@ -79,11 +75,12 @@ func (r CartRepository) Create(ctx context.Context, input entities.Cart) (entiti
 }
 
 func (r CartRepository) Update(ctx context.Context, input entities.Cart) (entities.Cart, error) {
+	tx := r.getTransactionFromContext(ctx)
 
 	query := `UPDATE carts SET data=@data, metadata=@metadata, updated_at=NOW() 
              WHERE org_id=@org_id AND id=@id`
 
-	_, err := r.Pool.Exec(ctx, query, pgx.NamedArgs{
+	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
 		"org_id": input.OrgId,
 		"id":     input.Id,
 		"data":   input.Data,

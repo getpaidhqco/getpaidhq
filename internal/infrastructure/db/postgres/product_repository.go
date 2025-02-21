@@ -14,12 +14,12 @@ import (
 )
 
 type ProductRepository struct {
-	*lib.PgDatabase
+	*PgDatabase
 	logger logger.Logger
 }
 
 func NewProductRepository(database lib.Database, logger logger.Logger) repositories.ProductRepository {
-	pgDatabase, ok := database.(*lib.PgDatabase)
+	pgDatabase, ok := database.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}
@@ -30,27 +30,24 @@ func NewProductRepository(database lib.Database, logger logger.Logger) repositor
 }
 
 func (r ProductRepository) Create(ctx context.Context, product entities.Product) (entities.Product, error) {
-	err := r.Pool.QueryRow(ctx, `INSERT INTO products (org_id, id, name, description, metadata)
-								VALUES ($1, $2, $3, $4, $5)
-								RETURNING org_id, id, name, description, metadata`,
-		product.OrgId, product.Id, product.Name, product.Description, product.Metadata).Scan(
-		&product.OrgId,
-		&product.Id,
-		&product.Name,
-		&product.Description,
-		&product.Metadata,
-	)
+	tx := r.getTransactionFromContext(ctx)
+
+	_, err := tx.Exec(ctx, `INSERT INTO products (org_id, id, name, description, metadata, created_at, updated_at)
+								VALUES ($1, $2, $3, $4, $5, now(), now())`,
+		product.OrgId, product.Id, product.Name, product.Description, product.Metadata)
 
 	if err != nil {
 		r.logger.Error(`failed to create Product`, err.Error())
 		return entities.Product{}, err
 	}
-	return product, nil
+	return r.FindById(ctx, product.OrgId, product.Id)
 }
 
 func (r ProductRepository) FindById(ctx context.Context, orgId string, id string) (entities.Product, error) {
-	var product entities.Product
-	err := r.Pool.QueryRow(ctx, `SELECT org_id,id,name,description,metadata 
+	tx := r.getTransactionFromContext(ctx)
+
+	var product models.Product
+	err := tx.QueryRow(ctx, `SELECT org_id,id,name,description,metadata,created_at,updated_at
 							FROM products WHERE org_id=@org_id AND id=@id`,
 		pgx.NamedArgs{
 			"org_id": orgId,
@@ -59,18 +56,22 @@ func (r ProductRepository) FindById(ctx context.Context, orgId string, id string
 		&product.OrgId,
 		&product.Id,
 		&product.Name,
-		&product.Metadata,
 		&product.Description,
+		&product.Metadata,
+		&product.CreatedAt,
+		&product.UpdatedAt,
 	)
 
 	if err != nil {
 		r.logger.Error(`failed to find Product`, err.Error())
 		return entities.Product{}, errors.New("not found")
 	}
-	return product, nil
+	return product.ToEntity(), nil
 }
 
 func (r ProductRepository) Find(ctx context.Context, orgId string, p request.Pagination) ([]entities.Product, int, error) {
+	tx := r.getTransactionFromContext(ctx)
+
 	var products = make([]entities.Product, 0)
 	var count int
 	query := `SELECT org_id, id, name, description, metadata, created_at, updated_at, count(*) OVER()
@@ -102,7 +103,8 @@ func (r ProductRepository) Find(ctx context.Context, orgId string, p request.Pag
 					END
 					DESC
 			  LIMIT @lim OFFSET @off;`
-	rows, err := r.Pool.Query(ctx, query, pgx.NamedArgs{
+
+	rows, err := tx.Query(ctx, query, pgx.NamedArgs{
 		"org_id":   orgId,
 		"lim":      p.Limit,
 		"off":      p.Offset,
@@ -143,6 +145,8 @@ func (r ProductRepository) Find(ctx context.Context, orgId string, p request.Pag
 }
 
 func (r ProductRepository) CreatePrice(ctx context.Context, entity entities.Price) (entities.Price, error) {
+	tx := r.getTransactionFromContext(ctx)
+
 	var price models.Price
 
 	r.logger.Debug("BillingInterval value: ", entity.BillingInterval)
@@ -160,7 +164,7 @@ func (r ProductRepository) CreatePrice(ctx context.Context, entity entities.Pric
                     created_at, updated_at
        `
 
-	err := r.Pool.QueryRow(ctx, query, pgx.NamedArgs{
+	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
 		"org_id":               entity.OrgId,
 		"id":                   entity.Id,
 		"variant_id":           entity.VariantId,
@@ -204,4 +208,32 @@ func (r ProductRepository) CreatePrice(ctx context.Context, entity entities.Pric
 		return entities.Price{}, err
 	}
 	return price.ToEntity(), nil
+}
+
+func (r ProductRepository) CreateVariant(ctx context.Context, entity entities.Variant) (entities.Variant, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	var variant models.Variant
+
+	query := `INSERT INTO variants (org_id, id, product_id,name,
+                      description,metadata,
+                    created_at, updated_at)
+        VALUES (@org_id, @id,@product_id,@name,@description,@metadata,
+                NOW(), NOW())
+       `
+
+	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
+		"org_id":      entity.OrgId,
+		"id":          entity.Id,
+		"product_id":  entity.ProductId,
+		"name":        entity.Name,
+		"description": entity.Description,
+		"metadata":    entity.Metadata,
+	})
+
+	if err != nil {
+		r.logger.Error(`failed to create Variant`, err.Error())
+		return entities.Variant{}, err
+	}
+	return variant.ToEntity(), nil
 }

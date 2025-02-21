@@ -64,8 +64,10 @@ func (s ProductController) Create(c *gin.Context) {
 	}
 
 	product, err := s.productService.CreateProduct(c.Request.Context(), entities.CreateProductInput{
-		OrgId: authUser.OrgId,
-		Name:  input.Name,
+		OrgId:       authUser.OrgId,
+		Name:        input.Name,
+		Description: input.Description,
+		Metadata:    input.Metadata,
 	})
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
@@ -73,7 +75,7 @@ func (s ProductController) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, product)
+	c.JSON(200, response.NewProductFromEntity(product))
 }
 
 // List all subscriptions

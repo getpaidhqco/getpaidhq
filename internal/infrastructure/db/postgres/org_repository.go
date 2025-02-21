@@ -14,12 +14,12 @@ import (
 )
 
 type OrgRepository struct {
-	*lib.PgDatabase
+	*PgDatabase
 	logger logger.Logger
 }
 
 func NewOrgRepository(database lib.Database, logger logger.Logger) repositories.OrgRepository {
-	pgDatabase, ok := database.(*lib.PgDatabase)
+	pgDatabase, ok := database.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

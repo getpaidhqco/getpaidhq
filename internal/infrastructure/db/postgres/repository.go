@@ -5,7 +5,7 @@ import (
 )
 
 // Module exports dependency
-var Module = fx.Options(
+var RespositoryModules = fx.Options(
 	fx.Provide(NewUserRepository),
 	fx.Provide(NewOrderRepository),
 	fx.Provide(NewOrgRepository),
@@ -19,6 +19,7 @@ var Module = fx.Options(
 	fx.Provide(NewPaymentRepository),
 	fx.Provide(NewOrderItemRepository),
 	fx.Provide(NewIdempotencyKeyRepository),
+	fx.Provide(NewVariantRepository),
 	fx.Provide(NewWebhookSubscriptionRepository),
 )
 
