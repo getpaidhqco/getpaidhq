@@ -47,25 +47,92 @@ func (r ProductRepository) FindById(ctx context.Context, orgId string, id string
 	tx := r.getTransactionFromContext(ctx)
 
 	var product models.Product
-	err := tx.QueryRow(ctx, `SELECT org_id,id,name,description,metadata,created_at,updated_at
-							FROM products WHERE org_id=@org_id AND id=@id`,
-		pgx.NamedArgs{
-			"org_id": orgId,
-			"id":     id,
-		}).Scan(
-		&product.OrgId,
-		&product.Id,
-		&product.Name,
-		&product.Description,
-		&product.Metadata,
-		&product.CreatedAt,
-		&product.UpdatedAt,
-	)
+	query := `SELECT p.org_id, p.id, p.name, p.description, p.metadata, p.created_at, p.updated_at,
+	                 v.org_id, v.id, v.product_id, v.name, v.description, v.metadata, v.created_at, v.updated_at,
+	                 pr.org_id, pr.id, pr.variant_id, pr.category, pr.scheme, pr.cycles, pr.currency, pr.unit_price, pr.min_price, 
+                     pr.suggested_price, pr.billing_interval, pr.billing_interval_qty, pr.trial_interval, pr.trial_interval_qty,
+                     pr.tax_code, pr.metadata, pr.created_at, pr.updated_at
+              FROM products p
+              LEFT JOIN variants v ON p.org_id = v.org_id AND p.id = v.product_id
+              LEFT JOIN prices pr ON v.org_id = pr.org_id AND v.id = pr.variant_id
+              WHERE p.org_id = @org_id AND p.id = @id`
 
+	rows, err := tx.Query(ctx, query, pgx.NamedArgs{
+		"org_id": orgId,
+		"id":     id,
+	})
 	if err != nil {
-		r.logger.Error(`failed to find Product`, err.Error())
+		r.logger.Error(`failed to find Product by ID`, err.Error())
 		return entities.Product{}, errors.New("not found")
 	}
+	defer rows.Close()
+
+	var variantsMap = make(map[string]*models.Variant)
+	for rows.Next() {
+		var variant models.Variant
+		var price models.Price
+		err := rows.Scan(
+			&product.OrgId,
+			&product.Id,
+			&product.Name,
+			&product.Description,
+			&product.Metadata,
+			&product.CreatedAt,
+			&product.UpdatedAt,
+			&variant.OrgId,
+			&variant.Id,
+			&variant.ProductId,
+			&variant.Name,
+			&variant.Description,
+			&variant.Metadata,
+			&variant.CreatedAt,
+			&variant.UpdatedAt,
+			&price.OrgId,
+			&price.Id,
+			&price.VariantId,
+			&price.Category,
+			&price.Scheme,
+			&price.Cycles,
+			&price.Currency,
+			&price.UnitPrice,
+			&price.MinPrice,
+			&price.SuggestedPrice,
+			&price.BillingInterval,
+			&price.BillingIntervalQty,
+			&price.TrialInterval,
+			&price.TrialIntervalQty,
+			&price.TaxCode,
+			&price.Metadata,
+			&price.CreatedAt,
+			&price.UpdatedAt,
+		)
+		if err != nil {
+			r.logger.Error(`failed to scan Product, Variant and Price`, err.Error())
+			return entities.Product{}, err
+		}
+		if variant.Id != "" {
+			if v, ok := variantsMap[variant.Id]; ok {
+				if price.OrgId.Valid {
+					v.Prices = append(v.Prices, price)
+				}
+			} else {
+				if price.OrgId.Valid {
+					variant.Prices = append(variant.Prices, price)
+				}
+				variantsMap[variant.Id] = &variant
+			}
+		}
+	}
+
+	if rows.Err() != nil {
+		r.logger.Error(`rows iteration error`, rows.Err().Error())
+		return entities.Product{}, rows.Err()
+	}
+
+	for _, variant := range variantsMap {
+		product.Variants = append(product.Variants, *variant)
+	}
+
 	return product.ToEntity(), nil
 }
 
