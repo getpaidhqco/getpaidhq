@@ -22,8 +22,10 @@ type CreateOrderRequest struct {
 }
 
 type CreateOrderRequestCustomer struct {
-	ID       string            `json:"id"`
-	Email    string            `json:"email"`
-	Name     string            `json:"name"`
-	Metadata map[string]string `json:"metadata"`
+	ID        string            `json:"id"`
+	Email     string            `json:"email"`
+	FirstName string            `json:"first_name"`
+	LastName  string            `json:"last_name"`
+	Phone     string            `json:"phone"`
+	Metadata  map[string]string `json:"metadata"`
 }

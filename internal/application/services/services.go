@@ -17,4 +17,5 @@ var Module = fx.Options(
 	fx.Provide(NewWebhookSubscriptionService),
 	fx.Provide(NewWorkflowService),
 	fx.Provide(NewProductService),
+	fx.Provide(NewCustomerService),
 )

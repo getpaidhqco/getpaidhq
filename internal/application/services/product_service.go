@@ -77,6 +77,7 @@ func (s ProductService) CreateProduct(ctx context.Context, orgId string, request
 			_, err := s.priceRepository.Create(ctx,
 				entities.NewPrice(orgId, variant.Id, entities.CreatePriceInput{
 					OrgId:              orgId,
+					Label:              p.Label,
 					VariantId:          variant.Id,
 					Category:           p.Category,
 					Scheme:             p.Scheme,
@@ -135,6 +136,7 @@ func (s ProductService) CreateProductPrice(ctx context.Context, input entities.C
 	price, err := s.priceRepository.Create(ctx, entities.Price{
 		OrgId:              input.OrgId,
 		Id:                 lib.GenerateId("price"),
+		Label:              input.Label,
 		VariantId:          input.VariantId,
 		Category:           input.Category,
 		Scheme:             input.Scheme,

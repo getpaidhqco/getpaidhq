@@ -11,6 +11,7 @@ type Price struct {
 	OrgId              pgtype.Text       `json:"org_id"`
 	Id                 pgtype.Text       `json:"id"`
 	VariantId          pgtype.Text       `json:"variant_id"`
+	Label              pgtype.Text       `json:"label"`
 	Category           pgtype.Text       `json:"category"`
 	Scheme             pgtype.Text       `json:"scheme"`
 	Cycles             pgtype.Int8       `json:"cycles"`
@@ -33,6 +34,7 @@ func (p *Price) ToEntity() entities.Price {
 		OrgId:              p.OrgId.String,
 		Id:                 p.Id.String,
 		VariantId:          p.VariantId.String,
+		Label:              p.Label.String,
 		Category:           prices.PriceCategory(p.Category.String),
 		Scheme:             prices.PriceScheme(p.Scheme.String),
 		Cycles:             int(p.Cycles.Int64),

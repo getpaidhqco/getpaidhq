@@ -14,6 +14,7 @@ var Module = fx.Options(
 	fx.Provide(NewHealthRoutes),
 	fx.Provide(NewWebhookSubscriptionRoutes),
 	fx.Provide(NewProductRoutes),
+	fx.Provide(NewCustomerRoutes),
 	fx.Provide(NewRoutes),
 )
 
@@ -37,6 +38,7 @@ func NewRoutes(
 	health HealthRoutes,
 	whsRoutes WebhookSubscriptionRoutes,
 	productRoutes ProductRoutes,
+	customerRoutes CustomerRoutes,
 ) Routes {
 	return Routes{
 		userRoutes,
@@ -49,6 +51,7 @@ func NewRoutes(
 		health,
 		whsRoutes,
 		productRoutes,
+		customerRoutes,
 	}
 }
 

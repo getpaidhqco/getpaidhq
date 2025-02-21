@@ -127,7 +127,7 @@ model Variant {
   id    String @default(cuid())
 
   productId String  @map("product_id")
-  product   Product @relation(fields: [orgId, productId], references: [orgId, id])
+  product   Product @relation(fields: [orgId, productId], references: [orgId, id], onDelete: Cascade)
 
   name        String
   description String?
@@ -150,10 +150,12 @@ model Price {
   id    String @default(cuid())
 
   variantId String  @map("variant_id")
-  variant   Variant @relation(fields: [orgId, variantId], references: [orgId, id])
+  variant   Variant @relation(fields: [orgId, variantId], references: [orgId, id], onDelete: Cascade)
 
   category PriceCategory
   scheme   PriceScheme
+
+  label String?
 
   currency  String
   unitPrice Int    @map("unit_price")
@@ -296,21 +298,26 @@ model Customer {
   orgId String @map("org_id")
   id    String @default(cuid())
 
-  email String
-  name  String?
+  email          String
+  firstName      String? @map("first_name")
+  lastName       String? @map("last_name")
+  phone          String?
+  billingAddress Json?   @map("billing_address")
 
   metadata Json?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  orders Order[]
-
-  org            Org             @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  orders         Order[]
   paymentMethods PaymentMethod[]
-  Subscription   Subscription[]
+  subscriptions  Subscription[]
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@id([orgId, id], map: "customer_primary_key")
+  @@unique([orgId, email])
+  @@index([orgId, email])
   @@map("customers")
 }
 
@@ -335,6 +342,7 @@ model PaymentMethod {
   subscriptions Subscription[]
 
   @@id([orgId, id], map: "paymentmethod_pk")
+  @@unique([orgId, customerId, token])
   @@map("payment_methods")
 }
 

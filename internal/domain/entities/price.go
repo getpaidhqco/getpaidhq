@@ -13,6 +13,7 @@ type Price struct {
 	OrgId              string                 `json:"org_id"`
 	Id                 string                 `json:"id"`
 	VariantId          string                 `json:"variant_id"`
+	Label              string                 `json:"label"`
 	Category           prices.PriceCategory   `json:"category"`
 	Scheme             prices.PriceScheme     `json:"scheme"`
 	Cycles             int                    `json:"cycles"`
@@ -43,6 +44,7 @@ func NewPrice(orgId, variantId string, input CreatePriceInput) Price {
 	return Price{
 		OrgId:              orgId,
 		Id:                 lib.GenerateId("price"),
+		Label:              input.Label,
 		VariantId:          variantId,
 		Category:           input.Category,
 		Scheme:             input.Scheme,
@@ -80,6 +82,7 @@ func (p Price) ToCartItemPrice() cart.Price {
 
 type CreatePriceInput struct {
 	OrgId              string                 `json:"org_id"`
+	Label              string                 `json:"label"`
 	VariantId          string                 `json:"variant_id"`
 	Category           prices.PriceCategory   `json:"category"`
 	Scheme             prices.PriceScheme     `json:"scheme"`

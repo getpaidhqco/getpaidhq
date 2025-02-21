@@ -30,3 +30,24 @@ type Tx interface {
 	Commit(ctx context.Context) error
 	Rollback(ctx context.Context) error
 }
+
+type DatabaseError struct {
+	Code    ErrorCode
+	Message string
+	Err     error
+}
+
+func (e DatabaseError) Error() string {
+	return e.Message
+}
+
+type ErrorCode string
+
+const (
+	NoResults           ErrorCode = "no_results"
+	UniqueKeyViolation  ErrorCode = "unique_key_violation"
+	NotNullViolation    ErrorCode = "not_null_violation"
+	ForeignKeyViolation ErrorCode = "foreign_key_violation"
+	UnknownTable        ErrorCode = "unknown_table"
+	GenericError        ErrorCode = "generic"
+)

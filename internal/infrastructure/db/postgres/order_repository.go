@@ -11,6 +11,7 @@ import (
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
+	"payloop/internal/infrastructure/db/postgres/models"
 	"payloop/internal/lib"
 )
 
@@ -44,10 +45,10 @@ func (r OrderRepository) FindById(ctx context.Context, orgId string, id string) 
 	tx := r.getTransactionFromContext(ctx)
 
 	var order entities.Order
-	var customer entities.Customer
+	var customer models.Customer
 
 	query := `SELECT orders.org_id, orders.id, orders.customer_id, orders.reference, orders.status, orders.session_id, orders.cart_id, orders.currency, orders.total, orders.metadata, orders.created_at, orders.updated_at,
-                 c.org_id, c.id, c.email, c.name, c.created_at, c.updated_at
+                 c.org_id, c.id, c.email, c.first_name, c.created_at, c.updated_at
 			  FROM orders
 			  JOIN customers c ON orders.org_id=c.org_id AND orders.customer_id = c.id
 			  WHERE orders.org_id = $1 AND orders.id = $2`
@@ -69,7 +70,9 @@ func (r OrderRepository) FindById(ctx context.Context, orgId string, id string) 
 		&customer.OrgId,
 		&customer.Id,
 		&customer.Email,
-		&customer.Name,
+		&customer.FirstName,
+		&customer.LastName,
+
 		&customer.CreatedAt,
 		&customer.UpdatedAt,
 	)

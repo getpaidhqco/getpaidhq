@@ -16,6 +16,9 @@ const (
 
 	CreatePrice Action = "CreatePrice"
 
+	CreateCustomer      Action = "CreateCustomer"
+	CreatePaymentMethod Action = "CreatePaymentMethod"
+
 	AddProductToCart   Action = "AddProductToCart"
 	RemoveItemFromCart Action = "RemoveItemFromCart"
 	ProcessWebhook     Action = "ProcessWebhook"

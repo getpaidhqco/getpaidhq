@@ -48,7 +48,7 @@ func NewSubscriptionFromEntity(entity entities.Subscription) Subscription {
 		Id:                 entity.Id,
 		OrderId:            entity.OrderId,
 		OrderItemId:        entity.OrderItemId,
-		Customer:           NewFromEntityCustomer(entity.Customer),
+		Customer:           NewCustomerFromEntity(entity.Customer),
 		Status:             entity.Status,
 		PaymentMethodId:    entity.PaymentMethodId,
 		StartDate:          entity.StartDate,

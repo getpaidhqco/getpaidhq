@@ -105,7 +105,7 @@ func (s SubscriptionService) Create(ctx context.Context, input entities.CreateSu
 	subscription, err := s.subscriptionRepository.Create(ctx, subscription)
 
 	if err != nil {
-		s.logger.Error("Failed to find subscriptions", err.Error())
+		s.logger.Error("Failed create subscriptions", err.Error())
 		return entities.Subscription{}, err
 	}
 

@@ -1,6 +1,7 @@
 package lib
 
 import (
+	"errors"
 	"fmt"
 )
 
@@ -35,6 +36,38 @@ func NewCustomError(errorType CustomErrorType, message string, err error) Custom
 	return CustomError{
 		Type:    errorType,
 		Message: message,
+		Err:     err,
+	}
+}
+
+func MapDatabaseError(err error) CustomError {
+	var dbErr DatabaseError
+	if errors.As(err, &dbErr) {
+		switch dbErr.Code {
+		case NoResults:
+			return CustomError{
+				Type:    NotFoundError,
+				Message: "Not found",
+				Err:     err,
+			}
+		case UniqueKeyViolation: // foreign_key_violation
+			return CustomError{
+				Type:    BadRequestError,
+				Message: "Item already exists",
+				Err:     err,
+			}
+		case ForeignKeyViolation: // unique_violation
+			return CustomError{
+				Type:    BadRequestError,
+				Message: "Foreign constraint violation",
+				Err:     err,
+			}
+		}
+
+	}
+	return CustomError{
+		Type:    InternalError,
+		Message: "An internal error occurred",
 		Err:     err,
 	}
 }

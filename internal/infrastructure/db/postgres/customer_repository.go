@@ -2,10 +2,12 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"github.com/jackc/pgx/v5"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
+	"payloop/internal/infrastructure/db/postgres/models"
 	"payloop/internal/lib"
 
 	_ "github.com/jackc/pgx/v5"
@@ -30,40 +32,109 @@ func NewCustomerRepository(database lib.Database, logger logger.Logger) reposito
 func (r CustomerRepository) FindById(ctx context.Context, orgId string, id string) (entities.Customer, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	var customer entities.Customer
-	query := `SELECT org_id, id, email, name, created_at, updated_at FROM customers WHERE org_id=@org_id AND id=@id`
+	var customer models.Customer
+	query := `SELECT org_id, id, email, first_name, last_name,
+                       phone, billing_address, metadata, 
+                       created_at, updated_at
+              FROM customers WHERE org_id=@org_id AND id=@id`
 	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
 		"org_id": orgId,
 		"id":     id,
-	}).Scan(&customer.OrgId, &customer.Id, &customer.Email, &customer.Name, &customer.CreatedAt, &customer.UpdatedAt)
+	}).Scan(
+		&customer.OrgId,
+		&customer.Id,
+		&customer.Email,
+		&customer.FirstName,
+		&customer.LastName,
+		&customer.Phone,
+		&customer.BillingAddress,
+		&customer.Metadata,
+		&customer.CreatedAt,
+		&customer.UpdatedAt,
+	)
 
 	if err != nil {
-		return entities.Customer{}, err
+		return entities.Customer{}, mapError(err)
 	}
 
-	return customer, nil
+	return customer.ToEntity(), nil
+}
+
+func (r CustomerRepository) FindByEmail(ctx context.Context, orgId string, email string) (entities.Customer, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	var customer models.Customer
+	query := `SELECT org_id, id, email, first_name, last_name,
+                       phone, billing_address, metadata,
+                       created_at, updated_at
+              FROM customers WHERE org_id=@org_id AND email=@email`
+	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
+		"org_id": orgId,
+		"email":  email,
+	}).Scan(
+		&customer.OrgId,
+		&customer.Id,
+		&customer.Email,
+		&customer.FirstName,
+		&customer.LastName,
+		&customer.Phone,
+		&customer.BillingAddress,
+		&customer.Metadata,
+		&customer.CreatedAt,
+		&customer.UpdatedAt,
+	)
+
+	if err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return entities.Customer{}, nil // or a custom error indicating no rows found
+		}
+		return entities.Customer{}, mapError(err)
+	}
+
+	return customer.ToEntity(), nil
 }
 
 func (r CustomerRepository) Create(ctx context.Context, entity entities.Customer) (entities.Customer, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	var customer entities.Customer
-	query := `INSERT INTO customers (org_id, id, email, name, created_at, updated_at) 
-		VALUES (@org_id, @id, @email, @name, now(), now())
-		RETURNING (org_id, id, name, email)`
+	var customer models.Customer
+	query := `INSERT INTO customers (org_id, id, email, first_name, last_name,
+                       phone, billing_address, metadata, 
+                       created_at, updated_at) 
+		VALUES (@org_id, @id, @email, @first_name,@last_name, 
+		        @phone, @billing_address, @metadata, 
+		        now(), now())
+		RETURNING org_id, id, email, first_name, last_name,
+                       phone, billing_address, metadata, 
+                       created_at, updated_at`
 
 	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
-		"org_id": entity.OrgId,
-		"id":     entity.Id,
-		"email":  entity.Email,
-		"name":   entity.Name,
-	}).Scan(&customer)
+		"org_id":          entity.OrgId,
+		"id":              entity.Id,
+		"email":           entity.Email,
+		"first_name":      entity.FirstName,
+		"last_name":       entity.LastName,
+		"phone":           entity.Phone,
+		"billing_address": entity.BillingAddress,
+		"metadata":        entity.Metadata,
+	}).Scan(
+		&customer.OrgId,
+		&customer.Id,
+		&customer.Email,
+		&customer.FirstName,
+		&customer.LastName,
+		&customer.Phone,
+		&customer.BillingAddress,
+		&customer.Metadata,
+		&customer.CreatedAt,
+		&customer.UpdatedAt,
+	)
 
 	if err != nil {
-		return entities.Customer{}, err
+		return entities.Customer{}, mapError(err)
 	}
 
-	return customer, nil
+	return customer.ToEntity(), nil
 }
 
 func (r CustomerRepository) FindPaymentMethodById(ctx context.Context, orgId string, id string) (entities.PaymentMethod, error) {
@@ -86,7 +157,7 @@ func (r CustomerRepository) FindPaymentMethodById(ctx context.Context, orgId str
 
 	if err != nil {
 		r.logger.Error(`failed to find payment method`, "orgId", orgId, "id", id, "err", err.Error())
-		return entities.PaymentMethod{}, err
+		return entities.PaymentMethod{}, mapError(err)
 	}
 	return pm, nil
 }
@@ -124,8 +195,7 @@ func (r CustomerRepository) CreatePaymentMethod(ctx context.Context, entity enti
 	)
 
 	if err != nil {
-		r.logger.Error(`failed to insert PaymentMethod`, err.Error())
-		return entities.PaymentMethod{}, err
+		return entities.PaymentMethod{}, mapError(err)
 	}
 
 	return newEntity, nil

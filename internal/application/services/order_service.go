@@ -73,10 +73,12 @@ func (s OrderService) CreateOrderFromCart(ctx context.Context, input orders.Crea
 	}
 
 	customer, err := s.customerRepository.Create(ctx, entities.Customer{
-		OrgId: orgId,
-		Id:    lib.GenerateId("customer"),
-		Name:  input.Customer.Name,
-		Email: input.Customer.Email,
+		OrgId:     orgId,
+		Id:        lib.GenerateId("customer"),
+		FirstName: input.Customer.FirstName,
+		LastName:  input.Customer.LastName,
+		Phone:     input.Customer.Phone,
+		Email:     input.Customer.Email,
 	})
 	if err != nil {
 		s.logger.Error("Failed to create customer", err.Error())
@@ -183,20 +185,18 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 
 	// create a payment method
 	paymentMethod, err := s.customerRepository.CreatePaymentMethod(ctx, entities.PaymentMethod{
-		OrgId:      orgId,
-		Id:         lib.GenerateId("payment_method"),
-		Psp:        string(input.PaymentContext.Psp),
-		Token:      input.PaymentContext.PaymentMethod.Token,
-		Name:       "Default",
-		CustomerId: order.CustomerId,
-		IsDefault:  true,
-		BillingAddress: entities.Address{
-			Line1: order.Customer.Name,
-		},
-		Type:      input.PaymentContext.PaymentMethod.Type,
-		Details:   input.PaymentContext.PaymentMethod,
-		CreatedAt: time.Now().UTC(),
-		UpdatedAt: time.Now().UTC(),
+		OrgId:          orgId,
+		Id:             lib.GenerateId("payment_method"),
+		Psp:            string(input.PaymentContext.Psp),
+		Token:          input.PaymentContext.PaymentMethod.Token,
+		Name:           "Default",
+		CustomerId:     order.CustomerId,
+		IsDefault:      true,
+		BillingAddress: order.Customer.BillingAddress,
+		Type:           input.PaymentContext.PaymentMethod.Type,
+		Details:        input.PaymentContext.PaymentMethod,
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
 	})
 	if err != nil {
 		s.logger.Error("Failed to create payment method", err.Error())

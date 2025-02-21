@@ -6,19 +6,27 @@ import (
 )
 
 type Customer struct {
-	Id        string    `json:"id"`
-	Name      string    `json:"name"`
-	Email     string    `json:"email"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Id             string            `json:"id"`
+	Name           string            `json:"name"`
+	Email          string            `json:"email"`
+	FirstName      string            `json:"first_name"`
+	LastName       string            `json:"last_name"`
+	Phone          string            `json:"phone"`
+	BillingAddress entities.Address  `json:"billing_address"`
+	Metadata       map[string]string `json:"metadata"`
+	CreatedAt      time.Time         `json:"created_at"`
+	UpdatedAt      time.Time         `json:"updated_at"`
 }
 
-func NewFromEntityCustomer(entity entities.Customer) Customer {
+func NewCustomerFromEntity(entity entities.Customer) Customer {
 	return Customer{
-		Id:        entity.Id,
-		Name:      entity.Name,
-		Email:     entity.Email,
-		CreatedAt: entity.CreatedAt,
-		UpdatedAt: entity.UpdatedAt,
+		Id:             entity.Id,
+		Email:          entity.Email,
+		FirstName:      entity.FirstName,
+		LastName:       entity.LastName,
+		BillingAddress: entity.BillingAddress,
+		Metadata:       entity.Metadata,
+		CreatedAt:      entity.CreatedAt,
+		UpdatedAt:      entity.UpdatedAt,
 	}
 }

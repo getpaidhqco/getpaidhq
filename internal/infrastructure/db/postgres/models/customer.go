@@ -6,23 +6,29 @@ import (
 )
 
 type Customer struct {
-	OrgId     string      `json:"org_id"`
-	Id        string      `json:"id"`
-	Name      string      `json:"name"`
-	Email     string      `json:"email"`
-	Phone     string      `json:"phone"`
-	CreatedAt pgtype.Date `json:"created_at"`
-	UpdatedAt pgtype.Date `json:"updated_at"`
+	OrgId          string                 `json:"org_id"`
+	Id             string                 `json:"id"`
+	FirstName      pgtype.Text            `json:"first_name"`
+	LastName       pgtype.Text            `json:"last_name"`
+	Email          string                 `json:"email"`
+	Phone          pgtype.Text            `json:"phone"`
+	BillingAddress map[string]interface{} `json:"billing_address"`
+	Metadata       map[string]string      `json:"metadata"`
+	CreatedAt      pgtype.Date            `json:"created_at"`
+	UpdatedAt      pgtype.Date            `json:"updated_at"`
 }
 
 func (c *Customer) ToEntity() entities.Customer {
 	return entities.Customer{
-		OrgId:     c.OrgId,
-		Id:        c.Id,
-		Name:      c.Name,
-		Email:     c.Email,
-		Phone:     c.Phone,
-		CreatedAt: c.CreatedAt.Time,
-		UpdatedAt: c.UpdatedAt.Time,
+		OrgId:          c.OrgId,
+		Id:             c.Id,
+		FirstName:      c.FirstName.String,
+		LastName:       c.LastName.String,
+		Email:          c.Email,
+		Phone:          c.Phone.String,
+		BillingAddress: entities.ParseAddress(c.BillingAddress),
+		Metadata:       c.Metadata,
+		CreatedAt:      c.CreatedAt.Time,
+		UpdatedAt:      c.UpdatedAt.Time,
 	}
 }

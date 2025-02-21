@@ -16,6 +16,7 @@ type CreateProductVariantRequest struct {
 }
 
 type CreateProductPriceRequest struct {
+	Label              string                 `json:"label" `
 	Category           prices.PriceCategory   `json:"category"  binding:"required"`
 	Scheme             prices.PriceScheme     `json:"scheme"  binding:"required"`
 	Cycles             int                    `json:"cycles"`

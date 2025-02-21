@@ -42,7 +42,7 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
        s.current_period_end,
        s.retries, s.next_retry, s.currency, s.amount, s.metadata, s.cycles_processed,
        s.total_revenue, s.cancelled_at, s.created_at, s.updated_at,
-       c.org_id, c.id, c.name, c.email, c.created_at, c.updated_at
+       c.org_id, c.id, c.first_name, c.last_name, c.email, c.created_at, c.updated_at
    FROM subscriptions s
    JOIN customers c ON s.org_id=c.org_id AND s.customer_id = c.id
    WHERE s.org_id = @org_id AND s.id = @id;`
@@ -82,9 +82,11 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 		&subscription.CancelledAt,
 		&subscription.CreatedAt,
 		&subscription.UpdatedAt,
+
 		&customer.OrgId,
 		&customer.Id,
-		&customer.Name,
+		&customer.FirstName,
+		&customer.LastName,
 		&customer.Email,
 		&customer.CreatedAt,
 		&customer.UpdatedAt,
@@ -313,7 +315,7 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
        s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at,
        s.last_charge, s.renews_at, s.retries, s.next_retry, s.currency, s.amount, s.metadata, s.cycles_processed,
        s.total_revenue, s.cancelled_at, s.created_at, s.updated_at,
-       c.org_id, c.id, c.name, c.email, c.created_at, c.updated_at,
+       c.org_id, c.id, c.first_name, c.email, c.created_at, c.updated_at,
        count(*) OVER()
    FROM subscriptions s
    JOIN customers c ON s.org_id=c.org_id AND s.customer_id = c.id
@@ -394,7 +396,7 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
 
 			&customer.OrgId,
 			&customer.Id,
-			&customer.Name,
+			&customer.FirstName,
 			&customer.Email,
 			&customer.CreatedAt,
 			&customer.UpdatedAt,
