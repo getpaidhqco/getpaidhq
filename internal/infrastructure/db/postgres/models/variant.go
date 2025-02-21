@@ -6,10 +6,10 @@ import (
 )
 
 type Variant struct {
-	OrgId       string            `json:"org_id"`
-	Id          string            `json:"id"`
-	ProductId   string            `json:"product_id"`
-	Name        string            `json:"name"`
+	OrgId       pgtype.Text       `json:"org_id"`
+	Id          pgtype.Text       `json:"id"`
+	ProductId   pgtype.Text       `json:"product_id"`
+	Name        pgtype.Text       `json:"name"`
 	Description pgtype.Text       `json:"description"`
 	Metadata    map[string]string `json:"metadata"`
 	Prices      []Price           `json:"prices"`
@@ -20,10 +20,10 @@ type Variant struct {
 func (p *Variant) ToEntity() entities.Variant {
 
 	return entities.Variant{
-		OrgId:       p.OrgId,
-		Id:          p.Id,
-		ProductId:   p.ProductId,
-		Name:        p.Name,
+		OrgId:       p.OrgId.String,
+		Id:          p.Id.String,
+		ProductId:   p.ProductId.String,
+		Name:        p.Name.String,
 		Description: p.Description.String,
 		Metadata:    p.Metadata,
 		Prices:      convertPricesToEntities(p.Prices),

@@ -3,13 +3,14 @@ package services
 import (
 	"context"
 	"errors"
+	"fmt"
+	cart "github.com/mdwt/payloop-cart"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
-	"payloop/internal/domain/entities/payments"
 	"payloop/internal/domain/entities/prices"
 	"payloop/internal/domain/factories"
 	"payloop/internal/domain/payment_providers"
@@ -19,8 +20,10 @@ import (
 )
 
 type OrderService struct {
+	workflowEngine         interfaces.Engine
 	sessionRepository      repositories.SessionRepository
 	cartRepository         repositories.CartRepository
+	priceRepository        repositories.PriceRepository
 	orderRepository        repositories.OrderRepository
 	customerRepository     repositories.CustomerRepository
 	subscriptionRepository repositories.SubscriptionRepository
@@ -33,7 +36,9 @@ type OrderService struct {
 }
 
 func NewOrderService(
+	workflowEngine interfaces.Engine,
 	sessionRepository repositories.SessionRepository,
+	priceRepository repositories.PriceRepository,
 	cartRepository repositories.CartRepository,
 	orderRepository repositories.OrderRepository,
 	customerRepository repositories.CustomerRepository,
@@ -46,7 +51,9 @@ func NewOrderService(
 	logger logger.Logger,
 ) interfaces.OrderService {
 	return OrderService{
+		workflowEngine:         workflowEngine,
 		customerRepository:     customerRepository,
+		priceRepository:        priceRepository,
 		sessionRepository:      sessionRepository,
 		cartRepository:         cartRepository,
 		subscriptionRepository: subscriptionRepository,
@@ -61,51 +68,124 @@ func NewOrderService(
 	}
 }
 
-func (s OrderService) CreateOrderFromCart(ctx context.Context, input orders.CreateOrderInput) (entities.Order, payment_providers.InitPaymentResponse, error) {
-	s.logger.Info("Creating order for cart", "cart", input.CartId)
+func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderInput) (orders.CreateOrderResponse, error) {
+	s.logger.Info("Creating order for cart", "cart", input.SessionId)
 	orgId := input.OrgId
 	orderId := lib.GenerateId("order")
+	var customerEntity entities.Customer
+	var err error
+	var orderCart entities.Cart
 
-	cart, err := s.cartRepository.FindById(ctx, orgId, input.CartId)
-	if err != nil {
-		s.logger.Error("Failed to find cart id ", "id", input.CartId, err.Error())
-		return entities.Order{}, payment_providers.InitPaymentResponse{}, errors.New("cart not found")
+	var createPspSession = true
+	if input.SessionId == "" {
+		createPspSession = false
 	}
 
-	customer, err := s.customerRepository.Create(ctx, entities.Customer{
-		OrgId:     orgId,
-		Id:        lib.GenerateId("customer"),
-		FirstName: input.Customer.FirstName,
-		LastName:  input.Customer.LastName,
-		Phone:     input.Customer.Phone,
-		Email:     input.Customer.Email,
-	})
-	if err != nil {
-		s.logger.Error("Failed to create customer", err.Error())
-		return entities.Order{}, payment_providers.InitPaymentResponse{}, err
+	// check if the cart exists
+	if input.SessionId != "" {
+		session, err := s.sessionRepository.FindById(ctx, orgId, input.SessionId)
+		if err != nil {
+			s.logger.Error("Failed to find session id ", "id", input.SessionId, err.Error())
+			return orders.CreateOrderResponse{}, lib.NewCustomError(lib.NotFoundError, "session not found", nil)
+		}
+
+		existingCart, err := s.cartRepository.FindById(ctx, orgId, session.CartId)
+		if err != nil {
+			s.logger.Error("Failed to find cart id ", "id", input.SessionId, err.Error())
+			return orders.CreateOrderResponse{}, lib.NewCustomError(lib.NotFoundError, "cart not found", nil)
+		}
+		orderCart = existingCart
+	} else {
+		// Create a cart from the items in the input
+		inlineCart := cart.New(cart.CreateCartOptions{
+			Currency: input.Currency,
+			Items:    make([]cart.Item, 0),
+		})
+		for _, item := range input.CartItems {
+			price, err := s.priceRepository.FindById(ctx, orgId, item.PriceId)
+			if err != nil {
+				s.logger.Error("Failed to find price", "price_id", item.PriceId, err.Error())
+				return orders.CreateOrderResponse{}, lib.NewCustomError(
+					lib.NotFoundError, fmt.Sprintf("Price %s not found", item.PriceId),
+					err,
+				)
+			}
+
+			_, err = inlineCart.AddItem(cart.Item{
+				ID:          lib.GenerateId("item"),
+				ProductId:   item.ProductId,
+				Price:       price.ToCartItemPrice(),
+				Description: price.Label,
+				Quantity:    int64(item.Quantity),
+			})
+			if err != nil {
+				s.logger.Error("Failed to add item to cart", err.Error())
+				return orders.CreateOrderResponse{}, lib.NewCustomError(lib.InternalError, "Can't add item to cart", err)
+			}
+		}
+
+		newCart, err := s.cartRepository.Create(ctx, entities.Cart{
+			OrgId:    input.OrgId,
+			Id:       lib.GenerateId("cart"),
+			Data:     inlineCart,
+			Metadata: nil,
+		})
+		if err != nil {
+			s.logger.Error(`failed to create cart`, err)
+			return orders.CreateOrderResponse{}, err
+		}
+		orderCart = newCart
+	}
+
+	// validate that the cart is not empty
+	if len(orderCart.Data.Items) == 0 {
+		return orders.CreateOrderResponse{}, errors.New("cart is empty")
+	}
+
+	// Get or create the customer
+	if input.Customer.Id != "" {
+		customerEntity, err = s.customerRepository.FindById(ctx, orgId, input.Customer.Id)
+		if err != nil {
+			s.logger.Error("Failed to find customer", err.Error())
+			return orders.CreateOrderResponse{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+		}
+
+	} else {
+		customerEntity, err = s.customerRepository.Create(ctx, entities.Customer{
+			OrgId:     orgId,
+			Id:        lib.GenerateId("customer"),
+			FirstName: input.Customer.FirstName,
+			LastName:  input.Customer.LastName,
+			Phone:     input.Customer.Phone,
+			Email:     input.Customer.Email,
+		})
+		if err != nil {
+			s.logger.Error("Failed to create customer", err.Error())
+			return orders.CreateOrderResponse{}, err
+		}
 	}
 
 	order, err := s.orderRepository.Create(ctx, entities.Order{
 		OrgId:      orgId,
 		Id:         orderId,
 		Reference:  orderId,
-		CustomerId: customer.Id,
+		CustomerId: customerEntity.Id,
 		Status:     entities.OrderStatusPending,
-		SessionId:  "-",
-		CartId:     cart.Id,
-		Currency:   cart.Data.Currency,
-		Total:      cart.Data.Total,
-		Metadata:   nil,
-		CreatedAt:  time.Now(),
-		UpdatedAt:  time.Now(),
+		SessionId:  input.SessionId,
+		CartId:     orderCart.Id,
+		Currency:   input.Currency,
+		Total:      orderCart.Total,
+		Metadata:   input.Metadata,
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
 	})
 	if err != nil {
 		s.logger.Error("Failed to create order", err.Error())
-		return entities.Order{}, payment_providers.InitPaymentResponse{}, err
+		return orders.CreateOrderResponse{}, err
 	}
 
 	// Go through the list of items in the cart and create the order items for each item
-	for _, item := range cart.Data.Items {
+	for _, item := range orderCart.Data.Items {
 		orderItem, err := s.orderItemRepository.Create(ctx, entities.OrderItem{
 			OrgId:       orgId,
 			Id:          lib.GenerateId("order_item"),
@@ -119,60 +199,62 @@ func (s OrderService) CreateOrderFromCart(ctx context.Context, input orders.Crea
 		})
 		if err != nil {
 			s.logger.Error("Failed to create order item", "item", item, "err", err.Error())
-			return entities.Order{}, payment_providers.InitPaymentResponse{}, err
+			return orders.CreateOrderResponse{}, err
 		}
 
 		if orderItem.Price.Category == prices.PriceCategorySubscription {
 			subscription := entities.NewSubscriptionFromOrderItem(orderItem)
-			subscription.CustomerId = customer.Id
+			subscription.CustomerId = customerEntity.Id
 			subscription.PspId = input.PspId
+			subscription.PaymentMethodId = input.PaymentMethodId
 
 			_, err := s.subscriptionRepository.Create(ctx, subscription)
 			if err != nil {
 				s.logger.Error("Failed to create subscription", "item", item, err.Error())
-				return entities.Order{}, payment_providers.InitPaymentResponse{}, err
+				return orders.CreateOrderResponse{}, err
 			}
 		}
 	}
 
-	gw, err := s.gatewayFactory.NewGateway(ctx, orgId, input.PspId)
-	if err != nil {
-		s.logger.Error("Failed to get gateway", err.Error())
-		return entities.Order{}, payment_providers.InitPaymentResponse{}, err
-	}
-	// initialise the payment session with the payment processor
-	pspResponse, err := gw.InitPayment(ctx, payment_providers.InitPaymentCommand{
-		OrgId:    orgId,
-		Cart:     cart.Data,
-		Order:    order,
-		Customer: customer,
-		Options:  input.Options,
-	})
-	if err != nil {
-		s.logger.Error("Failed to initialise payment gateway", err.Error())
-		return entities.Order{}, payment_providers.InitPaymentResponse{}, err
+	var pspResponse payment_providers.InitPaymentResponse
+	if createPspSession {
+		s.logger.Debugf("Creating payment session for order %s", order.Id)
+		gw, err := s.gatewayFactory.NewGateway(ctx, orgId, input.PspId)
+		if err != nil {
+			s.logger.Error("Failed to get gateway", err.Error())
+			return orders.CreateOrderResponse{}, err
+		}
+		// initialise the payment session with the payment processor
+		pspResponse, err = gw.InitPayment(ctx, payment_providers.InitPaymentCommand{
+			OrgId:    orgId,
+			Cart:     orderCart.Data,
+			Order:    order,
+			Customer: customerEntity,
+			Options:  input.Options,
+		})
+		if err != nil {
+			s.logger.Error("Failed to initialise payment gateway", err.Error())
+			return orders.CreateOrderResponse{}, err
+		}
 	}
 
-	return order, pspResponse, nil
+	return orders.CreateOrderResponse{
+		Order: order,
+		Psp:   pspResponse,
+	}, nil
 }
 
-// CompleteOrder marks a pending order as completed and updates the subscriptions to reflect any payment received
-// This is a special case with orders
-// 1. The order is marked as completed
-// 2. The subscriptions are updated to reflect the payment received
-// 3. A payment is created for the order
-// 4. A payment method is created for the customer
-// It all happens here for now because it must be part of the same transaction. not sure if this is the best way
-// or if we can have transactions in temporal workflows
-func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOrderCommand) (entities.Order, error) {
-	s.logger.Info("Completing order", "order_id", input.OrderId)
-	orgId := input.OrgId
-	orderId := input.OrderId
+// CompleteOrder marks a pending order as completed and activates the subscriptions. There is no payment involved, so the
+// subscriptions will start charging as needed using the payment methods specified in the create process.
+func (s OrderService) CompleteOrder(ctx context.Context, orgId string, orderId string) (entities.Order, error) {
+	s.logger.Info("Completing order [%s][%s]", orgId, orderId)
 
 	order, err := s.orderRepository.FindById(ctx, orgId, orderId)
 	if err != nil {
 		return entities.Order{}, errors.New("order not found")
 	}
+
+	// TODO validation
 
 	// update the order status
 	order.Status = entities.OrderStatusCompleted
@@ -183,82 +265,27 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 		return entities.Order{}, err
 	}
 
-	// create a payment method
-	paymentMethod, err := s.customerRepository.CreatePaymentMethod(ctx, entities.PaymentMethod{
-		OrgId:          orgId,
-		Id:             lib.GenerateId("payment_method"),
-		Psp:            string(input.PaymentContext.Psp),
-		Token:          input.PaymentContext.PaymentMethod.Token,
-		Name:           "Default",
-		CustomerId:     order.CustomerId,
-		IsDefault:      true,
-		BillingAddress: order.Customer.BillingAddress,
-		Type:           input.PaymentContext.PaymentMethod.Type,
-		Details:        input.PaymentContext.PaymentMethod,
-		CreatedAt:      time.Now().UTC(),
-		UpdatedAt:      time.Now().UTC(),
-	})
-	if err != nil {
-		s.logger.Error("Failed to create payment method", err.Error())
-		return entities.Order{}, err
-	}
-	s.logger.Infof("Created payment method %s for order %s", paymentMethod.Id, order.Id)
-
-	var subscriptionId string
 	// find subscriptions for the order and update the status to active
 	subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
 	if err != nil {
-		s.logger.Error("no subscriptions", err.Error())
+		s.logger.Info("no subscriptions to process", err.Error())
 	}
 
 	for _, subscription := range subscriptions {
-		// TODO this needs to happen but not sure if here or like this
-		charged := input.PaymentContext.Payment.Amount > 0 && subscription.StartDate.Sub(time.Now().UTC()) < 0
-		if charged {
-			subscriptionId = subscription.Id
-			subscription.SetActivationDates()
-			subscription.Status = entities.SubscriptionStatusActive
-			subscription.LastCharge = subscription.StartDate
-			subscription.TotalRevenue = subscription.Amount
-			subscription.CyclesProcessed = 1
+		s.logger.Debugf("Setting subscription [%s] to active", subscription.Id)
+		subscription.SetActive()
 
-			renewsAt := subscription.CalculateNextBillingDate()
-			subscription.RenewsAt = renewsAt
-			subscription.CurrentPeriodStart = subscription.StartDate
-			subscription.CurrentPeriodEnd = renewsAt
-		} else {
-			subscription.SetActivationDates()
-			subscription.Status = entities.SubscriptionStatusTrial
-		}
-		subscription.PaymentMethodId = paymentMethod.Id
-
-		_, err := s.subscriptionRepository.Update(ctx, subscription)
+		newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 		if err != nil {
-			s.logger.Error("Failed to update subscription status", err.Error())
+			s.logger.Error("Failed to update subscription", err.Error())
 			return entities.Order{}, err
 		}
-	}
 
-	if input.PaymentContext.Payment.Amount > 0 {
-		payment := entities.Payment{
-			OrgId:          orgId,
-			Id:             lib.GenerateId("pmt"),
-			PspId:          input.PaymentContext.Payment.PspId,
-			OrderId:        orderId,
-			SubscriptionId: subscriptionId,
-			Status:         payments.PaymentStatusSucceeded,
-			Currency:       input.PaymentContext.Payment.Currency,
-			Amount:         input.PaymentContext.Payment.Amount,
-			PspFee:         0,
-			PlatformFee:    0,
-			NetAmount:      input.PaymentContext.Payment.Amount,
-			Metadata:       nil,
-			CreatedAt:      time.Now().UTC(),
-			UpdatedAt:      time.Now().UTC(),
-		}
-		payment, err := s.paymentRepository.Create(ctx, payment)
+		s.logger.Debugf("Starting subscription workflow")
+		err = s.workflowEngine.StartSubscriptionWorkflow(ctx, newSub)
 		if err != nil {
-			s.logger.Error("Failed to create payment", err.Error())
+			s.logger.Error("Failed to start workflow", err.Error())
+			return entities.Order{}, err
 		}
 	}
 

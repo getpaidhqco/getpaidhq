@@ -21,7 +21,7 @@ import (
 )
 
 type OrderActivities struct {
-	orderService           interfaces.OrderService
+	orderService           interfaces.OrderWorkflowService
 	subscriptionService    interfaces.SubscriptionService
 	subscriptionRepository repositories.SubscriptionRepository
 	settingRepository      repositories.SettingRepository
@@ -31,7 +31,7 @@ type OrderActivities struct {
 }
 
 func NewOrderActivities(
-	orderService interfaces.OrderService,
+	orderService interfaces.OrderWorkflowService,
 	settingRepository repositories.SettingRepository,
 	subscriptionService interfaces.SubscriptionService,
 	subscriptionRepository repositories.SubscriptionRepository,
@@ -52,9 +52,9 @@ func NewOrderActivities(
 
 func (a *OrderActivities) CompleteOrder(ctx context.Context, paymentContext payment_providers.PaymentWebhookContext) (interfaces.Result, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("CompleteOrder", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId)
+	logger.Info("CompleteCheckoutSession", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId)
 
-	order, err := a.orderService.CompleteOrder(ctx, orders.CompleteOrderCommand{
+	order, err := a.orderService.CompleteCheckoutSession(ctx, orders.CompleteCheckoutSessionInput{
 		OrgId:          paymentContext.OrgId,
 		OrderId:        paymentContext.OrderId,
 		PaymentContext: paymentContext,

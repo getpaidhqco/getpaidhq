@@ -18,4 +18,5 @@ var Module = fx.Options(
 	fx.Provide(NewWorkflowService),
 	fx.Provide(NewProductService),
 	fx.Provide(NewCustomerService),
+	fx.Provide(NewOrderWorkflowService),
 )

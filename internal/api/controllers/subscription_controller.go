@@ -125,7 +125,7 @@ func (s SubscriptionController) Resume(c *gin.Context) {
 
 // Cancel a subscription
 // swagger:route GET /api/subscriptions/{id}/cancel subscriptions cancelSubscription
-// Cancels a subscription based on the ID
+// Cancels a subscription based on the Id
 //
 // Produces:
 // - application/json

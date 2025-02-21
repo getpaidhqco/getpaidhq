@@ -155,7 +155,8 @@ func (t Temporal) StartWorkflow(ctx context.Context, id interfaces.WorkflowType,
 
 }
 
-func (t Temporal) StartSubscriptionWorkflow(ctx context.Context, subscription entities.Subscription) (interfaces.Result, error) {
+// Starts the long running subscription workflow
+func (t Temporal) StartSubscriptionWorkflow(ctx context.Context, subscription entities.Subscription) error {
 
 	workflowId := fmt.Sprintf(`subscription_[%s]_[%s]`, subscription.OrgId, subscription.Id)
 	// start workflow
@@ -166,22 +167,10 @@ func (t Temporal) StartSubscriptionWorkflow(ctx context.Context, subscription en
 	we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, workflows.SubscriptionWorkflow, subscription)
 	if err != nil {
 		t.logger.Error("Unable to execute workflow", "err", err.Error())
-		return interfaces.Result{}, err
+		return err
 	}
-
-	var result interfaces.Result
-	err = we.Get(ctx, &result)
-	if err != nil {
-		t.logger.Error("Unable to get workflow result", "err", err.Error())
-		return interfaces.Result{}, err
-	}
-	t.logger.Info("Finished workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID(), "result", result)
-	return interfaces.Result{
-		Success: true,
-		Message: "success",
-		Payload: result,
-	}, nil
-
+	t.logger.Info("Finished workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID())
+	return nil
 }
 
 func (t Temporal) UpdateSubscriptionWorkflow(ctx context.Context, updateName string, subscription entities.Subscription) error {

@@ -47,8 +47,10 @@ func (r OrderRepository) FindById(ctx context.Context, orgId string, id string) 
 	var order entities.Order
 	var customer models.Customer
 
-	query := `SELECT orders.org_id, orders.id, orders.customer_id, orders.reference, orders.status, orders.session_id, orders.cart_id, orders.currency, orders.total, orders.metadata, orders.created_at, orders.updated_at,
-                 c.org_id, c.id, c.email, c.first_name, c.created_at, c.updated_at
+	query := `SELECT orders.org_id, orders.id, orders.customer_id, orders.reference,
+       orders.status, orders.session_id, orders.cart_id, orders.currency, orders.total, 
+       orders.metadata, orders.created_at, orders.updated_at,
+                 c.org_id, c.id, c.email, c.first_name, c.last_name, c.created_at, c.updated_at
 			  FROM orders
 			  JOIN customers c ON orders.org_id=c.org_id AND orders.customer_id = c.id
 			  WHERE orders.org_id = $1 AND orders.id = $2`

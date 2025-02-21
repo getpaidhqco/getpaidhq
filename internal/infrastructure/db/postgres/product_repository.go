@@ -62,7 +62,7 @@ func (r ProductRepository) FindById(ctx context.Context, orgId string, id string
 		"id":     id,
 	})
 	if err != nil {
-		r.logger.Error(`failed to find Product by ID`, err.Error())
+		r.logger.Error(`failed to find Product by Id`, err.Error())
 		return entities.Product{}, errors.New("not found")
 	}
 	defer rows.Close()
@@ -110,8 +110,8 @@ func (r ProductRepository) FindById(ctx context.Context, orgId string, id string
 			r.logger.Error(`failed to scan Product, Variant and Price`, err.Error())
 			return entities.Product{}, err
 		}
-		if variant.Id != "" {
-			if v, ok := variantsMap[variant.Id]; ok {
+		if variant.Id.Valid {
+			if v, ok := variantsMap[variant.Id.String]; ok {
 				if price.OrgId.Valid {
 					v.Prices = append(v.Prices, price)
 				}
@@ -119,7 +119,7 @@ func (r ProductRepository) FindById(ctx context.Context, orgId string, id string
 				if price.OrgId.Valid {
 					variant.Prices = append(variant.Prices, price)
 				}
-				variantsMap[variant.Id] = &variant
+				variantsMap[variant.Id.String] = &variant
 			}
 		}
 	}

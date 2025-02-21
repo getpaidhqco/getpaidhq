@@ -109,7 +109,7 @@ const (
 	HU Country = "HU"
 	IS Country = "IS"
 	IN Country = "IN"
-	ID Country = "ID"
+	ID Country = "Id"
 	IR Country = "IR"
 	IQ Country = "IQ"
 	IE Country = "IE"

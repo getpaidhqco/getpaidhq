@@ -4,10 +4,13 @@ import (
 	"context"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
-	"payloop/internal/domain/payment_providers"
 )
 
 type OrderService interface {
-	CreateOrderFromCart(ctx context.Context, input orders.CreateOrderInput) (entities.Order, payment_providers.InitPaymentResponse, error)
-	CompleteOrder(ctx context.Context, input orders.CompleteOrderCommand) (entities.Order, error)
+	CreateOrder(ctx context.Context, input orders.CreateOrderInput) (orders.CreateOrderResponse, error)
+	CompleteOrder(ctx context.Context, orgId string, orderId string) (entities.Order, error)
+}
+
+type OrderWorkflowService interface {
+	CompleteCheckoutSession(ctx context.Context, input orders.CompleteCheckoutSessionInput) (entities.Order, error)
 }

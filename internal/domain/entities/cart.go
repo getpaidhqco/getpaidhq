@@ -7,7 +7,7 @@ type Cart struct {
 	Id       string      `json:"id"`
 	Data     cart.Cart   `json:"data"`
 	Status   string      `json:"status"`
-	Total    int         `json:"total"`
+	Total    int64       `json:"total"`
 	Metadata interface{} `json:"metadata"`
 }
 

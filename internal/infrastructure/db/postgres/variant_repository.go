@@ -67,7 +67,7 @@ func (r VariantRepository) FindById(ctx context.Context, orgId string, id string
 		"id":     id,
 	})
 	if err != nil {
-		r.logger.Error(`failed to find Variant by ID`, slog.String("err", err.Error()))
+		r.logger.Error(`failed to find Variant by Id`, slog.String("err", err.Error()))
 		return entities.Variant{}, err
 	}
 	defer rows.Close()

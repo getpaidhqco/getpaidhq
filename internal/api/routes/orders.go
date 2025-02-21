@@ -18,6 +18,7 @@ func (s OrderRoutes) Setup() {
 	api := s.handler.Gin.Group("/api")
 	{
 		api.POST("/orders", s.orderController.CreateOrder)
+		api.POST("/orders/:id/complete", s.orderController.CompleteOrder)
 	}
 }
 

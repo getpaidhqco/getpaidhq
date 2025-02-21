@@ -98,7 +98,7 @@ type Subscription struct {
 // and the BillingInterval and BillingIntervalQty
 //
 // If the subscription is in retry status, it calculates the next retry date
-func (s Subscription) CalculateNextBillingDate() time.Time {
+func (s *Subscription) CalculateNextBillingDate() time.Time {
 	if s.BillingInterval == "" || s.BillingIntervalQty <= 0 {
 		return time.Time{}
 	}
@@ -182,7 +182,18 @@ func (s *Subscription) SetActivationDates() *Subscription {
 	s.EndsAt = endsAt
 	s.RenewsAt = startDate
 	s.StartDate = startDate
+	s.CurrentPeriodStart = startDate
+	s.CurrentPeriodEnd = s.RenewsAt
 
+	return s
+}
+
+// SetActive sets the subscription status to active and prepares the dates for the subscription and charge schedule.
+// It doesn't make any assumptions about the payment status, it just sets the subscription status to active. This
+// calls SetActivationDates() and sets the status to SubscriptionStatusActive
+func (s *Subscription) SetActive() *Subscription {
+	s.SetActivationDates()
+	s.Status = SubscriptionStatusActive
 	return s
 }
 

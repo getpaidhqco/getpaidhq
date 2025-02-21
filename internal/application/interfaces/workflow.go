@@ -12,7 +12,7 @@ type WorkflowService interface {
 
 type Engine interface {
 	StartWorkflow(ctx context.Context, id WorkflowType, payload interface{}) (Result, error)
-	StartSubscriptionWorkflow(ctx context.Context, subscription entities.Subscription) (Result, error)
+	StartSubscriptionWorkflow(ctx context.Context, subscription entities.Subscription) error
 	UpdateSubscriptionWorkflow(ctx context.Context, updateName string, subscription entities.Subscription) error
 }
 

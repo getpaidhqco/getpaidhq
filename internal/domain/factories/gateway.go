@@ -30,7 +30,7 @@ func NewGatewayFactory(
 func (s GatewayFactory) NewGateway(ctx context.Context, orgId string, id common.Gateway) (payment_providers.Gateway, error) {
 	setting, err := s.settingRepository.FindById(ctx, orgId, "payment_processors", string(id))
 	if err != nil {
-		s.logger.Error("Failed to get setting", "error", err)
+		s.logger.Errorf("Failed to get [payment_processors][%s] - %e", id, err)
 		return nil, err
 	}
 

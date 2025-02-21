@@ -6,6 +6,7 @@ import (
 	"github.com/checkout/checkout-sdk-go"
 	checkout_common "github.com/checkout/checkout-sdk-go/common"
 	"github.com/checkout/checkout-sdk-go/configuration"
+
 	cnas "github.com/checkout/checkout-sdk-go/nas"
 	"github.com/checkout/checkout-sdk-go/payments"
 	"github.com/checkout/checkout-sdk-go/payments/hosted"
@@ -16,8 +17,6 @@ import (
 	"payloop/internal/domain/common"
 	"payloop/internal/domain/payment_providers"
 )
-
-var CHECKOUT_DOT_COM = "CheckoutDotCom"
 
 type CheckoutDotCom struct {
 	logger logger.Logger
@@ -211,6 +210,7 @@ func (p CheckoutDotCom) ChargePayment(ctx context.Context, input payment_provide
 	p.logger.Infof("Recurring Checkout.com payment [%s][%s %s]", input.Reference, input.Currency, input.Amount)
 	response, err := api.Payments.RequestPayment(request, nil)
 	if err != nil {
+		p.logger.Errorf("Error charging payment: %s", response)
 		return payment_providers.ChargePaymentResponse{
 			Success: false,
 		}

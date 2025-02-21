@@ -31,8 +31,8 @@ func TestCreateOrder(t *testing.T) {
 			logger.Info("Starting application")
 
 			_, _, err := orderService.CreateOrderFromCart(ctx, orders.CreateOrderInput{
-				CartId: "cart_id",
-				OrgId:  "org_id",
+				SessionId: "cart_id",
+				OrgId:     "org_id",
 				Customer: orders.CreateOrderCommandCustomer{
 					Name:  "John Doe",
 					Email: "test@payloop.com",

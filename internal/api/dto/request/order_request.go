@@ -11,11 +11,12 @@ type CartItem struct {
 }
 
 type CreateOrderRequest struct {
-	Customer CreateOrderRequestCustomer `json:"customer" binding:"required"`
-	CartId   string                     `json:"cart_id"`
-	PspId    string                     `json:"psp_id"`
+	Customer        CreateOrderRequestCustomer `json:"customer" binding:"required"`
+	PaymentMethodId string                     `json:"payment_method_id"`
+	SessionId       string                     `json:"session_id"`
+	PspId           string                     `json:"psp_id" binding:"required"`
 
-	// Cart is required if CartId is not provided
+	// Cart is required if SessionId is not provided
 	Cart     CartInput         `json:"cart"`
 	Metadata map[string]string `json:"metadata"`
 	Options  map[string]string `json:"options"`

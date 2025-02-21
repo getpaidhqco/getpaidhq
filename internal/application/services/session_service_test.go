@@ -53,8 +53,8 @@ func TestSessionService_CreateSession(t *testing.T) {
 					Name:  "John Doe",
 					Email: "test@testie.com",
 				},
-				CartId:   session.CartId,
-				Metadata: nil,
+				SessionId: session.CartId,
+				Metadata:  nil,
 			})
 			assert.Equal(t, err, nil)
 			logger.Info("Order created", "order", order)
