@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	paystacklib "github.com/mdwt/paystack-go"
+	pscommon "github.com/mdwt/paystack-go/common"
+	pserrors "github.com/mdwt/paystack-go/errors"
+	"github.com/mdwt/paystack-go/transactions"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/common"
 	"payloop/internal/domain/payment_providers"
 	"strconv"
 )
-
-var PAYSTACK = "Paystack"
 
 type Paystack struct {
 	logger logger.Logger
@@ -18,7 +19,9 @@ type Paystack struct {
 }
 
 type PaystackConfig struct {
-	ApiKey string `json:"api_key"`
+	Type      string `json:"type"`
+	ApiKey    string `json:"api_key"`
+	ConnectId string `json:"connect_id"`
 }
 
 func NewPaystackGateway(logger logger.Logger, config PaystackConfig) payment_providers.Gateway {
@@ -34,19 +37,22 @@ func (p Paystack) InitPayment(ctx context.Context, input payment_providers.InitP
 	reference := input.Order.Reference
 	email := input.Customer.Email
 
-	client := paystacklib.NewClient(p.config.ApiKey)
+	client := paystacklib.NewPaystackApi(paystacklib.Options{
+		ApiKey:    p.config.ApiKey,
+		ConnectId: p.config.ConnectId,
+	})
 
-	request := paystacklib.TransactionRequest{
+	request := transactions.TransactionRequest{
 		CallbackURL: "https://www.example.com",
 		Reference:   reference,
 		Currency:    currency,
 		Amount:      float32(cart.Total),
 		Email:       email,
-		Metadata: paystacklib.Metadata{
+		Metadata: pscommon.Metadata{
 			"order_id": input.Order.Id,
 			"cart_id":  input.Cart.Id,
 			"org_id":   input.OrgId,
-			"custom_fields": []paystacklib.MetadataCustomField{{
+			"custom_fields": []pscommon.MetadataCustomField{{
 				DisplayName:  "order_id",
 				VariableName: "Order#",
 				Value:        input.Order.Id,
@@ -66,17 +72,21 @@ func (p Paystack) InitPayment(ctx context.Context, input payment_providers.InitP
 }
 
 func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.ChargePaymentCommand) payment_providers.ChargePaymentResponse {
-	client := paystacklib.NewClient(p.config.ApiKey)
+	client := paystacklib.NewPaystackApi(paystacklib.Options{
+		ApiKey:    p.config.ApiKey,
+		ConnectId: p.config.ConnectId,
+	})
+
 	customer := input.Customer
 	paymentMethod := input.PaymentMethod
 
-	request := paystacklib.ChargeAuthorizationRequest{
+	request := transactions.ChargeAuthorizationRequest{
 		Amount:            input.Amount,
 		Email:             customer.Email,
 		AuthorizationCode: paymentMethod.Token,
 		Reference:         input.Reference,
 		Currency:          input.Currency,
-		Metadata: paystacklib.Metadata{
+		Metadata: pscommon.Metadata{
 			"org_id": input.OrgId,
 			"type":   "recurring",
 		},
@@ -85,7 +95,7 @@ func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.Cha
 	response, err := client.Transaction.ChargeAuthorization(ctx, request)
 	if err != nil {
 		p.logger.Errorf("failed to charge payment [%s]", err.Error())
-		var paystackErr *paystacklib.APIError
+		var paystackErr *pserrors.APIError
 		if errors.As(err, &paystackErr) {
 			return payment_providers.ChargePaymentResponse{
 				Success:     false,

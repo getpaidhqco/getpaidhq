@@ -52,6 +52,6 @@ VALUES ('mollie', 'payment_processors', 'Paystack', '{"api_key": "sk_test_e39ce2
   "secret_key": "sk_sbox_g2dxr775jvhnwbvwqbl5qon6kux"
 }', 'CheckoutDotComConfig', NOW(), NOW())   ,
     ('org_2syb0uTnhuKtQTaLO6EAk1iIUnu', 'payment_processors', 'CheckoutDotCom', '{
-  "secret_key": "sk_sbox_g2dxr775jvhnwbvwqbl5qon6kux"
+  "secret_key": "sk_sbox_g2dxr775jvhnwbvwqbl5qon6kux","connect_id":"C_ACT_8T51J4P9X5"
 }', 'CheckoutDotComConfig', NOW(), NOW())
 ON CONFLICT DO NOTHING;

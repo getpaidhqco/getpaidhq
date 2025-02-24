@@ -34,16 +34,13 @@ func (r SessionRepository) FindById(ctx context.Context, orgId string, id string
 
 	var session entities.Session
 
-	query := `INSERT INTO sessions (org_id,id,cart_id, created_at, updated_at) 
-			  VALUES (@org_id,@id,@cart_id, NOW(), NOW())`
+	query := `SELECT org_id, id, cart_id, created_at, updated_at
+			  FROM sessions
+			  WHERE org_id = $1 AND id = $2`
 
-	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
-		"org_id": orgId,
-		"id":     id,
-	}).Scan(&session)
-
+	err := tx.QueryRow(ctx, query, orgId, id).Scan(&session.OrgId, &session.Id, &session.CartId, &session.CreatedAt, &session.UpdatedAt)
 	if err != nil {
-		r.logger.Error(`failed to find session`, err)
+		r.logger.Error("failed to find session", err)
 		return entities.Session{}, err
 	}
 

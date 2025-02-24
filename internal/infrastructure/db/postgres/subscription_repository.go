@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
@@ -186,6 +187,7 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 
 func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subscription) (entities.Subscription, error) {
 	tx := r.getTransactionFromContext(ctx)
+
 	query := `INSERT INTO subscriptions (org_id, id, psp_id, payment_method_id, order_id, order_item_id, customer_id, status, 
                            start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, 
                            trial_ends_at, cancel_at, ends_at, last_charge, renews_at, 
@@ -203,7 +205,7 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
 		"org_id":               entity.OrgId,
 		"id":                   entity.Id,
-		"payment_method_id":    entity.PaymentMethodId,
+		"payment_method_id":    pgtype.Text{String: entity.PaymentMethodId, Valid: entity.PaymentMethodId != ""},
 		"psp_id":               entity.PspId,
 		"order_id":             entity.OrderId,
 		"order_item_id":        entity.OrderItemId,
