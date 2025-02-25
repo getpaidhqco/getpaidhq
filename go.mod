@@ -10,7 +10,6 @@ require (
 	github.com/gin-gonic/gin v1.10.0
 	github.com/go-playground/validator/v10 v10.25.0
 	github.com/jackc/pgx/v5 v5.7.2
-	github.com/mdwt/paystack-go v0.0.0-20250128134735-2e5c46a871b7
 	github.com/nats-io/nats-server/v2 v2.10.25
 	github.com/nats-io/nats.go v1.39.1
 	github.com/rs/cors/wrapper/gin v0.0.0-20240830163046-1084d89a1692
@@ -24,6 +23,8 @@ require (
 	go.uber.org/fx v1.23.0
 	go.uber.org/zap v1.27.0
 )
+
+require github.com/mdwt/paystack-go v0.0.1 // indirect
 
 require (
 	github.com/bytedance/sonic v1.12.9 // indirect
@@ -99,6 +100,3 @@ require (
 	gopkg.in/ini.v1 v1.67.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-
-replace github.com/mdwt/paystack-go => ../paystack-go
