@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	cart "github.com/mdwt/payloop-cart"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
@@ -15,6 +14,7 @@ import (
 	"payloop/internal/domain/factories"
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
+	"payloop/internal/infrastructure/cart"
 	"payloop/internal/lib"
 	"time"
 )

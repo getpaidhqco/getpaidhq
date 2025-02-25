@@ -1,6 +1,6 @@
 package response
 
-import cart "github.com/mdwt/payloop-cart"
+import "payloop/internal/infrastructure/cart"
 
 type CartResponse struct {
 	cart.Cart

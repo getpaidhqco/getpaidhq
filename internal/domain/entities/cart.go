@@ -1,6 +1,6 @@
 package entities
 
-import cart "github.com/mdwt/payloop-cart"
+import "payloop/internal/infrastructure/cart"
 
 type Cart struct {
 	OrgId    string      `json:"org_id"`

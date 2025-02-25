@@ -1,10 +1,10 @@
 package entities
 
 import (
-	cart "github.com/mdwt/payloop-cart"
-	"github.com/mdwt/payloop-cart/types"
 	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities/prices"
+	"payloop/internal/infrastructure/cart"
+	"payloop/internal/infrastructure/cart/types"
 	"payloop/internal/lib"
 	"time"
 )

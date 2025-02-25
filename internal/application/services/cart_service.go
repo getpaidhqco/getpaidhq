@@ -3,12 +3,12 @@ package services
 import (
 	"context"
 	"errors"
-	cartlib "github.com/mdwt/payloop-cart"
-	carttypes "github.com/mdwt/payloop-cart/types"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/carts"
 	"payloop/internal/domain/repositories"
+	cartlib "payloop/internal/infrastructure/cart"
+	carttypes "payloop/internal/infrastructure/cart/types"
 
 	"payloop/internal/lib"
 )

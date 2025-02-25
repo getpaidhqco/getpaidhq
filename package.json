@@ -4,6 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
+    "ngrok": "ngrok http http://localhost:8081",
     "prisma:generate": "pnpm dlx  prisma generate",
     "prisma:format": "pnpm dlx prisma format",
     "prisma:push": "pnpm dlx prisma db push"

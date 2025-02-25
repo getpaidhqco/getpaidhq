@@ -2,9 +2,9 @@ package payment_providers
 
 import (
 	"context"
-	cart "github.com/mdwt/payloop-cart"
 	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
+	"payloop/internal/infrastructure/cart"
 	"time"
 )
 

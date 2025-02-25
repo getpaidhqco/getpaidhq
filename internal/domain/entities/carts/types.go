@@ -1,8 +1,6 @@
 package carts
 
-import (
-	cart "github.com/mdwt/payloop-cart"
-)
+import "payloop/internal/infrastructure/cart"
 
 type CreateCartInput struct {
 	OrgId    string            `json:"org_id"`
