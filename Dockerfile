@@ -20,7 +20,7 @@ COPY . .
 RUN go build -o main .
 
 # Start a new stage from scratch
-FROM golang:1.24-alpine
+FROM 329237115630.dkr.ecr.eu-west-1.amazonaws.com/golang-1_24-alpine
 
 # Set the Current Working Directory inside the container
 WORKDIR /root/
