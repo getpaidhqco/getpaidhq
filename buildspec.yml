@@ -3,7 +3,6 @@ version: 0.2
 phases:
   pre_build:
     commands:
-      - aws codecommit credential-helper $@
       - git config --global credential.helper '!aws codecommit credential-helper $@'
       - git config --global credential.UseHttpPath true
       - echo Logging in to Amazon ECR...
