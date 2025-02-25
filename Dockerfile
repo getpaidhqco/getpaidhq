@@ -36,4 +36,4 @@ COPY policy.cedar .
 EXPOSE 8081
 
 # Command to run the executable
-CMD ["./main"]
+CMD ["./main","start"]
