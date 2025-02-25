@@ -65,3 +65,16 @@ By following these guidelines, you can determine the appropriate boundaries for 
 - Payment
 
 Each aggregate is designed to encapsulate related entities that need to be consistent together and share a common lifecycle.
+
+
+
+
+## Create a ECR registry
+```
+docker pull golang:1.24-alpine
+
+aws ecr create-repository --repository-name golang-1_24-alpine --profile=cj-test
+aws ecr get-login-password --region eu-west-1 --profile=cj-test |  docker login --username AWS --password-stdin 329237115630.dkr.ecr.eu-west-1.amazonaws.com
+docker tag golang:1.24-alpine 329237115630.dkr.ecr.eu-west-1.amazonaws.com/golang-1_24-alpine
+docker push 329237115630.dkr.ecr.eu-west-1.amazonaws.com/golang-1_24-alpine
+```

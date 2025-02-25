@@ -1,5 +1,5 @@
 # Use the official Golang image as the base image
-FROM golang:1.24-alpine AS builder
+FROM 329237115630.dkr.ecr.eu-west-1.amazonaws.com/golang-1_24-alpine AS builder
 
 RUN apk add --no-cache git openssh
 # Set the Current Working Directory inside the container
