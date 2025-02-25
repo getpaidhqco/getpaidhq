@@ -3,6 +3,7 @@ package nats
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	pubsub "payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/logger"
@@ -16,7 +17,24 @@ type NatsPubSub struct {
 }
 
 func NewNatsPubSub(logger logger.Logger) pubsub.PubSub {
-	nc, err := nats.Connect(nats.DefaultURL)
+	opts := &server.Options{
+		Host: "localhost",
+		Port: 4222,
+	}
+	// Initialize new server with options
+	ns, err := server.NewServer(opts)
+
+	if err != nil {
+		panic(err)
+	}
+	go ns.Start()
+
+	// Wait for server to be ready for connections
+	if !ns.ReadyForConnections(15 * time.Second) {
+		panic("not ready for connection")
+	}
+
+	nc, err := nats.Connect(ns.ClientURL())
 	if err != nil {
 		panic(err)
 	}

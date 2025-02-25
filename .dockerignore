@@ -1,0 +1,25 @@
+# Binaries
+main
+bin/
+docker/
+
+# Vendor directory
+vendor/
+prisma/
+
+# Go build cache
+*.cache
+
+# IDE files
+.idea/
+*.iml
+
+# Node modules
+node_modules/
+
+# Environment files
+.env
+
+# Docker files
+Dockerfile
+docker-compose.yml

@@ -55,15 +55,6 @@ services:
     ports:
       - 8080:8080
 
-  nats:
-    container_name: nats
-    image: nats:latest
-    networks:
-      - payloop-network
-    ports:
-      - 4222:4222
-
-
 
 networks:
   payloop-network:
