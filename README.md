@@ -78,3 +78,26 @@ aws ecr get-login-password --region eu-west-1 --profile=cj-test |  docker login 
 docker tag golang:1.24-alpine 329237115630.dkr.ecr.eu-west-1.amazonaws.com/golang-1_24-alpine
 docker push 329237115630.dkr.ecr.eu-west-1.amazonaws.com/golang-1_24-alpine
 ```
+```
+docker pull temporalio/auto-setup
+
+aws ecr create-repository --repository-name temporalio_auto_setup --profile=cj-test
+aws ecr get-login-password --region eu-west-1 --profile=cj-test |  docker login --username AWS --password-stdin 329237115630.dkr.ecr.eu-west-1.amazonaws.com
+docker tag temporalio/auto-setup 329237115630.dkr.ecr.eu-west-1.amazonaws.com/temporalio_auto_setup
+docker push 329237115630.dkr.ecr.eu-west-1.amazonaws.com/temporalio_auto_setup
+
+docker pull temporalio/admin-tools
+
+aws ecr create-repository --repository-name temporalio_admin_tools --profile=cj-test
+aws ecr get-login-password --region eu-west-1 --profile=cj-test |  docker login --username AWS --password-stdin 329237115630.dkr.ecr.eu-west-1.amazonaws.com
+docker tag temporalio/admin-tools 329237115630.dkr.ecr.eu-west-1.amazonaws.com/temporalio_admin_tools
+docker push 329237115630.dkr.ecr.eu-west-1.amazonaws.com/temporalio_admin_tools
+
+docker pull temporalio/ui
+aws ecr create-repository --repository-name temporalio_ui --profile=cj-test
+aws ecr get-login-password --region eu-west-1 --profile=cj-test |  docker login --username AWS --password-stdin 329237115630.dkr.ecr.eu-west-1.amazonaws.com
+docker tag temporalio/ui 329237115630.dkr.ecr.eu-west-1.amazonaws.com/temporalio_ui
+docker push 329237115630.dkr.ecr.eu-west-1.amazonaws.com/temporalio_ui
+
+
+```
