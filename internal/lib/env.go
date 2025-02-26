@@ -8,11 +8,12 @@ import (
 
 // Env has environment stored
 type Env struct {
-	ServerPort  string `mapstructure:"SERVER_PORT"`
-	Environment string `mapstructure:"ENV"`
-	LogOutput   string `mapstructure:"LOG_OUTPUT"`
-	LogLevel    string `mapstructure:"LOG_LEVEL"`
-	DBUrl       string `mapstructure:"DATABASE_URL"`
+	ServerPort      string `mapstructure:"SERVER_PORT"`
+	Environment     string `mapstructure:"ENV"`
+	LogOutput       string `mapstructure:"LOG_OUTPUT"`
+	LogLevel        string `mapstructure:"LOG_LEVEL"`
+	DBUrl           string `mapstructure:"DATABASE_URL"`
+	CedarPolicyFile string `mapstructure:"CEDAR_POLICY"`
 
 	JWTSecret      string `mapstructure:"JWT_SECRET"`
 	PaystackSecret string `mapstructure:"PAYSTACK_SECRET"`
@@ -21,8 +22,7 @@ type Env struct {
 	CognitoPoolId   string `mapstructure:"COGNITO_POOL_ID"`
 	CognitoRegion   string `mapstructure:"COGNITO_REGION"`
 
-	PaystackApiKey  string `mapstructure:"PAYSTACK_API_KEY"`
-	CedarPolicyFile string `mapstructure:"CEDAR_POLICY"`
+	PaystackApiKey string `mapstructure:"PAYSTACK_API_KEY"`
 
 	ClerkSecretKey string `mapstructure:"CLERK_SECRET"`
 }
@@ -31,6 +31,7 @@ type Env struct {
 func NewEnv() Env {
 
 	env := Env{}
+	viper.AutomaticEnv()
 	viper.AddConfigPath("./")
 	viper.AddConfigPath("./../")
 	viper.AddConfigPath("./../../")
@@ -42,7 +43,15 @@ func NewEnv() Env {
 
 	err := viper.ReadInConfig()
 	if err != nil {
-		log.Fatal("☠️ cannot read configuration")
+		log.Println("☠️ cannot read configuration file, reading from environment")
+		env.CedarPolicyFile = "./policy.cedar"
+		env.DBUrl = viper.GetString("DATABASE_URL")
+		env.ServerPort = viper.GetString("SERVER_PORT")
+		env.Environment = viper.GetString("ENV")
+		env.LogLevel = viper.GetString("LOG_LEVEL")
+		env.ClerkSecretKey = viper.GetString("CLERK_SECRET")
+
+		return env
 	}
 
 	err = viper.Unmarshal(&env)
