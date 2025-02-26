@@ -9,6 +9,7 @@ import (
 // Env has environment stored
 type Env struct {
 	ServerPort      string `mapstructure:"SERVER_PORT"`
+	TemporalHost    string `mapstructure:"TEMPORAL_HOST"`
 	Environment     string `mapstructure:"ENV"`
 	LogOutput       string `mapstructure:"LOG_OUTPUT"`
 	LogLevel        string `mapstructure:"LOG_LEVEL"`
@@ -50,6 +51,7 @@ func NewEnv() Env {
 		env.Environment = viper.GetString("ENV")
 		env.LogLevel = viper.GetString("LOG_LEVEL")
 		env.ClerkSecretKey = viper.GetString("CLERK_SECRET")
+		env.TemporalHost = viper.GetString("TEMPORAL_HOST")
 
 		return env
 	}

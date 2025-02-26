@@ -31,6 +31,7 @@ type Temporal struct {
 
 func NewTemporalEngine(
 	logger logger.Logger,
+	env lib.Env,
 	orderActivities activities.OrderActivities,
 	webhookActivities activities.OutgoingWebhookActivities,
 	settingRepository repositories.SettingRepository,
@@ -38,8 +39,9 @@ func NewTemporalEngine(
 ) interfaces.Engine {
 	// The client is orderActivities heavyweight object that should be created once per process.
 	// Set our Zap logger so that workflows and activities can use it
+	logger.Debugf("Connecting to temporal [%s]", env.TemporalHost)
 	c, err := client.Dial(client.Options{
-		HostPort: client.DefaultHostPort,
+		HostPort: env.TemporalHost,
 		Logger:   NewZapAdapter(lib.GetZapLogger()),
 	})
 	if err != nil {
