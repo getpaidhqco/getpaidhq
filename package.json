@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "deploy:test": "aws codebuild start-build --project-name payloop --source-version test --profile=cj-test --environment-variables-override name=STAGE,value=test,type=PLAINTEXT",
+    "deploy:test": "aws codebuild start-build --project-name payloop --source-version main --profile=cj-test --environment-variables-override name=STAGE,value=test,type=PLAINTEXT",
     "ngrok": "ngrok http http://localhost:8081",
     "prisma:generate": "pnpm dlx  prisma generate",
     "prisma:format": "pnpm dlx prisma format",

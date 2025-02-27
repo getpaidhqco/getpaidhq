@@ -3,10 +3,11 @@ package checkout_com
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"github.com/checkout/checkout-sdk-go"
 	checkout_common "github.com/checkout/checkout-sdk-go/common"
 	"github.com/checkout/checkout-sdk-go/configuration"
-
+	checkout_errors "github.com/checkout/checkout-sdk-go/errors"
 	cnas "github.com/checkout/checkout-sdk-go/nas"
 	"github.com/checkout/checkout-sdk-go/payments"
 	"github.com/checkout/checkout-sdk-go/payments/hosted"
@@ -208,14 +209,20 @@ func (p CheckoutDotCom) ChargePayment(ctx context.Context, input payment_provide
 	}
 
 	requestJSON, _ := json.Marshal(request)
-	p.logger.Debug("request JSON", "request", string(requestJSON))
+	p.logger.Info("request JSON", "request", string(requestJSON))
 
-	p.logger.Infof("Recurring Checkout.com payment [%s][%s %d]",
+	p.logger.Infof("Recurring Checkout.com payment: [%s][%s %d]",
 		input.Reference, input.Currency, input.Amount)
 	p.logger.Info("paymentMethod", "paymentMethod", paymentMethod.Token)
 	response, err := api.Payments.RequestPayment(request, nil)
 	if err != nil {
 		p.logger.Errorf("Error charging payment: %v", err)
+		errjson, _ := json.Marshal(err)
+		p.logger.Error("errjson", "errjson", string(errjson))
+		var capierr checkout_errors.CheckoutAPIError
+		if errors.As(err, &capierr) {
+			p.logger.Errorf("capierr.Data.ErrorType: %v", capierr.Data.ErrorType)
+		}
 		return payment_providers.ChargePaymentResponse{
 			Success: false,
 		}

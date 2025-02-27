@@ -1,5 +1,19 @@
 
 
+## Connecting to Test environment 
+Via the bastion 
+
+Payloop API port 8888->8081
+```
+ssh -o StrictHostKeyChecking=no -N -L  8888:temporal-svc.temporal:8081 ec2-user@ec2-34-244-193-216.eu-west-1.compute.amazonaws.com -i cj-bastion-test.pem -v
+```
+
+Temporal UI 9999->8080
+```
+ssh -o StrictHostKeyChecking=no -N -L  9999:temporal-svc.temporal:8080 ec2-user@ec2-34-244-193-216.eu-west-1.compute.amazonaws.com -i cj-bastion-test.pem -v
+```
+
+
 ## Project Structure
 Ref: https://github.com/sklinkert/go-ddd.git
 This project uses the Domain Driven Design (DDD) principles 
