@@ -305,7 +305,8 @@ func (s SubscriptionService) GetSubscriptionCustomer(ctx context.Context, subscr
 }
 
 func (s SubscriptionService) GetSubscriptionPaymentMethod(ctx context.Context, subscription entities.Subscription) (entities.PaymentMethod, error) {
-	s.logger.Info("Fetching payment method for subscription", "orgId", subscription.OrgId, "subscriptionId", subscription.Id)
+	s.logger.Infof("Fetching payment method for subscription [%s] %s - %s",
+		subscription.OrgId, subscription.Id, subscription.PaymentMethodId)
 
 	paymentMethod, err := s.customerRepository.FindPaymentMethodById(ctx, subscription.OrgId, subscription.PaymentMethodId)
 	if err != nil {
