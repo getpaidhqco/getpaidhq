@@ -39,8 +39,8 @@ func NewTemporalEngine(
 ) interfaces.Engine {
 	// The client is orderActivities heavyweight object that should be created once per process.
 	// Set our Zap logger so that workflows and activities can use it
-	logger.Debugf("Connecting to temporal [%s]", env.TemporalHost)
-	c, err := client.Dial(client.Options{
+	logger.Debugf("Connecting to temporal NewLazyClient [%s]", env.TemporalHost)
+	c, err := client.NewLazyClient(client.Options{
 		HostPort: env.TemporalHost,
 		Logger:   NewZapAdapter(lib.GetZapLogger()),
 	})
