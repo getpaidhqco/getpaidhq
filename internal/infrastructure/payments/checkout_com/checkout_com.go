@@ -210,7 +210,7 @@ func (p CheckoutDotCom) ChargePayment(ctx context.Context, input payment_provide
 	p.logger.Infof("Recurring Checkout.com payment [%s][%s %s]", input.Reference, input.Currency, input.Amount)
 	response, err := api.Payments.RequestPayment(request, nil)
 	if err != nil {
-		p.logger.Errorf("Error charging payment: %s", response)
+		p.logger.Errorf("Error charging payment: %v", err)
 		return payment_providers.ChargePaymentResponse{
 			Success: false,
 		}
