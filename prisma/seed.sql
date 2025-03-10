@@ -47,11 +47,12 @@ ON CONFLICT DO NOTHING;
 
 INSERT INTO settings (org_id, parent_id, id, value, value_type, created_at, updated_at)
 VALUES ('mollie', 'payment_processors', 'Paystack', '{"api_key": "sk_test_e39ce23869e6e677121a5e6ef691a8c3d835f0bb"}','PaystackConfig',NOW(),NOW()),
- ('org_2syb0uTnhuKtQTaLO6EAk1iIUnu', 'payment_processors', 'Paystack', '{"api_key": "sk_test_e39ce23869e6e677121a5e6ef691a8c3d835f0bb"}','PaystackConfig',NOW(),NOW()),
+ ('org_2syb0uTnhuKtQTaLO6EAk1iIUnu', 'payment_processors', 'Paystack', '{"api_key": "sk_test_e39ce23869e6e677121a5e6ef691a8c3d835f0bb","connect_id":"C_ACT_8T51J4P9X5"}','PaystackConfig',NOW(),NOW()),
        ('mollie', 'payment_processors', 'CheckoutDotCom', '{
   "secret_key": "sk_sbox_g2dxr775jvhnwbvwqbl5qon6kux"
 }', 'CheckoutDotComConfig', NOW(), NOW())   ,
     ('org_2syb0uTnhuKtQTaLO6EAk1iIUnu', 'payment_processors', 'CheckoutDotCom', '{
-  "secret_key": "sk_sbox_g2dxr775jvhnwbvwqbl5qon6kux","connect_id":"C_ACT_8T51J4P9X5"
+  "secret_key": "sk_sbox_g2dxr775jvhnwbvwqbl5qon6kux","processing_channel_id": "pc_xv47h5sfybue5h5elxfcphqy44"
 }', 'CheckoutDotComConfig', NOW(), NOW())
 ON CONFLICT DO NOTHING;
+
