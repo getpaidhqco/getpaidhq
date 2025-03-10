@@ -112,9 +112,11 @@ func (p WebhookParser) parseChargeSuccess(data interface{}) (TransactionSuccessf
 	// Try to unmarshal Metadata as a string
 	var str string
 	if err := json.Unmarshal(temp.Metadata, &str); err == nil {
-		// It's a string, so marshal it back to a struct
-		if err := json.Unmarshal([]byte(str), &metadata); err != nil {
-			return TransactionSuccessful{}, err
+		if str != "" {
+			// It's a string, so marshal it back to a struct
+			if err := json.Unmarshal([]byte(str), &metadata); err != nil {
+				return TransactionSuccessful{}, err
+			}
 		}
 	} else {
 		// It's a struct, so use it directly

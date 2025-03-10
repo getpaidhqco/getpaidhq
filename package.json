@@ -8,7 +8,9 @@
     "ngrok": "ngrok http http://localhost:8081",
     "prisma:generate": "pnpm dlx  prisma generate",
     "prisma:format": "pnpm dlx prisma format",
-    "prisma:push": "pnpm dlx prisma db push"
+    "prisma:push": "pnpm dlx prisma db push",
+    "tunnel:test:api": "ssh -o StrictHostKeyChecking=no -N -L  8888:payloop.temporal:8081 ec2-user@ec2-34-244-193-216.eu-west-1.compute.amazonaws.com -i ../cj-bastion-test.pem -v",
+    "tunnel:test:temporal-ui": "ssh -o StrictHostKeyChecking=no -N -L  9999:temporal-svc.temporal:8080 ec2-user@ec2-34-244-193-216.eu-west-1.compute.amazonaws.com -i ../cj-bastion-test.pem -v"
   },
   "keywords": [],
   "author": "",

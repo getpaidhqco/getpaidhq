@@ -11,6 +11,7 @@ import (
 	"payloop/internal/infrastructure/authz/cedar"
 	"payloop/internal/infrastructure/db/postgres"
 	"payloop/internal/infrastructure/pubsub/nats"
+	"payloop/internal/infrastructure/queue/sqs"
 	"payloop/internal/infrastructure/workflow/temporal"
 	"payloop/internal/lib"
 )
@@ -22,7 +23,7 @@ var CommonModules = fx.Options(
 	services.Module,
 	middlewares.Module,
 	factories.Module,
-	
+
 	postgres.Module,
 
 	// Authn & Authz
@@ -30,10 +31,12 @@ var CommonModules = fx.Options(
 	clerk.Module,
 	cedar.Module,
 
-
 	// Workflow engine
 	temporal.Module,
 
 	// Pubsub
 	nats.Module,
+
+	// Queue
+	sqs.Module,
 )

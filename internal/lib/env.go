@@ -1,16 +1,17 @@
 package lib
 
 import (
-	"log"
-
+	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
+	"log"
 )
 
 // Env has environment stored
 type Env struct {
 	ServerPort      string `mapstructure:"SERVER_PORT"`
 	TemporalHost    string `mapstructure:"TEMPORAL_HOST"`
-	Environment     string `mapstructure:"ENV"`
+	Env             string `mapstructure:"env"`
+	Koos            string `mapstructure:"koos"`
 	LogOutput       string `mapstructure:"LOG_OUTPUT"`
 	LogLevel        string `mapstructure:"LOG_LEVEL"`
 	DBUrl           string `mapstructure:"DATABASE_URL"`
@@ -26,29 +27,40 @@ type Env struct {
 	PaystackApiKey string `mapstructure:"PAYSTACK_API_KEY"`
 
 	ClerkSecretKey string `mapstructure:"CLERK_SECRET"`
+
+	Sqs SqsConfig `mapstructure:"SQS"`
+}
+
+type SqsConfig struct {
+	QueueUrl string `mapstructure:"QUEUE_URL"`
+	Region   string `mapstructure:"REGION"`
+}
+type Config struct {
+	Port  int    `mapstructure:"port"`
+	Debug bool   `mapstructure:"DEBUG"`
+	Name  string `mapstructure:"NAME"`
 }
 
 // NewEnv creates a new environment
 func NewEnv() Env {
 
-	env := Env{}
+	err := godotenv.Load()
+	if err != nil {
+		log.Fatalf("Error loading .env file: %v", err)
+	}
 	viper.AutomaticEnv()
-	viper.AddConfigPath("./")
-	viper.AddConfigPath("./../")
-	viper.AddConfigPath("./../../")
-	viper.AddConfigPath("./../../../")
-	viper.AddConfigPath("./../../../../")
-	viper.AddConfigPath("./../../../../../")
-	viper.SetConfigName(".env")
-	viper.SetConfigType("env")
+	// Set default values (optional)
+	viper.SetDefault("env", "dev")
+	//viper.SetDefault("KOOS", "dev")
 
-	err := viper.ReadInConfig()
+	var env Env
+	err = viper.Unmarshal(&env)
 	if err != nil {
 		log.Println("☠️ cannot read configuration file, reading from environment")
 		env.CedarPolicyFile = "./policy.cedar"
 		env.DBUrl = viper.GetString("DATABASE_URL")
 		env.ServerPort = viper.GetString("SERVER_PORT")
-		env.Environment = viper.GetString("ENV")
+		env.Env = viper.GetString("ENV")
 		env.LogLevel = viper.GetString("LOG_LEVEL")
 		env.ClerkSecretKey = viper.GetString("CLERK_SECRET")
 		env.TemporalHost = viper.GetString("TEMPORAL_HOST")
@@ -62,4 +74,8 @@ func NewEnv() Env {
 	}
 
 	return env
+}
+
+func (e Env) Get(key string) string {
+	return viper.GetString(key)
 }

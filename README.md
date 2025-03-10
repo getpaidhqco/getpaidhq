@@ -5,7 +5,7 @@ Via the bastion
 
 Payloop API port 8888->8081
 ```
-ssh -o StrictHostKeyChecking=no -N -L  8888:temporal-svc.temporal:8081 ec2-user@ec2-34-244-193-216.eu-west-1.compute.amazonaws.com -i cj-bastion-test.pem -v
+ssh -o StrictHostKeyChecking=no -N -L  8888:payloop.temporal.temporal:8081 ec2-user@ec2-34-244-193-216.eu-west-1.compute.amazonaws.com -i cj-bastion-test.pem -v
 ```
 
 Temporal UI 9999->8080

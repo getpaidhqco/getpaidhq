@@ -5,8 +5,8 @@ import (
 	"crypto/md5"
 	"encoding/hex"
 	"payloop/internal/application/interfaces"
+	"payloop/internal/application/interfaces/webhooks"
 	"payloop/internal/application/lib/logger"
-	"payloop/internal/domain/common"
 	"payloop/internal/domain/factories"
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
@@ -25,7 +25,7 @@ func NewWebhookService(
 	gatewayFactory factories.GatewayFactory,
 	workflowEngine interfaces.Engine,
 	idempotencyRepo repositories.IdempotencyKeyRepository,
-) WebhookService {
+) webhooks.WebhookService {
 	return WebhookService{
 		logger:          logger,
 		gatewayFactory:  gatewayFactory,
@@ -36,10 +36,10 @@ func NewWebhookService(
 
 // HandlePaymentWebhook parses a payment webhook and checks if it is valid. If valid, it publishes
 // a payment event to the event bus.
-func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, psp common.Gateway, input []byte) error {
-	s.logger.Infof("HandlePaymentWebhook: %s", string(input))
+func (s WebhookService) HandlePaymentWebhook(ctx context.Context, payload webhooks.PaymentWebhookPayload) error {
+	s.logger.Infof("HandlePaymentWebhook: %s", string(payload.Data))
 
-	hash := md5.Sum(input)
+	hash := md5.Sum([]byte(payload.Data))
 	hashHex := hex.EncodeToString(hash[:])
 	// Check if the idempotency key already exists
 	exists, err := s.idempotencyRepo.Exists(ctx, hashHex)
@@ -59,14 +59,14 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, psp common.Ga
 		return err
 	}
 
-	parser := s.gatewayFactory.NewWebhookParser(psp)
-	err = parser.ValidateWebhook(ctx, input)
+	parser := s.gatewayFactory.NewWebhookParser(payload.Psp)
+	err = parser.ValidateWebhook(ctx, []byte(payload.Data))
 	if err != nil {
 		s.logger.Error("Failed to validate webhook", err.Error())
 		return err
 	}
 
-	webhook, err := parser.ParseWebhook(ctx, input)
+	webhook, err := parser.ParseWebhook(ctx, []byte(payload.Data))
 	if err != nil {
 		s.logger.Errorf("failed to parse webhook", err.Error())
 		return err
@@ -74,13 +74,12 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, psp common.Ga
 
 	s.logger.Info("Webhook parsed", "org_id", webhook.OrgId)
 
-	// TODO Instead place this event in a queue and let a worker handle it
 	s.startWorkflow(ctx, webhook)
 	return nil
 }
 
 // TODO this needs to be handled by a worker from a queue
-func (s *WebhookService) startWorkflow(ctx context.Context, event payment_providers.PaymentWebhookContext) {
+func (s WebhookService) startWorkflow(ctx context.Context, event payment_providers.PaymentWebhookContext) {
 	switch event.Type {
 	case payment_providers.PaymentSuccess:
 		// start workflow

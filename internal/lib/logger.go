@@ -162,12 +162,12 @@ func newLogger(env Env, opts ...zap.Option) logger.Logger {
 	config := zap.NewDevelopmentConfig()
 	logOutput := env.LogOutput
 
-	if env.Environment == "development" {
+	if env.Env == "development" {
 		fmt.Println("encode level")
 		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
 	}
 
-	if env.Environment == "production" && logOutput != "" {
+	if env.Env == "production" && logOutput != "" {
 		config.OutputPaths = []string{logOutput}
 	}
 

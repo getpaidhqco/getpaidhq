@@ -35,7 +35,7 @@ func NewCheckoutDotComGateway(logger logger.Logger, config CheckoutDotComConfig)
 		Builder().
 		StaticKeys().
 		WithSecretKey(config.SecretKey).
-		WithEnvironment(configuration.Sandbox()). // or Environment.PRODUCTION
+		WithEnvironment(configuration.Sandbox()). // or Env.PRODUCTION
 		Build()
 
 	return CheckoutDotCom{
@@ -177,7 +177,7 @@ func (p CheckoutDotCom) ChargePayment(ctx context.Context, input payment_provide
 		Builder().
 		StaticKeys().
 		WithSecretKey(p.config.SecretKey).
-		WithEnvironment(configuration.Sandbox()). // or Environment.PRODUCTION
+		WithEnvironment(configuration.Sandbox()). // or Env.PRODUCTION
 		Build()
 	if err != nil {
 		p.logger.Error("failed to build checkout.com api", "error", err)
