@@ -2,6 +2,7 @@ package paystack
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	paystacklib "github.com/mdwt/paystack-go"
 	pscommon "github.com/mdwt/paystack-go/common"
@@ -76,6 +77,7 @@ func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.Cha
 		ApiKey:    p.config.ApiKey,
 		ConnectId: p.config.ConnectId,
 	})
+	p.logger.Infof("charging payment for connect account %s", p.config.ConnectId)
 
 	customer := input.Customer
 	paymentMethod := input.PaymentMethod
@@ -91,6 +93,9 @@ func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.Cha
 			"type":   "recurring",
 		},
 	}
+
+	jsonR, _ := json.Marshal(request)
+	p.logger.Debugf("ChargeAuthorization: %s", jsonR)
 
 	response, err := client.Transaction.ChargeAuthorization(ctx, request)
 	if err != nil {
