@@ -55,6 +55,7 @@ func (c SQSFifoClient) Start(handler events.QueueMessageHandler) {
 	c.logger.Infof("Starting SQS FIFO client for queue [%s]", queueUrl)
 	go func() {
 		for {
+			c.logger.Debugf("[SQSFifoClient] polling for messages")
 			// Receive messages from the queue
 			msgResult, err := c.client.ReceiveMessage(context.TODO(), &sqs.ReceiveMessageInput{
 				QueueUrl:            aws.String(queueUrl),
@@ -71,6 +72,7 @@ func (c SQSFifoClient) Start(handler events.QueueMessageHandler) {
 			}
 
 			if len(msgResult.Messages) == 0 {
+				c.logger.Debugf("[SQSFifoClient] no messages to process")
 				continue
 			}
 
