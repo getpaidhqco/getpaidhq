@@ -76,6 +76,7 @@ func (c SQSFifoClient) Start(handler events.QueueMessageHandler) {
 
 			for _, msg := range msgResult.Messages {
 				// Process the message
+				c.logger.Debugf("[SQSFifoClient] Processing message [%s]", aws.ToString(msg.MessageId))
 				var queueMessage events.QueueMessage
 				err := json.Unmarshal([]byte(*msg.Body), &queueMessage)
 				if err != nil {
