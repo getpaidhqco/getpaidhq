@@ -8,7 +8,6 @@ import (
 	"payloop/internal/api/middlewares"
 	"payloop/internal/infrastructure/authn/cognito"
 	"payloop/internal/infrastructure/db/postgres"
-	"payloop/internal/infrastructure/payments/paystack"
 	"payloop/internal/infrastructure/pubsub/nats"
 	"payloop/internal/lib"
 	"testing"
@@ -28,9 +27,6 @@ func TestSubscriptionService_E2E(t *testing.T) {
 
 		// Authn
 		cognito.Module,
-
-		// Payment provider
-		paystack.Module,
 
 		// Pubsub
 		nats.Module,

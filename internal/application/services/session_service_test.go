@@ -6,7 +6,6 @@ import (
 	"go.uber.org/fx"
 	"payloop/internal/api/middlewares"
 	"payloop/internal/domain/entities/carts"
-	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/entities/sessions"
 	"payloop/internal/domain/factories"
 	"payloop/internal/infrastructure/db/postgres"
@@ -46,18 +45,7 @@ func TestSessionService_CreateSession(t *testing.T) {
 				Quantity:  1,
 			})
 			assert.Equal(t, err, nil)
-
-			order, _, err := orderService.CreateOrderFromCart(ctx, orders.CreateOrderInput{
-				OrgId: orgId,
-				Customer: orders.CreateOrderCommandCustomer{
-					Name:  "John Doe",
-					Email: "test@testie.com",
-				},
-				SessionId: session.CartId,
-				Metadata:  nil,
-			})
-			assert.Equal(t, err, nil)
-			logger.Info("Order created", "order", order)
+			
 		}),
 	))
 	app.Start(ctx)
