@@ -33,7 +33,7 @@ func NewQueueService(
 }
 
 func (s QueueService) HandleQueueMessage(data events.QueueMessage) error {
-	s.logger.Infof("[QueueService] queue message: [%s]", data)
+	s.logger.Infof("[QueueService] queue message: [%s]", data.Type)
 
 	switch data.Type {
 	case events.IncomingWebhook:
