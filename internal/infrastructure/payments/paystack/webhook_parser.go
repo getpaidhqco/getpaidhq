@@ -19,6 +19,11 @@ func NewWebhookParser(logger logger.Logger) WebhookParser {
 }
 
 func (p WebhookParser) ValidateWebhook(ctx context.Context, data []byte) error {
+	var payload WebhookPayload
+	if err := json.Unmarshal(data, &payload); err != nil {
+		p.logger.Errorf("failed to unmarshal webhook payload", err.Error())
+		return err
+	}
 	return nil
 }
 
@@ -44,7 +49,15 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (payment_p
 			// we can safely ignore recurring payments as the result is handled sync
 			webhookType = payment_providers.RecurringSuccess
 		}
-		
+
+		if webhook.Metadata.OrgID == "" {
+			return payment_providers.PaymentWebhookContext{}, errors.New("missing org ID in webhook metadata")
+		}
+		if webhook.Metadata.OrderID == "" {
+			p.logger.Errorf("missing order ID in webhook metadata")
+			return payment_providers.PaymentWebhookContext{}, errors.New("missing order ID in webhook metadata")
+		}
+
 		return payment_providers.PaymentWebhookContext{
 			Type:    webhookType,
 			RawData: data,

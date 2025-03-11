@@ -86,8 +86,10 @@ func (c SQSFifoClient) Start(handler events.QueueMessageHandler) {
 
 				err = handler(queueMessage)
 				if err != nil {
-					c.logger.Errorf("failed to process message %s, %v", aws.ToString(msg.MessageId), err)
-					_ = c.deleteMessage(aws.ToString(msg.ReceiptHandle)) // todo remove this
+					if !events.IsRetryable(err) {
+						c.logger.Errorf("non-retryable error %s, %v", aws.ToString(msg.MessageId), err.Error())
+						_ = c.deleteMessage(aws.ToString(msg.ReceiptHandle))
+					}
 					continue
 				}
 

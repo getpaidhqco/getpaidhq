@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/interfaces/webhooks"
+	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities/payments"
 	"payloop/internal/domain/factories"
@@ -41,7 +42,7 @@ func NewWebhookService(
 // HandlePaymentWebhook parses a payment webhook and checks if it is valid. If valid, it publishes
 // a payment event to the event bus.
 func (s WebhookService) HandlePaymentWebhook(ctx context.Context, payload webhooks.PaymentWebhookPayload) error {
-	s.logger.Infof("HandlePaymentWebhook: %s", string(payload.Data))
+	s.logger.Infof("HandlePaymentWebhook: %s", payload.Data)
 
 	hash := md5.Sum([]byte(payload.Data))
 	hashHex := hex.EncodeToString(hash[:])
@@ -49,7 +50,7 @@ func (s WebhookService) HandlePaymentWebhook(ctx context.Context, payload webhoo
 	exists, err := s.idempotencyRepo.Exists(ctx, hashHex)
 	if err != nil {
 		s.logger.Errorf("failed to check idempotency key", err.Error())
-		return err
+		return events.NewQueueHandlerError("failed to check idempotency key", false, err)
 	}
 	if exists {
 		s.logger.Info("Webhook already processed")
@@ -60,20 +61,20 @@ func (s WebhookService) HandlePaymentWebhook(ctx context.Context, payload webhoo
 	err = s.idempotencyRepo.Create(ctx, hashHex, time.Now().Add(24*time.Hour))
 	if err != nil {
 		s.logger.Errorf("failed to store idempotency key", err.Error())
-		return err
+		return events.NewQueueHandlerError("failed to store idempotency key", false, err)
 	}
 
 	parser := s.gatewayFactory.NewWebhookParser(payload.Psp)
 	err = parser.ValidateWebhook(ctx, []byte(payload.Data))
 	if err != nil {
 		s.logger.Error("Failed to validate webhook", err.Error())
-		return err
+		return events.NewQueueHandlerError("Failed to validate webhook", false, err)
 	}
 
 	webhook, err := parser.ParseWebhook(ctx, []byte(payload.Data))
 	if err != nil {
 		s.logger.Errorf("failed to parse webhook", err.Error())
-		return err
+		return events.NewQueueHandlerError("failed to parse webhook", false, err)
 	}
 
 	s.logger.Infof("Webhook parsed [%s][%s][%s][%s]", webhook.OrgId, webhook.OrderId, webhook.Psp, webhook.Type)
@@ -83,7 +84,6 @@ func (s WebhookService) HandlePaymentWebhook(ctx context.Context, payload webhoo
 		// start workflow
 		s.workflowEngine.StartWorkflow(ctx, interfaces.PaymentSuccess, webhook)
 	case payment_providers.RecurringSuccess:
-
 		subs, err := s.subscriptionRepository.FindByOrderId(ctx, webhook.OrgId, webhook.OrderId)
 		if err != nil {
 			s.logger.Error("Failed to get subscriptions", err.Error())
