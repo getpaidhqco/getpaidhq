@@ -38,6 +38,21 @@ func NewEnv() Env {
 	viper.AutomaticEnv()
 
 	var env Env
+
+	viper.BindEnv("SERVER_PORT")
+	viper.BindEnv("TEMPORAL_HOST")
+	viper.BindEnv("ENV")
+	viper.BindEnv("LOG_OUTPUT")
+	viper.BindEnv("LOG_LEVEL")
+	viper.BindEnv("DATABASE_URL")
+	viper.BindEnv("CEDAR_POLICY")
+	viper.BindEnv("JWT_SECRET")
+	viper.BindEnv("PAYSTACK_SECRET")
+	viper.BindEnv("COGNITO_CLIENT_ID")
+	viper.BindEnv("COGNITO_POOL_ID")
+	viper.BindEnv("COGNITO_REGION")
+	viper.BindEnv("PAYSTACK_API_KEY")
+	viper.BindEnv("CLERK_SECRET")
 	err = viper.Unmarshal(&env)
 	if err != nil {
 		log.Println("☠️ cannot read configuration file, reading from environment")
