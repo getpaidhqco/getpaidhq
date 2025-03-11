@@ -10,8 +10,7 @@ import (
 type Env struct {
 	ServerPort      string `mapstructure:"SERVER_PORT"`
 	TemporalHost    string `mapstructure:"TEMPORAL_HOST"`
-	Env             string `mapstructure:"env"`
-	Koos            string `mapstructure:"koos"`
+	Env             string `mapstructure:"ENV"`
 	LogOutput       string `mapstructure:"LOG_OUTPUT"`
 	LogLevel        string `mapstructure:"LOG_LEVEL"`
 	DBUrl           string `mapstructure:"DATABASE_URL"`
@@ -27,18 +26,6 @@ type Env struct {
 	PaystackApiKey string `mapstructure:"PAYSTACK_API_KEY"`
 
 	ClerkSecretKey string `mapstructure:"CLERK_SECRET"`
-
-	Sqs SqsConfig `mapstructure:"SQS"`
-}
-
-type SqsConfig struct {
-	QueueUrl string `mapstructure:"QUEUE_URL"`
-	Region   string `mapstructure:"REGION"`
-}
-type Config struct {
-	Port  int    `mapstructure:"port"`
-	Debug bool   `mapstructure:"DEBUG"`
-	Name  string `mapstructure:"NAME"`
 }
 
 // NewEnv creates a new environment
@@ -46,12 +33,9 @@ func NewEnv() Env {
 
 	err := godotenv.Load()
 	if err != nil {
-		log.Fatalf("Error loading .env file: %v", err)
+		log.Println("Error loading .env file: %v", err)
 	}
 	viper.AutomaticEnv()
-	// Set default values (optional)
-	viper.SetDefault("env", "dev")
-	//viper.SetDefault("KOOS", "dev")
 
 	var env Env
 	err = viper.Unmarshal(&env)
