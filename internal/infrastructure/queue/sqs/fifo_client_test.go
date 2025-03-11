@@ -3,6 +3,7 @@ package sqs
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
+	"payloop/internal/application/interfaces/webhooks"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/lib"
 	"testing"
@@ -19,71 +20,10 @@ func TestSendMessageToSQS(t *testing.T) {
 	}
 
 	err := client.SendMessage(context.TODO(), events.QueueMessage{
-		Data: `
-{
-  "type": "incoming_webhook",
-  "data":{
-  "psp": "Paystack",
-  "data":{
-  "id": "evt_slftdehypnoepcwg6lcu6d7squ",
-  "type": "payment_captured",
-  "version": "1.0.47",
-  "created_on": "2025-03-10T09:41:42.519Z",
-  "data": {
-    "id": "pay_uztze5omf7nuvjzdouoqsos5sy",
-    "action_id": "act_xaefwzojcsbulmhxhb4v2d6v4q",
-    "amount": 10000,
-    "processed_on": "2025-03-10T09:41:42.5078263Z",
-    "response_code": "10000",
-    "response_summary": "Approved",
-    "balances": {
-      "total_authorized": 10000,
-      "total_voided": 0,
-      "available_to_void": 0,
-      "total_captured": 10000,
-      "available_to_capture": 0,
-      "total_refunded": 0,
-      "available_to_refund": 10000
-    },
-    "metadata": {
-      "order_id": "ord_2u71IHnb4kaZdIiMiwACdTmFCQ6",
-      "org_id": "org_2syb0uTnhuKtQTaLO6EAk1iIUnu",
-      "phase": "recurring",
-      "subscription_id": "sub_2u71IBDoFkQcXnrFiX2Ye4EQqjU"
-    },
-    "currency": "USD",
-    "processing": {
-      "acquirer_transaction_id": "538164880505401759897",
-      "acquirer_reference_number": "92398932833923586187322"
-    },
-    "event_links": {
-      "payment": "https://api.sandbox.checkout.com/payments/pay_uztze5omf7nuvjzdouoqsos5sy",
-      "payment_actions": "https://api.sandbox.checkout.com/payments/pay_uztze5omf7nuvjzdouoqsos5sy/actions",
-      "refund": "https://api.sandbox.checkout.com/payments/pay_uztze5omf7nuvjzdouoqsos5sy/refunds"
-    }
-  },
-  "_links": {
-    "self": {
-      "href": "https://api.sandbox.checkout.com/workflows/events/evt_slftdehypnoepcwg6lcu6d7squ"
-    },
-    "subject": {
-      "href": "https://api.sandbox.checkout.com/workflows/events/subject/pay_uztze5omf7nuvjzdouoqsos5sy"
-    },
-    "payment": {
-      "href": "https://api.sandbox.checkout.com/payments/pay_uztze5omf7nuvjzdouoqsos5sy"
-    },
-    "payment_actions": {
-      "href": "https://api.sandbox.checkout.com/payments/pay_uztze5omf7nuvjzdouoqsos5sy/actions"
-    },
-    "refund": {
-      "href": "https://api.sandbox.checkout.com/payments/pay_uztze5omf7nuvjzdouoqsos5sy/refunds"
-    }
-  }
-}
-}
-}
-
-`,
+		Data: webhooks.PaymentWebhookPayload{
+			Psp:  "Paystack",
+			Data: "{\"event\":\"charge.success\",\"data\":{\"id\":4769582708,\"domain\":\"test\",\"status\":\"success\",\"reference\":\"yj2047rw49yh5ff\",\"amount\":100,\"message\":null,\"gateway_response\":\"Approved\",\"paid_at\":\"2025-03-11T13:02:33.000Z\",\"created_at\":\"2025-03-11T13:02:32.000Z\",\"channel\":\"card\",\"currency\":\"ZAR\",\"ip_address\":null,\"metadata\":{\"order_id\":\"ord_2uAiMWxwKiiHIq2Anqgv9wo4hNx\",\"org_id\":\"org_2syb0uTnhuKtQTaLO6EAk1iIUnu\",\"type\":\"recurring\"},\"fees_breakdown\":null,\"log\":null,\"fees\":4,\"fees_split\":null,\"authorization\":{\"authorization_code\":\"AUTH_cdoksiofri\",\"bin\":\"408408\",\"last4\":\"4081\",\"exp_month\":\"12\",\"exp_year\":\"2030\",\"channel\":\"card\",\"card_type\":\"visa \",\"bank\":\"TEST BANK\",\"country_code\":\"ZA\",\"brand\":\"visa\",\"reusable\":true,\"signature\":\"SIG_U6qTgu328q6dBhAKJMck\",\"account_name\":null,\"receiver_bank_account_number\":null,\"receiver_bank\":null},\"customer\":{\"id\":244548544,\"first_name\":null,\"last_name\":null,\"email\":\"test+1@checkoutjoy.com\",\"customer_code\":\"CUS_nlqug0yx4o3db4y\",\"phone\":null,\"metadata\":null,\"risk_action\":\"default\",\"international_format_phone\":null},\"plan\":{},\"subaccount\":{},\"split\":{\"id\":3974260,\"name\":\"Dynamic Split at 1741698152228\",\"split_code\":\"SPL_6wHarzX9iB\",\"formula\":{\"type\":\"percentage\",\"bearer_type\":\"subaccount\",\"bearer_subaccount\":1255774,\"subaccounts\":[{\"original_share\":90,\"fees\":0,\"share\":90,\"subaccount_code\":\"ACCT_6hqd4hu9xbkfo5n\",\"id\":1258571,\"name\":\"ConnectTest\",\"integration\":\"1388576\"},{\"original_share\":10,\"fees\":4,\"share\":10,\"subaccount_code\":\"ACCT_9hws2teupa53qxq\",\"id\":1255774,\"name\":\"CheckoutJoy\",\"integration\":\"563712\"}],\"integration\":0},\"shares\":{\"paystack\":4,\"subaccounts\":[{\"amount\":90,\"original_share\":90,\"fees\":0,\"subaccount_code\":\"ACCT_6hqd4hu9xbkfo5n\",\"id\":1258571,\"integration\":\"1388576\"},{\"amount\":6,\"original_share\":10,\"fees\":4,\"subaccount_code\":\"ACCT_9hws2teupa53qxq\",\"id\":1255774,\"integration\":\"563712\"}],\"integration\":0,\"original_share\":0,\"fees\":0}},\"order_id\":null,\"paidAt\":\"2025-03-11T13:02:33.000Z\",\"requested_amount\":100,\"pos_transaction_data\":null,\"source\":{\"type\":\"api\",\"source\":\"merchant_api\",\"entry_point\":\"charge\",\"identifier\":null}}}",
+		},
 		Type: events.IncomingWebhook,
 	})
 

@@ -130,7 +130,7 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 		},
 		Customer: customer,
 	})
-	if !chargeResult.Success && !chargeResult.Retryable {
+	if chargeResult.Status == payment_providers.ChargePaymentStatusError && !chargeResult.Retryable {
 		return payments.ChargeResult{}, errors.New("failed to charge customer")
 	}
 	rawData, err := json.Marshal(chargeResult.PspResponse)
@@ -138,27 +138,25 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 		logger.Error("failed to marshal charge result", "error", err.Error())
 	}
 
-	if chargeResult.Success {
-		result := payments.ChargeResult{
-			Amount:    chargeResult.AmountCharged,
-			Status:    payments.PaymentStatusSucceeded,
-			Currency:  subscription.Currency,
-			PspId:     chargeResult.PspId,
-			Reference: chargeResult.Reference,
-			RawData:   string(rawData),
-		}
-		return result, nil
-	} else {
-		result := payments.ChargeResult{
-			Amount:   0,
-			Status:   payments.PaymentStatusFailed,
-			Currency: subscription.Currency,
-			PspId:    chargeResult.PspId,
-			RawData:  string(rawData),
-		}
-		return result, nil
+	var status payments.PaymentStatus
+	switch chargeResult.Status {
+	case payment_providers.ChargePaymentStatusSuccess:
+		status = payments.PaymentStatusSucceeded
+	case payment_providers.ChargePaymentStatusPending:
+		status = payments.PaymentStatusPending
+	case payment_providers.ChargePaymentStatusError:
+		status = payments.PaymentStatusFailed
 	}
 
+	result := payments.ChargeResult{
+		Amount:    chargeResult.AmountCharged,
+		Status:    status,
+		Currency:  subscription.Currency,
+		PspId:     chargeResult.PspId,
+		Reference: chargeResult.Reference,
+		RawData:   string(rawData),
+	}
+	return result, nil
 }
 
 func (a *OrderActivities) HandleChargeResult(ctx context.Context, subscription entities.Subscription, chargeResult payments.ChargeResult) (entities.Subscription, error) {

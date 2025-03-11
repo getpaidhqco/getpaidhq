@@ -66,6 +66,7 @@ func (c SQSFifoClient) Start(handler events.QueueMessageHandler) {
 			})
 			if err != nil {
 				c.logger.Errorf("failed to receive messages, %v", err)
+				time.Sleep(30 * time.Second)
 				continue
 			}
 
@@ -112,16 +113,15 @@ func (c SQSFifoClient) SendMessage(ctx context.Context, data events.QueueMessage
 		return lib.NewCustomError(lib.InternalError, "SQS_QUEUE_URL not set", nil)
 	}
 
-	messageBody, err := json.Marshal(data.Data)
+	messageBody, err := json.Marshal(data)
 	if err != nil {
 		return lib.NewCustomError(lib.InternalError, "failed to marshal message data", err)
 	}
 
 	_, err = c.client.SendMessage(ctx, &sqs.SendMessageInput{
-		QueueUrl:               aws.String(queueUrl),
-		MessageBody:            aws.String(string(messageBody)),
-		MessageGroupId:         aws.String("payloop"),
-		MessageDeduplicationId: aws.String("payloop"),
+		QueueUrl:       aws.String(queueUrl),
+		MessageBody:    aws.String(string(messageBody)),
+		MessageGroupId: aws.String("payloop"),
 	})
 	if err != nil {
 		return lib.NewCustomError(lib.InternalError, "failed to send message", err)

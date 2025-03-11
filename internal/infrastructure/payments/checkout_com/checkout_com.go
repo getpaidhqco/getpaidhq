@@ -182,7 +182,7 @@ func (p CheckoutDotCom) ChargePayment(ctx context.Context, input payment_provide
 	if err != nil {
 		p.logger.Error("failed to build checkout.com api", "error", err)
 		return payment_providers.ChargePaymentResponse{
-			Success: false,
+			Status: payment_providers.ChargePaymentStatusError,
 		}
 	}
 
@@ -224,13 +224,13 @@ func (p CheckoutDotCom) ChargePayment(ctx context.Context, input payment_provide
 			p.logger.Errorf("capierr.Data.ErrorType: %v", capierr.Data.ErrorType)
 		}
 		return payment_providers.ChargePaymentResponse{
-			Success: false,
+			Status: payment_providers.ChargePaymentStatusError,
 		}
 	}
 
 	p.logger.Info("charged payment", "response", response)
 	return payment_providers.ChargePaymentResponse{
-		Success:       true,
+		Status:        payment_providers.ChargePaymentStatusSuccess,
 		Psp:           common.CheckoutDotCom,
 		PspId:         response.Id,
 		Reference:     response.Reference,

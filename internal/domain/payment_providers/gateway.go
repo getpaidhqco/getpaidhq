@@ -36,15 +36,23 @@ type InitPaymentCommand struct {
 	Options  map[string]string
 }
 
+type ChargePaymentStatus string
+
+const (
+	ChargePaymentStatusSuccess ChargePaymentStatus = "Success"
+	ChargePaymentStatusPending ChargePaymentStatus = "Pending"
+	ChargePaymentStatusError   ChargePaymentStatus = "Error"
+)
+
 type ChargePaymentResponse struct {
-	Success       bool            `json:"success"`
-	Retryable     bool            `json:"retryable"`
-	Psp           common.Gateway  `json:"psp"`
-	PspId         string          `json:"psp_id"`
-	Reference     string          `json:"reference"`
-	Currency      common.Currency `json:"currency"`
-	AmountCharged int64           `json:"amount_charged"`
-	PaymentType   string          `json:"payment_type"`
+	Status        ChargePaymentStatus `json:"status"`
+	Retryable     bool                `json:"retryable"`
+	Psp           common.Gateway      `json:"psp"`
+	PspId         string              `json:"psp_id"`
+	Reference     string              `json:"reference"`
+	Currency      common.Currency     `json:"currency"`
+	AmountCharged int64               `json:"amount_charged"`
+	PaymentType   string              `json:"payment_type"`
 
 	PspResponse interface{} `json:"psp_response"`
 }
@@ -56,8 +64,9 @@ type InitPaymentResponse struct {
 type PaymentWebhookType string
 
 const (
-	Noop           PaymentWebhookType = "noop"
-	PaymentSuccess PaymentWebhookType = "payment.success"
+	Noop             PaymentWebhookType = "noop"
+	PaymentSuccess   PaymentWebhookType = "payment.success"
+	RecurringSuccess PaymentWebhookType = "recurring.success"
 )
 
 type PaymentMethod struct {

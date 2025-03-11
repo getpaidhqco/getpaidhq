@@ -88,9 +88,11 @@ func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.Cha
 		AuthorizationCode: paymentMethod.Token,
 		Reference:         input.Reference,
 		Currency:          input.Currency,
+		Queue:             true,
 		Metadata: pscommon.Metadata{
-			"org_id": input.OrgId,
-			"type":   "recurring",
+			"org_id":   input.OrgId,
+			"order_id": input.OrderId,
+			"type":     "recurring",
 		},
 	}
 
@@ -103,7 +105,7 @@ func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.Cha
 		var paystackErr *pserrors.APIError
 		if errors.As(err, &paystackErr) {
 			return payment_providers.ChargePaymentResponse{
-				Success:     false,
+				Status:      payment_providers.ChargePaymentStatusError,
 				Retryable:   true,
 				Psp:         common.Paystack,
 				PspResponse: paystackErr,
@@ -111,20 +113,26 @@ func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.Cha
 		}
 
 		return payment_providers.ChargePaymentResponse{
-			Success:     false,
+			Status:      payment_providers.ChargePaymentStatusError,
 			Retryable:   false,
 			Psp:         common.Paystack,
 			PspResponse: err,
 		}
 	}
 
-	p.logger.Info("charged payment", "response", response.GatewayResponse)
+	// check the status of the payment - "success" or "queued"
+	status := payment_providers.ChargePaymentStatusSuccess
+	if response.Status == "queued" {
+		status = payment_providers.ChargePaymentStatusPending
+	}
+
+	p.logger.Infof("ChargeAuthorization [%s][%s]", response.Status, response.Reference)
 	return payment_providers.ChargePaymentResponse{
-		Success:       true,
+		Status:        status,
 		Psp:           common.Paystack,
 		PspId:         strconv.FormatInt(response.ID, 10),
 		Reference:     response.Reference,
-		AmountCharged: int64(response.Amount),
+		AmountCharged: response.Amount,
 		Currency:      common.Currency(response.Currency),
 		PaymentType:   response.Channel,
 		PspResponse:   response,

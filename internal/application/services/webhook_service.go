@@ -7,6 +7,7 @@ import (
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/interfaces/webhooks"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/entities/payments"
 	"payloop/internal/domain/factories"
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
@@ -14,10 +15,11 @@ import (
 )
 
 type WebhookService struct {
-	logger          logger.Logger
-	gatewayFactory  factories.GatewayFactory
-	workflowEngine  interfaces.Engine
-	idempotencyRepo repositories.IdempotencyKeyRepository
+	logger                 logger.Logger
+	gatewayFactory         factories.GatewayFactory
+	workflowEngine         interfaces.Engine
+	idempotencyRepo        repositories.IdempotencyKeyRepository
+	subscriptionRepository repositories.SubscriptionRepository
 }
 
 func NewWebhookService(
@@ -25,12 +27,14 @@ func NewWebhookService(
 	gatewayFactory factories.GatewayFactory,
 	workflowEngine interfaces.Engine,
 	idempotencyRepo repositories.IdempotencyKeyRepository,
+	subscriptionRepository repositories.SubscriptionRepository,
 ) webhooks.WebhookService {
 	return WebhookService{
-		logger:          logger,
-		gatewayFactory:  gatewayFactory,
-		workflowEngine:  workflowEngine,
-		idempotencyRepo: idempotencyRepo,
+		logger:                 logger,
+		gatewayFactory:         gatewayFactory,
+		workflowEngine:         workflowEngine,
+		idempotencyRepo:        idempotencyRepo,
+		subscriptionRepository: subscriptionRepository,
 	}
 }
 
@@ -72,20 +76,39 @@ func (s WebhookService) HandlePaymentWebhook(ctx context.Context, payload webhoo
 		return err
 	}
 
-	s.logger.Info("Webhook parsed", "org_id", webhook.OrgId)
+	s.logger.Infof("Webhook parsed [%s][%s][%s][%s]", webhook.OrgId, webhook.OrderId, webhook.Psp, webhook.Type)
 
-	s.startWorkflow(ctx, webhook)
-	return nil
-}
-
-// TODO this needs to be handled by a worker from a queue
-func (s WebhookService) startWorkflow(ctx context.Context, event payment_providers.PaymentWebhookContext) {
-	switch event.Type {
+	switch webhook.Type {
 	case payment_providers.PaymentSuccess:
 		// start workflow
-		s.workflowEngine.StartWorkflow(ctx, interfaces.PaymentSuccess, event)
+		s.workflowEngine.StartWorkflow(ctx, interfaces.PaymentSuccess, webhook)
+	case payment_providers.RecurringSuccess:
+
+		subs, err := s.subscriptionRepository.FindByOrderId(ctx, webhook.OrgId, webhook.OrderId)
+		if err != nil {
+			s.logger.Error("Failed to get subscriptions", err.Error())
+			return err
+		}
+		if len(subs) == 0 {
+			s.logger.Error("No subscriptions found for order")
+			return nil
+		}
+		subscription := subs[0]
+
+		chargeResult := payments.ChargeResult{
+			Amount:    webhook.Payment.Amount,
+			Status:    payments.PaymentStatusSucceeded,
+			Currency:  webhook.Payment.Currency,
+			PspId:     webhook.Payment.PspId,
+			Reference: webhook.Payment.Reference,
+			RawData:   string(webhook.RawData),
+		}
+
+		// signal the workflow
+		err = s.workflowEngine.SignalSubscriptionWorkflow(ctx, "webhook-signal", subscription, chargeResult)
 	default:
-		s.logger.Info("Unknown webhook type", "type", event.Type)
+		s.logger.Info("Unknown webhook type", "type", webhook.Type)
 
 	}
+	return nil
 }

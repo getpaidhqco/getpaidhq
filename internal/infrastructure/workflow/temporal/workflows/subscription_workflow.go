@@ -170,6 +170,28 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			return subscription, err
 		}
 
+		// Charge is completed
+		// If payment status is Pending, then we must wait for a webhook to complete the payment
+		if chargeResult.Status == payments.PaymentStatusPending {
+			// Wait for the webhook
+			selector := workflow.NewSelector(ctx)
+			webhookChan := workflow.GetSignalChannel(ctx, "webhook-signal")
+
+			selector.AddReceive(webhookChan, func(c workflow.ReceiveChannel, more bool) {
+				logger.Info("Received webhook signal")
+				c.Receive(ctx, &chargeResult)
+			})
+
+			// Wait for either the webhook or a timeout
+			timeout := workflow.NewTimer(ctx, 24*time.Hour)
+			selector.AddFuture(timeout, func(f workflow.Future) {
+				// Handle timeout
+				logger.Error("Timeout waiting for payment webhook", "Error", "")
+			})
+
+			selector.Select(ctx)
+		}
+
 		// The charge process ended successfully
 		// Update the subscription with the charge result
 		var updateResult entities.Subscription

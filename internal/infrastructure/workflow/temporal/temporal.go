@@ -172,6 +172,21 @@ func (t Temporal) StartSubscriptionWorkflow(ctx context.Context, subscription en
 		return err
 	}
 	t.logger.Info("Finished workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID())
+	executionBytes, err := json.Marshal(temporal.Execution{
+		ID:    we.GetID(),
+		RunID: we.GetRunID(),
+	})
+	if err != nil {
+		return err
+	}
+	_, err = t.settingRepository.Create(ctx, entities.Setting{
+		OrgId:    subscription.OrgId,
+		ParentId: subscription.Id,
+		Id:       "temporal-workflow",
+		Type:     "workflow.Execution",
+		Value:    string(executionBytes),
+	})
+
 	return nil
 }
 
@@ -198,6 +213,21 @@ func (t Temporal) UpdateSubscriptionWorkflow(ctx context.Context, updateName str
 	err = updateHandle.Get(ctx, &oldSub)
 	if err != nil {
 		t.logger.Error("Failed to get setting", "error", err)
+	}
+	return nil
+}
+func (t Temporal) SignalSubscriptionWorkflow(ctx context.Context, signal string, subscription entities.Subscription, payload interface{}) error {
+	we, err := t.getExecution(subscription)
+	if err != nil {
+		t.logger.Error("Failed to get subscription workflow", "error", err)
+		return err
+	}
+
+	t.logger.Debugf("Signaling workflow [%s][%s]", we.ID, signal)
+	err = t.client.SignalWorkflow(ctx, we.ID, we.RunID, signal, payload)
+	if err != nil {
+		t.logger.Error("Failed to signal workflow", "error", slog.String("err", err.Error()))
+		return err
 	}
 	return nil
 }

@@ -39,16 +39,14 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (payment_p
 			return payment_providers.PaymentWebhookContext{}, err
 		}
 
+		webhookType := payment_providers.PaymentSuccess
 		if webhook.Metadata.Type == "recurring" {
 			// we can safely ignore recurring payments as the result is handled sync
-			return payment_providers.PaymentWebhookContext{
-				Type:    payment_providers.Noop,
-				RawData: data,
-			}, nil
+			webhookType = payment_providers.RecurringSuccess
 		}
-
+		
 		return payment_providers.PaymentWebhookContext{
-			Type:    payment_providers.PaymentSuccess,
+			Type:    webhookType,
 			RawData: data,
 			OrgId:   webhook.Metadata.OrgID,
 			OrderId: webhook.Metadata.OrderID,
