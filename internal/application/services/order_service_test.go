@@ -8,7 +8,6 @@ import (
 	"payloop/internal/api/middlewares"
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/infrastructure/db/postgres"
-	"payloop/internal/infrastructure/payments/paystack"
 	"payloop/internal/lib"
 	"testing"
 )
@@ -22,21 +21,25 @@ func TestCreateOrder(t *testing.T) {
 		Module,
 		middlewares.Module,
 		postgres.Module,
-		paystack.Module,
 	), fx.Options(
 		fx.WithLogger(func() fxevent.Logger {
-			return logger.GetFxLogger()
+			return lib.GetFxLogger()
 		}),
 		fx.Invoke(func(orderService OrderService) {
 			logger.Info("Starting application")
 
-			_, _, err := orderService.CreateOrderFromCart(ctx, orders.CreateOrderInput{
-				SessionId: "cart_id",
-				OrgId:     "org_id",
+			_, err := orderService.CreateOrder(ctx, orders.CreateOrderInput{
+				OrgId:    "org_2syb0uTnhuKtQTaLO6EAk1iIUnu",
+				Currency: "ZAR",
 				Customer: orders.CreateOrderCommandCustomer{
-					Name:  "John Doe",
-					Email: "test@payloop.com",
+					Id: "cus_2u7124uRNWnn2NpQdpSa6b1kLqC",
 				},
+				PaymentMethodId: "pm_2u718M3todYa5mkGPM9JpCWWhw2",
+				CartItems: []orders.CartItem{
+					{ProductId: "prod-1", PriceId: "cyc-1", Quantity: 1},
+				},
+				PspId:    "Paystack",
+				Metadata: nil,
 			})
 			assert.Equal(t, err, nil)
 		}),
