@@ -27,6 +27,7 @@ func (s *ServeCommand) Run() lib.CommandRunner {
 		route routes.Routes,
 		logger logger.Logger,
 		queue interfaces.QueueService,
+		workflowService interfaces.WorkflowService,
 		database lib.Database,
 	) {
 		middleware.Setup()

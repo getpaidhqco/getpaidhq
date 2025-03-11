@@ -32,7 +32,7 @@ func NewWorkflowService(
 		engine:          engine,
 		idempotencyRepo: idempotencyRepo,
 	}
-
+	logger.Debugf("[WorkflowService] Subscribing to all topics")
 	_, err := pubsub.Subscribe(">", service.HandleOutboundWebhook)
 	if err != nil {
 		logger.Error("Failed to subscribe to topic", err.Error())
