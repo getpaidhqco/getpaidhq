@@ -424,7 +424,8 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 	subscription := input.Subscription
 	charge := input.ChargeResult
 
-	s.logger.Infof("Subscription [%s] charge failed with reason [%s][%s]", subscription.Id, charge.ErrorCode, charge.ErrorReason)
+	s.logger.Infof("Subscription [%s] charge failed with reason [%s][%s][chargeResult status = %s]",
+		subscription.Id, charge.ErrorCode, charge.ErrorReason, charge.Status)
 	if subscription.Id == "" {
 		s.logger.Error("Subscription is empty")
 		panic("Subscription is empty")
