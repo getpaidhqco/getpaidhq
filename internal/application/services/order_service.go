@@ -75,6 +75,7 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 	var customerEntity entities.Customer
 	var err error
 	var orderCart entities.Cart
+	var currency = input.Currency
 
 	var createPspSession = true
 	if input.SessionId == "" && input.PaymentMethodId == "" {
@@ -103,10 +104,11 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 			return orders.CreateOrderResponse{}, lib.NewCustomError(lib.NotFoundError, "cart not found", nil)
 		}
 		orderCart = existingCart
+		currency = existingCart.Data.Currency
 	} else {
 		// Create a cart from the items in the input
 		inlineCart := cart.New(cart.CreateCartOptions{
-			Currency: input.Currency,
+			Currency: currency,
 			Items:    make([]cart.Item, 0),
 		})
 		for _, item := range input.CartItems {
@@ -181,7 +183,7 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 		Status:     entities.OrderStatusPending,
 		SessionId:  input.SessionId,
 		CartId:     orderCart.Id,
-		Currency:   input.Currency,
+		Currency:   currency,
 		Total:      orderCart.Total,
 		Metadata:   input.Metadata,
 		CreatedAt:  time.Now().UTC(),

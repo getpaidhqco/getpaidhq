@@ -1,7 +1,8 @@
 package request
 
 type CartInput struct {
-	Items []CartItem `json:"items"`
+	Currency string     `json:"currency"`
+	Items    []CartItem `json:"items"`
 }
 
 type CartItem struct {

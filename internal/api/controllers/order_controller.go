@@ -55,8 +55,15 @@ func (o OrderController) CreateOrder(c *gin.Context) {
 		return
 	}
 
+	if len(input.Cart.Items) > 0 && input.Cart.Currency == "" {
+		apiErr := api.NewApiError(lib.ValidationError, "Currency is required", nil)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
 	rsp, err := o.service.CreateOrder(c.Request.Context(), orders.CreateOrderInput{
-		OrgId: authUser.OrgId,
+		OrgId:    authUser.OrgId,
+		Currency: input.Cart.Currency,
 		Customer: orders.CreateOrderCommandCustomer{
 			Id:        input.Customer.ID,
 			Email:     input.Customer.Email,
