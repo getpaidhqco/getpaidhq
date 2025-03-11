@@ -2,13 +2,13 @@ package cognito
 
 import (
 	"errors"
-	"net/http"
-	"payloop/internal/api/authn"
-	"payloop/internal/lib"
-	"strings"
-
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
+	"net/http"
+	"payloop/internal/api/authn"
+	"payloop/internal/application/lib/logger"
+	"payloop/internal/lib"
+	"strings"
 )
 
 type CognitoMiddleware struct {
