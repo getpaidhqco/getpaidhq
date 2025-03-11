@@ -75,7 +75,7 @@ func (l MyLogger) Fatal(msg string, keysAndValues ...interface{}) {
 }
 
 func (l MyLogger) Infof(template string, args ...interface{}) {
-	l.logger.Debug(fmt.Sprintf(template, args...))
+	l.logger.Info(fmt.Sprintf(template, args...))
 }
 func (l MyLogger) Debugf(template string, args ...interface{}) {
 	l.logger.Debug(fmt.Sprintf(template, args...))

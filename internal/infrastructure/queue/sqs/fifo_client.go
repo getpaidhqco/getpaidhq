@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/credentials"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/lib"
 
@@ -23,9 +24,14 @@ type SQSFifoClient struct {
 
 func NewSQSFifoClient(logger logger.Logger, env lib.Env) events.QueueClient {
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion("eu-west-1"),
-		config.WithSharedConfigProfile("cj-test"),
+		config.WithRegion(env.Get("AWS_REGION")),
+		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
+			env.Get("SQS_ACCESS_KEY_ID"),
+			env.Get("SQS_SECRET_ACCESS_KEY"),
+			"",
+		)),
 	)
+
 	if err != nil {
 		panic(err)
 	}
@@ -46,6 +52,7 @@ func NewSQSFifoClient(logger logger.Logger, env lib.Env) events.QueueClient {
 
 func (c SQSFifoClient) Start(handler events.QueueMessageHandler) {
 	queueUrl := c.env.Get("SQS_QUEUE_URL")
+	c.logger.Infof("Starting SQS FIFO client for queue [%s]", queueUrl)
 	go func() {
 		for {
 			// Receive messages from the queue
