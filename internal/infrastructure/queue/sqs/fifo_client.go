@@ -24,7 +24,7 @@ type SQSFifoClient struct {
 
 func NewSQSFifoClient(logger logger.Logger, env lib.Env) events.QueueClient {
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
-		config.WithRegion(env.Get("AWS_REGION")),
+		config.WithRegion("eu-west-1"),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
 			env.Get("SQS_ACCESS_KEY_ID"),
 			env.Get("SQS_SECRET_ACCESS_KEY"),
