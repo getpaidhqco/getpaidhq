@@ -95,7 +95,7 @@ func (s WebhookSubscriptionService) SendWebhook(ctx context.Context, input workf
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		s.logger.Errorf("Failed to send request: %v", err)
+		s.logger.Errorf("Failed to send request: %v", err.Error())
 		return err
 	}
 	defer func(Body io.ReadCloser) {
@@ -103,10 +103,7 @@ func (s WebhookSubscriptionService) SendWebhook(ctx context.Context, input workf
 	}(resp.Body)
 
 	// Print the response status
-	s.logger.Errorf("Failed to send request: %v", err)
-
-	// st
-
+	s.logger.Infof("Webhook sent to %s. Response Status: %s", webhook.URL, resp.Status)
 	return nil
 }
 
