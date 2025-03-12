@@ -2,6 +2,7 @@ package models
 
 import (
 	"github.com/jackc/pgx/v5/pgtype"
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/payments"
 )
@@ -9,6 +10,7 @@ import (
 type Payment struct {
 	OrgId          string            `json:"org_id"`
 	Id             string            `json:"id"`
+	Psp            string            `json:"psp"`
 	PspId          string            `json:"psp_id"`
 	Reference      string            `json:"reference"`
 	OrderId        string            `json:"order_id"`
@@ -28,6 +30,7 @@ func (s *Payment) ToEntity() entities.Payment {
 	return entities.Payment{
 		OrgId:          s.OrgId,
 		Id:             s.Id,
+		Psp:            common.Gateway(s.Psp),
 		PspId:          s.PspId,
 		Reference:      s.Reference,
 		OrderId:        s.OrderId,

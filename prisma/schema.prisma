@@ -419,6 +419,7 @@ model Payment {
   orgId String @map("org_id")
   id    String @default(cuid())
 
+  psp       String @map("psp")
   pspId     String @map("psp_id")
   reference String @default("") @map("reference")
 

@@ -1,6 +1,7 @@
 package entities
 
 import (
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities/payments"
 	"time"
 )
@@ -8,6 +9,7 @@ import (
 type Payment struct {
 	OrgId          string                 `json:"org_id"`
 	Id             string                 `json:"id"`
+	Psp            common.Gateway         `json:"psp"`
 	PspId          string                 `json:"psp_id"`
 	Reference      string                 `json:"reference"`
 	OrderId        string                 `json:"order_id"`
