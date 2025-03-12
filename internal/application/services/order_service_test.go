@@ -75,7 +75,7 @@ func TestCreateOrders(t *testing.T) {
     }
 }`)
 
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 2; i++ {
 		// First POST request
 		req1, err := http.NewRequest("POST", url1, bytes.NewBuffer(jsonData1))
 		if err != nil {

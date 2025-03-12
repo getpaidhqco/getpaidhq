@@ -59,7 +59,7 @@ func (c SQSFifoClient) Start(handler events.QueueMessageHandler) {
 			// Receive messages from the queue
 			msgResult, err := c.client.ReceiveMessage(context.TODO(), &sqs.ReceiveMessageInput{
 				QueueUrl:            aws.String(queueUrl),
-				MaxNumberOfMessages: 1,
+				MaxNumberOfMessages: 10,
 				WaitTimeSeconds:     20,
 				MessageAttributeNames: []string{
 					string(types.QueueAttributeNameAll),
