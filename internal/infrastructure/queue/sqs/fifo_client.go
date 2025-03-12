@@ -55,11 +55,11 @@ func (c SQSFifoClient) Start(handler events.QueueMessageHandler) {
 	c.logger.Infof("Starting SQS FIFO client for queue [%s]", queueUrl)
 	go func() {
 		for {
-			c.logger.Debugf("[SQSFifoClient] polling for messages")
+			c.logger.Debugf("[SQSFifoClient] polling for messages [MaxNumberOfMessages=1][WaitTimeSeconds=20]")
 			// Receive messages from the queue
 			msgResult, err := c.client.ReceiveMessage(context.TODO(), &sqs.ReceiveMessageInput{
 				QueueUrl:            aws.String(queueUrl),
-				MaxNumberOfMessages: 10,
+				MaxNumberOfMessages: 1,
 				WaitTimeSeconds:     20,
 				MessageAttributeNames: []string{
 					string(types.QueueAttributeNameAll),
@@ -76,9 +76,11 @@ func (c SQSFifoClient) Start(handler events.QueueMessageHandler) {
 				continue
 			}
 
+			c.logger.Debugf("[SQSFifoClient] processing %d messages", len(msgResult.Messages))
 			for _, msg := range msgResult.Messages {
+				start := time.Now()
 				// Process the message
-				c.logger.Debugf("[SQSFifoClient] Processing message [%s]", aws.ToString(msg.MessageId))
+				c.logger.Debugf("[SQSFifoClient] Processing [%s]", aws.ToString(msg.MessageId))
 				var queueMessage events.QueueMessage
 				err := json.Unmarshal([]byte(*msg.Body), &queueMessage)
 				if err != nil {
@@ -96,18 +98,15 @@ func (c SQSFifoClient) Start(handler events.QueueMessageHandler) {
 					continue
 				}
 
+				elapsed := time.Since(start)
+				c.logger.Debugf("[SQSFifoClient] ----- Processed [%s] in %s", aws.ToString(msg.MessageId), elapsed)
+
 				// Processing was successful, delete the message after processing
-				_, err = c.client.DeleteMessage(context.TODO(), &sqs.DeleteMessageInput{
-					QueueUrl:      aws.String(queueUrl),
-					ReceiptHandle: msg.ReceiptHandle,
-				})
+				_ = c.deleteMessage(aws.ToString(msg.ReceiptHandle))
 				if err != nil {
 					c.logger.Errorf("failed to delete message %s, %v", aws.ToString(msg.MessageId), err)
 				}
 			}
-
-			// Sleep for a while before polling again
-			time.Sleep(5 * time.Second)
 		}
 	}()
 }
