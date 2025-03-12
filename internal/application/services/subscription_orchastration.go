@@ -194,6 +194,7 @@ func (s SubscriptionOrchestrationService) CancelSubscription(ctx context.Context
 	}
 
 	// update the workflow
+	s.logger.Debugf("Updating workflow for subscription %s [%s]", subscription.Id, topic.TopicSubscriptionCancelled)
 	err = s.workflowEngine.UpdateSubscriptionWorkflow(ctx, topic.TopicSubscriptionCancelled, subscription)
 	if err != nil {
 		s.logger.Error("Failed to update workflow", err.Error())

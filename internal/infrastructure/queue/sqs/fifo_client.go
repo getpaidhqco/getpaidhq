@@ -122,7 +122,7 @@ func (c SQSFifoClient) SendMessage(ctx context.Context, data events.QueueMessage
 		return lib.NewCustomError(lib.InternalError, "failed to marshal message data", err)
 	}
 
-	_, err = c.client.SendMessage(ctx, &sqs.SendMessageInput{
+	rsp, err := c.client.SendMessage(ctx, &sqs.SendMessageInput{
 		QueueUrl:       aws.String(queueUrl),
 		MessageBody:    aws.String(string(messageBody)),
 		MessageGroupId: aws.String("payloop"),
@@ -131,6 +131,7 @@ func (c SQSFifoClient) SendMessage(ctx context.Context, data events.QueueMessage
 		return lib.NewCustomError(lib.InternalError, "failed to send message", err)
 	}
 
+	c.logger.Debugf("Sent message to SQS FIFO queue [%s][%s]", queueUrl, *rsp.MessageId)
 	return nil
 }
 
