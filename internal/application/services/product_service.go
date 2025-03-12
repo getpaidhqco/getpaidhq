@@ -100,6 +100,12 @@ func (s ProductService) CreateProduct(ctx context.Context, orgId string, request
 		}
 	}
 
+	product, err = s.FindById(ctx, orgId, product.Id)
+	if err != nil {
+		s.logger.Error("Failed to find product", err.Error())
+		return entities.Product{}, err
+	}
+
 	_ = s.pubsub.Publish(orgId, topic.ProductCreated, product)
 	return product, err
 }

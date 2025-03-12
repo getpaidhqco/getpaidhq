@@ -22,6 +22,7 @@ type Payment struct {
 	PlatformFee    int64             `json:"platform_fee"`
 	NetAmount      int64             `json:"net_amount"`
 	Metadata       map[string]string `json:"metadata"`
+	CompletedAt    pgtype.Date       `json:"completed_at"`
 	CreatedAt      pgtype.Date       `json:"created_at"`
 	UpdatedAt      pgtype.Date       `json:"updated_at"`
 }
@@ -42,6 +43,7 @@ func (s *Payment) ToEntity() entities.Payment {
 		PlatformFee:    s.PlatformFee,
 		NetAmount:      s.NetAmount,
 		Metadata:       s.Metadata,
+		CompletedAt:    s.CompletedAt.Time,
 		CreatedAt:      s.CreatedAt.Time,
 		UpdatedAt:      s.UpdatedAt.Time,
 	}

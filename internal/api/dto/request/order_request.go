@@ -31,3 +31,28 @@ type CreateOrderRequestCustomer struct {
 	Phone     string            `json:"phone"`
 	Metadata  map[string]string `json:"metadata"`
 }
+
+type CompleteOrderRequest struct {
+	PaymentMethodId string                          `json:"payment_method_id"`
+	PaymentMethod   CompleteOrderInputPaymentMethod `json:"payment_method"`
+	Payment         CompleteOrderRequestPayment     `json:"payment"`
+	Metadata        map[string]string               `json:"metadata"`
+}
+type CompleteOrderInputPaymentMethod struct {
+	Psp            string            `json:"psp"`
+	Name           string            `json:"name"`
+	IsDefault      bool              `json:"is_default"`
+	BillingAddress Address           `json:"billing_address"`
+	Type           string            `json:"type"`
+	Token          string            `json:"token"`
+	Metadata       map[string]string `json:"metadata"`
+}
+
+type CompleteOrderRequestPayment struct {
+	PspId       string            `json:"psp_id"`
+	Reference   string            `json:"reference"`
+	Amount      int64             `json:"amount"`
+	CompletedAt string            `json:"completed_at"`
+	Metadata    map[string]string `json:"metadata"`
+	Currency    string            `json:"currency"`
+}

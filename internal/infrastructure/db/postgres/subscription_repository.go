@@ -201,38 +201,8 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 			          @currency, @amount, @metadata, @cycles_processed, @total_revenue, @cancelled_at,
 			          NOW(), NOW())
 `
-	metaJson, _ := json.Marshal(entity.Metadata)
-	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
-		"org_id":               entity.OrgId,
-		"id":                   entity.Id,
-		"payment_method_id":    pgtype.Text{String: entity.PaymentMethodId, Valid: entity.PaymentMethodId != ""},
-		"psp_id":               entity.PspId,
-		"order_id":             entity.OrderId,
-		"order_item_id":        entity.OrderItemId,
-		"customer_id":          entity.CustomerId,
-		"status":               entity.Status,
-		"start_date":           entity.StartDate,
-		"end_date":             entity.EndDate,
-		"billing_interval":     entity.BillingInterval,
-		"billing_interval_qty": entity.BillingIntervalQty,
-		"cycles":               entity.Cycles,
-		"billing_anchor":       entity.BillingAnchor,
-		"trial_ends_at":        entity.TrialEndsAt,
-		"cancel_at":            entity.CancelAt,
-		"ends_at":              entity.EndsAt,
-		"last_charge":          entity.LastCharge,
-		"renews_at":            entity.RenewsAt,
-		"current_period_start": entity.CurrentPeriodStart,
-		"current_period_end":   entity.CurrentPeriodEnd,
-		"retries":              entity.Retries,
-		"next_retry":           entity.NextRetryAt,
-		"currency":             entity.Currency,
-		"amount":               entity.Amount,
-		"metadata":             metaJson,
-		"cycles_processed":     entity.CyclesProcessed,
-		"total_revenue":        entity.TotalRevenue,
-		"cancelled_at":         entity.CancelledAt,
-	})
+	args := entityToNamedArgs(entity)
+	_, err := tx.Exec(ctx, query, args)
 
 	if err != nil {
 		r.logger.Error(`failed to insert Subscription`, err.Error())
@@ -270,36 +240,8 @@ func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subs
 			      updated_at=NOW()
 			  WHERE org_id=@org_id AND id=@id
 `
-
-	metaJson, _ := json.Marshal(entity.Metadata)
-
-	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
-		"org_id":               entity.OrgId,
-		"id":                   entity.Id,
-		"status":               entity.Status,
-		"start_date":           entity.StartDate,
-		"payment_method_id":    entity.PaymentMethodId,
-		"end_date":             entity.EndDate,
-		"billing_interval":     entity.BillingInterval,
-		"billing_interval_qty": entity.BillingIntervalQty,
-		"cycles":               entity.Cycles,
-		"billing_anchor":       entity.BillingAnchor,
-		"trial_ends_at":        entity.TrialEndsAt,
-		"cancel_at":            entity.CancelAt,
-		"ends_at":              entity.EndsAt,
-		"last_charge":          entity.LastCharge,
-		"renews_at":            entity.RenewsAt,
-		"current_period_start": entity.CurrentPeriodStart,
-		"current_period_end":   entity.CurrentPeriodEnd,
-		"retries":              entity.Retries,
-		"next_retry":           entity.NextRetryAt,
-		"currency":             entity.Currency,
-		"amount":               entity.Amount,
-		"metadata":             metaJson,
-		"cycles_processed":     entity.CyclesProcessed,
-		"total_revenue":        entity.TotalRevenue,
-		"cancelled_at":         entity.CancelledAt,
-	})
+	args := entityToNamedArgs(entity)
+	_, err := tx.Exec(ctx, query, args)
 
 	if err != nil {
 		r.logger.Error(`failed to update Subscription`, err.Error())
@@ -421,4 +363,39 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
 	}
 
 	return subscriptions, count, nil
+}
+
+func entityToNamedArgs(entity entities.Subscription) pgx.NamedArgs {
+	metaJson, _ := json.Marshal(entity.Metadata)
+	return pgx.NamedArgs{
+		"org_id":               entity.OrgId,
+		"id":                   entity.Id,
+		"payment_method_id":    pgtype.Text{String: entity.PaymentMethodId},
+		"psp_id":               entity.PspId,
+		"order_id":             entity.OrderId,
+		"order_item_id":        entity.OrderItemId,
+		"customer_id":          entity.CustomerId,
+		"status":               entity.Status,
+		"start_date":           pgtype.Date{Time: entity.StartDate, Valid: !entity.StartDate.IsZero()},
+		"end_date":             pgtype.Date{Time: entity.EndDate, Valid: !entity.EndDate.IsZero()},
+		"billing_interval":     entity.BillingInterval,
+		"billing_interval_qty": entity.BillingIntervalQty,
+		"cycles":               entity.Cycles,
+		"billing_anchor":       entity.BillingAnchor,
+		"trial_ends_at":        pgtype.Date{Time: entity.TrialEndsAt, Valid: !entity.TrialEndsAt.IsZero()},
+		"cancel_at":            pgtype.Date{Time: entity.CancelAt, Valid: !entity.CancelAt.IsZero()},
+		"ends_at":              pgtype.Date{Time: entity.EndsAt, Valid: !entity.EndsAt.IsZero()},
+		"last_charge":          pgtype.Date{Time: entity.LastCharge, Valid: !entity.LastCharge.IsZero()},
+		"renews_at":            pgtype.Date{Time: entity.RenewsAt, Valid: !entity.RenewsAt.IsZero()},
+		"current_period_start": pgtype.Date{Time: entity.CurrentPeriodStart, Valid: !entity.CurrentPeriodStart.IsZero()},
+		"current_period_end":   pgtype.Date{Time: entity.CurrentPeriodEnd, Valid: !entity.CurrentPeriodEnd.IsZero()},
+		"retries":              entity.Retries,
+		"next_retry":           pgtype.Date{Time: entity.NextRetryAt, Valid: !entity.NextRetryAt.IsZero()},
+		"currency":             entity.Currency,
+		"amount":               entity.Amount,
+		"metadata":             metaJson,
+		"cycles_processed":     entity.CyclesProcessed,
+		"total_revenue":        entity.TotalRevenue,
+		"cancelled_at":         pgtype.Date{Time: entity.CancelledAt, Valid: !entity.CancelledAt.IsZero()},
+	}
 }

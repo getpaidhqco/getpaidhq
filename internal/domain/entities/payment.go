@@ -21,6 +21,7 @@ type Payment struct {
 	PlatformFee    int64                  `json:"platform_fee"`
 	NetAmount      int64                  `json:"net_amount"`
 	Metadata       map[string]string      `json:"metadata"`
+	CompletedAt    time.Time              `json:"completed_at"`
 	CreatedAt      time.Time              `json:"created_at"`
 	UpdatedAt      time.Time              `json:"updated_at"`
 }

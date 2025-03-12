@@ -10,6 +10,7 @@ import (
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
+	"payloop/internal/domain/entities/payments"
 	"payloop/internal/domain/entities/prices"
 	"payloop/internal/domain/factories"
 	"payloop/internal/domain/payment_providers"
@@ -78,15 +79,8 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 	var currency = input.Currency
 
 	var createPspSession = true
-	if input.SessionId == "" && input.PaymentMethodId == "" {
-		return orders.CreateOrderResponse{}, lib.NewCustomError(
-			lib.ValidationError,
-			"You must specify a payment method or session_id",
-			nil,
-		)
-	}
 	if input.SessionId == "" {
-		// no session, so we need to have a payment method
+		// no session, so we need to have a payment method set before we can activate the order
 		createPspSession = false
 	}
 
@@ -170,8 +164,20 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 			Email:     input.Customer.Email,
 		})
 		if err != nil {
-			s.logger.Error("Failed to create customer", err.Error())
-			return orders.CreateOrderResponse{}, err
+			var derr lib.DatabaseError
+			if errors.As(err, &derr) && derr.Code == lib.UniqueKeyViolation {
+				customerEntity, err = s.customerRepository.Update(ctx, entities.Customer{
+					OrgId:     orgId,
+					Id:        lib.GenerateId("customer"),
+					FirstName: input.Customer.FirstName,
+					LastName:  input.Customer.LastName,
+					Phone:     input.Customer.Phone,
+					Email:     input.Customer.Email,
+				})
+			} else {
+				s.logger.Error("Failed to create customer", err.Error())
+				return orders.CreateOrderResponse{}, err
+			}
 		}
 	}
 
@@ -256,15 +262,21 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 
 // CompleteOrder marks a pending order as completed and activates the subscriptions. There is no payment involved, so the
 // subscriptions will start charging as needed using the payment methods specified in the create process.
-func (s OrderService) CompleteOrder(ctx context.Context, orgId string, orderId string) (entities.Order, error) {
-	s.logger.Info("Completing order [%s][%s]", orgId, orderId)
+func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOrderInput) (entities.Order, error) {
+	s.logger.Info("Completing order [%s][%s]", input.OrgId, input.Id)
 
-	order, err := s.orderRepository.FindById(ctx, orgId, orderId)
+	order, err := s.orderRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
 		return entities.Order{}, errors.New("order not found")
 	}
 
 	// TODO validation
+	if order.Status != entities.OrderStatusPending {
+		return entities.Order{}, errors.New("order is not pending")
+	}
+	if input.PaymentMethodId == "" && input.PaymentMethod.Token == "" {
+		return entities.Order{}, errors.New("payment method not provided")
+	}
 
 	// update the order status
 	order.Status = entities.OrderStatusCompleted
@@ -275,16 +287,75 @@ func (s OrderService) CompleteOrder(ctx context.Context, orgId string, orderId s
 		return entities.Order{}, err
 	}
 
+	paymentMethodId := input.PaymentMethodId
+	// create the payment method
+	if input.PaymentMethod.Token != "" {
+		// create the payment method
+		paymentMethodId = lib.GenerateId("pm")
+		paymentMethod := entities.PaymentMethod{
+			OrgId:          order.OrgId,
+			Id:             paymentMethodId,
+			Psp:            input.PaymentMethod.Psp,
+			Name:           input.PaymentMethod.Name,
+			CustomerId:     order.CustomerId,
+			IsDefault:      input.PaymentMethod.IsDefault,
+			BillingAddress: entities.Address{},
+			Type:           input.PaymentMethod.Type,
+			Token:          input.PaymentMethod.Token,
+			Details:        nil,
+			CreatedAt:      time.Now().UTC(),
+			UpdatedAt:      time.Now().UTC(),
+		}
+		_, err := s.customerRepository.CreatePaymentMethod(ctx, paymentMethod)
+		if err != nil {
+			s.logger.Error("Failed to create payment method", err.Error())
+			return entities.Order{}, err
+		}
+	}
+
 	// find subscriptions for the order and update the status to active
-	subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
+	subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, input.OrgId, input.Id)
 	if err != nil {
 		s.logger.Info("no subscriptions to process", err.Error())
 	}
 
 	for _, subscription := range subscriptions {
 		s.logger.Debugf("Setting subscription [%s] to active", subscription.Id)
-		subscription.SetActive()
 
+		// Set the payment method
+		subscription.PaymentMethodId = paymentMethodId
+
+		firstPaymentCharged := input.Payment.Amount > 0
+		// Log the payment if it's the first payment
+		if firstPaymentCharged {
+			payment := entities.Payment{
+				OrgId:          input.OrgId,
+				Id:             lib.GenerateId("pmt"),
+				Psp:            subscription.PspId,
+				PspId:          input.Payment.PspId,
+				Reference:      input.Payment.Reference,
+				OrderId:        input.Id,
+				SubscriptionId: subscription.Id,
+				Status:         payments.PaymentStatusSucceeded,
+				Currency:       input.Payment.Currency,
+				Amount:         input.Payment.Amount,
+				PspFee:         0,
+				PlatformFee:    0,
+				NetAmount:      input.Payment.Amount,
+				Metadata:       input.Payment.Metadata,
+				CompletedAt:    time.Time{},
+				CreatedAt:      time.Now().UTC(),
+				UpdatedAt:      time.Now().UTC(),
+			}
+			payment, err := s.paymentRepository.Create(ctx, payment)
+			if err != nil {
+				s.logger.Error("Failed to create payment", err.Error())
+			}
+		}
+
+		// Set the activation dates
+		subscription.SetActive(firstPaymentCharged)
+		s.logger.Infof("Subscription [%s] activated. firstPaymentCharged=%t", subscription.Id, firstPaymentCharged)
 		newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 		if err != nil {
 			s.logger.Error("Failed to update subscription", err.Error())

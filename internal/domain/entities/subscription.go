@@ -191,9 +191,20 @@ func (s *Subscription) SetActivationDates() *Subscription {
 // SetActive sets the subscription status to active and prepares the dates for the subscription and charge schedule.
 // It doesn't make any assumptions about the payment status, it just sets the subscription status to active. This
 // calls SetActivationDates() and sets the status to SubscriptionStatusActive
-func (s *Subscription) SetActive() *Subscription {
+func (s *Subscription) SetActive(firstPaymentCharged bool) *Subscription {
 	s.SetActivationDates()
 	s.Status = SubscriptionStatusActive
+	if firstPaymentCharged {
+		s.LastCharge = s.StartDate
+		s.TotalRevenue = s.Amount
+		s.CyclesProcessed = 1
+
+		renewsAt := s.CalculateNextBillingDate()
+		s.RenewsAt = renewsAt
+		s.CurrentPeriodStart = s.StartDate
+		s.CurrentPeriodEnd = renewsAt
+	}
+
 	return s
 }
 

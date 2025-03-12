@@ -104,6 +104,14 @@ func (r CustomerRepository) Create(ctx context.Context, entity entities.Customer
 		VALUES (@org_id, @id, @email, @first_name,@last_name, 
 		        @phone, @billing_address, @metadata, 
 		        now(), now())
+ON CONFLICT (org_id, email) DO UPDATE SET
+		email = EXCLUDED.email,
+		first_name = EXCLUDED.first_name,
+		last_name = EXCLUDED.last_name,
+		phone = EXCLUDED.phone,
+		billing_address = EXCLUDED.billing_address,
+		metadata = EXCLUDED.metadata,
+		updated_at = now()
 		RETURNING org_id, id, email, first_name, last_name,
                        phone, billing_address, metadata, 
                        created_at, updated_at`
@@ -167,6 +175,15 @@ func (r CustomerRepository) CreatePaymentMethod(ctx context.Context, entity enti
 
 	query := `INSERT INTO payment_methods (org_id, id,token, psp,name, customer_id, is_default, details, type, created_at, updated_at)
 			  VALUES (@org_id, @id,@token,@psp, @name, @customer_id, @is_default, @details, @type, now(), now())
+			  ON CONFLICT (org_id, customer_id, token) DO UPDATE SET
+				  token = EXCLUDED.token,
+				  psp = EXCLUDED.psp,
+				  name = EXCLUDED.name,
+				  customer_id = EXCLUDED.customer_id,
+				  is_default = EXCLUDED.is_default,
+				  details = EXCLUDED.details,
+				  type = EXCLUDED.type,
+				  updated_at = now() 
 			  RETURNING org_id, id,token, psp,name, customer_id, is_default, details, type, created_at, updated_at`
 
 	var newEntity entities.PaymentMethod
@@ -199,4 +216,48 @@ func (r CustomerRepository) CreatePaymentMethod(ctx context.Context, entity enti
 	}
 
 	return newEntity, nil
+}
+
+func (r CustomerRepository) Update(ctx context.Context, entity entities.Customer) (entities.Customer, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	query := `UPDATE customers SET email=@Email, 
+                     first_name=@FirstName, 
+                     last_name=@LastName,
+                     phone=@Phone, 
+                     billing_address=@BillingAddress, 
+                     metadata=@Metadata,
+                     updated_at=now()
+              WHERE org_id=@OrgId AND id=@Id
+              RETURNING org_id, id, email, first_name, last_name,
+                       phone, billing_address, metadata, created_at, updated_at`
+
+	var updatedCustomer models.Customer
+	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
+		"OrgId":          entity.OrgId,
+		"Id":             entity.Id,
+		"Email":          entity.Email,
+		"FirstName":      entity.FirstName,
+		"LastName":       entity.LastName,
+		"Phone":          entity.Phone,
+		"BillingAddress": entity.BillingAddress,
+		"Metadata":       entity.Metadata,
+	}).Scan(
+		&updatedCustomer.OrgId,
+		&updatedCustomer.Id,
+		&updatedCustomer.Email,
+		&updatedCustomer.FirstName,
+		&updatedCustomer.LastName,
+		&updatedCustomer.Phone,
+		&updatedCustomer.BillingAddress,
+		&updatedCustomer.Metadata,
+		&updatedCustomer.CreatedAt,
+		&updatedCustomer.UpdatedAt,
+	)
+
+	if err != nil {
+		return entities.Customer{}, mapError(err)
+	}
+
+	return updatedCustomer.ToEntity(), nil
 }

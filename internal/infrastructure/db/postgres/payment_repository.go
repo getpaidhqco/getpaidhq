@@ -31,8 +31,8 @@ func NewPaymentRepository(database lib.Database, logger logger.Logger) repositor
 func (r PaymentRepository) FindById(ctx context.Context, orgId string, id string) (entities.Payment, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	var payment entities.Payment
-	query := `SELECT org_id, id,psp,psp_id, reference, order_id, subscription_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, created_at, updated_at
+	var payment models.Payment
+	query := `SELECT org_id, id,psp,psp_id, reference, order_id, subscription_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata,completed_at, created_at, updated_at
 		          FROM payments
 		          WHERE org_id = $1 AND id = $2`
 
@@ -52,6 +52,7 @@ func (r PaymentRepository) FindById(ctx context.Context, orgId string, id string
 			&payment.PlatformFee,
 			&payment.NetAmount,
 			&payment.Metadata,
+			&payment.CompletedAt,
 			&payment.CreatedAt,
 			&payment.UpdatedAt,
 		)
@@ -60,7 +61,7 @@ func (r PaymentRepository) FindById(ctx context.Context, orgId string, id string
 		return entities.Payment{}, errors.New("not found")
 	}
 
-	return payment, nil
+	return payment.ToEntity(), nil
 }
 func (r PaymentRepository) FindBySubscriptionId(ctx context.Context, orgId string, id string, p entities.Pagination) ([]entities.Payment, int, error) {
 	tx := r.getTransactionFromContext(ctx)
@@ -69,7 +70,7 @@ func (r PaymentRepository) FindBySubscriptionId(ctx context.Context, orgId strin
 	var total int
 	query := `SELECT org_id, id, psp, psp_id, reference, order_id, subscription_id,
        status, currency, amount, psp_fee, platform_fee, net_amount, metadata, 
-       created_at, updated_at,
+       completed_at, created_at, updated_at,
         count(*) OVER()
 	          FROM payments
 	          WHERE org_id = @org_id AND subscription_id =  @id
@@ -107,6 +108,7 @@ LIMIT @lim OFFSET @off;
 			&payment.PlatformFee,
 			&payment.NetAmount,
 			&payment.Metadata,
+			&payment.CompletedAt,
 			&payment.CreatedAt,
 			&payment.UpdatedAt,
 			&total,
@@ -129,10 +131,11 @@ LIMIT @lim OFFSET @off;
 func (r PaymentRepository) Create(ctx context.Context, entity entities.Payment) (entities.Payment, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	query := `INSERT INTO payments (org_id, id, psp, psp_id,reference,order_id, subscription_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, created_at, updated_at)
-	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
-	          RETURNING org_id, id, psp, psp_id, reference, order_id, subscription_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, created_at, updated_at`
+	query := `INSERT INTO payments (org_id, id, psp, psp_id,reference,order_id, subscription_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, completed_at, created_at, updated_at)
+	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+	          RETURNING org_id, id, psp, psp_id, reference, order_id, subscription_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, completed_at, created_at, updated_at`
 
+	var payment models.Payment
 	err := tx.QueryRow(ctx, query,
 		entity.OrgId,
 		entity.Id,
@@ -148,30 +151,32 @@ func (r PaymentRepository) Create(ctx context.Context, entity entities.Payment) 
 		entity.PlatformFee,
 		entity.NetAmount,
 		entity.Metadata,
+		entity.CompletedAt,
 		entity.CreatedAt,
 		entity.UpdatedAt,
 	).Scan(
-		&entity.OrgId,
-		&entity.Id,
-		&entity.Psp,
-		&entity.PspId,
-		&entity.Reference,
-		&entity.OrderId,
-		&entity.SubscriptionId,
-		&entity.Status,
-		&entity.Currency,
-		&entity.Amount,
-		&entity.PspFee,
-		&entity.PlatformFee,
-		&entity.NetAmount,
-		&entity.Metadata,
-		&entity.CreatedAt,
-		&entity.UpdatedAt,
+		&payment.OrgId,
+		&payment.Id,
+		&payment.Psp,
+		&payment.PspId,
+		&payment.Reference,
+		&payment.OrderId,
+		&payment.SubscriptionId,
+		&payment.Status,
+		&payment.Currency,
+		&payment.Amount,
+		&payment.PspFee,
+		&payment.PlatformFee,
+		&payment.NetAmount,
+		&payment.Metadata,
+		&payment.CompletedAt,
+		&payment.CreatedAt,
+		&payment.UpdatedAt,
 	)
 	if err != nil {
 		r.logger.Error(`failed to create Payment`, "err", err.Error())
 		return entities.Payment{}, err
 	}
 
-	return entity, nil
+	return payment.ToEntity(), nil
 }

@@ -9,11 +9,11 @@ type Order struct {
 	Customer   Customer          `json:"customer,omitempty"`
 	Reference  string            `json:"reference"`
 	Status     OrderStatus       `json:"status"`
-	SessionId  string            `json:"session_id"`
-	CartId     string            `json:"cart_id"`
+	SessionId  string            `json:"session_id,omitempty"`
+	CartId     string            `json:"cart_id,omitempty"`
 	Currency   string            `json:"currency"`
 	Total      int64             `json:"total"`
-	Metadata   map[string]string `json:"metadata"`
+	Metadata   map[string]string `json:"metadata,omitempty"`
 	CreatedAt  time.Time         `json:"created_at"`
 	UpdatedAt  time.Time         `json:"updated_at"`
 }

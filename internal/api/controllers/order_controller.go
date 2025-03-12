@@ -92,6 +92,7 @@ func (o OrderController) CreateOrder(c *gin.Context) {
 }
 
 func (o OrderController) CompleteOrder(c *gin.Context) {
+	var input request.CompleteOrderRequest
 	user, _ := c.Get("user")
 	authUser := user.(authn.User)
 	id := c.Param("id")
@@ -103,7 +104,46 @@ func (o OrderController) CompleteOrder(c *gin.Context) {
 		return
 	}
 
-	rsp, err := o.service.CompleteOrder(c.Request.Context(), authUser.OrgId, id)
+	if err := c.ShouldBindJSON(&input); err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	rsp, err := o.service.CompleteOrder(c.Request.Context(), orders.CompleteOrderInput{
+		OrgId:           authUser.OrgId,
+		Id:              id,
+		PaymentMethodId: input.PaymentMethodId,
+		PaymentMethod: orders.CompleteOrderInputPaymentMethod{
+			Psp:       input.PaymentMethod.Psp,
+			Name:      input.PaymentMethod.Name,
+			IsDefault: input.PaymentMethod.IsDefault,
+			BillingAddress: orders.Address{
+				FirstName:  input.PaymentMethod.BillingAddress.FirstName,
+				LastName:   input.PaymentMethod.BillingAddress.LastName,
+				Email:      input.PaymentMethod.BillingAddress.Email,
+				Phone:      input.PaymentMethod.BillingAddress.Phone,
+				Line1:      input.PaymentMethod.BillingAddress.Line1,
+				Line2:      input.PaymentMethod.BillingAddress.Line2,
+				City:       input.PaymentMethod.BillingAddress.City,
+				State:      input.PaymentMethod.BillingAddress.State,
+				PostalCode: input.PaymentMethod.BillingAddress.PostalCode,
+				Country:    input.PaymentMethod.BillingAddress.Country,
+			},
+			Type:     input.PaymentMethod.Type,
+			Token:    input.PaymentMethod.Token,
+			Metadata: input.PaymentMethod.Metadata,
+		},
+		Payment: orders.CompleteOrderInputPayment{
+			PspId:       input.Payment.PspId,
+			CompletedAt: input.Payment.CompletedAt,
+			Reference:   input.Payment.Reference,
+			Amount:      input.Payment.Amount,
+			Currency:    input.Payment.Currency,
+			Metadata:    input.Payment.Metadata,
+		},
+		Metadata: input.Metadata,
+	})
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)

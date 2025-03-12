@@ -44,3 +44,43 @@ type CreateOrderCommandCustomer struct {
 	Phone     string            `json:"phone"`
 	Metadata  map[string]string `json:"metadata"`
 }
+
+type CompleteOrderInput struct {
+	OrgId           string                          `json:"org_id"`
+	Id              string                          `json:"id"`
+	PaymentMethodId string                          `json:"payment_method_id"`
+	PaymentMethod   CompleteOrderInputPaymentMethod `json:"payment_method"`
+	Payment         CompleteOrderInputPayment       `json:"payment"`
+	Metadata        map[string]string               `json:"metadata"`
+}
+
+type CompleteOrderInputPayment struct {
+	PspId       string            `json:"psp_id"`
+	CompletedAt string            `json:"completed_at"`
+	Reference   string            `json:"reference"`
+	Amount      int64             `json:"amount"`
+	Currency    string            `json:"currency"`
+	Metadata    map[string]string `json:"metadata"`
+}
+
+type CompleteOrderInputPaymentMethod struct {
+	Psp            string            `json:"psp"`
+	Name           string            `json:"name"`
+	IsDefault      bool              `json:"is_default"`
+	BillingAddress Address           `json:"billing_address"`
+	Type           string            `json:"type"`
+	Token          string            `json:"token"`
+	Metadata       map[string]string `json:"metadata"`
+}
+type Address struct {
+	FirstName  string         `json:"first_name"`
+	LastName   string         `json:"last_name"`
+	Email      string         `json:"email"`
+	Phone      string         `json:"phone"`
+	Line1      string         `json:"line1"`
+	Line2      string         `json:"line2"`
+	City       string         `json:"city"`
+	State      string         `json:"state"`
+	PostalCode string         `json:"postal_code"`
+	Country    common.Country `json:"country"`
+}

@@ -8,7 +8,7 @@ import (
 
 type OrderService interface {
 	CreateOrder(ctx context.Context, input orders.CreateOrderInput) (orders.CreateOrderResponse, error)
-	CompleteOrder(ctx context.Context, orgId string, orderId string) (entities.Order, error)
+	CompleteOrder(ctx context.Context, input orders.CompleteOrderInput) (entities.Order, error)
 }
 
 type OrderWorkflowService interface {
