@@ -38,9 +38,11 @@ func (r OrderItemRepository) FindById(ctx context.Context, orgId string, id stri
        oi.quantity, oi.metadata, oi.created_at, oi.updated_at,
 			  
        p.org_id, p.id, p.variant_id, p.category, p.scheme,
-       p.currency, p.unit_price, p.min_price, p.suggested_price,
-       p.billing_interval, p.billing_interval_qty, p.trial_interval,
-       p.trial_interval_qty, p.tax_code, p.metadata, p.created_at, p.updated_at
+       p.label, p.currency, p.unit_price,p.cycles, 
+        p.billing_interval, p.billing_interval_qty,
+        p.trial_interval, p.trial_interval_qty, 
+        p.min_price, p.suggested_price,
+        p.tax_code, p.metadata, p.created_at, p.updated_at
     
 			  FROM order_items oi
 			  JOIN prices p ON oi.price_id = p.id
@@ -62,14 +64,16 @@ func (r OrderItemRepository) FindById(ctx context.Context, orgId string, id stri
 		&price.VariantId,
 		&price.Category,
 		&price.Scheme,
+		&price.Label,
 		&price.Currency,
 		&price.UnitPrice,
-		&price.MinPrice,
-		&price.SuggestedPrice,
+		&price.Cycles,
 		&price.BillingInterval,
 		&price.BillingIntervalQty,
 		&price.TrialInterval,
 		&price.TrialIntervalQty,
+		&price.MinPrice,
+		&price.SuggestedPrice,
 		&price.TaxCode,
 		&price.Metadata,
 		&price.CreatedAt,
