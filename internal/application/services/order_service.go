@@ -292,6 +292,8 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 	if input.PaymentMethod.Token != "" {
 		// create the payment method
 		paymentMethodId = lib.GenerateId("pm")
+		s.logger.Debugf("Creating payment method for order [%s]", paymentMethodId)
+
 		paymentMethod := entities.PaymentMethod{
 			OrgId:          order.OrgId,
 			Id:             paymentMethodId,
