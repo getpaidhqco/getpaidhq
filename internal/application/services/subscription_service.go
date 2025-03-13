@@ -134,7 +134,7 @@ func (s SubscriptionService) Update(ctx context.Context, input subscriptions.Upd
 		return entities.Subscription{}, err
 	}
 
-	_ = s.pubsub.Publish(subscription.OrgId, entities.GetTopicFromStatus(subscription.Status), newSub)
+	_ = s.pubsub.Publish(subscription.OrgId, topic.GetSubscriptionTopic(subscription.Status), newSub)
 	return newSub, err
 }
 
@@ -409,7 +409,11 @@ func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context
 		_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusExpired, newSub)
 	}
 
-	_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionPaymentChargeSuccess, payment)
+	_ = s.pubsub.Publish(
+		subscription.OrgId,
+		topic.SubscriptionPaymentChargeSuccess,
+		topic.NewSubscriptionPaymentChargeSuccessEvent(subscription, payment),
+	)
 
 	return newSub, nil
 }

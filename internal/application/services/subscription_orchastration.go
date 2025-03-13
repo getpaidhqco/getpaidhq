@@ -90,7 +90,7 @@ func (s SubscriptionOrchestrationService) Update(ctx context.Context, input subs
 		return entities.Subscription{}, err
 	}
 
-	_ = s.pubsub.Publish(subscription.OrgId, entities.GetTopicFromStatus(subscription.Status), newSub)
+	_ = s.pubsub.Publish(subscription.OrgId, topic.GetSubscriptionTopic(subscription.Status), newSub)
 	return newSub, err
 }
 
