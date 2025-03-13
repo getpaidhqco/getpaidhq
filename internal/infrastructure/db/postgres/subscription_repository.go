@@ -370,7 +370,7 @@ func entityToNamedArgs(entity entities.Subscription) pgx.NamedArgs {
 	return pgx.NamedArgs{
 		"org_id":               entity.OrgId,
 		"id":                   entity.Id,
-		"payment_method_id":    pgtype.Text{String: entity.PaymentMethodId},
+		"payment_method_id":    pgtype.Text{String: entity.PaymentMethodId, Valid: entity.PaymentMethodId != ""},
 		"psp_id":               entity.PspId,
 		"order_id":             entity.OrderId,
 		"order_item_id":        entity.OrderItemId,
