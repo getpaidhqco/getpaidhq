@@ -228,7 +228,7 @@ func (p CheckoutDotCom) ChargePayment(ctx context.Context, input payment_provide
 		}
 	}
 
-	p.logger.Info("charged payment", "response", response)
+	p.logger.Infof("charged payment %s %s %s", response.Id, response.Reference, response.ResponseSummary)
 	return payment_providers.ChargePaymentResponse{
 		Status:        payment_providers.ChargePaymentStatusSuccess,
 		Psp:           common.CheckoutDotCom,

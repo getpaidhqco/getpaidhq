@@ -348,6 +348,7 @@ func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context
 	payment := entities.Payment{
 		OrgId:          subscription.OrgId,
 		Id:             lib.GenerateId("pmt"),
+		Psp:            charge.Psp,
 		PspId:          charge.PspId,
 		Reference:      charge.Reference,
 		OrderId:        subscription.OrderId,

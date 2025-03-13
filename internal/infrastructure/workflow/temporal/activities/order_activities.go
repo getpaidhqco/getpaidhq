@@ -149,6 +149,7 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 	}
 
 	result := payments.ChargeResult{
+		Psp:       chargeResult.Psp,
 		Amount:    chargeResult.AmountCharged,
 		Status:    status,
 		Currency:  subscription.Currency,

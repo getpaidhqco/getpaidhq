@@ -1,5 +1,7 @@
 package payments
 
+import "payloop/internal/domain/common"
+
 type PaymentStatus string
 
 const (
@@ -14,12 +16,13 @@ const (
 )
 
 type ChargeResult struct {
-	Amount      int64         `json:"amount"`
-	Status      PaymentStatus `json:"status"`
-	ErrorReason string        `json:"error_reason"`
-	ErrorCode   string        `json:"error_code"`
-	Currency    string        `json:"currency"`
-	PspId       string        `json:"psp_id"`
-	Reference   string        `json:"reference"`
-	RawData     string        `json:"raw_data"`
+	Psp         common.Gateway `json:"psp"`
+	Amount      int64          `json:"amount"`
+	Status      PaymentStatus  `json:"status"`
+	ErrorReason string         `json:"error_reason"`
+	ErrorCode   string         `json:"error_code"`
+	Currency    string         `json:"currency"`
+	PspId       string         `json:"psp_id"`
+	Reference   string         `json:"reference"`
+	RawData     string         `json:"raw_data"`
 }
