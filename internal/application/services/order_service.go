@@ -328,6 +328,7 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 
 		// Set the payment method
 		subscription.PaymentMethodId = paymentMethodId
+		subscription.SetMetadata(input.Metadata)
 
 		firstPaymentCharged := input.Payment.Amount > 0
 		// Log the payment if it's the first payment

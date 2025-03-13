@@ -345,10 +345,6 @@ func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context
 		panic("Subscription is empty")
 	}
 
-	matadata := make(map[string]string)
-	matadata["psp_id"] = charge.PspId
-	matadata["reference"] = charge.Reference
-
 	payment := entities.Payment{
 		OrgId:          subscription.OrgId,
 		Id:             lib.GenerateId("pmt"),
@@ -356,17 +352,17 @@ func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context
 		Reference:      charge.Reference,
 		OrderId:        subscription.OrderId,
 		SubscriptionId: subscription.Id,
-
-		Status:      charge.Status,
-		Currency:    charge.Currency,
-		Amount:      charge.Amount,
-		PspFee:      0,
-		PlatformFee: 0,
-		NetAmount:   subscription.Amount,
-		Metadata:    matadata,
-		CreatedAt:   time.Now().UTC(),
-		UpdatedAt:   time.Now().UTC(),
+		Status:         charge.Status,
+		Currency:       charge.Currency,
+		Amount:         charge.Amount,
+		PspFee:         0,
+		PlatformFee:    0,
+		NetAmount:      subscription.Amount,
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
 	}
+	payment.SetMetadata(subscription.Metadata)
+
 	payment, err := s.paymentRepository.Create(ctx, payment)
 	if err != nil {
 		s.logger.Error("Failed to create payment", err.Error())

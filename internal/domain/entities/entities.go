@@ -12,3 +12,7 @@ type Pagination struct {
 	SortDirection string `json:"sort_order"`
 	SortBy        string `json:"sort_by"`
 }
+
+type MetadataUpdater interface {
+	SetMetadata(meta map[string]string) MetadataUpdater
+}

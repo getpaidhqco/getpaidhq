@@ -90,6 +90,17 @@ type Subscription struct {
 	UpdatedAt       time.Time         `json:"updated_at"`
 }
 
+// SetMetadata merges the existing metadata with the specified values.
+func (s *Subscription) SetMetadata(meta map[string]string) *Subscription {
+	if s.Metadata == nil {
+		s.Metadata = make(map[string]string)
+	}
+	for key, value := range meta {
+		s.Metadata[key] = value
+	}
+	return s
+}
+
 // CalculateNextBillingDate calculates and returns the next billing date for a subscription
 // based on the StartDate, LastCharge, BillingInterval, BillingIntervalQty and CyclesProcessed
 // If the subscription has not started yet, it returns the StartDate

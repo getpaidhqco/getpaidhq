@@ -25,3 +25,14 @@ type Payment struct {
 	CreatedAt      time.Time              `json:"created_at"`
 	UpdatedAt      time.Time              `json:"updated_at"`
 }
+
+// SetMetadata merges the existing metadata with the specified values.
+func (p *Payment) SetMetadata(meta map[string]string) *Payment {
+	if p.Metadata == nil {
+		p.Metadata = make(map[string]string)
+	}
+	for key, value := range meta {
+		p.Metadata[key] = value
+	}
+	return p
+}
