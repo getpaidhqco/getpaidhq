@@ -18,6 +18,17 @@ type Order struct {
 	UpdatedAt  time.Time         `json:"updated_at"`
 }
 
+// SetMetadata merges the existing metadata with the specified values.
+func (o *Order) SetMetadata(meta map[string]string) *Order {
+	if o.Metadata == nil {
+		o.Metadata = make(map[string]string)
+	}
+	for key, value := range meta {
+		o.Metadata[key] = value
+	}
+	return o
+}
+
 type OrderStatus string
 
 const (

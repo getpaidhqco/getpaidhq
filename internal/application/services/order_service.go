@@ -281,6 +281,8 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 	// update the order status
 	order.Status = entities.OrderStatusCompleted
 	order.UpdatedAt = time.Now()
+	order.SetMetadata(input.Metadata)
+
 	_, err = s.orderRepository.Update(ctx, order)
 	if err != nil {
 		s.logger.Error("Failed to update order", err.Error())
