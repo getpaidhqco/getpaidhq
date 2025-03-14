@@ -289,16 +289,21 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 		return entities.Order{}, err
 	}
 
-	paymentMethodId := input.PaymentMethodId
+	var paymentMethod entities.PaymentMethod
+	if input.PaymentMethodId != "" {
+		paymentMethod, err = s.customerRepository.FindPaymentMethodById(ctx, order.OrgId, input.PaymentMethodId)
+		if err != nil {
+			s.logger.Error("Failed to find payment method", err.Error())
+			return entities.Order{}, lib.NewCustomError(lib.NotFoundError, "Payment method not found", err)
+		}
+	}
+
 	// create the payment method
 	if input.PaymentMethod.Token != "" {
 		// create the payment method
-		paymentMethodId = lib.GenerateId("pm")
-		s.logger.Debugf("Creating payment method for order [%s]", paymentMethodId)
-
-		paymentMethod := entities.PaymentMethod{
+		paymentMethod, err = s.customerRepository.CreatePaymentMethod(ctx, entities.PaymentMethod{
 			OrgId:          order.OrgId,
-			Id:             paymentMethodId,
+			Id:             lib.GenerateId("pm"),
 			Psp:            input.PaymentMethod.Psp,
 			Name:           input.PaymentMethod.Name,
 			CustomerId:     order.CustomerId,
@@ -309,12 +314,12 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 			Details:        nil,
 			CreatedAt:      time.Now().UTC(),
 			UpdatedAt:      time.Now().UTC(),
-		}
-		_, err := s.customerRepository.CreatePaymentMethod(ctx, paymentMethod)
+		})
 		if err != nil {
 			s.logger.Error("Failed to create payment method", err.Error())
 			return entities.Order{}, err
 		}
+		s.logger.Debugf(`Created payment method [%s] for order [%s]`, paymentMethod.Id, order.Id)
 	}
 
 	// find subscriptions for the order and update the status to active
@@ -327,7 +332,7 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 		s.logger.Debugf("Setting subscription [%s] to active", subscription.Id)
 
 		// Set the payment method
-		subscription.PaymentMethodId = paymentMethodId
+		subscription.PaymentMethodId = paymentMethod.Id
 		subscription.SetMetadata(input.Metadata)
 
 		firstPaymentCharged := input.Payment.Amount > 0
