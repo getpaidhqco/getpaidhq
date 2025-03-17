@@ -409,6 +409,9 @@ func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context
 	if newSub.Status == entities.SubscriptionStatusExpired {
 		_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusExpired, newSub)
 	}
+	if newSub.Status == entities.SubscriptionStatusCompleted {
+		_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusCompleted, newSub)
+	}
 
 	_ = s.pubsub.Publish(
 		subscription.OrgId,

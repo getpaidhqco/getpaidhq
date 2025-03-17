@@ -4,10 +4,8 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
-	"math/rand"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/domain/entities"
@@ -111,16 +109,12 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 		return payments.ChargeResult{}, err
 	}
 
-	randomNumber := rand.Intn(101) // Generate a random number between 0 and 100
-	fmt.Println(randomNumber)
-
 	chargeResult := gw.ChargePayment(ctx, payment_providers.ChargePaymentCommand{
 		OrgId:          subscription.OrgId,
 		OrderId:        subscription.OrderId,
 		SubscriptionId: subscription.Id,
 		Amount:         subscription.Amount,
 		Currency:       subscription.Currency,
-		//Reference: fmt.Sprintf("%s_%d_%d", subscription.Id, subscription.CyclesProcessed+1, randomNumber),
 		PaymentMethod: payment_providers.PaymentMethod{
 			PspId:       paymentMethod.Id,
 			Name:        paymentMethod.Name,
