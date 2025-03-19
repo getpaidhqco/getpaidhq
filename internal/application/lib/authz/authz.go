@@ -7,8 +7,9 @@ type Action string
 const (
 	CreateOrg Action = "CreateOrg"
 
-	CreateCart  Action = "create_cart"
-	CreateOrder Action = "CreateOrder"
+	CreateCart             Action = "create_cart"
+	CreateOrder            Action = "CreateOrder"
+	ListOrderSubscriptions Action = "ListOrderSubscriptions"
 
 	CreateProduct Action = "CreateProduct"
 	ListProducts  Action = "ListProducts"

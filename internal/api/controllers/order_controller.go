@@ -152,3 +152,25 @@ func (o OrderController) CompleteOrder(c *gin.Context) {
 
 	c.JSON(200, response.NewOrderFromEntity(rsp))
 }
+
+func (o OrderController) ListSubscriptions(c *gin.Context) {
+	user, _ := c.Get("user")
+	authUser := user.(authn.User)
+	id := c.Param("id")
+
+	allowed := o.authz.Enforce(authUser, app_lib.ListOrderSubscriptions, "")
+	if !allowed {
+		apiErr := api.NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	rsp, err := o.service.ListOrderSubscriptions(c.Request.Context(), authUser.OrgId, id)
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	c.JSON(200, rsp)
+}

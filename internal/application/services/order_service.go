@@ -385,3 +385,24 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 
 	return order, nil
 }
+
+// ListOrderSubscriptions retrieves the subscriptions for a given order.
+func (s OrderService) ListOrderSubscriptions(ctx context.Context, orgId string, id string) ([]entities.Subscription, error) {
+	s.logger.Info("Listing subscriptions for order [%s][%s]", orgId, id)
+
+	// Find the order by ID
+	_, err := s.orderRepository.FindById(ctx, orgId, id)
+	if err != nil {
+		s.logger.Error("Order not found", err.Error())
+		return nil, errors.New("order not found")
+	}
+
+	// Retrieve subscriptions associated with the order
+	subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, orgId, id)
+	if err != nil {
+		s.logger.Error("Failed to retrieve subscriptions", err.Error())
+		return nil, err
+	}
+
+	return subscriptions, nil
+}
