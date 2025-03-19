@@ -9,7 +9,8 @@
     "prisma:generate": "pnpm dlx  prisma generate",
     "prisma:format": "pnpm dlx prisma format",
     "prisma:push": "pnpm dlx prisma db push",
-    "tunnel:test": "ssh -o StrictHostKeyChecking=no -N -L 7777:database-1.cr2ahlxr8roi.eu-west-1.rds.amazonaws.com:5432 -L 8888:payloop.temporal:8081 -L 9999:temporal-svc.temporal:8080 ec2-user@ec2-34-244-193-216.eu-west-1.compute.amazonaws.com -i ../cj-bastion-test.pem -v"
+    "tunnel:test": "ssh -o StrictHostKeyChecking=no -N -L 7777:database-1.cr2ahlxr8roi.eu-west-1.rds.amazonaws.com:5432 -L 8888:payloop.temporal:8081 -L 9999:temporal-svc.temporal:8080 ec2-user@ec2-34-244-193-216.eu-west-1.compute.amazonaws.com -i ../cj-bastion-test.pem -v",
+    "tunnel:prod": "ssh -o StrictHostKeyChecking=no -N -L 7777:database-1.cpzat3bu8cr8.eu-west-1.rds.amazonaws.com:5432 -L 8888:payloop.temporal:8081 -L 9999:temporal-svc.temporal:8080 ec2-user@ec2-54-216-140-178.eu-west-1.compute.amazonaws.com -i ../cj-bastion-prod.pem -v"
   },
   "keywords": [],
   "author": "",
