@@ -185,7 +185,7 @@ func (r ProductRepository) Find(ctx context.Context, orgId string, p request.Pag
 	defer rows.Close()
 
 	for rows.Next() {
-		var product entities.Product
+		var product models.Product
 		err := rows.Scan(
 			&product.OrgId,
 			&product.Id,
@@ -200,7 +200,7 @@ func (r ProductRepository) Find(ctx context.Context, orgId string, p request.Pag
 			r.logger.Error(`failed to scan Product`, err.Error())
 			return nil, 0, err
 		}
-		products = append(products, product)
+		products = append(products, product.ToEntity())
 	}
 
 	if rows.Err() != nil {
