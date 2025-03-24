@@ -9,6 +9,7 @@ import (
 	"payloop/internal/domain/factories"
 	"payloop/internal/infrastructure/authn/apikey"
 	"payloop/internal/infrastructure/authz/cedar"
+	"payloop/internal/infrastructure/cache/redis"
 	"payloop/internal/infrastructure/db/postgres"
 	"payloop/internal/infrastructure/pubsub/nats"
 	"payloop/internal/infrastructure/queue/sqs"
@@ -40,4 +41,7 @@ var CommonModules = fx.Options(
 
 	// Queue
 	sqs.Module,
+
+	// Cache client
+	redis.Module,
 )

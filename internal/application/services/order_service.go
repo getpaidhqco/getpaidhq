@@ -390,7 +390,7 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 func (s OrderService) ListOrderSubscriptions(ctx context.Context, orgId string, id string) ([]entities.Subscription, error) {
 	s.logger.Info("Listing subscriptions for order [%s][%s]", orgId, id)
 
-	// Find the order by ID
+	// Find the order by Id
 	_, err := s.orderRepository.FindById(ctx, orgId, id)
 	if err != nil {
 		s.logger.Error("Order not found", err.Error())

@@ -41,18 +41,30 @@ VALUES ('mollie', 'price-1', 'var-1', 'subscription', 'fixed', 0, 'ZAR', 10000.0
         'hour', 2, null, null, null, null, '2025-01-26 13:18:56.354', '2025-01-26 15:17:14.000'),
        ('org_2syb0uTnhuKtQTaLO6EAk1iIUnu', 'cyc-1', 'var-1', 'subscription', 'fixed', 3, 'ZAR', 10000, 'minute', 1,
         'none', 0, null, null, null, null, '2025-01-26 13:18:56.354', '2025-01-26 15:17:14.000'),
-    ('org_2syb0uTnhuKtQTaLO6EAk1iIUnu', 'day-1', 'var-1', 'subscription', 'fixed', 0, 'ZAR', 10000, 'day', 1,
+       ('org_2syb0uTnhuKtQTaLO6EAk1iIUnu', 'day-1', 'var-1', 'subscription', 'fixed', 0, 'ZAR', 10000, 'day', 1,
         'none', 0, null, null, null, null, '2025-01-26 13:18:56.354', '2025-01-26 15:17:14.000')
 ON CONFLICT DO NOTHING;
 
 INSERT INTO settings (org_id, parent_id, id, value, value_type, created_at, updated_at)
-VALUES ('mollie', 'payment_processors', 'Paystack', '{"api_key": "sk_test_e39ce23869e6e677121a5e6ef691a8c3d835f0bb"}','PaystackConfig',NOW(),NOW()),
- ('org_2syb0uTnhuKtQTaLO6EAk1iIUnu', 'payment_processors', 'Paystack', '{"api_key": "sk_test_e39ce23869e6e677121a5e6ef691a8c3d835f0bb","connect_id":"C_ACT_8T51J4P9X5"}','PaystackConfig',NOW(),NOW()),
+VALUES ('mollie', 'payment_processors', 'Paystack', '{
+  "api_key": "sk_test_e39ce23869e6e677121a5e6ef691a8c3d835f0bb"
+}', 'PaystackConfig', NOW(), NOW()),
+       ('org_2syb0uTnhuKtQTaLO6EAk1iIUnu', 'payment_processors', 'Paystack', '{
+         "api_key": "sk_test_e39ce23869e6e677121a5e6ef691a8c3d835f0bb",
+         "connect_id": "C_ACT_8T51J4P9X5"
+       }', 'PaystackConfig', NOW(), NOW()),
        ('mollie', 'payment_processors', 'CheckoutDotCom', '{
-  "secret_key": "sk_sbox_g2dxr775jvhnwbvwqbl5qon6kux"
-}', 'CheckoutDotComConfig', NOW(), NOW())   ,
-    ('org_2syb0uTnhuKtQTaLO6EAk1iIUnu', 'payment_processors', 'CheckoutDotCom', '{
-  "secret_key": "sk_sbox_g2dxr775jvhnwbvwqbl5qon6kux","processing_channel_id": "pc_xv47h5sfybue5h5elxfcphqy44"
-}', 'CheckoutDotComConfig', NOW(), NOW())
+         "secret_key": "sk_sbox_g2dxr775jvhnwbvwqbl5qon6kux"
+       }', 'CheckoutDotComConfig', NOW(), NOW()),
+       ('org_2syb0uTnhuKtQTaLO6EAk1iIUnu', 'payment_processors', 'CheckoutDotCom', '{
+         "secret_key": "sk_sbox_g2dxr775jvhnwbvwqbl5qon6kux",
+         "processing_channel_id": "pc_xv47h5sfybue5h5elxfcphqy44"
+       }', 'CheckoutDotComConfig', NOW(), NOW())
+ON CONFLICT DO NOTHING;
+
+
+INSERT INTO api_keys (org_id, id, key, created_at, updated_at)
+VALUES ('mollie', 'apikey-101', 'sk_23456789' , NOW(), NOW()),
+       ('org_2syb0uTnhuKtQTaLO6EAk1iIUnu', 'apikey-101', 'sk_wertyuio', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 

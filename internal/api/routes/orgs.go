@@ -17,7 +17,7 @@ func (s OrgsRoutes) Setup() {
 	s.logger.Info("Setting up Tenants routes")
 	api := s.handler.Gin.Group("/api")
 	{
-		api.POST("/tenants", s.controller.Create)
+		api.POST("/organizations", s.controller.Create)
 	}
 }
 

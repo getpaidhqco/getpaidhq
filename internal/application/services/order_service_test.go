@@ -107,10 +107,10 @@ func TestCreateOrders(t *testing.T) {
 		}
 		orderID, ok := result["order"].(map[string]interface{})["id"].(string)
 		if !ok {
-			fmt.Println("Order ID not found in response")
+			fmt.Println("Order Id not found in response")
 			return
 		}
-		fmt.Printf("Order ID from URL1: %s\n", orderID)
+		fmt.Printf("Order Id from URL1: %s\n", orderID)
 
 		// Complete the order
 		url2 := fmt.Sprintf("http://localhost:8888/api/orders/%s/complete", orderID)

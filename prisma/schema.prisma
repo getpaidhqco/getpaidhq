@@ -15,8 +15,23 @@ datasource db {
 
 enum OrgStatus {
   active
+  trial
+  demo
   inactive
   deleted
+}
+
+model ApiKey {
+  orgId     String   @map("org_id")
+  id        String   @default(cuid())
+  key       String
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, id])
+  @@map("api_keys")
 }
 
 model Org {
@@ -25,6 +40,7 @@ model Org {
   status       OrgStatus      @default(active)
   name         String
   description  String?
+  metadata     Json?
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
   users        UserOrg[]
@@ -37,6 +53,7 @@ model Org {
   Payment      Payment[]
   Setting      Setting[]
   OrderItem    OrderItem[]
+  ApiKey       ApiKey[]
 
   @@map("orgs")
 }

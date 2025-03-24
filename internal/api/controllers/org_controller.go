@@ -2,7 +2,7 @@ package controllers
 
 import (
 	"github.com/gin-gonic/gin"
-	"net/http"
+	"payloop/internal/api"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/application/services"
 	"payloop/internal/domain/entities/orgs"
@@ -26,20 +26,15 @@ func (u OrgController) Create(c *gin.Context) {
 	var input orgs.CreateOrgInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
-		u.logger.Error("", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
-	u.logger.Debug("Creating tenant", "input", input)
 	t, err := u.service.Create(c.Request.Context(), input)
 	if err != nil {
-		u.logger.Error("", err)
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 

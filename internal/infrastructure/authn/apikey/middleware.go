@@ -7,21 +7,26 @@ import (
 	apiauthn "payloop/internal/api/authn"
 	"payloop/internal/application/lib/authn"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 )
 
 type ApiKeyMiddleware struct {
-	handler lib.RequestHandler
-	logger  logger.Logger
-	env     lib.Env
+	handler          lib.RequestHandler
+	apiKeyRepository repositories.ApiKeyRepository
+	logger           logger.Logger
+	env              lib.Env
 }
 
-func NewApiKeyMiddleware(handler lib.RequestHandler, logger logger.Logger, env lib.Env) authn.Authenticator {
+func NewApiKeyMiddleware(handler lib.RequestHandler, logger logger.Logger,
+	env lib.Env,
+	apiKeyRepository repositories.ApiKeyRepository) authn.Authenticator {
 
 	return ApiKeyMiddleware{
-		handler: handler,
-		logger:  logger,
-		env:     env,
+		apiKeyRepository: apiKeyRepository,
+		handler:          handler,
+		logger:           logger,
+		env:              env,
 	}
 }
 
@@ -56,11 +61,16 @@ func isPublicPath(path string) bool {
 }
 
 func (m ApiKeyMiddleware) Authenticate(ctx context.Context, token string) (apiauthn.User, error) {
+	m.logger.Debugf("ApiKey Auth: [%s]", token[:5])
 
-	m.logger.Infof("ApiKey Auth: [%s]", token)
+	apiKey, err := m.apiKeyRepository.FindByKey(ctx, token)
+	if err != nil {
+		return apiauthn.User{}, err
+	}
+
 	return apiauthn.User{
-		OrgId:       token,
-		Id:          token,
+		OrgId:       apiKey.OrgId,
+		Id:          apiKey.Id,
 		Email:       "",
 		PrimaryRole: apiauthn.Admin,
 		Roles:       []apiauthn.UserRole{apiauthn.Admin},

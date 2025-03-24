@@ -2,12 +2,11 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
-	"github.com/segmentio/ksuid"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
-	"payloop/internal/domain/entities/orgs"
 	"payloop/internal/domain/repositories"
 
 	"payloop/internal/lib"
@@ -29,19 +28,27 @@ func NewOrgRepository(database lib.Database, logger logger.Logger) repositories.
 	}
 }
 
-func (r OrgRepository) Create(ctx context.Context, input orgs.CreateOrgInput) (entities.Org, error) {
+func (r OrgRepository) Create(ctx context.Context, entity entities.Org) (entities.Org, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	OrgId := "t_" + ksuid.New().String()
 	var Org entities.Org
-	query := `INSERT INTO orgs (id, name, description, created_at, updated_at) 
-			  VALUES (@id, @name, @description, NOW(), NOW())
-			  RETURNING (id,name,description,created_at,updated_at)`
+	query := `INSERT INTO orgs (id, name, country, status, description, metadata, created_at, updated_at) 
+			  VALUES (@id, @name, @country, @status, @description, @metadata, NOW(), NOW())
+			  RETURNING (id,name,country,status,description, metadata,created_at,updated_at)`
 
-	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
-		"id":          OrgId,
-		"name":        input.Name,
-		"description": input.Description,
+	metadata, err := json.Marshal(entity.Metadata)
+	if err != nil {
+		r.logger.Error(`failed to marshal metadata`, err)
+		return entities.Org{}, err
+	}
+
+	err = tx.QueryRow(ctx, query, pgx.NamedArgs{
+		"id":          entity.Id,
+		"name":        entity.Name,
+		"country":     entity.Country,
+		"status":      entity.Status,
+		"description": entity.Description,
+		"metadata":    metadata,
 	}).Scan(&Org)
 
 	if err != nil {
