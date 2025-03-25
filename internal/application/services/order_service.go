@@ -3,11 +3,12 @@ package services
 import (
 	"context"
 	"errors"
-	"fmt"
+	"payloop/internal/api/dto/request"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/entities/payments"
@@ -32,6 +33,7 @@ type OrderService struct {
 	paymentRepository      repositories.PaymentRepository
 	gatewayFactory         factories.GatewayFactory
 	pubsub                 events.PubSub
+	cartFactory            factories.CartFactory
 	db                     lib.Database
 	logger                 logger.Logger
 }
@@ -47,6 +49,7 @@ func NewOrderService(
 	subscriptionRepository repositories.SubscriptionRepository,
 	paymentRepository repositories.PaymentRepository,
 	gatewayFactory factories.GatewayFactory,
+	cartFactory factories.CartFactory,
 	pubsub events.PubSub,
 	db lib.Database,
 	logger logger.Logger,
@@ -61,6 +64,7 @@ func NewOrderService(
 		orderRepository:        orderRepository,
 		logger:                 logger,
 		gatewayFactory:         gatewayFactory,
+		cartFactory:            cartFactory,
 		paymentRepository:      paymentRepository,
 		pubsub:                 pubsub,
 		db:                     db,
@@ -75,7 +79,7 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 	orderId := lib.GenerateId("order")
 	var customerEntity entities.Customer
 	var err error
-	var orderCart entities.Cart
+	var orderCart cart.Cart
 	var currency = input.Currency
 
 	var createPspSession = true
@@ -97,30 +101,18 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 			s.logger.Error("Failed to find cart id ", "id", input.SessionId, err.Error())
 			return orders.CreateOrderResponse{}, lib.NewCustomError(lib.NotFoundError, "cart not found", nil)
 		}
-		orderCart = existingCart
-		currency = existingCart.Data.Currency
+		orderCart = s.cartFactory.NewFromEntity(existingCart)
+		currency = orderCart.Currency
 	} else {
-		// Create a cart from the items in the input
-		inlineCart := cart.New(cart.CreateCartOptions{
-			Currency: currency,
-			Items:    make([]cart.Item, 0),
-		})
-		for _, item := range input.CartItems {
-			price, err := s.priceRepository.FindById(ctx, orgId, item.PriceId)
-			if err != nil {
-				s.logger.Error("Failed to find price", "price_id", item.PriceId, err.Error())
-				return orders.CreateOrderResponse{}, lib.NewCustomError(
-					lib.NotFoundError, fmt.Sprintf("Price %s not found", item.PriceId),
-					err,
-				)
-			}
 
-			_, err = inlineCart.AddItem(cart.Item{
-				ID:          lib.GenerateId("item"),
-				ProductId:   item.ProductId,
-				Price:       price.ToCartItemPrice(),
-				Description: price.Label,
-				Quantity:    int64(item.Quantity),
+		// Create a cart from the items in the input
+		orderCart = s.cartFactory.NewCart(orgId, common.Currency(currency))
+
+		for _, item := range input.CartItems {
+			_, err = orderCart.AddItem(ctx, cart.AddItemInput{
+				ProductId: item.ProductId,
+				PriceId:   item.PriceId,
+				Quantity:  item.Quantity,
 			})
 			if err != nil {
 				s.logger.Error("Failed to add item to cart", err.Error())
@@ -128,21 +120,21 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 			}
 		}
 
-		newCart, err := s.cartRepository.Create(ctx, entities.Cart{
+		_, err := s.cartRepository.Create(ctx, entities.Cart{
 			OrgId:    input.OrgId,
-			Id:       lib.GenerateId("cart"),
-			Data:     inlineCart,
+			Id:       orderCart.Id,
+			Data:     orderCart.CartData,
 			Metadata: nil,
 		})
 		if err != nil {
 			s.logger.Error(`failed to create cart`, err)
 			return orders.CreateOrderResponse{}, err
 		}
-		orderCart = newCart
+
 	}
 
 	// validate that the cart is not empty
-	if len(orderCart.Data.Items) == 0 {
+	if len(orderCart.Items) == 0 {
 		return orders.CreateOrderResponse{}, errors.New("cart is empty")
 	}
 
@@ -174,6 +166,10 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 					Phone:     input.Customer.Phone,
 					Email:     input.Customer.Email,
 				})
+				if err != nil {
+					s.logger.Error("Failed to update customer", err.Error())
+					return orders.CreateOrderResponse{}, err
+				}
 			} else {
 				s.logger.Error("Failed to create customer", err.Error())
 				return orders.CreateOrderResponse{}, err
@@ -201,17 +197,22 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 	}
 
 	// Go through the list of items in the cart and create the order items for each item
-	for _, item := range orderCart.Data.Items {
+	for _, item := range orderCart.Items {
 		orderItem, err := s.orderItemRepository.Create(ctx, entities.OrderItem{
-			OrgId:       orgId,
-			Id:          lib.GenerateId("order_item"),
-			OrderId:     orderId,
-			PriceId:     item.Price.Id,
-			Description: item.Description,
-			Quantity:    int(item.Quantity),
-			Metadata:    nil,
-			CreatedAt:   time.Now(),
-			UpdatedAt:   time.Now(),
+			OrgId:         orgId,
+			Id:            lib.GenerateId("order_item"),
+			OrderId:       orderId,
+			ProductId:     item.ProductId,
+			PriceId:       item.Price.Id,
+			Description:   item.Description,
+			Quantity:      int(item.Quantity),
+			TaxTotal:      0,
+			DiscountTotal: 0,
+			Subtotal:      0,
+			Total:         0,
+			Metadata:      nil,
+			CreatedAt:     time.Now().UTC(),
+			UpdatedAt:     time.Now().UTC(),
 		})
 		if err != nil {
 			s.logger.Error("Failed to create order item", "item", item, "err", err.Error())
@@ -243,7 +244,7 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 		// initialise the payment session with the payment processor
 		pspResponse, err = gw.InitPayment(ctx, payment_providers.InitPaymentCommand{
 			OrgId:    orgId,
-			Cart:     orderCart.Data,
+			Cart:     orderCart,
 			Order:    order,
 			Customer: customerEntity,
 			Options:  input.Options,
@@ -405,4 +406,23 @@ func (s OrderService) ListOrderSubscriptions(ctx context.Context, orgId string, 
 	}
 
 	return subscriptions, nil
+}
+
+func (s OrderService) List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Order, int, error) {
+	orders, total, err := s.orderRepository.Find(ctx, orgId, pagination)
+	if err != nil {
+		s.logger.Error("Failed to list subscriptions", err.Error())
+		return nil, 0, err
+	}
+
+	return orders, total, nil
+}
+
+func (s OrderService) FindById(ctx context.Context, orgId string, id string) (entities.Order, error) {
+	order, err := s.orderRepository.FindById(ctx, orgId, id)
+	if err != nil {
+		s.logger.Error("Order not found", err.Error())
+		return entities.Order{}, errors.New("order not found")
+	}
+	return order, nil
 }

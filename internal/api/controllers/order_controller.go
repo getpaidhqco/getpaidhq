@@ -174,3 +174,45 @@ func (o OrderController) ListSubscriptions(c *gin.Context) {
 
 	c.JSON(200, rsp)
 }
+
+func (o OrderController) List(c *gin.Context) {
+	user, _ := c.Get("user")
+	orgId := user.(authn.User).OrgId
+	pagination := request.GetPagination(c)
+
+	ords, total, err := o.service.List(c.Request.Context(), orgId, pagination)
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+	var orderRsp []response.Order
+	for _, order := range ords {
+		orderRsp = append(orderRsp, response.NewOrderFromEntity(order))
+	}
+
+	c.JSON(200, response.ListResponse{
+		Data: orderRsp,
+		Meta: response.Meta{
+			Total: total,
+			Page:  pagination.Page,
+			Limit: pagination.Limit,
+		},
+	})
+}
+
+func (o OrderController) Get(c *gin.Context) {
+	user, _ := c.Get("user")
+	authUser := user.(authn.User)
+	orgId := authUser.OrgId
+	id := c.Param("id")
+
+	order, err := o.service.FindById(c.Request.Context(), orgId, id)
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	c.JSON(200, response.NewOrderFromEntity(order))
+}

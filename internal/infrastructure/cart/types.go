@@ -2,25 +2,40 @@ package cart
 
 import "payloop/internal/infrastructure/cart/types"
 
-type Cart struct {
-	Id string `json:"id"`
-
-	Currency string `json:"currency"`
-	Total    int64  `json:"total"`
-	SubTotal int64  `json:"sub_total"`
-	Discount int64  `json:"discount"`
-	Shipping int64  `json:"shipping"`
-	Tax      int64  `json:"tax"`
+type CartData struct {
+	Currency      string `json:"currency"`
+	Total         int64  `json:"total"`
+	SubTotal      int64  `json:"sub_total"`
+	DiscountTotal int64  `json:"discount"`
+	ShippingTotal int64  `json:"shipping"`
+	TaxTotal      int64  `json:"tax"`
 
 	Items []Item `json:"items"`
 }
 
+type AddItemInput struct {
+	ProductId string
+	PriceId   string
+	Quantity  int
+}
+
 type Item struct {
-	ID          string `json:"id"`
-	ProductId   string `json:"product_id"`
-	Price       Price  `json:"price"`
-	Description string `json:"description"`
-	Quantity    int64  `json:"quantity"`
+	Id            string `json:"id"`
+	ProductId     string `json:"product_id"`
+	Price         Price  `json:"price"`
+	Description   string `json:"description"`
+	Quantity      int64  `json:"quantity"`
+	UnitPrice     int64  `json:"unit_price"`
+	TaxTotal      int64  `json:"tax_total"`
+	SubTotal      int64  `json:"sub_total"`
+	DiscountTotal int64  `json:"discount_total"`
+	ShippingTotal int64  `json:"shipping_total"`
+	Total         int64  `json:"total"`
+}
+
+func (i *Item) Calculate() {
+	i.SubTotal = i.UnitPrice * i.Quantity
+	i.Total = i.SubTotal
 }
 
 type Summary struct {

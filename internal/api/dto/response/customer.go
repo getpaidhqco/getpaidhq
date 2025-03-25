@@ -7,15 +7,15 @@ import (
 
 type Customer struct {
 	Id             string            `json:"id"`
-	Name           string            `json:"name"`
+	Name           string            `json:"name,omitempty"`
 	Email          string            `json:"email"`
-	FirstName      string            `json:"first_name"`
-	LastName       string            `json:"last_name"`
-	Phone          string            `json:"phone"`
-	BillingAddress entities.Address  `json:"billing_address"`
-	Metadata       map[string]string `json:"metadata"`
-	CreatedAt      time.Time         `json:"created_at"`
-	UpdatedAt      time.Time         `json:"updated_at"`
+	FirstName      string            `json:"first_name,omitempty"`
+	LastName       string            `json:"last_name,omitempty"`
+	Phone          string            `json:"phone,omitempty"`
+	BillingAddress entities.Address  `json:"billing_address,omitempty"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
+	CreatedAt      time.Time         `json:"created_at,omitempty"`
+	UpdatedAt      time.Time         `json:"updated_at,omitempty"`
 }
 
 func NewCustomerFromEntity(entity entities.Customer) Customer {

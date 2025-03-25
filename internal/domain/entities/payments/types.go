@@ -1,6 +1,9 @@
 package payments
 
-import "payloop/internal/domain/common"
+import (
+	"payloop/internal/domain/common"
+	"time"
+)
 
 type PaymentStatus string
 
@@ -24,5 +27,6 @@ type ChargeResult struct {
 	Currency    string         `json:"currency"`
 	PspId       string         `json:"psp_id"`
 	Reference   string         `json:"reference"`
+	CompletedAt time.Time      `json:"completed_at"`
 	RawData     string         `json:"raw_data"`
 }

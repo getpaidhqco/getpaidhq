@@ -16,6 +16,7 @@ import (
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/infrastructure/workflow/temporal/types"
+	"time"
 )
 
 type OrderActivities struct {
@@ -133,9 +134,11 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 	}
 
 	var status payments.PaymentStatus
+	var completedAt time.Time
 	switch chargeResult.Status {
 	case payment_providers.ChargePaymentStatusSuccess:
 		status = payments.PaymentStatusSucceeded
+		completedAt = time.Now()
 	case payment_providers.ChargePaymentStatusPending:
 		status = payments.PaymentStatusPending
 	case payment_providers.ChargePaymentStatusError:
@@ -143,13 +146,14 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 	}
 
 	result := payments.ChargeResult{
-		Psp:       chargeResult.Psp,
-		Amount:    chargeResult.AmountCharged,
-		Status:    status,
-		Currency:  subscription.Currency,
-		PspId:     chargeResult.PspId,
-		Reference: chargeResult.Reference,
-		RawData:   string(rawData),
+		Psp:         chargeResult.Psp,
+		Amount:      chargeResult.AmountCharged,
+		Status:      status,
+		Currency:    subscription.Currency,
+		PspId:       chargeResult.PspId,
+		Reference:   chargeResult.Reference,
+		CompletedAt: completedAt,
+		RawData:     string(rawData),
 	}
 	return result, nil
 }

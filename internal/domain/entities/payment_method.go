@@ -25,16 +25,16 @@ type PaymentMethod struct {
 }
 
 type Address struct {
-	FirstName  string         `json:"first_name"`
-	LastName   string         `json:"last_name"`
-	Email      string         `json:"email"`
-	Phone      string         `json:"phone"`
-	Line1      string         `json:"line1"`
-	Line2      string         `json:"line2"`
-	City       string         `json:"city"`
-	State      string         `json:"state"`
-	PostalCode string         `json:"postal_code"`
-	Country    common.Country `json:"country"`
+	FirstName  string         `json:"first_name,omitempty"`
+	LastName   string         `json:"last_name,omitempty"`
+	Email      string         `json:"email,omitempty"`
+	Phone      string         `json:"phone,omitempty"`
+	Line1      string         `json:"line1,omitempty"`
+	Line2      string         `json:"line2,omitempty"`
+	City       string         `json:"city,omitempty"`
+	State      string         `json:"state,omitempty"`
+	PostalCode string         `json:"postal_code,omitempty"`
+	Country    common.Country `json:"country,omitempty"`
 }
 
 func (a Address) IsEmpty() bool {

@@ -139,8 +139,8 @@ func (r OrderItemRepository) FindByOrderId(ctx context.Context, orgId string, or
 	defer rows.Close()
 
 	for rows.Next() {
-		var orderItem entities.OrderItem
-		var price entities.Price
+		var orderItem models.OrderItem
+		var price models.Price
 		var metadata []byte
 
 		err := rows.Scan(
@@ -174,7 +174,7 @@ func (r OrderItemRepository) FindByOrderId(ctx context.Context, orgId string, or
 		}
 
 		orderItem.Price = price
-		orderItems = append(orderItems, orderItem)
+		orderItems = append(orderItems, orderItem.ToEntity())
 	}
 
 	if err = rows.Err(); err != nil {

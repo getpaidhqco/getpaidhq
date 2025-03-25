@@ -7,4 +7,5 @@ import (
 // Module exports services present
 var Module = fx.Options(
 	fx.Provide(NewGatewayFactory),
+	fx.Provide(NewCartFactory),
 )

@@ -3,8 +3,6 @@ package entities
 import (
 	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities/prices"
-	"payloop/internal/infrastructure/cart"
-	"payloop/internal/infrastructure/cart/types"
 	"payloop/internal/lib"
 	"time"
 )
@@ -61,22 +59,6 @@ func NewPrice(orgId, variantId string, input CreatePriceInput) Price {
 		Metadata:           input.Metadata,
 		CreatedAt:          time.Now().UTC(),
 		UpdatedAt:          time.Now().UTC(),
-	}
-}
-
-func (p Price) ToCartItemPrice() cart.Price {
-	return cart.Price{
-		Id:                 p.Id,
-		Category:           types.PriceCategory(p.Category),
-		Scheme:             types.PriceScheme(p.Scheme),
-		Currency:           string(p.Currency),
-		Cycles:             int64(p.Cycles),
-		UnitPrice:          p.UnitPrice,
-		BillingInterval:    types.BillingInterval(p.BillingInterval),
-		BillingIntervalQty: int64(p.BillingIntervalQty),
-		TrialInterval:      types.BillingInterval(p.TrialInterval),
-		TrialIntervalQty:   int64(p.TrialIntervalQty),
-		TaxCode:            p.TaxCode,
 	}
 }
 

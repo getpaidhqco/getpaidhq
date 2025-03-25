@@ -6,9 +6,9 @@ import (
 )
 
 func TestAddItem(t *testing.T) {
-	cart := New(CreateCartOptions{Currency: "USD"})
+	cart := New(CartOptions{Currency: "USD"})
 	item := Item{
-		ID:        "1",
+		Id:        "1",
 		ProductId: "prod_1",
 		Price: Price{
 			Id:                 "price_1",

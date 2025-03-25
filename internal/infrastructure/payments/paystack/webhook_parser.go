@@ -51,11 +51,11 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (payment_p
 		}
 
 		if webhook.Metadata.OrgID == "" {
-			return payment_providers.PaymentWebhookContext{}, errors.New("missing org ID in webhook metadata")
+			return payment_providers.PaymentWebhookContext{}, errors.New("missing org Id in webhook metadata")
 		}
 		if webhook.Metadata.OrderID == "" {
-			p.logger.Errorf("missing order ID in webhook metadata")
-			return payment_providers.PaymentWebhookContext{}, errors.New("missing order ID in webhook metadata")
+			p.logger.Errorf("missing order Id in webhook metadata")
+			return payment_providers.PaymentWebhookContext{}, errors.New("missing order Id in webhook metadata")
 		}
 
 		return payment_providers.PaymentWebhookContext{

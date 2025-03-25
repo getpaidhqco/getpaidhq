@@ -10,7 +10,7 @@ type Customer struct {
 	Id             string                 `json:"id"`
 	FirstName      pgtype.Text            `json:"first_name"`
 	LastName       pgtype.Text            `json:"last_name"`
-	Email          string                 `json:"email"`
+	Email          pgtype.Text            `json:"email"`
 	Phone          pgtype.Text            `json:"phone"`
 	BillingAddress map[string]interface{} `json:"billing_address"`
 	Metadata       map[string]string      `json:"metadata"`
@@ -24,7 +24,7 @@ func (c *Customer) ToEntity() entities.Customer {
 		Id:             c.Id,
 		FirstName:      c.FirstName.String,
 		LastName:       c.LastName.String,
-		Email:          c.Email,
+		Email:          c.Email.String,
 		Phone:          c.Phone.String,
 		BillingAddress: entities.ParseAddress(c.BillingAddress),
 		Metadata:       c.Metadata,

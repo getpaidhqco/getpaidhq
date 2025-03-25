@@ -96,12 +96,16 @@ func (s WebhookService) HandlePaymentWebhook(ctx context.Context, payload webhoo
 		subscription := subs[0]
 
 		chargeResult := payments.ChargeResult{
-			Amount:    webhook.Payment.Amount,
-			Status:    payments.PaymentStatusSucceeded,
-			Currency:  webhook.Payment.Currency,
-			PspId:     webhook.Payment.PspId,
-			Reference: webhook.Payment.Reference,
-			RawData:   string(webhook.RawData),
+			Psp:         payload.Psp,
+			Amount:      webhook.Payment.Amount,
+			Status:      payments.PaymentStatusSucceeded,
+			ErrorReason: "",
+			ErrorCode:   "",
+			Currency:    webhook.Payment.Currency,
+			PspId:       webhook.Payment.PspId,
+			Reference:   webhook.Payment.Reference,
+			CompletedAt: webhook.Payment.PaidAt,
+			RawData:     string(webhook.RawData),
 		}
 
 		// signal the workflow

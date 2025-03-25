@@ -291,10 +291,16 @@ model OrderItem {
   orderId String @map("order_id")
   order   Order  @relation(fields: [orgId, orderId], references: [orgId, id], onDelete: Cascade)
 
-  priceId String @map("price_id")
+  productId String @map("product_id")
+  priceId   String @map("price_id")
 
   description String
   quantity    Int
+
+  subTotal      Int @default(0) @map("sub_total")
+  total         Int @default(0)
+  taxTotal      Int @default(0) @map("tax_total")
+  discountTotal Int @default(0) @map("discount_total")
 
   metadata Json
 

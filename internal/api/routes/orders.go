@@ -19,6 +19,9 @@ func (s OrderRoutes) Setup() {
 	{
 		api.POST("/orders", s.orderController.CreateOrder)
 		api.POST("/orders/:id/complete", s.orderController.CompleteOrder)
+
+		api.GET("/orders/:id", s.orderController.Get)
+		api.GET("/orders", s.orderController.List)
 		api.GET("/orders/:id/subscriptions", s.orderController.ListSubscriptions)
 	}
 }

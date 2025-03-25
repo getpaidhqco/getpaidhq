@@ -3,5 +3,5 @@ package response
 import "payloop/internal/infrastructure/cart"
 
 type CartResponse struct {
-	cart.Cart
+	cart.CartData
 }

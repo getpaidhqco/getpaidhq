@@ -2,9 +2,11 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
@@ -131,52 +133,60 @@ LIMIT @lim OFFSET @off;
 func (r PaymentRepository) Create(ctx context.Context, entity entities.Payment) (entities.Payment, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	query := `INSERT INTO payments (org_id, id, psp, psp_id,reference,order_id, subscription_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, completed_at, created_at, updated_at)
-	          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
-	          RETURNING org_id, id, psp, psp_id, reference, order_id, subscription_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, completed_at, created_at, updated_at`
-
+	query := `INSERT INTO payments (org_id, id, psp, psp_id, reference, order_id, subscription_id, recurring, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, completed_at, created_at, updated_at)
+          VALUES (@org_id, @id, @psp, @psp_id, @reference, @order_id, @subscription_id, @recurring, @status, @currency, @amount, @psp_fee, @platform_fee, @net_amount, @metadata, @completed_at, @created_at, @updated_at)
+          RETURNING org_id, id, psp, psp_id, reference, order_id, subscription_id, recurring, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, completed_at, created_at, updated_at`
 	var payment models.Payment
-	err := tx.QueryRow(ctx, query,
-		entity.OrgId,
-		entity.Id,
-		entity.Psp,
-		entity.PspId,
-		entity.Reference,
-		entity.OrderId,
-		entity.SubscriptionId,
-		entity.Status,
-		entity.Currency,
-		entity.Amount,
-		entity.PspFee,
-		entity.PlatformFee,
-		entity.NetAmount,
-		entity.Metadata,
-		entity.CompletedAt,
-		entity.CreatedAt,
-		entity.UpdatedAt,
-	).Scan(
-		&payment.OrgId,
-		&payment.Id,
-		&payment.Psp,
-		&payment.PspId,
-		&payment.Reference,
-		&payment.OrderId,
-		&payment.SubscriptionId,
-		&payment.Status,
-		&payment.Currency,
-		&payment.Amount,
-		&payment.PspFee,
-		&payment.PlatformFee,
-		&payment.NetAmount,
-		&payment.Metadata,
-		&payment.CompletedAt,
-		&payment.CreatedAt,
-		&payment.UpdatedAt,
-	)
+
+	err := tx.QueryRow(ctx, query, paymentEntityToNamedArgs(entity)).
+		Scan(
+			&payment.OrgId,
+			&payment.Id,
+			&payment.Psp,
+			&payment.PspId,
+			&payment.Reference,
+			&payment.OrderId,
+			&payment.SubscriptionId,
+			&payment.Status,
+			&payment.Currency,
+			&payment.Amount,
+			&payment.PspFee,
+			&payment.PlatformFee,
+			&payment.NetAmount,
+			&payment.Metadata,
+			&payment.CompletedAt,
+			&payment.CreatedAt,
+			&payment.UpdatedAt,
+		)
+
 	if err != nil {
 		r.logger.Error(`failed to create Payment`, "err", err.Error())
 		return entities.Payment{}, err
 	}
 
 	return payment.ToEntity(), nil
+}
+
+func paymentEntityToNamedArgs(entity entities.Payment) pgx.NamedArgs {
+	metaJson, _ := json.Marshal(entity.Metadata)
+	return pgx.NamedArgs{
+		"org_id":          entity.OrgId,
+		"id":              entity.Id,
+		"psp":             entity.Psp,
+		"psp_id":          entity.PspId,
+		"reference":       entity.Reference,
+		"order_id":        entity.OrderId,
+		"subscription_id": pgtype.Text{String: entity.SubscriptionId, Valid: entity.SubscriptionId != ""},
+		"status":          entity.Status,
+		"currency":        entity.Currency,
+		"amount":          entity.Amount,
+		"psp_fee":         entity.PspFee,
+		"platform_fee":    entity.PlatformFee,
+		"net_amount":      entity.NetAmount,
+		"metadata":        metaJson,
+		"recurring":       entity.Recurring,
+		"completed_at":    pgtype.Date{Time: entity.CompletedAt, Valid: !entity.CompletedAt.IsZero()},
+		"created_at":      entity.CreatedAt,
+		"updated_at":      entity.UpdatedAt,
+	}
 }

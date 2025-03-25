@@ -112,13 +112,16 @@ func (s OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, input
 	s.logger.Infof("Created payment method %s for order %s", paymentMethod.Id, order.Id)
 
 	var subscriptionId string
+
 	// find subscriptions for the order and update the status to active
 	subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
 	if err != nil {
 		s.logger.Error("no subscriptions", err.Error())
 	}
 
+	recurringPayment := len(subscriptions) > 0 && input.PaymentContext.Payment.Amount > 0
 	for _, subscription := range subscriptions {
+
 		// TODO this needs to happen but not sure if here or like this
 		charged := input.PaymentContext.Payment.Amount > 0 && subscription.StartDate.Sub(time.Now().UTC()) < 0
 		if charged {
@@ -150,16 +153,20 @@ func (s OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, input
 		payment := entities.Payment{
 			OrgId:          orgId,
 			Id:             lib.GenerateId("pmt"),
+			Psp:            input.PaymentContext.Psp,
 			PspId:          input.PaymentContext.Payment.PspId,
+			Reference:      input.PaymentContext.Payment.Reference,
 			OrderId:        orderId,
 			SubscriptionId: subscriptionId,
 			Status:         payments.PaymentStatusSucceeded,
+			Recurring:      recurringPayment,
 			Currency:       input.PaymentContext.Payment.Currency,
 			Amount:         input.PaymentContext.Payment.Amount,
 			PspFee:         0,
 			PlatformFee:    0,
 			NetAmount:      input.PaymentContext.Payment.Amount,
 			Metadata:       nil,
+			CompletedAt:    input.PaymentContext.Payment.PaidAt,
 			CreatedAt:      time.Now().UTC(),
 			UpdatedAt:      time.Now().UTC(),
 		}

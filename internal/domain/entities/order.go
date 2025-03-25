@@ -11,6 +11,7 @@ type Order struct {
 	Status     OrderStatus       `json:"status"`
 	SessionId  string            `json:"session_id,omitempty"`
 	CartId     string            `json:"cart_id,omitempty"`
+	Items      []OrderItem       `json:"items,omitempty"`
 	Currency   string            `json:"currency"`
 	Total      int64             `json:"total"`
 	Metadata   map[string]string `json:"metadata,omitempty"`

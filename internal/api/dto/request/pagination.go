@@ -6,7 +6,7 @@ import (
 )
 
 const (
-	PageDefault  = "1"
+	PageDefault  = "0"
 	LimitDefault = "10"
 	PageTag      = "page"
 	LimitTag     = "limit"
