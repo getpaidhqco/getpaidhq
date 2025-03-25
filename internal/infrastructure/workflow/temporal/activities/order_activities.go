@@ -83,7 +83,7 @@ func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId strin
 // update the subscription status to reflect the billing period
 func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, currentSub entities.Subscription) (payments.ChargeResult, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("ChargeCustomerForBillingPeriod", "id", currentSub.Id, "Amount", currentSub.Amount)
+	logger.Info("ChargeCustomerForBillingPeriod", "id", currentSub.Id, "Total", currentSub.Amount)
 
 	subscription, err := a.subscriptionRepository.FindById(ctx, currentSub.OrgId, currentSub.Id)
 	if err != nil {

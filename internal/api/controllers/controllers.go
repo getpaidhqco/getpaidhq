@@ -15,4 +15,5 @@ var Module = fx.Options(
 	fx.Provide(NewHealthController),
 	fx.Provide(NewProductController),
 	fx.Provide(NewCustomerController),
+	fx.Provide(NewReportController),
 )

@@ -436,9 +436,10 @@ model Payment {
   orgId String @map("org_id")
   id    String @default(cuid())
 
-  psp       String @map("psp")
-  pspId     String @map("psp_id")
-  reference String @default("") @map("reference")
+  psp       String  @map("psp")
+  pspId     String  @map("psp_id")
+  reference String  @default("") @map("reference")
+  recurring Boolean @default(false)
 
   orderId String @map("order_id")
   order   Order  @relation(fields: [orgId, orderId], references: [orgId, id])

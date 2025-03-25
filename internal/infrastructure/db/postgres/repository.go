@@ -22,6 +22,7 @@ var RespositoryModules = fx.Options(
 	fx.Provide(NewVariantRepository),
 	fx.Provide(NewWebhookSubscriptionRepository),
 	fx.Provide(NewApiKeyRepository),
+	fx.Provide(NewReportRepository),
 )
 
 // RepositoryWithTrx is a generic interface for repositories with transaction support
