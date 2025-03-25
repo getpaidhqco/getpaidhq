@@ -41,8 +41,9 @@ func NewTemporalEngine(
 	// Set our Zap logger so that workflows and activities can use it
 	logger.Debugf("Connecting to temporal NewLazyClient [%s]", env.TemporalHost)
 	c, err := client.NewLazyClient(client.Options{
-		HostPort: env.TemporalHost,
-		Logger:   NewZapAdapter(lib.GetZapLogger()),
+		HostPort:  env.TemporalHost,
+		Namespace: "subscriptions",
+		Logger:    NewZapAdapter(lib.GetZapLogger()),
 	})
 	if err != nil {
 		logger.Error("Unable to create client: ", err.Error())
