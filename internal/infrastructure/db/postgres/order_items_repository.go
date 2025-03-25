@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	_ "github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
@@ -95,8 +96,11 @@ func (r OrderItemRepository) FindById(ctx context.Context, orgId string, id stri
 // Create inserts a new order item into the database
 func (r OrderItemRepository) Create(ctx context.Context, orderItem entities.OrderItem) (entities.OrderItem, error) {
 	tx := r.getTransactionFromContext(ctx)
-	query := `INSERT INTO order_items (org_id, id, order_id, price_id, description, quantity, metadata, created_at, updated_at)
-				  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) `
+	query := `INSERT INTO order_items (org_id, id, order_id, product_id, variant_id,
+                         price_id, description, 
+                         quantity, sub_total, tax_total, total, discount_total,  
+                         metadata, created_at, updated_at)
+				  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW()) `
 
 	metadata, err := json.Marshal(orderItem.Metadata)
 	if err != nil {
@@ -107,12 +111,16 @@ func (r OrderItemRepository) Create(ctx context.Context, orderItem entities.Orde
 		orderItem.OrgId,
 		orderItem.Id,
 		orderItem.OrderId,
+		orderItem.ProductId,
+		pgtype.Text{String: orderItem.VariantId, Valid: orderItem.VariantId != ""},
 		orderItem.PriceId,
 		orderItem.Description,
 		orderItem.Quantity,
+		orderItem.Subtotal,
+		orderItem.TaxTotal,
+		orderItem.Total,
+		orderItem.DiscountTotal,
 		metadata,
-		orderItem.CreatedAt,
-		orderItem.UpdatedAt,
 	)
 	if err != nil {
 		return entities.OrderItem{}, err
@@ -126,10 +134,12 @@ func (r OrderItemRepository) FindByOrderId(ctx context.Context, orgId string, or
 	tx := r.getTransactionFromContext(ctx)
 	var orderItems []entities.OrderItem
 
-	query := `SELECT oi.org_id, oi.id, oi.order_id, oi.price_id, oi.description, oi.quantity, oi.metadata, oi.created_at, oi.updated_at,
-			  p.org_id, p.id, p.trial_interval, p.trial_interval_qty, p.billing_interval, p.billing_interval_qty, p.currency, p.unit_price, p.tax_code
+	query := `SELECT oi.org_id, oi.id, oi.order_id, oi.price_id, oi.description, oi.product_id, oi.variant_id,
+      				 oi.quantity, oi.sub_total, oi.tax_total, oi.total, oi.discount_total,
+       				 oi.metadata, oi.created_at, oi.updated_at,
+			  		 p.org_id, p.id, p.trial_interval, p.trial_interval_qty, p.billing_interval, p.billing_interval_qty, p.currency, p.unit_price, p.tax_code
 			  FROM order_items oi
-			  JOIN prices p ON oi.price_id = p.id
+			  JOIN prices p ON oi.org_id = p.org_id AND oi.price_id = p.id
 			  WHERE oi.org_id = $1 AND oi.order_id = $2`
 
 	rows, err := tx.Query(ctx, query, orgId, orderId)
@@ -149,7 +159,13 @@ func (r OrderItemRepository) FindByOrderId(ctx context.Context, orgId string, or
 			&orderItem.OrderId,
 			&orderItem.PriceId,
 			&orderItem.Description,
+			&orderItem.ProductId,
+			&orderItem.VariantId,
 			&orderItem.Quantity,
+			&orderItem.Subtotal,
+			&orderItem.TaxTotal,
+			&orderItem.Total,
+			&orderItem.DiscountTotal,
 			&metadata,
 			&orderItem.CreatedAt,
 			&orderItem.UpdatedAt,

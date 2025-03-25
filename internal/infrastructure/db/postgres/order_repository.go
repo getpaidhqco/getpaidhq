@@ -112,15 +112,12 @@ func (r OrderRepository) FindById(ctx context.Context, orgId string, id string) 
 func (r OrderRepository) Create(ctx context.Context, entity entities.Order) (entities.Order, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	var order entities.Order
-
 	query := `INSERT INTO orders (org_id,id,customer_id,cart_id,reference,status,session_id,currency,total,metadata, created_at, updated_at) 
-			  VALUES (@org_id,@id,@customer_id,@cart_id,@reference,@status,@session_id, @currency,@total,@metadata, NOW(), NOW())
-			  RETURNING org_id,id,customer_id,reference,status,session_id,cart_id,currency,total,metadata,created_at, updated_at`
+			  VALUES (@org_id,@id,@customer_id,@cart_id,@reference,@status,@session_id, @currency,@total,@metadata, NOW(), NOW())`
 
 	metaJson, _ := json.Marshal(entity.Metadata)
 
-	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
+	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
 		"org_id":      entity.OrgId,
 		"id":          entity.Id,
 		"customer_id": entity.CustomerId,
@@ -131,27 +128,14 @@ func (r OrderRepository) Create(ctx context.Context, entity entities.Order) (ent
 		"currency":    entity.Currency,
 		"total":       entity.Total,
 		"metadata":    metaJson,
-	}).Scan(
-		&order.OrgId,
-		&order.Id,
-		&order.CustomerId,
-		&order.Reference,
-		&order.Status,
-		&order.SessionId,
-		&order.CartId,
-		&order.Currency,
-		&order.Total,
-		&order.Metadata,
-		&order.CreatedAt,
-		&order.UpdatedAt,
-	)
+	})
 
 	if err != nil {
 		r.logger.Error(`failed to insert Order`, err.Error())
 		return entities.Order{}, err
 	}
 
-	return order, nil
+	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
 // Update updates an existing order in the database and joins with the customer

@@ -177,10 +177,11 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 		}
 	}
 
+	ref := time.Now().Format("20060102150405")
 	order, err := s.orderRepository.Create(ctx, entities.Order{
 		OrgId:      orgId,
 		Id:         orderId,
-		Reference:  orderId,
+		Reference:  ref,
 		CustomerId: customerEntity.Id,
 		Status:     entities.OrderStatusPending,
 		SessionId:  input.SessionId,
@@ -206,10 +207,10 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 			PriceId:       item.Price.Id,
 			Description:   item.Description,
 			Quantity:      int(item.Quantity),
-			TaxTotal:      0,
-			DiscountTotal: 0,
-			Subtotal:      0,
-			Total:         0,
+			TaxTotal:      item.TaxTotal,
+			DiscountTotal: item.DiscountTotal,
+			Subtotal:      item.SubTotal,
+			Total:         item.Total,
 			Metadata:      nil,
 			CreatedAt:     time.Now().UTC(),
 			UpdatedAt:     time.Now().UTC(),
@@ -255,8 +256,10 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 		}
 	}
 
+	newOrder, _ := s.orderRepository.FindById(ctx, orgId, order.Id)
+
 	return orders.CreateOrderResponse{
-		Order: order,
+		Order: newOrder,
 		Psp:   pspResponse,
 	}, nil
 }
