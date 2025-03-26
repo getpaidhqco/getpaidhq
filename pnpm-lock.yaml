@@ -6,7 +6,11 @@ settings:
 
 importers:
 
-  .: {}
+  .:
+    devDependencies:
+      prisma:
+        specifier: ^6.2.1
+        version: 6.2.1
 
   prisma:
     dependencies:
