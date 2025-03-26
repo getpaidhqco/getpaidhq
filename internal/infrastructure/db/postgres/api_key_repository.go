@@ -67,9 +67,9 @@ func (r ApiKeyRepository) FindByKey(ctx context.Context, key string) (entities.A
 func (r ApiKeyRepository) Create(ctx context.Context, entity entities.ApiKey) (entities.ApiKey, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	query := `INSERT INTO api_keys (id, key, created_at, updated_at) VALUES ($1, $2, NOW(), NOW())`
+	query := `INSERT INTO api_keys (org_id, id, key, created_at, updated_at) VALUES ($1, $2, $3, NOW(), NOW())`
 
-	_, err := tx.Exec(ctx, query, entity.Id, entity.Key)
+	_, err := tx.Exec(ctx, query, entity.OrgId, entity.Id, entity.Key)
 	if err != nil {
 		r.logger.Error(`failed to insert ApiKey`, err)
 		return entities.ApiKey{}, err
@@ -81,9 +81,9 @@ func (r ApiKeyRepository) Create(ctx context.Context, entity entities.ApiKey) (e
 func (r ApiKeyRepository) Update(ctx context.Context, entity entities.ApiKey) (entities.ApiKey, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	query := `UPDATE api_keys SET key=$1, updated_at=NOW() WHERE id=$2`
+	query := `UPDATE api_keys SET key=$1, updated_at=NOW() WHERE org_id=$2 AND id=$3`
 
-	_, err := tx.Exec(ctx, query, entity.Key, entity.Id)
+	_, err := tx.Exec(ctx, query, entity.Key, entity.OrgId, entity.Id)
 	if err != nil {
 		r.logger.Error(`failed to update ApiKey`, err)
 		return entities.ApiKey{}, err
@@ -95,9 +95,9 @@ func (r ApiKeyRepository) Update(ctx context.Context, entity entities.ApiKey) (e
 func (r ApiKeyRepository) Delete(ctx context.Context, orgId string, id string) error {
 	tx := r.getTransactionFromContext(ctx)
 
-	query := `DELETE FROM api_keys WHERE id=$1`
+	query := `DELETE FROM api_keys WHERE org_id=$1 AND id=$2`
 
-	_, err := tx.Exec(ctx, query, id)
+	_, err := tx.Exec(ctx, query, orgId, id)
 	if err != nil {
 		r.logger.Error(`failed to delete ApiKey`, err)
 		return err
