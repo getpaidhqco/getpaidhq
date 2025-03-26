@@ -112,7 +112,7 @@ func (o OrderController) CompleteOrder(c *gin.Context) {
 	}
 
 	var completedAt time.Time
-	if input.Payment.CompletedAt == "" {
+	if input.Payment.CompletedAt != "" {
 		parsed, err := time.Parse(time.RFC3339, input.Payment.CompletedAt)
 		if err != nil {
 			apiErr := api.NewApiError(lib.ValidationError, "Invalid completed_at format", nil)
