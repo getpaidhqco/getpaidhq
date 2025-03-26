@@ -4,6 +4,7 @@ import (
 	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/payment_providers"
+	"time"
 )
 
 type CartItem struct {
@@ -56,7 +57,7 @@ type CompleteOrderInput struct {
 
 type CompleteOrderInputPayment struct {
 	PspId       string            `json:"psp_id"`
-	CompletedAt string            `json:"completed_at"`
+	CompletedAt time.Time         `json:"completed_at"`
 	Reference   string            `json:"reference"`
 	Amount      int64             `json:"amount"`
 	Currency    string            `json:"currency"`

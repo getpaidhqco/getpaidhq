@@ -346,6 +346,7 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 				OrgId:          input.OrgId,
 				Id:             lib.GenerateId("pmt"),
 				Psp:            subscription.PspId,
+				Recurring:      true,
 				PspId:          input.Payment.PspId,
 				Reference:      input.Payment.Reference,
 				OrderId:        input.Id,
@@ -357,7 +358,7 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 				PlatformFee:    0,
 				NetAmount:      input.Payment.Amount,
 				Metadata:       input.Payment.Metadata,
-				CompletedAt:    time.Time{},
+				CompletedAt:    input.Payment.CompletedAt,
 				CreatedAt:      time.Now().UTC(),
 				UpdatedAt:      time.Now().UTC(),
 			}

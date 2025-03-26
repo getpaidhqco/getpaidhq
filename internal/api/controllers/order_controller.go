@@ -13,6 +13,7 @@ import (
 	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/lib"
+	"time"
 )
 
 // OrderController data type
@@ -110,6 +111,17 @@ func (o OrderController) CompleteOrder(c *gin.Context) {
 		return
 	}
 
+	var completedAt time.Time
+	if input.Payment.CompletedAt == "" {
+		parsed, err := time.Parse(time.RFC3339, input.Payment.CompletedAt)
+		if err != nil {
+			apiErr := api.NewApiError(lib.ValidationError, "Invalid completed_at format", nil)
+			c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+			return
+		}
+		completedAt = parsed
+	}
+
 	rsp, err := o.service.CompleteOrder(c.Request.Context(), orders.CompleteOrderInput{
 		OrgId:           authUser.OrgId,
 		Id:              id,
@@ -136,7 +148,7 @@ func (o OrderController) CompleteOrder(c *gin.Context) {
 		},
 		Payment: orders.CompleteOrderInputPayment{
 			PspId:       input.Payment.PspId,
-			CompletedAt: input.Payment.CompletedAt,
+			CompletedAt: completedAt,
 			Reference:   input.Payment.Reference,
 			Amount:      input.Payment.Amount,
 			Currency:    input.Payment.Currency,
