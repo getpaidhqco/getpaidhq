@@ -133,9 +133,18 @@ LIMIT @lim OFFSET @off;
 func (r PaymentRepository) Create(ctx context.Context, entity entities.Payment) (entities.Payment, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	query := `INSERT INTO payments (org_id, id, psp, psp_id, reference, order_id, subscription_id, recurring, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, completed_at, created_at, updated_at)
-          VALUES (@org_id, @id, @psp, @psp_id, @reference, @order_id, @subscription_id, @recurring, @status, @currency, @amount, @psp_fee, @platform_fee, @net_amount, @metadata, @completed_at, @created_at, @updated_at)
-          RETURNING org_id, id, psp, psp_id, reference, order_id, subscription_id, recurring, status, currency, amount, psp_fee, platform_fee, net_amount, metadata, completed_at, created_at, updated_at`
+	query := `INSERT INTO payments (org_id, id, psp, psp_id, reference, 
+                      order_id, subscription_id, recurring, status, currency, 
+                      amount, psp_fee, platform_fee, net_amount, metadata, 
+                      completed_at, created_at, updated_at)
+          VALUES (@org_id, @id, @psp, @psp_id, @reference, 
+                  @order_id, @subscription_id, @recurring, @status, @currency, 
+                  @amount, @psp_fee, @platform_fee, @net_amount, @metadata, 
+                  @completed_at, @created_at, @updated_at)
+          RETURNING org_id, id, psp, psp_id, reference, 
+              order_id, subscription_id, recurring, status, currency, 
+              amount, psp_fee, platform_fee, net_amount, metadata, 
+              completed_at, created_at, updated_at`
 	var payment models.Payment
 
 	err := tx.QueryRow(ctx, query, paymentEntityToNamedArgs(entity)).
@@ -147,6 +156,7 @@ func (r PaymentRepository) Create(ctx context.Context, entity entities.Payment) 
 			&payment.Reference,
 			&payment.OrderId,
 			&payment.SubscriptionId,
+			&payment.Recurring,
 			&payment.Status,
 			&payment.Currency,
 			&payment.Amount,

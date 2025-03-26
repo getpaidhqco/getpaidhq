@@ -15,6 +15,7 @@ type Payment struct {
 	Reference      string            `json:"reference"`
 	OrderId        string            `json:"order_id"`
 	SubscriptionId string            `json:"subscription_id"`
+	Recurring      bool              `json:"recurring"`
 	Status         string            `json:"status"`
 	Currency       string            `json:"currency"`
 	Amount         int64             `json:"amount"`
@@ -36,6 +37,7 @@ func (s *Payment) ToEntity() entities.Payment {
 		Reference:      s.Reference,
 		OrderId:        s.OrderId,
 		SubscriptionId: s.SubscriptionId,
+		Recurring:      s.Recurring,
 		Status:         payments.PaymentStatus(s.Status),
 		Currency:       s.Currency,
 		Amount:         s.Amount,

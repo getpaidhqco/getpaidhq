@@ -1,4 +1,10 @@
 
+## Database Migrations
+For the Postgres database we use Prisma to manage the database schema and migrations.  Migrations in Test and Prod environments
+are managed by the CI/CD pipeline. Migrations are executed before the Payloop backend is built and deployed.
+Check the buildspec.yml file for more details.
+
+
 
 ## Connecting to Test environment 
 Via the bastion 
