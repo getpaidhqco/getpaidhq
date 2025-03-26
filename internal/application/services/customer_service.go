@@ -92,6 +92,14 @@ func (s CustomerService) CreatePaymentMethod(ctx context.Context, orgId string, 
 		return entities.PaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Either specify billing address or add a default billing address to the customer.", nil)
 	}
 
+	var expireAt time.Time
+	if input.ExpireAt != "" {
+		expireAt, err = time.Parse(time.RFC3339, input.ExpireAt)
+		if err != nil {
+			return entities.PaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Invalid expiry date", err)
+		}
+	}
+
 	// check for existing payment method
 	paymentMethod := entities.PaymentMethod{
 		OrgId:          orgId,
@@ -104,11 +112,12 @@ func (s CustomerService) CreatePaymentMethod(ctx context.Context, orgId string, 
 		Type:           input.Type,
 		Token:          input.Token,
 		Details:        input.Metadata,
+		ExpireAt:       expireAt,
 		CreatedAt:      time.Now().UTC(),
 		UpdatedAt:      time.Now().UTC(),
 	}
 
-	newPaymentMethod, err := s.customerRepository.CreatePaymentMethod(ctx, paymentMethod)
+	newPaymentMethod, err := s.paymentMethodRepository.Create(ctx, paymentMethod)
 	if err != nil {
 		s.logger.Error("Failed to create payment method: ", "err", err)
 		return entities.PaymentMethod{}, lib.MapDatabaseError(err)

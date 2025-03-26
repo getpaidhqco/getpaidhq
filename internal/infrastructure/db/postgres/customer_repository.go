@@ -170,54 +170,6 @@ func (r CustomerRepository) FindPaymentMethodById(ctx context.Context, orgId str
 	return pm, nil
 }
 
-func (r CustomerRepository) CreatePaymentMethod(ctx context.Context, entity entities.PaymentMethod) (entities.PaymentMethod, error) {
-	tx := r.getTransactionFromContext(ctx)
-
-	query := `INSERT INTO payment_methods (org_id, id,token, psp,name, customer_id, is_default, details, type, created_at, updated_at)
-			  VALUES (@org_id, @id,@token,@psp, @name, @customer_id, @is_default, @details, @type, now(), now())
-			  ON CONFLICT (org_id, customer_id, token) DO UPDATE SET
-				  token = EXCLUDED.token,
-				  psp = EXCLUDED.psp,
-				  name = EXCLUDED.name,
-				  customer_id = EXCLUDED.customer_id,
-				  is_default = EXCLUDED.is_default,
-				  details = EXCLUDED.details,
-				  type = EXCLUDED.type,
-				  updated_at = now() 
-			  RETURNING org_id, id,token, psp,name, customer_id, is_default, details, type, created_at, updated_at`
-
-	var newEntity entities.PaymentMethod
-	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
-		"org_id":      entity.OrgId,
-		"id":          entity.Id,
-		"name":        entity.Name,
-		"psp":         entity.Psp,
-		"token":       entity.Token,
-		"customer_id": entity.CustomerId,
-		"is_default":  entity.IsDefault,
-		"details":     entity.Details,
-		"type":        entity.Type,
-	}).Scan(
-		&newEntity.OrgId,
-		&newEntity.Id,
-		&newEntity.Token,
-		&newEntity.Psp,
-		&newEntity.Name,
-		&newEntity.CustomerId,
-		&newEntity.IsDefault,
-		&newEntity.Details,
-		&newEntity.Type,
-		&newEntity.CreatedAt,
-		&newEntity.UpdatedAt,
-	)
-
-	if err != nil {
-		return entities.PaymentMethod{}, mapError(err)
-	}
-
-	return newEntity, nil
-}
-
 func (r CustomerRepository) Update(ctx context.Context, entity entities.Customer) (entities.Customer, error) {
 	tx := r.getTransactionFromContext(ctx)
 

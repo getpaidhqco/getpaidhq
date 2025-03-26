@@ -20,5 +20,6 @@ type CreatePaymentMethodRequest struct {
 	Token          string            `json:"token" binding:"required"`
 	IsDefault      bool              `json:"is_default"`
 	BillingAddress entities.Address  `json:"billing_address"`
+	ExpireAt       string            `json:"expire_at"`
 	Metadata       map[string]string `json:"details"`
 }

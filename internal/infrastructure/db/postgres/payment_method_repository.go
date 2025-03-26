@@ -2,10 +2,13 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
+	"payloop/internal/infrastructure/db/postgres/models"
 	"payloop/internal/lib"
 	"time"
 )
@@ -56,8 +59,8 @@ func (r PaymentMethodRepository) FindById(ctx context.Context, orgId string, id 
 func (r PaymentMethodRepository) Create(ctx context.Context, entity entities.PaymentMethod) (entities.PaymentMethod, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	query := `INSERT INTO payment_methods (org_id, id, token, psp, name, customer_id, is_default, details, type, created_at, updated_at)
-			  VALUES (@org_id, @id, @token, @psp, @name, @customer_id, @is_default, @details, @type, now(), now())
+	query := `INSERT INTO payment_methods (org_id, id, status, token, psp, name, customer_id, is_default, details, type, expire_at, created_at, updated_at)
+			  VALUES (@org_id, @id, status, @token, @psp, @name, @customer_id, @is_default, @details, @type, @expire_at,now(), now())
 			  ON CONFLICT (org_id, customer_id, token) DO UPDATE SET
 				  token = EXCLUDED.token,
 				  psp = EXCLUDED.psp,
@@ -65,24 +68,29 @@ func (r PaymentMethodRepository) Create(ctx context.Context, entity entities.Pay
 				  customer_id = EXCLUDED.customer_id,
 				  is_default = EXCLUDED.is_default,
 				  details = EXCLUDED.details,
+				  expire_at = EXCLUDED.expire_at,
 				  type = EXCLUDED.type,
 				  updated_at = now() 
-			  RETURNING org_id, id, token, psp, name, customer_id, is_default, details, type, created_at, updated_at`
+			  RETURNING org_id, id, status, token, psp, name, customer_id, is_default, details, type, expire_at, created_at, updated_at`
 
-	var newEntity entities.PaymentMethod
+	detailsJson, _ := json.Marshal(entity.Details)
+	var newEntity models.PaymentMethod
 	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
 		"org_id":      entity.OrgId,
 		"id":          entity.Id,
+		"status":      entity.Status,
 		"name":        entity.Name,
 		"psp":         entity.Psp,
 		"token":       entity.Token,
 		"customer_id": entity.CustomerId,
 		"is_default":  entity.IsDefault,
-		"details":     entity.Details,
+		"details":     detailsJson,
 		"type":        entity.Type,
+		"expire_at":   pgtype.Date{Time: entity.ExpireAt, Valid: !entity.ExpireAt.IsZero()},
 	}).Scan(
 		&newEntity.OrgId,
 		&newEntity.Id,
+		&newEntity.Status,
 		&newEntity.Token,
 		&newEntity.Psp,
 		&newEntity.Name,
@@ -90,6 +98,7 @@ func (r PaymentMethodRepository) Create(ctx context.Context, entity entities.Pay
 		&newEntity.IsDefault,
 		&newEntity.Details,
 		&newEntity.Type,
+		&newEntity.ExpireAt,
 		&newEntity.CreatedAt,
 		&newEntity.UpdatedAt,
 	)
@@ -98,7 +107,7 @@ func (r PaymentMethodRepository) Create(ctx context.Context, entity entities.Pay
 		return entities.PaymentMethod{}, mapError(err)
 	}
 
-	return newEntity, nil
+	return newEntity.ToEntity(), nil
 }
 
 func (r PaymentMethodRepository) Update(ctx context.Context, entity entities.PaymentMethod) (entities.PaymentMethod, error) {

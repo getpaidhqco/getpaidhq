@@ -17,18 +17,19 @@ import (
 )
 
 type OrderWorkflowService struct {
-	sessionRepository      repositories.SessionRepository
-	cartRepository         repositories.CartRepository
-	priceRepository        repositories.PriceRepository
-	orderRepository        repositories.OrderRepository
-	customerRepository     repositories.CustomerRepository
-	subscriptionRepository repositories.SubscriptionRepository
-	orderItemRepository    repositories.OrderItemRepository
-	paymentRepository      repositories.PaymentRepository
-	gatewayFactory         factories.GatewayFactory
-	pubsub                 events.PubSub
-	db                     lib.Database
-	logger                 logger.Logger
+	sessionRepository       repositories.SessionRepository
+	cartRepository          repositories.CartRepository
+	priceRepository         repositories.PriceRepository
+	orderRepository         repositories.OrderRepository
+	customerRepository      repositories.CustomerRepository
+	subscriptionRepository  repositories.SubscriptionRepository
+	paymentMethodRepository repositories.PaymentMethodRepository
+	orderItemRepository     repositories.OrderItemRepository
+	paymentRepository       repositories.PaymentRepository
+	gatewayFactory          factories.GatewayFactory
+	pubsub                  events.PubSub
+	db                      lib.Database
+	logger                  logger.Logger
 }
 
 func NewOrderWorkflowService(
@@ -37,6 +38,7 @@ func NewOrderWorkflowService(
 	cartRepository repositories.CartRepository,
 	orderRepository repositories.OrderRepository,
 	customerRepository repositories.CustomerRepository,
+	paymentMethodRepository repositories.PaymentMethodRepository,
 	orderItemRepository repositories.OrderItemRepository,
 	subscriptionRepository repositories.SubscriptionRepository,
 	paymentRepository repositories.PaymentRepository,
@@ -46,17 +48,18 @@ func NewOrderWorkflowService(
 	logger logger.Logger,
 ) interfaces.OrderWorkflowService {
 	return OrderWorkflowService{
-		customerRepository:     customerRepository,
-		priceRepository:        priceRepository,
-		sessionRepository:      sessionRepository,
-		cartRepository:         cartRepository,
-		subscriptionRepository: subscriptionRepository,
-		orderRepository:        orderRepository,
-		logger:                 logger,
-		gatewayFactory:         gatewayFactory,
-		paymentRepository:      paymentRepository,
-		pubsub:                 pubsub,
-		db:                     db,
+		customerRepository:      customerRepository,
+		priceRepository:         priceRepository,
+		sessionRepository:       sessionRepository,
+		paymentMethodRepository: paymentMethodRepository,
+		cartRepository:          cartRepository,
+		subscriptionRepository:  subscriptionRepository,
+		orderRepository:         orderRepository,
+		logger:                  logger,
+		gatewayFactory:          gatewayFactory,
+		paymentRepository:       paymentRepository,
+		pubsub:                  pubsub,
+		db:                      db,
 
 		orderItemRepository: orderItemRepository,
 	}
@@ -91,7 +94,7 @@ func (s OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, input
 	}
 
 	// create a payment method
-	paymentMethod, err := s.customerRepository.CreatePaymentMethod(ctx, entities.PaymentMethod{
+	paymentMethod, err := s.paymentMethodRepository.Create(ctx, entities.PaymentMethod{
 		OrgId:          orgId,
 		Id:             lib.GenerateId("payment_method"),
 		Psp:            string(input.PaymentContext.Psp),
