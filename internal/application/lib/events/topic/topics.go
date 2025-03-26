@@ -18,6 +18,13 @@ const (
 	SubscriptionStatusCompleted = "subscription.completed"
 	SubscriptionStatusPastDue   = "subscription.past_due"
 
+	// Payment Method
+	PaymentMethodCreated   = "payment_method.created"
+	PaymentMethodUpdated   = "payment_method.updated"
+	PaymentMethodDeleted   = "payment_method.deleted"
+	PaymentMethodExpired   = "payment_method.expired"
+	PaymentMethodExpiryDue = "payment_method.expiry_due"
+
 	SubscriptionPaymentChargeSuccess = "subscription.payment.charge.success"
 	SubscriptionPaymentChargeFailed  = "subscription.payment.charge.failed"
 

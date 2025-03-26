@@ -16,7 +16,7 @@ type ProrationBillingMode string
 const (
 	// ProratedImmediately:  calculates the prorated amount for the subscription changes based on the current billing cycle, then creates a transaction to collect immediately.
 	ProratedImmediately ProrationBillingMode = "prorated_immediately"
-	// ProratedNextBillingPeriod:  calculates the prorated amount for the subscription changes based on the current billing cycle, then schedules them to be billed on the next renewal.
+	// ProratedNextBillingPeriod:  calculates the prorated amount for the subscription changes based on the current billing cycle, then scheduler them to be billed on the next renewal.
 	ProratedNextBillingPeriod ProrationBillingMode = "prorated_next_billing_period"
 	// FullImmediately:  does not calculate proration for the subscription changes, creating a transaction to collect for the full amount immediately.
 	FullImmediately ProrationBillingMode = "full_immediately"

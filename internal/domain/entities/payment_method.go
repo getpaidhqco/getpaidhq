@@ -6,20 +6,29 @@ import (
 	"time"
 )
 
+type PaymentMethodStatus string
+
+const (
+	Active  PaymentMethodStatus = "active"
+	Expired PaymentMethodStatus = "expired"
+)
+
 type PaymentMethod struct {
-	OrgId          string  `json:"org_id"`
-	Id             string  `json:"id"`
-	Psp            string  `json:"psp"`
-	Name           string  `json:"name"`
-	CustomerId     string  `json:"customer_id"`
-	IsDefault      bool    `json:"is_default"`
-	BillingAddress Address `json:"billing_address"`
-	Type           string  `json:"type"`
+	OrgId          string              `json:"org_id"`
+	Id             string              `json:"id"`
+	Status         PaymentMethodStatus `json:"status"`
+	Psp            string              `json:"psp"`
+	Name           string              `json:"name"`
+	CustomerId     string              `json:"customer_id"`
+	IsDefault      bool                `json:"is_default"`
+	BillingAddress Address             `json:"billing_address"`
+	Type           string              `json:"type"`
 
 	// TODO store this securely somewhere else
 	Token string `json:"token"`
 
 	Details   interface{}
+	ExpireAt  time.Time `json:"expire_at"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }

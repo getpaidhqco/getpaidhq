@@ -4,6 +4,8 @@ import (
 	"context"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/interfaces"
+	"payloop/internal/application/lib/events"
+	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
@@ -12,19 +14,33 @@ import (
 )
 
 type CustomerService struct {
-	customerRepository repositories.CustomerRepository
-	logger             logger.Logger
+	customerRepository      repositories.CustomerRepository
+	paymentMethodRepository repositories.PaymentMethodRepository
+	pubsub                  events.PubSub
+	logger                  logger.Logger
 }
 
 func NewCustomerService(
 	customerRepository repositories.CustomerRepository,
+	paymentMethodRepository repositories.PaymentMethodRepository,
+	pubsub events.PubSub,
 	logger logger.Logger,
-
+	scheduler interfaces.Scheduler,
 ) CustomerService {
-	return CustomerService{
-		customerRepository: customerRepository,
-		logger:             logger,
+	service := CustomerService{
+		customerRepository:      customerRepository,
+		paymentMethodRepository: paymentMethodRepository,
+		pubsub:                  pubsub,
+		logger:                  logger,
 	}
+	// set up the payment method expiry detection
+	// 3am first of every month
+	err := scheduler.ScheduleTask("0 3 1 * *", service.DetectExpiringPaymentMethods)
+	if err != nil {
+		logger.Errorf("Failed to schedule task: %v", err)
+		panic(err)
+	}
+	return service
 }
 
 func (s CustomerService) Create(ctx context.Context, orgId string, customerRequest request.CreateCustomerRequest) (entities.Customer, error) {
@@ -98,5 +114,21 @@ func (s CustomerService) CreatePaymentMethod(ctx context.Context, orgId string, 
 		return entities.PaymentMethod{}, lib.MapDatabaseError(err)
 	}
 
+	_ = s.pubsub.Publish(orgId, topic.PaymentMethodCreated, newPaymentMethod)
 	return newPaymentMethod, nil
+}
+
+func (s CustomerService) DetectExpiringPaymentMethods() {
+	s.logger.Infof("Detecting expiring payment methods for all organizations")
+	// Implement the logic to detect expiring payment methods
+	expiring, err := s.paymentMethodRepository.FindExpiringPaymentMethods(context.Background(), time.Now().UTC())
+	if err != nil {
+		s.logger.Error("Failed to detect expiring payment methods: ", "err", err)
+		return
+	}
+	for _, paymentMethod := range expiring {
+		// send notification to customer
+		s.logger.Infof("Payment method %s is expiring", paymentMethod.Id)
+		_ = s.pubsub.Publish(paymentMethod.OrgId, topic.PaymentMethodExpired, paymentMethod)
+	}
 }

@@ -13,6 +13,7 @@ import (
 	"payloop/internal/infrastructure/db/postgres"
 	"payloop/internal/infrastructure/pubsub/nats"
 	"payloop/internal/infrastructure/queue/sqs"
+	"payloop/internal/infrastructure/scheduler/cron"
 	"payloop/internal/infrastructure/workflow/temporal"
 	"payloop/internal/lib"
 )
@@ -44,4 +45,7 @@ var CommonModules = fx.Options(
 
 	// Cache client
 	redis.Module,
+
+	// Scheduler
+	cron.Module,
 )

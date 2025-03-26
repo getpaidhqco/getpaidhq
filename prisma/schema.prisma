@@ -348,10 +348,11 @@ model PaymentMethod {
   orgId String @map("org_id")
   id    String @default(cuid())
 
+  status     PaymentMethodStatus @default(active)
   psp        String
   name       String?
-  customerId String   @map("customer_id")
-  customer   Customer @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Cascade)
+  customerId String              @map("customer_id")
+  customer   Customer            @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Cascade)
 
   isDefault Boolean @map("is_default")
 
@@ -360,6 +361,7 @@ model PaymentMethod {
   type           String
   token          String
 
+  expireAt      DateTime?      @map("expire_at")
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
   subscriptions Subscription[]
@@ -367,6 +369,11 @@ model PaymentMethod {
   @@id([orgId, id], map: "paymentmethod_pk")
   @@unique([orgId, customerId, token])
   @@map("payment_methods")
+}
+
+enum PaymentMethodStatus {
+  active
+  expired
 }
 
 model Subscription {
