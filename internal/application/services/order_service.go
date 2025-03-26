@@ -364,6 +364,7 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 			payment, err := s.paymentRepository.Create(ctx, payment)
 			if err != nil {
 				s.logger.Error("Failed to create payment", err.Error())
+				return entities.Order{}, err
 			}
 		}
 
