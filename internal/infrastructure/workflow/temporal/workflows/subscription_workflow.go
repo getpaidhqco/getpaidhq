@@ -166,7 +166,8 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			// a system error occurred when attempting to charge the customer
 			// This shouldn't be reached because of the retry policy which will retry forever
 			// The workflow can be stopped using updates
-
+			// TODO report this error
+			logger.Error("ChargeCustomerForBillingPeriod failed completely, ending workflow", "Error", err.Error())
 			return subscription, err
 		}
 
