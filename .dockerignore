@@ -18,8 +18,10 @@ prisma/
 node_modules/
 
 # Environment files
-#.env
+#..env
 
 # Docker files
 Dockerfile
 docker-compose.yml
+
+docker/.env
