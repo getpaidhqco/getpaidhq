@@ -175,7 +175,7 @@ func (r CustomerRepository) Update(ctx context.Context, entity entities.Customer
 	query := `UPDATE customers SET email=@Email, 
                      first_name=@FirstName, 
                      last_name=@LastName,
-                     default_payment_method_id=@default_payment_method_id
+                     default_payment_method_id=@default_payment_method_id,
                      phone=@Phone, 
                      billing_address=@BillingAddress, 
                      metadata=@Metadata,

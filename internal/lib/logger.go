@@ -49,7 +49,7 @@ func (l MyLogger) Info(msg string, keysAndValues ...interface{}) {
 func (l MyLogger) Warn(msg string, keysAndValues ...interface{}) {
 	l.logger.Warn(msg, keysAndValues...)
 }
-``
+
 func (l MyLogger) Error(msg string, keysAndValues ...interface{}) {
 	l.logger.Error(msg, keysAndValues...)
 }
@@ -187,6 +187,7 @@ func newLogger(env Env, opts ...zap.Option) logger.Logger {
 	default:
 		level = zap.PanicLevel
 	}
+	opts = append(opts, zap.AddCaller(), zap.AddCallerSkip(4), zap.WithCaller(true), zap.AddStacktrace(zapcore.FatalLevel))
 	config.Level.SetLevel(level)
 
 	zapLogger, _ = config.Build(opts...)
@@ -194,7 +195,7 @@ func newLogger(env Env, opts ...zap.Option) logger.Logger {
 	handler := slogzap.Option{
 		Level:     slog.LevelDebug,
 		Logger:    zapLogger,
-		AddSource: true,
+		AddSource: false,
 	}.NewZapHandler()
 
 	l := slog.New(handler)

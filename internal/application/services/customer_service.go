@@ -125,6 +125,7 @@ func (s CustomerService) CreatePaymentMethod(ctx context.Context, orgId string, 
 
 	if input.IsDefault {
 		// update the customer's default payment method
+		s.logger.Debugf("Updating customer %s default payment method to %s", customer.Id, newPaymentMethod.Id)
 		customer.DefaultPaymentMethodId = newPaymentMethod.Id
 		_, err = s.customerRepository.Update(ctx, customer)
 		if err != nil {

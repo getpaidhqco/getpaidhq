@@ -29,8 +29,6 @@ func NewPaymentMethodRepository(database lib.Database, logger logger.Logger) rep
 	}
 }
 
-// Implementing the missing methods for PaymentMethodRepository
-
 func (r PaymentMethodRepository) FindById(ctx context.Context, orgId string, id string) (entities.PaymentMethod, error) {
 	tx := r.getTransactionFromContext(ctx)
 
