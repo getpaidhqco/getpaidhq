@@ -327,13 +327,15 @@ model Customer {
   phone          String?
   billingAddress Json?   @map("billing_address")
 
-  metadata Json?
+  metadata               Json?
+  defaultPaymentMethodId String?        @map("default_payment_method_id")
+  defaultPaymentMethod   PaymentMethod? @relation(name: "dpm", fields: [orgId, defaultPaymentMethodId], references: [orgId, id])
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   orders         Order[]
-  paymentMethods PaymentMethod[]
+  paymentMethods PaymentMethod[] @relation(name: "pmc")
   subscriptions  Subscription[]
 
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
@@ -352,9 +354,7 @@ model PaymentMethod {
   psp        String
   name       String?
   customerId String              @map("customer_id")
-  customer   Customer            @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Cascade)
-
-  isDefault Boolean @map("is_default")
+  customer   Customer            @relation(name: "pmc", fields: [orgId, customerId], references: [orgId, id], onDelete: Cascade)
 
   billingAddress Json?  @map("billing_address")
   details        Json?
@@ -365,6 +365,7 @@ model PaymentMethod {
   createdAt     DateTime       @default(now()) @map("created_at")
   updatedAt     DateTime       @updatedAt @map("updated_at")
   subscriptions Subscription[]
+  Customer      Customer[]     @relation(name: "dpm")
 
   @@id([orgId, id], map: "paymentmethod_pk")
   @@unique([orgId, customerId, token])

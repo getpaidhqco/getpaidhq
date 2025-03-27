@@ -314,7 +314,6 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 			Psp:            input.PaymentMethod.Psp,
 			Name:           input.PaymentMethod.Name,
 			CustomerId:     order.CustomerId,
-			IsDefault:      input.PaymentMethod.IsDefault,
 			BillingAddress: entities.Address{},
 			Type:           input.PaymentMethod.Type,
 			Token:          input.PaymentMethod.Token,

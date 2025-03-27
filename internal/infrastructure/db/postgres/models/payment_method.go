@@ -32,7 +32,6 @@ func (s *PaymentMethod) ToEntity() entities.PaymentMethod {
 		Psp:            s.Psp,
 		Name:           s.Name,
 		CustomerId:     s.CustomerId,
-		IsDefault:      s.IsDefault,
 		BillingAddress: s.BillingAddress.ToEntity(),
 		Type:           s.Type,
 		Token:          s.Token,

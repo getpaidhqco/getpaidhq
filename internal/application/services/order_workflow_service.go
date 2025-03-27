@@ -101,7 +101,6 @@ func (s OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, input
 		Token:          input.PaymentContext.PaymentMethod.Token,
 		Name:           "Default",
 		CustomerId:     order.CustomerId,
-		IsDefault:      true,
 		BillingAddress: order.Customer.BillingAddress,
 		Type:           input.PaymentContext.PaymentMethod.Type,
 		Details:        input.PaymentContext.PaymentMethod,

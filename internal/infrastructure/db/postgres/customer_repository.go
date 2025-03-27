@@ -149,7 +149,7 @@ func (r CustomerRepository) FindPaymentMethodById(ctx context.Context, orgId str
 	tx := r.getTransactionFromContext(ctx)
 
 	var pm entities.PaymentMethod
-	err := tx.QueryRow(ctx, `SELECT org_id,id,token,psp,name,customer_id,is_default,details,type FROM payment_methods WHERE org_id=@org_id AND id=@id`, pgx.NamedArgs{
+	err := tx.QueryRow(ctx, `SELECT org_id,id,token,psp,name,customer_id,details,type FROM payment_methods WHERE org_id=@org_id AND id=@id`, pgx.NamedArgs{
 		"org_id": orgId,
 		"id":     id,
 	}).Scan(&pm.OrgId,
@@ -158,7 +158,6 @@ func (r CustomerRepository) FindPaymentMethodById(ctx context.Context, orgId str
 		&pm.Psp,
 		&pm.Name,
 		&pm.CustomerId,
-		&pm.IsDefault,
 		&pm.Details,
 		&pm.Type,
 	)
@@ -176,24 +175,27 @@ func (r CustomerRepository) Update(ctx context.Context, entity entities.Customer
 	query := `UPDATE customers SET email=@Email, 
                      first_name=@FirstName, 
                      last_name=@LastName,
+                     default_payment_method_id=@default_payment_method_id
                      phone=@Phone, 
                      billing_address=@BillingAddress, 
                      metadata=@Metadata,
                      updated_at=now()
               WHERE org_id=@OrgId AND id=@Id
               RETURNING org_id, id, email, first_name, last_name,
-                       phone, billing_address, metadata, created_at, updated_at`
+                       phone, billing_address, metadata,
+                       default_payment_method_id, created_at, updated_at`
 
 	var updatedCustomer models.Customer
 	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
-		"OrgId":          entity.OrgId,
-		"Id":             entity.Id,
-		"Email":          entity.Email,
-		"FirstName":      entity.FirstName,
-		"LastName":       entity.LastName,
-		"Phone":          entity.Phone,
-		"BillingAddress": entity.BillingAddress,
-		"Metadata":       entity.Metadata,
+		"OrgId":                     entity.OrgId,
+		"Id":                        entity.Id,
+		"Email":                     entity.Email,
+		"FirstName":                 entity.FirstName,
+		"LastName":                  entity.LastName,
+		"Phone":                     entity.Phone,
+		"BillingAddress":            entity.BillingAddress,
+		"Metadata":                  entity.Metadata,
+		"default_payment_method_id": entity.DefaultPaymentMethodId,
 	}).Scan(
 		&updatedCustomer.OrgId,
 		&updatedCustomer.Id,
@@ -203,6 +205,7 @@ func (r CustomerRepository) Update(ctx context.Context, entity entities.Customer
 		&updatedCustomer.Phone,
 		&updatedCustomer.BillingAddress,
 		&updatedCustomer.Metadata,
+		&updatedCustomer.DefaultPaymentMethodId,
 		&updatedCustomer.CreatedAt,
 		&updatedCustomer.UpdatedAt,
 	)

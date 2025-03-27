@@ -71,6 +71,7 @@ type CompleteOrderInputPaymentMethod struct {
 	BillingAddress Address           `json:"billing_address"`
 	Type           string            `json:"type"`
 	Token          string            `json:"token"`
+	ExpireAt       string            `json:"expire_at"`
 	Metadata       map[string]string `json:"metadata"`
 }
 type Address struct {

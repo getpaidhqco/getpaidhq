@@ -34,48 +34,51 @@ func NewPaymentMethodRepository(database lib.Database, logger logger.Logger) rep
 func (r PaymentMethodRepository) FindById(ctx context.Context, orgId string, id string) (entities.PaymentMethod, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	var pm entities.PaymentMethod
-	err := tx.QueryRow(ctx, `SELECT org_id, id, token, psp, name, customer_id, is_default, details, type FROM payment_methods WHERE org_id=@org_id AND id=@id`, pgx.NamedArgs{
+	var pm models.PaymentMethod
+	err := tx.QueryRow(ctx, `SELECT org_id, id, status, token, psp, name, 
+       customer_id, details, type, created_at, updated_at
+				FROM payment_methods 
+				WHERE org_id=@org_id AND id=@id`, pgx.NamedArgs{
 		"org_id": orgId,
 		"id":     id,
 	}).Scan(&pm.OrgId,
 		&pm.Id,
+		&pm.Status,
 		&pm.Token,
 		&pm.Psp,
 		&pm.Name,
 		&pm.CustomerId,
-		&pm.IsDefault,
 		&pm.Details,
 		&pm.Type,
+		&pm.CreatedAt,
+		&pm.UpdatedAt,
 	)
 
 	if err != nil {
 		r.logger.Error(`failed to find payment method`, "orgId", orgId, "id", id, "err", err.Error())
 		return entities.PaymentMethod{}, mapError(err)
 	}
-	return pm, nil
+	return pm.ToEntity(), nil
 }
 
 func (r PaymentMethodRepository) Create(ctx context.Context, entity entities.PaymentMethod) (entities.PaymentMethod, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	query := `INSERT INTO payment_methods (org_id, id, status, token, psp, name, customer_id, is_default, details, type, expire_at, created_at, updated_at)
-			  VALUES (@org_id, @id, status, @token, @psp, @name, @customer_id, @is_default, @details, @type, @expire_at,now(), now())
+	query := `INSERT INTO payment_methods (org_id, id, status, token, psp, name, customer_id,  details, type, expire_at, created_at, updated_at)
+			  VALUES (@org_id, @id, @status, @token, @psp, @name, @customer_id,  @details, @type, @expire_at,now(), now())
 			  ON CONFLICT (org_id, customer_id, token) DO UPDATE SET
 				  token = EXCLUDED.token,
 				  psp = EXCLUDED.psp,
 				  name = EXCLUDED.name,
 				  customer_id = EXCLUDED.customer_id,
-				  is_default = EXCLUDED.is_default,
 				  details = EXCLUDED.details,
 				  expire_at = EXCLUDED.expire_at,
 				  type = EXCLUDED.type,
-				  updated_at = now() 
-			  RETURNING org_id, id, status, token, psp, name, customer_id, is_default, details, type, expire_at, created_at, updated_at`
+				  updated_at = now()`
 
 	detailsJson, _ := json.Marshal(entity.Details)
-	var newEntity models.PaymentMethod
-	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
+
+	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
 		"org_id":      entity.OrgId,
 		"id":          entity.Id,
 		"status":      entity.Status,
@@ -83,77 +86,48 @@ func (r PaymentMethodRepository) Create(ctx context.Context, entity entities.Pay
 		"psp":         entity.Psp,
 		"token":       entity.Token,
 		"customer_id": entity.CustomerId,
-		"is_default":  entity.IsDefault,
 		"details":     detailsJson,
 		"type":        entity.Type,
 		"expire_at":   pgtype.Date{Time: entity.ExpireAt, Valid: !entity.ExpireAt.IsZero()},
-	}).Scan(
-		&newEntity.OrgId,
-		&newEntity.Id,
-		&newEntity.Status,
-		&newEntity.Token,
-		&newEntity.Psp,
-		&newEntity.Name,
-		&newEntity.CustomerId,
-		&newEntity.IsDefault,
-		&newEntity.Details,
-		&newEntity.Type,
-		&newEntity.ExpireAt,
-		&newEntity.CreatedAt,
-		&newEntity.UpdatedAt,
-	)
+	})
 
 	if err != nil {
 		return entities.PaymentMethod{}, mapError(err)
 	}
 
-	return newEntity.ToEntity(), nil
+	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
 func (r PaymentMethodRepository) Update(ctx context.Context, entity entities.PaymentMethod) (entities.PaymentMethod, error) {
 	tx := r.getTransactionFromContext(ctx)
 
 	query := `UPDATE payment_methods SET token=@Token, 
+                           status=@Status,
                      psp=@Psp, 
                      name=@Name,
                      customer_id=@CustomerId, 
-                     is_default=@IsDefault, 
                      details=@Details,
                      type=@Type,
                      updated_at=now()
-              WHERE org_id=@OrgId AND id=@Id
-              RETURNING org_id, id, token, psp, name, customer_id, is_default, details, type, created_at, updated_at`
+              WHERE org_id=@OrgId AND id=@Id`
 
-	var updatedEntity entities.PaymentMethod
-	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
+	detailsJson, _ := json.Marshal(entity.Details)
+	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
 		"OrgId":      entity.OrgId,
 		"Id":         entity.Id,
+		"Status":     entity.Status,
 		"Token":      entity.Token,
 		"Psp":        entity.Psp,
 		"Name":       entity.Name,
 		"CustomerId": entity.CustomerId,
-		"IsDefault":  entity.IsDefault,
-		"Details":    entity.Details,
+		"Details":    detailsJson,
 		"Type":       entity.Type,
-	}).Scan(
-		&updatedEntity.OrgId,
-		&updatedEntity.Id,
-		&updatedEntity.Token,
-		&updatedEntity.Psp,
-		&updatedEntity.Name,
-		&updatedEntity.CustomerId,
-		&updatedEntity.IsDefault,
-		&updatedEntity.Details,
-		&updatedEntity.Type,
-		&updatedEntity.CreatedAt,
-		&updatedEntity.UpdatedAt,
-	)
-
+	})
 	if err != nil {
 		return entities.PaymentMethod{}, mapError(err)
 	}
 
-	return updatedEntity, nil
+	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
 // FindExpiringPaymentMethods returns a list of payment methods that are expiring before the given expiry time
@@ -176,7 +150,7 @@ func (r PaymentMethodRepository) FindExpiringPaymentMethods(ctx context.Context,
 
 	var paymentMethods []entities.PaymentMethod
 	for rows.Next() {
-		var pm entities.PaymentMethod
+		var pm models.PaymentMethod
 		err := rows.Scan(
 			&pm.OrgId,
 			&pm.Id,
@@ -194,7 +168,7 @@ func (r PaymentMethodRepository) FindExpiringPaymentMethods(ctx context.Context,
 			r.logger.Error(`failed to scan payment method`, "err", err.Error())
 			return nil, mapError(err)
 		}
-		paymentMethods = append(paymentMethods, pm)
+		paymentMethods = append(paymentMethods, pm.ToEntity())
 	}
 
 	if rows.Err() != nil {

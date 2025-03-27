@@ -27,7 +27,7 @@ type FxLogger struct {
 // GetLogger get the logger
 func GetLogger() logger.Logger {
 	if globalLogger == nil {
-		ll := newLogger(NewEnv())
+		ll := newLogger(NewEnv(), zap.WithCaller(true))
 		globalLogger = ll
 	}
 	return globalLogger
@@ -49,7 +49,7 @@ func (l MyLogger) Info(msg string, keysAndValues ...interface{}) {
 func (l MyLogger) Warn(msg string, keysAndValues ...interface{}) {
 	l.logger.Warn(msg, keysAndValues...)
 }
-
+``
 func (l MyLogger) Error(msg string, keysAndValues ...interface{}) {
 	l.logger.Error(msg, keysAndValues...)
 }
@@ -192,9 +192,11 @@ func newLogger(env Env, opts ...zap.Option) logger.Logger {
 	zapLogger, _ = config.Build(opts...)
 
 	handler := slogzap.Option{
-		Level:  slog.LevelDebug,
-		Logger: zapLogger,
+		Level:     slog.LevelDebug,
+		Logger:    zapLogger,
+		AddSource: true,
 	}.NewZapHandler()
+
 	l := slog.New(handler)
 
 	return MyLogger{
