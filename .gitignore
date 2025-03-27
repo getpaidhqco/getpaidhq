@@ -27,3 +27,4 @@ go.work
 # Dependency directories (remove the comment below if you use Go modules)
 # /vendor/
 
+docker/.env
