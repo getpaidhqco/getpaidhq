@@ -9,6 +9,7 @@ import (
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
+	"payloop/internal/domain/entities/payment_methods"
 	"payloop/internal/domain/entities/payments"
 	"payloop/internal/domain/factories"
 	"payloop/internal/domain/repositories"
@@ -102,7 +103,7 @@ func (s OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, input
 		Name:           "Default",
 		CustomerId:     order.CustomerId,
 		BillingAddress: order.Customer.BillingAddress,
-		Type:           input.PaymentContext.PaymentMethod.Type,
+		Type:           payment_methods.PaymentMethodType(input.PaymentContext.PaymentMethod.Type),
 		Details:        input.PaymentContext.PaymentMethod,
 		CreatedAt:      time.Now().UTC(),
 		UpdatedAt:      time.Now().UTC(),

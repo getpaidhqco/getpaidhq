@@ -8,6 +8,7 @@ import (
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/payment_methods"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 	"time"
@@ -93,11 +94,14 @@ func (s CustomerService) CreatePaymentMethod(ctx context.Context, orgId string, 
 	}
 
 	var expireAt time.Time
-	if input.ExpireAt != "" {
-		expireAt, err = time.Parse(time.DateOnly, input.ExpireAt)
+	if input.Details != "" {
+		details, err := payment_methods.ParseDetails(input.Type, input.Details)
 		if err != nil {
-			return entities.PaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Invalid expiry date", err)
+			return entities.PaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Invalid card details", err)
 		}
+
+		expireAt = details.GetExpiryDate()
+		s.logger.Debugf("This payment method expires at: %v", expireAt)
 	}
 
 	// check for existing payment method
@@ -111,7 +115,8 @@ func (s CustomerService) CreatePaymentMethod(ctx context.Context, orgId string, 
 		BillingAddress: billingAddress,
 		Type:           input.Type,
 		Token:          input.Token,
-		Details:        input.Metadata,
+		Details:        input.Details,
+		Metadata:       input.Metadata,
 		ExpireAt:       expireAt,
 		CreatedAt:      time.Now().UTC(),
 		UpdatedAt:      time.Now().UTC(),

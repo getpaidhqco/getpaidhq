@@ -11,6 +11,7 @@ import (
 	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
+	"payloop/internal/domain/entities/payment_methods"
 	"payloop/internal/domain/entities/payments"
 	"payloop/internal/domain/entities/prices"
 	"payloop/internal/domain/factories"
@@ -315,7 +316,7 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 			Name:           input.PaymentMethod.Name,
 			CustomerId:     order.CustomerId,
 			BillingAddress: entities.Address{},
-			Type:           input.PaymentMethod.Type,
+			Type:           payment_methods.PaymentMethodType(input.PaymentMethod.Type),
 			Token:          input.PaymentMethod.Token,
 			Details:        nil,
 			CreatedAt:      time.Now().UTC(),

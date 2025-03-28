@@ -34,12 +34,13 @@ func (r PaymentMethodRepository) FindById(ctx context.Context, orgId string, id 
 
 	var pm models.PaymentMethod
 	err := tx.QueryRow(ctx, `SELECT org_id, id, status, token, psp, name, 
-       customer_id, details, type, created_at, updated_at
+       customer_id, details, type, billing_address, metadata, created_at, updated_at
 				FROM payment_methods 
 				WHERE org_id=@org_id AND id=@id`, pgx.NamedArgs{
 		"org_id": orgId,
 		"id":     id,
-	}).Scan(&pm.OrgId,
+	}).Scan(
+		&pm.OrgId,
 		&pm.Id,
 		&pm.Status,
 		&pm.Token,
@@ -48,6 +49,8 @@ func (r PaymentMethodRepository) FindById(ctx context.Context, orgId string, id 
 		&pm.CustomerId,
 		&pm.Details,
 		&pm.Type,
+		&pm.BillingAddress,
+		&pm.Metadata,
 		&pm.CreatedAt,
 		&pm.UpdatedAt,
 	)
@@ -63,16 +66,7 @@ func (r PaymentMethodRepository) Create(ctx context.Context, entity entities.Pay
 	tx := r.getTransactionFromContext(ctx)
 
 	query := `INSERT INTO payment_methods (org_id, id, status, token, psp, name, customer_id,  details, type, expire_at, created_at, updated_at)
-			  VALUES (@org_id, @id, @status, @token, @psp, @name, @customer_id,  @details, @type, @expire_at,now(), now())
-			  ON CONFLICT (org_id, customer_id, token) DO UPDATE SET
-				  token = EXCLUDED.token,
-				  psp = EXCLUDED.psp,
-				  name = EXCLUDED.name,
-				  customer_id = EXCLUDED.customer_id,
-				  details = EXCLUDED.details,
-				  expire_at = EXCLUDED.expire_at,
-				  type = EXCLUDED.type,
-				  updated_at = now()`
+			  VALUES (@org_id, @id, @status, @token, @psp, @name, @customer_id,  @details, @type, @expire_at,now(), now())`
 
 	detailsJson, _ := json.Marshal(entity.Details)
 

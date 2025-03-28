@@ -4,6 +4,7 @@ import (
 	"github.com/jackc/pgx/v5/pgtype"
 	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/payment_methods"
 	"time"
 )
 
@@ -15,9 +16,10 @@ type PaymentMethod struct {
 	Name           string
 	CustomerId     string
 	IsDefault      bool
-	BillingAddress Address
+	BillingAddress map[string]interface{}
 	Type           string
 	Token          string
+	Metadata       map[string]string
 	Details        interface{}
 	ExpireAt       pgtype.Date
 	CreatedAt      time.Time
@@ -25,6 +27,7 @@ type PaymentMethod struct {
 }
 
 func (s *PaymentMethod) ToEntity() entities.PaymentMethod {
+
 	return entities.PaymentMethod{
 		OrgId:          s.OrgId,
 		Id:             s.Id,
@@ -32,11 +35,12 @@ func (s *PaymentMethod) ToEntity() entities.PaymentMethod {
 		Psp:            s.Psp,
 		Name:           s.Name,
 		CustomerId:     s.CustomerId,
-		BillingAddress: s.BillingAddress.ToEntity(),
-		Type:           s.Type,
+		BillingAddress: entities.ParseAddress(s.BillingAddress),
+		Type:           payment_methods.PaymentMethodType(s.Type),
 		Token:          s.Token,
 		Details:        s.Details,
 		ExpireAt:       s.ExpireAt.Time,
+		Metadata:       s.Metadata,
 		CreatedAt:      s.CreatedAt,
 		UpdatedAt:      s.UpdatedAt,
 	}

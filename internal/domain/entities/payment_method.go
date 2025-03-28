@@ -3,6 +3,7 @@ package entities
 import (
 	"encoding/json"
 	"payloop/internal/domain/common"
+	"payloop/internal/domain/entities/payment_methods"
 	"time"
 )
 
@@ -21,16 +22,17 @@ type PaymentMethod struct {
 	Name       string              `json:"name"`
 	CustomerId string              `json:"customer_id"`
 
-	BillingAddress Address `json:"billing_address,omitempty"`
-	Type           string  `json:"type"`
+	BillingAddress Address                           `json:"billing_address,omitempty"`
+	Type           payment_methods.PaymentMethodType `json:"type"`
 
 	// TODO store this securely somewhere else
 	Token string `json:"token"`
 
-	Details   interface{} `json:"details,omitempty"`
-	ExpireAt  time.Time   `json:"expire_at,omitempty"`
-	CreatedAt time.Time   `json:"created_at,omitempty"`
-	UpdatedAt time.Time   `json:"updated_at,omitempty"`
+	Details   interface{}       `json:"details,omitempty"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
+	ExpireAt  time.Time         `json:"expire_at,omitempty"`
+	CreatedAt time.Time         `json:"created_at,omitempty"`
+	UpdatedAt time.Time         `json:"updated_at,omitempty"`
 }
 
 type Address struct {

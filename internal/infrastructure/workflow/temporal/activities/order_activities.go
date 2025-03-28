@@ -119,7 +119,7 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 		PaymentMethod: payment_providers.PaymentMethod{
 			PspId:       paymentMethod.Id,
 			Name:        paymentMethod.Name,
-			Type:        paymentMethod.Type,
+			Type:        string(paymentMethod.Type),
 			IsRecurring: true,
 			Token:       paymentMethod.Token,
 		},
