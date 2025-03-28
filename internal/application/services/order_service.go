@@ -280,10 +280,10 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 
 	// TODO validation
 	if order.Status != entities.OrderStatusPending {
-		return entities.Order{}, errors.New("order is not pending")
+		return entities.Order{}, lib.NewCustomError(lib.BadRequestError, "Order is not pending", nil)
 	}
 	if input.PaymentMethodId == "" && input.PaymentMethod.Token == "" {
-		return entities.Order{}, errors.New("payment method not provided")
+		return entities.Order{}, lib.NewCustomError(lib.BadRequestError, "You need to provide payment method or payment method ID", nil)
 	}
 
 	// update the order status
