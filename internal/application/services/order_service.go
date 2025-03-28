@@ -271,7 +271,7 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 // CompleteOrder marks a pending order as completed and activates the subscriptions. There is no payment involved, so the
 // subscriptions will start charging as needed using the payment methods specified in the create process.
 func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOrderInput) (entities.Order, error) {
-	s.logger.Info("Completing order [%s][%s]", input.OrgId, input.Id)
+	s.logger.Infof("Completing order [%s][%s]", input.OrgId, input.Id)
 
 	order, err := s.orderRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
@@ -307,18 +307,34 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 	}
 
 	// create the payment method
+	// TODO implement a PaymentMethod factory
 	if input.PaymentMethod.Token != "" {
+
+		var expireAt time.Time
+		if input.PaymentMethod.Details != "" {
+			details, err := payment_methods.ParseDetails(input.PaymentMethod.Type, input.PaymentMethod.Details)
+			if err != nil {
+				return entities.Order{}, lib.NewCustomError(lib.BadRequestError, "Invalid card details", err)
+			}
+
+			expireAt = details.GetExpiryDate()
+			s.logger.Debugf("This payment method expires at: %v", expireAt)
+		}
+
 		// create the payment method
 		paymentMethod, err = s.paymentMethodRepository.Create(ctx, entities.PaymentMethod{
 			OrgId:          order.OrgId,
 			Id:             lib.GenerateId("pm"),
 			Psp:            input.PaymentMethod.Psp,
+			Status:         payment_methods.Active,
+			ExpireAt:       expireAt,
+			Metadata:       input.PaymentMethod.Metadata,
 			Name:           input.PaymentMethod.Name,
 			CustomerId:     order.CustomerId,
 			BillingAddress: entities.Address{},
 			Type:           payment_methods.PaymentMethodType(input.PaymentMethod.Type),
 			Token:          input.PaymentMethod.Token,
-			Details:        nil,
+			Details:        input.PaymentMethod.Details,
 			CreatedAt:      time.Now().UTC(),
 			UpdatedAt:      time.Now().UTC(),
 		})

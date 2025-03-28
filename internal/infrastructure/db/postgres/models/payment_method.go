@@ -31,7 +31,7 @@ func (s *PaymentMethod) ToEntity() entities.PaymentMethod {
 	return entities.PaymentMethod{
 		OrgId:          s.OrgId,
 		Id:             s.Id,
-		Status:         entities.PaymentMethodStatus(s.Status),
+		Status:         payment_methods.PaymentMethodStatus(s.Status),
 		Psp:            s.Psp,
 		Name:           s.Name,
 		CustomerId:     s.CustomerId,

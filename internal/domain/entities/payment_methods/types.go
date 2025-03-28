@@ -2,6 +2,13 @@ package payment_methods
 
 import "time"
 
+type PaymentMethodStatus string
+
+const (
+	Active  PaymentMethodStatus = "active"
+	Expired PaymentMethodStatus = "expired"
+)
+
 type PaymentMethodType string
 
 const (

@@ -7,20 +7,13 @@ import (
 	"time"
 )
 
-type PaymentMethodStatus string
-
-const (
-	Active  PaymentMethodStatus = "active"
-	Expired PaymentMethodStatus = "expired"
-)
-
 type PaymentMethod struct {
-	OrgId      string              `json:"org_id"`
-	Id         string              `json:"id"`
-	Status     PaymentMethodStatus `json:"status"`
-	Psp        string              `json:"psp"`
-	Name       string              `json:"name"`
-	CustomerId string              `json:"customer_id"`
+	OrgId      string                              `json:"org_id"`
+	Id         string                              `json:"id"`
+	Status     payment_methods.PaymentMethodStatus `json:"status"`
+	Psp        string                              `json:"psp"`
+	Name       string                              `json:"name"`
+	CustomerId string                              `json:"customer_id"`
 
 	BillingAddress Address                           `json:"billing_address,omitempty"`
 	Type           payment_methods.PaymentMethodType `json:"type"`
