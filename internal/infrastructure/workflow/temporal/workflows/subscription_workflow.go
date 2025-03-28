@@ -3,6 +3,7 @@ package workflows
 import (
 	"fmt"
 	temporalio "go.temporal.io/sdk/temporal"
+	"log/slog"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/payments"
 	"payloop/internal/infrastructure/workflow/temporal/activities"
@@ -23,6 +24,8 @@ type SubscriptionInput struct {
 func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (entities.Subscription, error) {
 	logger := workflow.GetLogger(ctx)
 	subscription := input
+	// A flag to indicate if the workflow should be refreshed. Used by the "force-update" signal
+	restartBillingWait := false
 
 	logger.Info("SubscriptionWorkflow started", "Subscription:", subscription.Id)
 	var a *activities.OrderActivities
@@ -40,11 +43,21 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		prevSub, subscription = subscription, newSub
 		return prevSub, nil
 	}
+	forceUpdateHandler := func(ctx workflow.Context, newSub entities.Subscription) (entities.Subscription, error) {
+		logger.Info("Subscription force update", "Subscription:", subscription.Id)
+		// 👉 update the subscription state
+		// Do some validation here
+		var prevSub entities.Subscription
+		prevSub, subscription = subscription, newSub
+		restartBillingWait = true
+		return prevSub, nil
+	}
 
 	err = workflow.SetUpdateHandler(ctx, "subscription.paused", handler)
 	err = workflow.SetUpdateHandler(ctx, "subscription.cancelled", handler)
 	err = workflow.SetUpdateHandler(ctx, "subscription.resumed", handler)
 	err = workflow.SetUpdateHandler(ctx, "subscription.activated", handler)
+	err = workflow.SetUpdateHandler(ctx, "force-update", forceUpdateHandler)
 
 	// Register signal handler for cancelling the subscription
 	var signalSubscription entities.Subscription
@@ -83,22 +96,36 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			// TODO report this error
 			break
 		}
+
+		// Wait here until the next billing date or until the subscription is cancelled
+		// If the subscription state was updated using the "force-update", then we need to
+		// restart the wait so that the new state is taken into account
 		duration := subscription.RenewsAt.Sub(workflow.Now(ctx))
 		ok, err := workflow.AwaitWithTimeout(ctx, duration, func() bool {
 			rollover := workflow.GetInfo(ctx).GetContinueAsNewSuggested()
 			return subscription.Status == entities.SubscriptionStatusPaused ||
 				subscription.Status == entities.SubscriptionStatusCancelled ||
-				rollover
+				rollover ||
+				restartBillingWait
 		})
 		if err != nil {
-			logger.Error("cancellation received", "Error", err.Error(), "status", subscription.Status)
+			logger.Error("Workflow Await was interrupted by an external factor",
+				"Error", err.Error(),
+				slog.String("status", string(subscription.Status)),
+				slog.String("nextBillingDate", subscription.RenewsAt.String()),
+				slog.Bool("restartBillingWait", restartBillingWait))
+		}
+		if restartBillingWait {
+			logger.Info("RESTART BILLING WAIT - The subscription state was refreshed, clearing the flag and restarting the loop")
+			restartBillingWait = false
+			continue
 		}
 		if workflow.GetInfo(ctx).GetContinueAsNewSuggested() {
 			logger.Info("--- ContinueAsNewSuggested", "status", subscription.Status, "size", workflow.GetInfo(ctx).GetCurrentHistorySize())
 			return subscription, workflow.NewContinueAsNewError(ctx, SubscriptionWorkflow, subscription)
 		}
 		if !ok {
-			logger.Info(fmt.Sprintf("[%s][%s] Next billing date reached [%s]", subscription.OrgId, subscription.Id, subscription.RenewsAt))
+			logger.Info(fmt.Sprintf("**** [%s][%s] Next billing date reached [%s]", subscription.OrgId, subscription.Id, subscription.RenewsAt))
 		}
 
 		// If the subscription was paused, wait until it is activated again
@@ -146,7 +173,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		// Double-check the next billing date, it must be in the past
 		// E.g. if a paused subscription is activated, the next billing date may be in the future
 		if subscription.RenewsAt.After(workflow.Now(ctx)) {
-			logger.Info("-------------- why am I here? --------------")
+			logger.Info("Reached the billing process but Renew date is in the future, skipping billing cycle", "nextBillingDate", subscription.RenewsAt)
 			continue
 		}
 
