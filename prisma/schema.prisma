@@ -356,19 +356,18 @@ model PaymentMethod {
   customerId String              @map("customer_id")
   customer   Customer            @relation(name: "pmc", fields: [orgId, customerId], references: [orgId, id], onDelete: Cascade)
 
-  billingAddress Json?  @map("billing_address")
+  billingAddress Json?          @map("billing_address")
   details        Json?
   type           String
   token          String
-
-  expireAt      DateTime?      @map("expire_at")
-  createdAt     DateTime       @default(now()) @map("created_at")
-  updatedAt     DateTime       @updatedAt @map("updated_at")
-  subscriptions Subscription[]
-  Customer      Customer[]     @relation(name: "dpm")
+  metadata       Json?
+  expireAt       DateTime?      @map("expire_at")
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+  subscriptions  Subscription[]
+  Customer       Customer[]     @relation(name: "dpm")
 
   @@id([orgId, id], map: "paymentmethod_pk")
-  @@unique([orgId, customerId, token])
   @@map("payment_methods")
 }
 
