@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
@@ -32,7 +33,7 @@ func NewWebhookSubscriptionService(
 	whsRepo repositories.WebhookSubscriptionRepository,
 	idempotencyRepo repositories.IdempotencyKeyRepository,
 	pubsub events.PubSub,
-) WebhookSubscriptionService {
+) interfaces.WebhookSubscriptionService {
 	service := WebhookSubscriptionService{
 		logger:          logger,
 		whsRepo:         whsRepo,

@@ -3,14 +3,14 @@ package activities
 import (
 	"context"
 	"go.temporal.io/sdk/activity"
+	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
-	"payloop/internal/application/services"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/domain/workflow"
 )
 
 type OutgoingWebhookActivities struct {
-	whService         services.WebhookSubscriptionService
+	whService         interfaces.WebhookSubscriptionService
 	webhookRepository repositories.WebhookSubscriptionRepository
 	settingRepository repositories.SettingRepository
 	pubsub            events.PubSub
@@ -19,7 +19,7 @@ type OutgoingWebhookActivities struct {
 func NewOutgoingWebhookActivities(
 	webhookRepository repositories.WebhookSubscriptionRepository,
 	settingRepository repositories.SettingRepository,
-	whService services.WebhookSubscriptionService,
+	whService interfaces.WebhookSubscriptionService,
 	pubsub events.PubSub,
 ) OutgoingWebhookActivities {
 	return OutgoingWebhookActivities{

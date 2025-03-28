@@ -150,6 +150,30 @@ func (s SubscriptionOrchestrationService) PauseSubscription(ctx context.Context,
 	return subscription, nil
 }
 
+// UpdateWorkflowState Calls the workflow engine to update the workflow state. This is used to refresh the workflow state with what is in the database
+// and is used for debugging and error recovery purposes.
+func (s SubscriptionOrchestrationService) UpdateWorkflowState(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
+	s.logger.Infof("Updating workflow [%s][%s]", orgId, id)
+
+	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, id)
+	if err != nil {
+		return entities.Subscription{}, lib.NewCustomError(lib.NotFoundError, "Not found", err)
+	}
+
+	// update the subscription workflow
+	err = s.workflowEngine.UpdateSubscriptionWorkflow(ctx, "refresh-state", subscription)
+	if err != nil {
+		s.logger.Error("Failed to update workflow", err.Error())
+		var serr lib.CustomError
+		if errors.As(err, &serr) {
+			return entities.Subscription{}, err
+		}
+		return entities.Subscription{}, lib.NewCustomError(lib.InternalError, err.Error(), err)
+	}
+
+	return subscription, nil
+}
+
 func (s SubscriptionOrchestrationService) ResumeSubscription(ctx context.Context, input subscriptions.ResumeSubscriptionInput) (entities.Subscription, error) {
 	s.logger.Info("Resuming subscription", "orgId", input.OrgId, "id", input.Id)
 

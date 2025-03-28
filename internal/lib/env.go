@@ -33,7 +33,7 @@ func NewEnv() Env {
 
 	err := godotenv.Load()
 	if err != nil {
-		log.Println("Error loading ..env file: %v", err)
+		log.Println("Error loading .env file: %v", err)
 	}
 	viper.AutomaticEnv()
 

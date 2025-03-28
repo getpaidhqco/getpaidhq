@@ -16,6 +16,7 @@ type SubscriptionOrchestrationService interface {
 	PauseSubscription(ctx context.Context, input subscriptions.PauseSubscriptionInput) (entities.Subscription, error)
 	ResumeSubscription(ctx context.Context, input subscriptions.ResumeSubscriptionInput) (entities.Subscription, error)
 	CancelSubscription(ctx context.Context, input subscriptions.CancelSubscriptionInput) (entities.Subscription, error)
+	UpdateWorkflowState(ctx context.Context, orgId string, id string) (entities.Subscription, error)
 }
 
 type SubscriptionService interface {

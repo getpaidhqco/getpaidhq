@@ -57,7 +57,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 	err = workflow.SetUpdateHandler(ctx, "subscription.cancelled", handler)
 	err = workflow.SetUpdateHandler(ctx, "subscription.resumed", handler)
 	err = workflow.SetUpdateHandler(ctx, "subscription.activated", handler)
-	err = workflow.SetUpdateHandler(ctx, "force-update", forceUpdateHandler)
+	err = workflow.SetUpdateHandler(ctx, "refresh-state", forceUpdateHandler)
 
 	// Register signal handler for cancelling the subscription
 	var signalSubscription entities.Subscription
