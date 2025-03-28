@@ -194,6 +194,7 @@ func (s *Subscription) SetActivationDates() *Subscription {
 	s.StartDate = startDate
 	s.CurrentPeriodStart = startDate
 	s.CurrentPeriodEnd = s.RenewsAt
+	s.BillingAnchor = startDate.Day()
 
 	return s
 }
