@@ -3,6 +3,7 @@ package orders
 import (
 	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/payment_methods"
 	"payloop/internal/domain/payment_providers"
 	"time"
 )
@@ -65,14 +66,14 @@ type CompleteOrderInputPayment struct {
 }
 
 type CompleteOrderInputPaymentMethod struct {
-	Psp            string            `json:"psp"`
-	Name           string            `json:"name"`
-	IsDefault      bool              `json:"is_default"`
-	BillingAddress Address           `json:"billing_address"`
-	Type           string            `json:"type"`
-	Token          string            `json:"token"`
-	ExpireAt       string            `json:"expire_at"`
-	Metadata       map[string]string `json:"metadata"`
+	Psp            string                            `json:"psp"`
+	Name           string                            `json:"name"`
+	IsDefault      bool                              `json:"is_default"`
+	BillingAddress Address                           `json:"billing_address"`
+	Type           payment_methods.PaymentMethodType `json:"type" binding:"required"`
+	Details        interface{}                       `json:"details"`
+	Token          string                            `json:"token"`
+	Metadata       map[string]string                 `json:"metadata"`
 }
 type Address struct {
 	FirstName  string         `json:"first_name"`

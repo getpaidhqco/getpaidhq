@@ -12,6 +12,7 @@ import (
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities/orders"
+	"payloop/internal/domain/entities/payment_methods"
 	"payloop/internal/lib"
 	"time"
 )
@@ -130,6 +131,7 @@ func (o OrderController) CompleteOrder(c *gin.Context) {
 			Psp:       input.PaymentMethod.Psp,
 			Name:      input.PaymentMethod.Name,
 			IsDefault: input.PaymentMethod.IsDefault,
+			Details:   input.PaymentMethod.Details,
 			BillingAddress: orders.Address{
 				FirstName:  input.PaymentMethod.BillingAddress.FirstName,
 				LastName:   input.PaymentMethod.BillingAddress.LastName,
@@ -142,7 +144,7 @@ func (o OrderController) CompleteOrder(c *gin.Context) {
 				PostalCode: input.PaymentMethod.BillingAddress.PostalCode,
 				Country:    input.PaymentMethod.BillingAddress.Country,
 			},
-			Type:     input.PaymentMethod.Type,
+			Type:     payment_methods.PaymentMethodType(input.PaymentMethod.Type),
 			Token:    input.PaymentMethod.Token,
 			Metadata: input.PaymentMethod.Metadata,
 		},
