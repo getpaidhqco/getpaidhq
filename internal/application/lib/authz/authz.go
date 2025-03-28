@@ -19,6 +19,7 @@ const (
 
 	CreateCustomer      Action = "CreateCustomer"
 	CreatePaymentMethod Action = "CreatePaymentMethod"
+	GetPaymentMethod    Action = "GetPaymentMethod"
 
 	AddProductToCart   Action = "AddProductToCart"
 	RemoveItemFromCart Action = "RemoveItemFromCart"

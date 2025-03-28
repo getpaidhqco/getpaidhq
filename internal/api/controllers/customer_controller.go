@@ -8,16 +8,15 @@ import (
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
-	"payloop/internal/application/services"
 )
 
 type CustomerController struct {
-	customerService services.CustomerService
+	customerService interfaces.CustomerService
 	logger          logger.Logger
 }
 
 // NewUserController creates new user controller
-func NewCustomerController(customerService services.CustomerService, logger logger.Logger) CustomerController {
+func NewCustomerController(customerService interfaces.CustomerService, logger logger.Logger) CustomerController {
 	return CustomerController{
 		customerService: customerService,
 		logger:          logger,
@@ -65,6 +64,21 @@ func (cc CustomerController) CreateCustomerPaymentMethod(c *gin.Context) {
 			OrgId:                      authUser.OrgId,
 			CustomerId:                 customerId,
 		})
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	c.JSON(http.StatusOK, paymentMethod)
+}
+
+func (cc CustomerController) GetCustomerPaymentMethod(c *gin.Context) {
+	user, _ := c.Get("user")
+	authUser := user.(authn.User)
+	paymentMethodId := c.Param("id")
+
+	paymentMethod, err := cc.customerService.GetPaymentMethod(c.Request.Context(), authUser.OrgId, paymentMethodId)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)

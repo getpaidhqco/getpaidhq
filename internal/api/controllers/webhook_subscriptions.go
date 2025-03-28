@@ -5,19 +5,20 @@ import (
 	"payloop/internal/api"
 	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/request"
+	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/application/services"
 	"payloop/internal/domain/entities/webhooks"
 )
 
 type WebhookSubscriptionController struct {
-	webhookSubscriptionService services.WebhookSubscriptionService
+	webhookSubscriptionService interfaces.WebhookSubscriptionService
 	cartService                services.CartService
 	logger                     logger.Logger
 }
 
 func NewWebhookSubscriptionController(
-	webhookSubscriptionService services.WebhookSubscriptionService,
+	webhookSubscriptionService interfaces.WebhookSubscriptionService,
 	cartService services.CartService,
 	logger logger.Logger,
 ) WebhookSubscriptionController {

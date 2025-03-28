@@ -14,7 +14,8 @@ type Subscription struct {
 	OrderId     string                      `json:"order_id"`
 	OrderItemId string                      `json:"order_item_id"`
 
-	PaymentMethodId    string                 `json:"payment_method_id,omitempty"`
+	PaymentMethodId string `json:"payment_method_id,omitempty"`
+
 	StartDate          time.Time              `json:"start_date,omitempty"`
 	EndDate            time.Time              `json:"end_date,omitempty,omitzero"`
 	BillingInterval    prices.BillingInterval `json:"billing_interval"`

@@ -27,7 +27,7 @@ func NewCustomerService(
 	pubsub events.PubSub,
 	logger logger.Logger,
 	scheduler interfaces.Scheduler,
-) CustomerService {
+) interfaces.CustomerService {
 	service := CustomerService{
 		customerRepository:      customerRepository,
 		paymentMethodRepository: paymentMethodRepository,
@@ -75,6 +75,16 @@ func (s CustomerService) Create(ctx context.Context, orgId string, customerReque
 	}
 
 	return newCustomer, nil
+}
+
+func (s CustomerService) GetPaymentMethod(ctx context.Context, orgId string, id string) (entities.PaymentMethod, error) {
+	paymentMethod, err := s.paymentMethodRepository.FindById(ctx, orgId, id)
+	if err != nil {
+		s.logger.Error("Failed to get payment method: ", err)
+		return entities.PaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Payment method not found", err)
+	}
+
+	return paymentMethod, nil
 }
 
 func (s CustomerService) CreatePaymentMethod(ctx context.Context, orgId string, input interfaces.CreatePaymentMethodInput) (entities.PaymentMethod, error) {
