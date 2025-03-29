@@ -152,7 +152,7 @@ func (r PaymentRepository) FindBySubscriptionId(ctx context.Context, orgId strin
 		return nil, 0, rows.Err()
 	}
 
-	return payments, 0, nil
+	return payments, total, nil
 }
 
 func (r PaymentRepository) Create(ctx context.Context, entity entities.Payment) (entities.Payment, error) {
