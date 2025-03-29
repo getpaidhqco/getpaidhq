@@ -76,7 +76,32 @@ func (r PaymentRepository) FindBySubscriptionId(ctx context.Context, orgId strin
         count(*) OVER()
 	          FROM payments
 	          WHERE org_id = @org_id AND subscription_id =  @id
-LIMIT @lim OFFSET @off;
+	          ORDER BY
+    -- Simplified to NULL if not sorting in ascending order.
+    CASE
+        WHEN @sort_dir = 'asc' THEN
+            CASE @sort_col
+                -- Check for each possible value of sort_col.
+                WHEN 'created_at' THEN created_at
+                --- etc.
+                ELSE NULL
+                END
+        ELSE
+            NULL
+        END
+        ASC ,
+
+    -- Same as before, but for sort_dir = 'desc'
+    CASE WHEN @sort_dir = 'desc' THEN
+             CASE @sort_col
+                 WHEN 'created_at' THEN created_at
+                 ELSE NULL
+                 END
+         ELSE
+             NULL
+        END
+        DESC
+	LIMIT @lim OFFSET @off;
 	         `
 
 	rows, err := tx.Query(ctx, query, pgx.NamedArgs{
