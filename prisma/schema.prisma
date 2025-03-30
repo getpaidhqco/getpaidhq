@@ -58,6 +58,18 @@ model Org {
   @@map("orgs")
 }
 
+model PaymentServiceProvider {
+  orgId  String  @map("org_id")
+  id     String
+  active Boolean @default(false)
+
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@id([orgId, id])
+  @@map("payment_service_providers")
+}
+
 model Setting {
   orgId     String @map("org_id")
   parentId  String @map("parent_id")
