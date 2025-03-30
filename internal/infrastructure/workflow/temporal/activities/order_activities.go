@@ -3,7 +3,6 @@ package activities
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 	"payloop/internal/application/interfaces"
@@ -125,9 +124,11 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 		},
 		Customer: customer,
 	})
-	if chargeResult.Status == payment_providers.ChargePaymentStatusError && !chargeResult.Retryable {
-		return payments.ChargeResult{}, errors.New("failed to charge customer")
-	}
+	// TODO: not sure if the below is needed, for now retry everything
+	//if chargeResult.Status == payment_providers.ChargePaymentStatusError && !chargeResult.Retryable {
+	//	return payments.ChargeResult{}, errors.New("failed to charge customer, not retryable")
+	//}
+
 	rawData, err := json.Marshal(chargeResult.PspResponse)
 	if err != nil {
 		logger.Error("failed to marshal charge result", "error", err.Error())
