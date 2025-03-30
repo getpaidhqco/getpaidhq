@@ -438,6 +438,37 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 		panic("Subscription is empty")
 	}
 
+	// store the failed payment
+	payment := entities.Payment{
+		OrgId:          subscription.OrgId,
+		Id:             lib.GenerateId("pmt"),
+		Psp:            charge.Psp,
+		PspId:          charge.PspId,
+		Reference:      charge.Reference,
+		OrderId:        subscription.OrderId,
+		SubscriptionId: subscription.Id,
+		Status:         charge.Status,
+		Recurring:      true,
+		Currency:       charge.Currency,
+		Amount:         charge.Amount,
+		PspFee:         0,
+		PlatformFee:    0,
+		NetAmount:      subscription.Amount,
+		Metadata:       nil,
+		CompletedAt:    input.ChargeResult.CompletedAt,
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
+	}
+	payment.SetMetadata(subscription.Metadata)
+
+	payment, err := s.paymentRepository.Create(ctx, payment)
+	if err != nil {
+		s.logger.Error("Failed to create payment", err.Error())
+	}
+
+	s.logger.Debug("Created payment for subscription")
+
+	// update the subscription status and retry dates
 	if subscription.Retries < 3 {
 		// update the subscription status
 		subscription.Status = entities.SubscriptionStatusRetry
