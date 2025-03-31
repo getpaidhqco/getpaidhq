@@ -5,16 +5,16 @@ import (
 	"time"
 )
 
-type PaymentServiceProvider struct {
+type Gateway struct {
 	Id        string    `json:"id"`
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
 
-func NewPspFromEntity(entity entities.PaymentServiceProvider) PaymentServiceProvider {
+func NewGatewayFromEntity(entity entities.Gateway) Gateway {
 
-	return PaymentServiceProvider{
+	return Gateway{
 		Id:        entity.Id,
 		Name:      entity.Name,
 		UpdatedAt: entity.UpdatedAt,

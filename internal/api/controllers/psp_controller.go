@@ -13,19 +13,19 @@ import (
 )
 
 type PspController struct {
-	pspService interfaces.PspService
-	logger     logger.Logger
+	gatewayService interfaces.GatewayService
+	logger         logger.Logger
 }
 
-func NewPspController(pspService interfaces.PspService, logger logger.Logger) PspController {
+func NewPspController(gatewayService interfaces.GatewayService, logger logger.Logger) PspController {
 	return PspController{
-		pspService: pspService,
-		logger:     logger,
+		gatewayService: gatewayService,
+		logger:         logger,
 	}
 }
 
 func (s PspController) Create(c *gin.Context) {
-	var input request.CreatePspRequest
+	var input request.CreateGatewayRequest
 	user, _ := c.Get("user")
 	authUser := user.(authn.User)
 
@@ -36,7 +36,7 @@ func (s PspController) Create(c *gin.Context) {
 	}
 
 	s.logger.Debug("Creating PSP", "input", input)
-	psp, err := s.pspService.CreateGateway(c.Request.Context(), dto.CreateGatewayInput{
+	psp, err := s.gatewayService.CreateGateway(c.Request.Context(), dto.CreateGatewayInput{
 		OrgId:    authUser.OrgId,
 		PspId:    common.Gateway(input.PspId),
 		Name:     input.Name,
@@ -48,5 +48,5 @@ func (s PspController) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, response.NewPspFromEntity(psp))
+	c.JSON(200, response.NewGatewayFromEntity(psp))
 }

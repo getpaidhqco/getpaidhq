@@ -23,7 +23,7 @@ func NewPspService(pspRepository repositories.PspRepository,
 	settingRepository repositories.SettingRepository,
 	logger logger.Logger,
 	pubsub events.PubSub,
-) interfaces.PspService {
+) interfaces.GatewayService {
 	return PspService{
 		pspRepository:     pspRepository,
 		settingRepository: settingRepository,
@@ -32,11 +32,11 @@ func NewPspService(pspRepository repositories.PspRepository,
 	}
 }
 
-func (s PspService) CreateGateway(ctx context.Context, input dto.CreateGatewayInput) (entities.PaymentServiceProvider, error) {
+func (s PspService) CreateGateway(ctx context.Context, input dto.CreateGatewayInput) (entities.Gateway, error) {
 
 	id := lib.GenerateId("psp")
 	psp, err := s.pspRepository.Create(ctx,
-		entities.PaymentServiceProvider{
+		entities.Gateway{
 			OrgId:  input.OrgId,
 			Id:     id,
 			Name:   input.Name,
@@ -45,13 +45,13 @@ func (s PspService) CreateGateway(ctx context.Context, input dto.CreateGatewayIn
 		})
 	if err != nil {
 		s.logger.Errorf("Failed to create psp - %e", err)
-		return entities.PaymentServiceProvider{}, err
+		return entities.Gateway{}, err
 	}
 
 	settingsJson, err := json.Marshal(input.Settings)
 	if err != nil {
 		s.logger.Errorf("Failed to marshal settings - %e", err)
-		return entities.PaymentServiceProvider{}, err
+		return entities.Gateway{}, err
 	}
 
 	// Create the psp settings
@@ -64,7 +64,7 @@ func (s PspService) CreateGateway(ctx context.Context, input dto.CreateGatewayIn
 	})
 	if err != nil {
 		s.logger.Errorf("Failed to create psp settings - %e", err)
-		return entities.PaymentServiceProvider{}, err
+		return entities.Gateway{}, err
 	}
 
 	return psp, err

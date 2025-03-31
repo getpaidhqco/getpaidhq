@@ -9,28 +9,28 @@ import (
 	"payloop/internal/lib"
 )
 
-type PspRepository struct {
+type GatewayRepository struct {
 	*PgDatabase
 	logger logger.Logger
 }
 
-func NewPspRepository(database lib.Database, logger logger.Logger) repositories.PspRepository {
+func NewGatewayRepository(database lib.Database, logger logger.Logger) repositories.PspRepository {
 	pgDatabase, ok := database.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}
-	return PspRepository{
+	return GatewayRepository{
 		PgDatabase: pgDatabase,
 		logger:     logger,
 	}
 }
 
-func (r PspRepository) FindById(ctx context.Context, orgId string, id string) (entities.PaymentServiceProvider, error) {
+func (r GatewayRepository) FindById(ctx context.Context, orgId string, id string) (entities.Gateway, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	var psp entities.PaymentServiceProvider
+	var psp entities.Gateway
 	query := `SELECT org_id, id, active, created_at, updated_at
-              FROM payment_service_providers
+              FROM gateways
               WHERE org_id = $1 AND id = $2`
 
 	err := tx.QueryRow(ctx, query, orgId, id).Scan(
@@ -41,23 +41,23 @@ func (r PspRepository) FindById(ctx context.Context, orgId string, id string) (e
 		&psp.UpdatedAt,
 	)
 	if err != nil {
-		r.logger.Error(`failed to find PaymentServiceProvider by Id`, err.Error())
-		return entities.PaymentServiceProvider{}, errors.New("not found")
+		r.logger.Error(`failed to find Gateway by Id`, err.Error())
+		return entities.Gateway{}, errors.New("not found")
 	}
 
 	return psp, nil
 }
 
-func (r PspRepository) Create(ctx context.Context, input entities.PaymentServiceProvider) (entities.PaymentServiceProvider, error) {
+func (r GatewayRepository) Create(ctx context.Context, input entities.Gateway) (entities.Gateway, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	query := `INSERT INTO payment_service_providers (org_id, id, active, created_at, updated_at)
+	query := `INSERT INTO gateways (org_id, id, active, created_at, updated_at)
               VALUES ($1, $2, $3,now(), now())`
 
 	_, err := tx.Exec(ctx, query, input.OrgId, input.Id, input.Active)
 	if err != nil {
-		r.logger.Error(`failed to create PaymentServiceProvider`, err.Error())
-		return entities.PaymentServiceProvider{}, err
+		r.logger.Error(`failed to create Gateway`, err.Error())
+		return entities.Gateway{}, err
 	}
 
 	return r.FindById(ctx, input.OrgId, input.Id)

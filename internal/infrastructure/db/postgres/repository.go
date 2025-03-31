@@ -24,7 +24,7 @@ var RespositoryModules = fx.Options(
 	fx.Provide(NewApiKeyRepository),
 	fx.Provide(NewReportRepository),
 	fx.Provide(NewPaymentMethodRepository),
-	fx.Provide(NewPspRepository),
+	fx.Provide(NewGatewayRepository),
 )
 
 // RepositoryWithTrx is a generic interface for repositories with transaction support

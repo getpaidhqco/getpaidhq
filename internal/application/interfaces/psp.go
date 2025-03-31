@@ -6,6 +6,6 @@ import (
 	"payloop/internal/domain/entities"
 )
 
-type PspService interface {
-	CreateGateway(ctx context.Context, input dto.CreateGatewayInput) (entities.PaymentServiceProvider, error)
+type GatewayService interface {
+	CreateGateway(ctx context.Context, input dto.CreateGatewayInput) (entities.Gateway, error)
 }

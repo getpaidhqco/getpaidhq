@@ -243,7 +243,7 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 		s.logger.Debugf("Creating payment session for order %s", order.Id)
 		gw, err := s.gatewayFactory.NewGateway(ctx, orgId, string(input.PspId))
 		if err != nil {
-			s.logger.Error("Failed to get gateway", err.Error())
+			s.logger.Error("Failed to get gateway", "err", err.Error())
 			return orders.CreateOrderResponse{}, err
 		}
 		// initialise the payment session with the payment processor

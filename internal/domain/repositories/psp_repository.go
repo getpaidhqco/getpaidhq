@@ -6,6 +6,6 @@ import (
 )
 
 type PspRepository interface {
-	FindById(ctx context.Context, orgId string, id string) (entities.PaymentServiceProvider, error)
-	Create(ctx context.Context, input entities.PaymentServiceProvider) (entities.PaymentServiceProvider, error)
+	FindById(ctx context.Context, orgId string, id string) (entities.Gateway, error)
+	Create(ctx context.Context, input entities.Gateway) (entities.Gateway, error)
 }

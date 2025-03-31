@@ -5,7 +5,7 @@ import (
 	"time"
 )
 
-type PaymentServiceProvider struct {
+type Gateway struct {
 	OrgId     string         `json:"org_id"`
 	Id        string         `json:"id"`
 	PspId     common.Gateway `json:"psp_id"`
