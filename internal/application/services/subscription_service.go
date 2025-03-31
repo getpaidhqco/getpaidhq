@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/interfaces"
@@ -18,6 +19,7 @@ import (
 
 type SubscriptionService struct {
 	sessionRepository      repositories.SessionRepository
+	settingRepository      repositories.SettingRepository
 	cartRepository         repositories.CartRepository
 	orderRepository        repositories.OrderRepository
 	customerRepository     repositories.CustomerRepository
@@ -32,6 +34,7 @@ type SubscriptionService struct {
 
 func NewSubscriptionService(
 	sessionRepository repositories.SessionRepository,
+	settingRepository repositories.SettingRepository,
 	cartRepository repositories.CartRepository,
 	subscriptionRepository repositories.SubscriptionRepository,
 	orderItemRepository repositories.OrderItemRepository,
@@ -52,6 +55,7 @@ func NewSubscriptionService(
 	}
 
 	return SubscriptionService{
+		settingRepository:      settingRepository,
 		customerRepository:     customerRepository,
 		sessionRepository:      sessionRepository,
 		paymentRepository:      paymentRepository,
@@ -435,7 +439,9 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 	charge := input.ChargeResult
 
 	s.logger.Infof("Subscription [%s] charge failed with reason [%s][%s][chargeResult status = %s]",
-		subscription.Id, charge.ErrorCode, charge.ErrorReason, charge.Status)
+		subscription.Id,
+		charge.ErrorCode,
+		charge.ErrorReason, charge.Status)
 	if subscription.Id == "" {
 		s.logger.Error("Subscription is empty")
 		panic("Subscription is empty")
@@ -471,14 +477,28 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 
 	s.logger.Debug("Created payment for subscription")
 
+	retryPolicy := s.GetRetryPolicy(ctx, subscription.OrgId)
+	s.logger.Debug("Retry policy",
+		"attempts", retryPolicy.RetryAttempts,
+		"interval", retryPolicy.RetryInterval,
+		"qty", retryPolicy.RetryIntervalQty,
+		"action", retryPolicy.FailureAction,
+	)
+
+	publishPastDue := false
 	// update the subscription status and retry dates
-	if subscription.Retries < 3 {
+	if subscription.Retries < retryPolicy.RetryAttempts {
 		// update the subscription status
 		subscription.LastCharge = input.ChargeResult.ProcessedAt
 		if subscription.LastCharge.IsZero() {
 			subscription.LastCharge = time.Now().UTC()
 		}
-		subscription.Status = entities.SubscriptionStatusRetry
+		if subscription.Retries == 0 {
+			// this is the first retry, so we can publish the event
+			publishPastDue = true
+		}
+
+		subscription.Status = entities.SubscriptionStatusPastDue
 		nextCharge := subscription.CalculateNextBillingDate()
 
 		subscription.RenewsAt = nextCharge
@@ -486,7 +506,12 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 		subscription.Retries++
 		s.logger.Debugf("Subscription [%s] charge failed, retrying", subscription.Id)
 	} else {
-		subscription.Status = entities.SubscriptionStatusPastDue
+		// The retries failed, so we need to cancel the subscription
+		s.logger.Debugf("Subscription [%s] charge failed, cancelling", subscription.Id)
+		if retryPolicy.FailureAction == subscriptions.FailureActionMarkUnpaid {
+			subscription.Status = entities.SubscriptionStatusUnpaid
+		}
+		subscription.Status = entities.SubscriptionStatusCancelled
 		subscription.Retries = 0
 		subscription.NextRetryAt = time.Time{}
 
@@ -505,5 +530,30 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 		"charge_result": charge,
 	})
 
+	if publishPastDue {
+		_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusPastDue, subscription)
+	}
 	return newSub, nil
+}
+
+func (s SubscriptionService) GetRetryPolicy(ctx context.Context, orgId string) subscriptions.RetryPolicy {
+	defaultPolicy := subscriptions.RetryPolicy{
+		RetryAttempts:    3,
+		RetryInterval:    subscriptions.RetryIntervalDay,
+		RetryIntervalQty: 14,
+		FailureAction:    subscriptions.FailureActionCancel,
+	}
+	setting, err := s.settingRepository.FindById(ctx, orgId, "subscriptions", "retry_policy")
+	if err != nil || setting.Value == "" {
+		s.logger.Error("Failed to get retry", "error", err)
+		return defaultPolicy
+	}
+
+	var retryPolicy subscriptions.RetryPolicy
+	err = json.Unmarshal([]byte(setting.Value), &retryPolicy)
+	if err != nil {
+		s.logger.Error("Failed to unmarshal retry policy", "error", err)
+		return defaultPolicy
+	}
+	return retryPolicy
 }

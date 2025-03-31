@@ -32,14 +32,12 @@ const (
 	SubscriptionStatusTrial  SubscriptionStatus = "trial"
 	SubscriptionStatusActive SubscriptionStatus = "active"
 
-	// The initial schedule charge failed, so the subscription is in a retry workflow
+	// SubscriptionStatusPastDue The initial schedule charge failed, so the subscription is in a retry workflow
 	// that will attempt to charge the customer again.  The retry workflow can't be
 	// longer than the subscription period, so if the retry fails, the subscription
 	// will be marked as past_due
-	SubscriptionStatusRetry SubscriptionStatus = "retry"
+	SubscriptionStatusPastDue SubscriptionStatus = "past_due"
 
-	// Payment failed, and not being retried, so waiting to be renewed or cancelled
-	SubscriptionStatusPastDue     SubscriptionStatus = "past_due"
 	SubscriptionStatusNonRenewing SubscriptionStatus = "non_renewing"
 	SubscriptionStatusPaused      SubscriptionStatus = "paused"
 	SubscriptionStatusUnpaid      SubscriptionStatus = "unpaid"
@@ -114,7 +112,7 @@ func (s *Subscription) CalculateNextBillingDate() time.Time {
 	}
 
 	var nextBillingDate time.Time
-	if s.Status == SubscriptionStatusRetry {
+	if s.Status == SubscriptionStatusPastDue {
 		// Next retry date is in the future
 		if !s.NextRetryAt.IsZero() && s.NextRetryAt.After(time.Now().UTC()) {
 			return s.NextRetryAt
