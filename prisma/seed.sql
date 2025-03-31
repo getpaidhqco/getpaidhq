@@ -68,3 +68,9 @@ VALUES ('mollie', 'apikey-101', 'sk_23456789' , NOW(), NOW()),
        ('org_2syb0uTnhuKtQTaLO6EAk1iIUnu', 'apikey-101', 'sk_wertyuio', NOW(), NOW())
 ON CONFLICT DO NOTHING;
 
+
+INSERT INTO gateways (org_id, id, name,psp_id,active, created_at, updated_at)
+VALUES ('mollie', 'Paystack', 'Paystack' , 'Paystack',true,NOW(), NOW()),
+ ('mollie', 'CheckoutDotCom', 'CheckoutDotCom' , 'CheckoutDotCom',true,NOW(), NOW())
+ON CONFLICT DO NOTHING;
+

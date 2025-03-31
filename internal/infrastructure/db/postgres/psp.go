@@ -29,19 +29,21 @@ func (r GatewayRepository) FindById(ctx context.Context, orgId string, id string
 	tx := r.getTransactionFromContext(ctx)
 
 	var psp entities.Gateway
-	query := `SELECT org_id, id, active, created_at, updated_at
+	query := `SELECT org_id, id, name, psp_id, active, created_at, updated_at
               FROM gateways
               WHERE org_id = $1 AND id = $2`
 
 	err := tx.QueryRow(ctx, query, orgId, id).Scan(
 		&psp.OrgId,
 		&psp.Id,
+		&psp.Name,
+		&psp.PspId,
 		&psp.Active,
 		&psp.CreatedAt,
 		&psp.UpdatedAt,
 	)
 	if err != nil {
-		r.logger.Error(`failed to find Gateway by Id`, err.Error())
+		r.logger.Errorf(`failed to find Gateway by Id %s`, err.Error())
 		return entities.Gateway{}, errors.New("not found")
 	}
 

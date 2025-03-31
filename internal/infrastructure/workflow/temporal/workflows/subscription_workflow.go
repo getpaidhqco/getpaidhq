@@ -185,7 +185,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			StartToCloseTimeout: time.Second * 60,
 			RetryPolicy: &temporalio.RetryPolicy{
 				InitialInterval:    time.Minute * 2,
-				BackoffCoefficient: 2.0,
+				BackoffCoefficient: 1.2,
 			},
 		})
 		err = workflow.ExecuteActivity(chargeCtx, a.ChargeCustomerForBillingPeriod, subscription).
