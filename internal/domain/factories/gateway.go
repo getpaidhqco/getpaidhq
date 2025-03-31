@@ -34,7 +34,7 @@ func (s GatewayFactory) NewGateway(ctx context.Context, orgId string, id string)
 
 	psp, err := s.pspRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Errorf("Failed to get [payment_processors][%s] - %e", id, err)
+		s.logger.Errorf("Failed to get  Gateway[%s] - %s", id, err.Error())
 		return nil, err
 	}
 
