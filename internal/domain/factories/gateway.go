@@ -13,34 +13,48 @@ import (
 )
 
 type GatewayFactory struct {
+	pspRepository     repositories.PspRepository
 	settingRepository repositories.SettingRepository
 	logger            logger.Logger
 }
 
 func NewGatewayFactory(
+	pspRepository repositories.PspRepository,
 	settingRepository repositories.SettingRepository,
 	logger logger.Logger,
 ) GatewayFactory {
 	return GatewayFactory{
+		pspRepository:     pspRepository,
 		settingRepository: settingRepository,
 		logger:            logger,
 	}
 }
 
-func (s GatewayFactory) NewGateway(ctx context.Context, orgId string, id common.Gateway) (payment_providers.Gateway, error) {
-	setting, err := s.settingRepository.FindById(ctx, orgId, "payment_processors", string(id))
+func (s GatewayFactory) NewGateway(ctx context.Context, orgId string, id string) (payment_providers.Gateway, error) {
+
+	psp, err := s.pspRepository.FindById(ctx, orgId, id)
 	if err != nil {
 		s.logger.Errorf("Failed to get [payment_processors][%s] - %e", id, err)
 		return nil, err
 	}
 
-	switch id {
+	setting, err := s.settingRepository.FindById(ctx, orgId, psp.Id, "settings")
+	if err != nil {
+		s.logger.Errorf("Failed to get settings for %s - %e", id, err)
+		return nil, err
+	}
+
+	switch psp.PspId {
 	case common.Paystack:
 		var config paystack.PaystackConfig
 		err = json.Unmarshal([]byte(setting.Value), &config)
 		if err != nil {
 			s.logger.Error("Failed to unmarshal setting value", "error", err)
 			return nil, err
+		}
+		err = config.Validate()
+		if err != nil {
+			return nil, lib.NewCustomError(lib.ValidationError, "invalid config", err)
 		}
 
 		return paystack.NewPaystackGateway(s.logger, config), nil
@@ -49,7 +63,11 @@ func (s GatewayFactory) NewGateway(ctx context.Context, orgId string, id common.
 		err = json.Unmarshal([]byte(setting.Value), &config)
 		if err != nil {
 			s.logger.Error("Failed to unmarshal setting value", "error", err)
-			return nil, err
+			return nil, lib.NewCustomError(lib.BadRequestError, "Invalid payment processor", nil)
+		}
+		err = config.Validate()
+		if err != nil {
+			return nil, lib.NewCustomError(lib.ValidationError, "invalid config for CheckoutDotCom", err)
 		}
 
 		return checkout_com.NewCheckoutDotComGateway(s.logger, config), nil

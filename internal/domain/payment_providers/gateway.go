@@ -8,6 +8,10 @@ import (
 	"time"
 )
 
+type GatewayConfig interface {
+	Validate() error
+}
+
 type Gateway interface {
 	InitPayment(ctx context.Context, input InitPaymentCommand) (InitPaymentResponse, error)
 	ChargePayment(ctx context.Context, input ChargePaymentCommand) ChargePaymentResponse

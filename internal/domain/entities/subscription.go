@@ -60,14 +60,14 @@ type Subscription struct {
 	Status             SubscriptionStatus     `json:"status"`
 	PaymentMethodId    string                 `json:"payment_method_id,omitempty"`
 	StartDate          time.Time              `json:"start_date"`
-	EndDate            time.Time              `json:"end_date"`
+	EndDate            time.Time              `json:"end_date,omitempty,omitzero"`
 	BillingInterval    prices.BillingInterval `json:"billing_interval"`
 	BillingIntervalQty int                    `json:"billing_interval_qty"`
 	Cycles             int                    `json:"cycles"`
 	BillingAnchor      int                    `json:"billing_anchor"`
-	TrialEndsAt        time.Time              `json:"trial_ends_at"`
-	CancelAt           time.Time              `json:"cancel_at"`
-	EndsAt             time.Time              `json:"ends_at"`
+	TrialEndsAt        time.Time              `json:"trial_ends_at,omitempty,omitzero"`
+	CancelAt           time.Time              `json:"cancel_at,omitempty,omitzero"`
+	EndsAt             time.Time              `json:"ends_at,omitempty,omitzero"`
 	LastCharge         time.Time              `json:"last_charge"`
 	RenewsAt           time.Time              `json:"renews_at"`
 
@@ -75,14 +75,14 @@ type Subscription struct {
 	CurrentPeriodEnd   time.Time `json:"current_period_end"`
 
 	Retries     int       `json:"retries"`
-	NextRetryAt time.Time `json:"next_retry"`
+	NextRetryAt time.Time `json:"next_retry,omitempty,omitzero"`
 
 	Currency        string            `json:"currency"`
 	Amount          int64             `json:"amount"`
 	Metadata        map[string]string `json:"metadata"`
 	CyclesProcessed int               `json:"cycles_processed"`
 	TotalRevenue    int64             `json:"total_revenue"`
-	CancelledAt     time.Time         `json:"cancelled_at"`
+	CancelledAt     time.Time         `json:"cancelled_at,omitempty,omitzero"`
 	CreatedAt       time.Time         `json:"created_at"`
 	UpdatedAt       time.Time         `json:"updated_at"`
 }

@@ -25,6 +25,16 @@ type PaystackConfig struct {
 	ConnectId string `json:"connect_id"`
 }
 
+func (c PaystackConfig) Validate() error {
+	if c.ApiKey == "" {
+		return errors.New("api_key is required")
+	}
+	if c.ConnectId == "" {
+		return errors.New("connect_id is required")
+	}
+	return nil
+}
+
 func NewPaystackGateway(logger logger.Logger, config PaystackConfig) payment_providers.Gateway {
 	return Paystack{
 		config: config,

@@ -30,6 +30,10 @@ type CheckoutDotComConfig struct {
 	ProcessingChannelId string `json:"processing_channel_id"`
 }
 
+func (c CheckoutDotComConfig) Validate() error {
+	return nil
+}
+
 func NewCheckoutDotComGateway(logger logger.Logger, config CheckoutDotComConfig) payment_providers.Gateway {
 	api, _ := checkout.
 		Builder().

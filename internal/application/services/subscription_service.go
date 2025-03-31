@@ -545,7 +545,7 @@ func (s SubscriptionService) GetRetryPolicy(ctx context.Context, orgId string) s
 	}
 	setting, err := s.settingRepository.FindById(ctx, orgId, "subscriptions", "retry_policy")
 	if err != nil || setting.Value == "" {
-		s.logger.Error("Failed to get retry", "error", err)
+		s.logger.Infof(`Retry policy not set, using default policy`)
 		return defaultPolicy
 	}
 

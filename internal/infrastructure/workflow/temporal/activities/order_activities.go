@@ -91,7 +91,7 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 		return payments.ChargeResult{}, err
 	}
 
-	gw, err := a.gatewayFactory.NewGateway(ctx, subscription.OrgId, subscription.PspId)
+	gw, err := a.gatewayFactory.NewGateway(ctx, subscription.OrgId, string(subscription.PspId))
 	if err != nil {
 		logger.Error("Failed to get gateway", err.Error())
 		return payments.ChargeResult{}, err

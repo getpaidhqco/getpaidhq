@@ -241,7 +241,7 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 	var pspResponse payment_providers.InitPaymentResponse
 	if createPspSession {
 		s.logger.Debugf("Creating payment session for order %s", order.Id)
-		gw, err := s.gatewayFactory.NewGateway(ctx, orgId, input.PspId)
+		gw, err := s.gatewayFactory.NewGateway(ctx, orgId, string(input.PspId))
 		if err != nil {
 			s.logger.Error("Failed to get gateway", err.Error())
 			return orders.CreateOrderResponse{}, err

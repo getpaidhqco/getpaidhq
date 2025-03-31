@@ -58,16 +58,18 @@ model Org {
   @@map("orgs")
 }
 
-model PaymentServiceProvider {
+model Gateway {
   orgId  String  @map("org_id")
   id     String
+  name   String
+  pspId String  @map("psp_id")
   active Boolean @default(false)
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
 
   @@id([orgId, id])
-  @@map("payment_service_providers")
+  @@map("gateways")
 }
 
 model Setting {
@@ -462,7 +464,7 @@ model Payment {
   id    String @default(cuid())
 
   psp       String  @map("psp")
-  pspId     String?  @map("psp_id")
+  pspId     String? @map("psp_id")
   reference String  @default("") @map("reference")
   recurring Boolean @default(false)
 

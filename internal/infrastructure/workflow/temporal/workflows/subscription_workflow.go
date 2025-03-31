@@ -139,13 +139,13 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			continue
 		}
 
-		if subscription.Status == entities.SubscriptionStatusPastDue {
+		if subscription.Status == entities.SubscriptionStatusNonRenewing {
 			err = workflow.Await(ctx, func() bool {
 				logger.Debug("Past due clause", "subscription.Status", subscription.Status)
 
 				// wait until the subscription is moved out of past due status. If active, the renew date
 				// must be in the future
-				return subscription.Status != entities.SubscriptionStatusPastDue
+				return subscription.Status != entities.SubscriptionStatusNonRenewing
 			})
 			continue
 		}
