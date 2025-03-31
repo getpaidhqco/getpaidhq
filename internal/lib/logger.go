@@ -187,11 +187,11 @@ func newLogger(env Env, opts ...zap.Option) logger.Logger {
 	default:
 		level = zap.PanicLevel
 	}
-	opts = append(opts, zap.AddCaller(), zap.AddCallerSkip(4), zap.WithCaller(true), zap.AddStacktrace(zapcore.FatalLevel))
+	opts = append(opts, zap.AddStacktrace(zapcore.FatalLevel))
 	config.Level.SetLevel(level)
+	config.EncoderConfig.TimeKey = ""
 
 	zapLogger, _ = config.Build(opts...)
-
 	handler := slogzap.Option{
 		Level:     slog.LevelDebug,
 		Logger:    zapLogger,
@@ -199,7 +199,6 @@ func newLogger(env Env, opts ...zap.Option) logger.Logger {
 	}.NewZapHandler()
 
 	l := slog.New(handler)
-
 	return MyLogger{
 		logger: l,
 	}
