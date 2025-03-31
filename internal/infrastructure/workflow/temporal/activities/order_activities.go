@@ -124,10 +124,6 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 		},
 		Customer: customer,
 	})
-	// TODO: not sure if the below is needed, for now retry everything
-	//if chargeResult.Status == payment_providers.ChargePaymentStatusError && !chargeResult.Retryable {
-	//	return payments.ChargeResult{}, errors.New("failed to charge customer, not retryable")
-	//}
 
 	rawData, err := json.Marshal(chargeResult.PspResponse)
 	if err != nil {
@@ -153,7 +149,7 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 		Currency:    subscription.Currency,
 		PspId:       chargeResult.PspId,
 		Reference:   chargeResult.Reference,
-		CompletedAt: completedAt,
+		ProcessedAt: completedAt,
 		RawData:     string(rawData),
 	}
 	return result, nil

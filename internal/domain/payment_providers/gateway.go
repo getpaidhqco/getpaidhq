@@ -53,6 +53,7 @@ type ChargePaymentResponse struct {
 	Currency      common.Currency     `json:"currency"`
 	AmountCharged int64               `json:"amount_charged"`
 	PaymentType   string              `json:"payment_type"`
+	ErrorReason   string              `json:"error_reason"`
 
 	PspResponse interface{} `json:"psp_response"`
 }

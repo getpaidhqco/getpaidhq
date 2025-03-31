@@ -361,7 +361,7 @@ func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context
 		PlatformFee:    0,
 		NetAmount:      subscription.Amount,
 		Metadata:       nil,
-		CompletedAt:    input.ChargeResult.CompletedAt,
+		CompletedAt:    input.ChargeResult.ProcessedAt,
 		CreatedAt:      time.Now().UTC(),
 		UpdatedAt:      time.Now().UTC(),
 	}
@@ -426,7 +426,10 @@ func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context
 }
 
 func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context, input subscriptions.SubscriptionChargeInput) (entities.Subscription, error) {
-	s.logger.Info("Charge failure happened", "orgId", input.Subscription.OrgId, "id", input.Subscription.Id)
+	s.logger.Info("Charge failure happened",
+		"orgId", input.Subscription.OrgId,
+		"id", input.Subscription.Id,
+		"reason", input.ChargeResult.ErrorReason)
 
 	subscription := input.Subscription
 	charge := input.ChargeResult
@@ -455,7 +458,7 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 		PlatformFee:    0,
 		NetAmount:      subscription.Amount,
 		Metadata:       nil,
-		CompletedAt:    input.ChargeResult.CompletedAt,
+		CompletedAt:    input.ChargeResult.ProcessedAt,
 		CreatedAt:      time.Now().UTC(),
 		UpdatedAt:      time.Now().UTC(),
 	}
@@ -471,11 +474,17 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 	// update the subscription status and retry dates
 	if subscription.Retries < 3 {
 		// update the subscription status
+		subscription.LastCharge = input.ChargeResult.ProcessedAt
+		if subscription.LastCharge.IsZero() {
+			subscription.LastCharge = time.Now().UTC()
+		}
 		subscription.Status = entities.SubscriptionStatusRetry
 		nextCharge := subscription.CalculateNextBillingDate()
+
 		subscription.RenewsAt = nextCharge
 		subscription.NextRetryAt = nextCharge
 		subscription.Retries++
+		s.logger.Debugf("Subscription [%s] charge failed, retrying", subscription.Id)
 	} else {
 		subscription.Status = entities.SubscriptionStatusPastDue
 		subscription.Retries = 0

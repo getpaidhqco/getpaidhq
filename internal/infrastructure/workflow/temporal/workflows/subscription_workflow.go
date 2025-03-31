@@ -224,10 +224,10 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		// Update the subscription with the charge result
 		var updateResult entities.Subscription
 		updateCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-			StartToCloseTimeout: 25 * time.Second,
+			StartToCloseTimeout: 5 * time.Minute,
 			RetryPolicy: &temporalio.RetryPolicy{
-				InitialInterval:    time.Minute * 10,
-				BackoffCoefficient: 2.0,
+				InitialInterval:    time.Minute * 1,
+				BackoffCoefficient: 1.2,
 			},
 		})
 		err = workflow.ExecuteActivity(updateCtx, a.HandleChargeResult, subscription, chargeResult).

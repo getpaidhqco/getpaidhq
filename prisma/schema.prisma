@@ -462,7 +462,7 @@ model Payment {
   id    String @default(cuid())
 
   psp       String  @map("psp")
-  pspId     String  @map("psp_id")
+  pspId     String?  @map("psp_id")
   reference String  @default("") @map("reference")
   recurring Boolean @default(false)
 
@@ -490,7 +490,6 @@ model Payment {
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@id([orgId, id])
-  @@unique([orgId, pspId])
   @@map("payments")
 }
 

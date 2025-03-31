@@ -11,10 +11,10 @@ type Payment struct {
 	OrgId          string            `json:"org_id"`
 	Id             string            `json:"id"`
 	Psp            string            `json:"psp"`
-	PspId          string            `json:"psp_id"`
-	Reference      string            `json:"reference"`
+	PspId          pgtype.Text       `json:"psp_id"`
+	Reference      pgtype.Text       `json:"reference"`
 	OrderId        string            `json:"order_id"`
-	SubscriptionId string            `json:"subscription_id"`
+	SubscriptionId pgtype.Text       `json:"subscription_id"`
 	Recurring      bool              `json:"recurring"`
 	Status         string            `json:"status"`
 	Currency       string            `json:"currency"`
@@ -33,10 +33,10 @@ func (s *Payment) ToEntity() entities.Payment {
 		OrgId:          s.OrgId,
 		Id:             s.Id,
 		Psp:            common.Gateway(s.Psp),
-		PspId:          s.PspId,
-		Reference:      s.Reference,
+		PspId:          s.PspId.String,
+		Reference:      s.Reference.String,
 		OrderId:        s.OrderId,
-		SubscriptionId: s.SubscriptionId,
+		SubscriptionId: s.SubscriptionId.String,
 		Recurring:      s.Recurring,
 		Status:         payments.PaymentStatus(s.Status),
 		Currency:       s.Currency,

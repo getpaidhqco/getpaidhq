@@ -105,10 +105,16 @@ func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.Cha
 		var paystackErr *pserrors.APIError
 		if errors.As(err, &paystackErr) {
 			return payment_providers.ChargePaymentResponse{
-				Status:      payment_providers.ChargePaymentStatusError,
-				Retryable:   true,
-				Psp:         common.Paystack,
-				PspResponse: paystackErr,
+				Status:        payment_providers.ChargePaymentStatusError,
+				Retryable:     true,
+				Psp:           common.Paystack,
+				ErrorReason:   paystackErr.Details.Message,
+				PspId:         "",
+				Reference:     "",
+				Currency:      common.Currency(input.Currency),
+				AmountCharged: input.Amount,
+				PaymentType:   "",
+				PspResponse:   paystackErr,
 			}
 		}
 

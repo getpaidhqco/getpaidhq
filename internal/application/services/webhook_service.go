@@ -104,7 +104,7 @@ func (s WebhookService) HandlePaymentWebhook(ctx context.Context, payload webhoo
 			Currency:    webhook.Payment.Currency,
 			PspId:       webhook.Payment.PspId,
 			Reference:   webhook.Payment.Reference,
-			CompletedAt: webhook.Payment.PaidAt,
+			ProcessedAt: webhook.Payment.PaidAt,
 			RawData:     string(webhook.RawData),
 		}
 

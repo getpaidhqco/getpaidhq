@@ -27,6 +27,6 @@ type ChargeResult struct {
 	Currency    string         `json:"currency"`
 	PspId       string         `json:"psp_id"`
 	Reference   string         `json:"reference"`
-	CompletedAt time.Time      `json:"completed_at"`
+	ProcessedAt time.Time      `json:"processed_at"`
 	RawData     string         `json:"raw_data"`
 }
