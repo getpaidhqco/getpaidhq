@@ -238,7 +238,7 @@ func (s SubscriptionService) ResumeSubscription(ctx context.Context, input subsc
 	if behaviour == subscriptions.ContinueExistingBillingPeriod {
 		nextCharge := subscription.CalculateNextBillingDate()
 		if nextCharge.Before(time.Now().UTC()) {
-			return entities.Subscription{}, lib.NewCustomError(lib.BadRequestError, "next billing date is in the past", errors.New("next billing date is in the past"))
+			return entities.Subscription{}, lib.NewCustomError(lib.BadRequestError, "can't continue existing billing period, start a new period", errors.New("next billing date is in the past"))
 		}
 		// set the next billing date to the next billing date
 		subscription.RenewsAt = nextCharge
