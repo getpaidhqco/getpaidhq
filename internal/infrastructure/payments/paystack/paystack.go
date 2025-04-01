@@ -29,9 +29,6 @@ func (c PaystackConfig) Validate() error {
 	if c.ApiKey == "" {
 		return errors.New("api_key is required")
 	}
-	if c.ConnectId == "" {
-		return errors.New("connect_id is required")
-	}
 	return nil
 }
 
