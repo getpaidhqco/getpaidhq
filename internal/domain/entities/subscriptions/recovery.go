@@ -2,14 +2,17 @@ package subscriptions
 
 import (
 	"payloop/internal/domain/entities"
+	"payloop/internal/lib"
 	"time"
 )
 
 type RetryInterval string
 
 const (
-	RetryIntervalDay  RetryInterval = "day"
-	RetryIntervalWeek RetryInterval = "week"
+	RetryIntervalMinute RetryInterval = "minute"
+	RetryIntervalHour   RetryInterval = "hour"
+	RetryIntervalDay    RetryInterval = "day"
+	RetryIntervalWeek   RetryInterval = "week"
 )
 
 type FailureAction string
@@ -32,19 +35,39 @@ type RetryPolicyResponse struct {
 }
 
 func (r RetryPolicy) GetNextCharge(subscription entities.Subscription) time.Time {
+	logger := lib.GetLogger()
+
 	if subscription.Retries >= r.RetryAttempts {
 		return time.Time{}
 	}
 	var nextCharge time.Time
 	base := subscription.RenewsAt
+	logger.Debugf("Calculating next retry charge for [%s]", subscription.Id)
+	logger.Debugf("Retries attempted   [%d]", subscription.Retries)
+	logger.Debugf("Base time   [%s]", base)
 
 	// for now we just divvy the retry period by the number of retries
-	retryPeriod := base.Add(time.Duration(r.RetryPeriod) * 24 * time.Hour)
-	retryPeriodLeft := retryPeriod.Sub(time.Now())
-	retriesLeft := r.RetryAttempts - subscription.Retries
-	retry := float64(retryPeriodLeft) / float64(retriesLeft)
+	var retryDuration time.Duration
+	switch r.RetryInterval {
+	case RetryIntervalMinute:
+		retryDuration = time.Minute
+	case RetryIntervalHour:
+		retryDuration = time.Hour
+	case RetryIntervalDay:
+		retryDuration = 24 * time.Hour
+	case RetryIntervalWeek:
+		retryDuration = 7 * 24 * time.Hour
+	default:
+		retryDuration = 24 * time.Hour
+	}
 
-	nextCharge = base.Add(time.Duration(retry))
+	retryUntil := base.Add(time.Duration(r.RetryPeriod) * retryDuration)
+	logger.Debugf("Retry until [%s]", retryUntil)
+
+	retryPeriod := time.Duration(r.RetryPeriod) * retryDuration / time.Duration(r.RetryAttempts-subscription.Retries)
+
+	nextCharge = base.Add(retryPeriod)
+	logger.Debugf("Charge date for retry #%d [%s]", subscription.Retries+1, nextCharge)
 
 	return nextCharge
 }

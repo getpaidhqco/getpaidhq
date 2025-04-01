@@ -438,10 +438,12 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 	subscription := input.Subscription
 	charge := input.ChargeResult
 
-	s.logger.Infof("Subscription [%s] charge failed with reason [%s][%s][chargeResult status = %s]",
+	s.logger.Infof("Subscription [%s] charge failed with reason [%s][%s][chargeResult status = %s][]",
 		subscription.Id,
 		charge.ErrorCode,
-		charge.ErrorReason, charge.Status)
+		charge.ErrorReason,
+		charge.Status,
+		subscription.Retries)
 	if subscription.Id == "" {
 		s.logger.Error("Subscription is empty")
 		panic("Subscription is empty")
@@ -537,8 +539,8 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 func (s SubscriptionService) GetRetryPolicy(ctx context.Context, orgId string) subscriptions.RetryPolicy {
 	defaultPolicy := subscriptions.RetryPolicy{
 		RetryAttempts: 3,
-		RetryInterval: subscriptions.RetryIntervalDay,
-		RetryPeriod:   14,
+		RetryInterval: subscriptions.RetryIntervalMinute,
+		RetryPeriod:   4,
 		FailureAction: subscriptions.FailureActionCancel,
 	}
 	setting, err := s.settingRepository.FindById(ctx, orgId, "subscriptions", "retry_policy")

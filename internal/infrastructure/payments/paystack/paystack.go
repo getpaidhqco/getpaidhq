@@ -135,9 +135,9 @@ func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.Cha
 
 	// check the status of the payment - "success" or "queued"
 	status := payment_providers.ChargePaymentStatusSuccess
-	if response.Status == "queued" {
-		status = payment_providers.ChargePaymentStatusPending
-	}
+	//if response.Status == "queued" {
+	//	status = payment_providers.ChargePaymentStatusPending
+	//}
 
 	p.logger.Infof("ChargeAuthorization [%s][%s]", response.Status, response.Reference)
 	return payment_providers.ChargePaymentResponse{

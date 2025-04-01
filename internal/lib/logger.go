@@ -189,7 +189,10 @@ func newLogger(env Env, opts ...zap.Option) logger.Logger {
 	}
 	opts = append(opts, zap.AddStacktrace(zapcore.FatalLevel))
 	config.Level.SetLevel(level)
-	config.EncoderConfig.TimeKey = ""
+
+	if env.Env != "development" {
+		config.EncoderConfig.TimeKey = ""
+	}
 
 	zapLogger, _ = config.Build(opts...)
 	handler := slogzap.Option{

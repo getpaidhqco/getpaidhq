@@ -47,7 +47,6 @@ func (r SettingRepository) FindById(ctx context.Context, orgId string, parentId 
 	)
 
 	if err != nil {
-		r.logger.Errorf(`failed to find Setting [%s][%s][%s]: %s`, orgId, parentId, id, err.Error())
 		return entities.Setting{}, errors.New("not found")
 	}
 	return setting, nil
