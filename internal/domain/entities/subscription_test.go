@@ -35,7 +35,7 @@ func TestNewSubscriptionFromOrderItem_FreeTrial(t *testing.T) {
 	assert.Equal(t, SubscriptionStatusPending, subscription.Status)
 	assert.WithinDuration(t, time.Now().UTC().AddDate(0, 1, 0), subscription.StartDate, 10*time.Second)
 	assert.NotNil(t, subscription.TrialEndsAt)
-	assert.WithinDuration(t, time.Now().UTC().AddDate(0, 1, 0), *subscription.TrialEndsAt, 10*time.Second)
+	assert.WithinDuration(t, time.Now().UTC().AddDate(0, 1, 0), subscription.TrialEndsAt, 10*time.Second)
 
 	assert.Equal(t, orderItem.Price.BillingInterval, subscription.BillingInterval)
 	assert.Equal(t, orderItem.Price.BillingIntervalQty, subscription.BillingIntervalQty)
@@ -80,7 +80,7 @@ func TestNextBillingDate(t *testing.T) {
 			name: "Started now, With LastCharge, 1 CycleProcessed",
 			subscription: Subscription{
 				StartDate:          now,
-				LastCharge:         &now,
+				LastCharge:         now,
 				CyclesProcessed:    1,
 				BillingInterval:    prices.BillingIntervalMonth,
 				BillingIntervalQty: 1,
@@ -91,7 +91,7 @@ func TestNextBillingDate(t *testing.T) {
 			name: "With LastCharge",
 			subscription: Subscription{
 				StartDate:          now.AddDate(0, -1, 0),
-				LastCharge:         &now,
+				LastCharge:         now,
 				BillingInterval:    prices.BillingIntervalMonth,
 				BillingIntervalQty: 1,
 			},
@@ -101,7 +101,7 @@ func TestNextBillingDate(t *testing.T) {
 			name: "With LastCharge and CyclesProcessed",
 			subscription: Subscription{
 				StartDate:          now.AddDate(0, -2, 0),
-				LastCharge:         &now,
+				LastCharge:         now,
 				BillingInterval:    prices.BillingIntervalMonth,
 				BillingIntervalQty: 1,
 				CyclesProcessed:    1,
@@ -112,7 +112,7 @@ func TestNextBillingDate(t *testing.T) {
 			name: "Weekly Billing Interval",
 			subscription: Subscription{
 				StartDate:          now.AddDate(0, 0, -7),
-				LastCharge:         &now,
+				LastCharge:         now,
 				BillingInterval:    prices.BillingIntervalWeek,
 				BillingIntervalQty: 1,
 			},
@@ -126,4 +126,32 @@ func TestNextBillingDate(t *testing.T) {
 			assert.WithinDuration(t, tt.expectedNextDate, nextDate, time.Second)
 		})
 	}
+}
+
+func TestSetActivationDates(t *testing.T) {
+	now := time.Now().UTC()
+	trialQty := 0
+	trialInterval := prices.BillingIntervalNone
+
+	orderItem := OrderItem{
+		OrgId:   "org_123",
+		OrderId: "order_123",
+		Price: Price{
+			BillingInterval:    prices.BillingIntervalMonth,
+			BillingIntervalQty: 1,
+			Category:           prices.PriceCategorySubscription,
+			Currency:           "USD",
+			UnitPrice:          1000,
+			TrialInterval:      trialInterval,
+			TrialIntervalQty:   trialQty,
+		},
+	}
+
+	subscription := NewSubscriptionFromOrderItem(orderItem)
+	subscription.SetActivationDates()
+	
+	assert.WithinDuration(t, now, subscription.StartDate, 10*time.Second)
+	assert.WithinDuration(t, now, subscription.CurrentPeriodStart, 10*time.Second)
+	assert.WithinDuration(t, now, subscription.RenewsAt, 10*time.Second)
+	assert.Equal(t, now.Day(), subscription.BillingAnchor)
 }

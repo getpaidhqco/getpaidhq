@@ -87,11 +87,10 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 	})
 
 	for {
-		logger.Info(fmt.Sprintf("[%s][%s] blocking until nextBillingDate=[%s]", subscription.OrgId, subscription.Id, subscription.RenewsAt))
-
 		// Calculate the duration until the next billing date
 		// Remember to use workflow.Now(ctx) to get the current time
-		if subscription.RenewsAt.IsZero() {
+		nextCharge := subscription.GetNextChargeDate()
+		if nextCharge.IsZero() {
 			logger.Info("Subscription has no next billing date, ending workflow...")
 			// TODO report this error
 			break
@@ -100,7 +99,11 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		// Wait here until the next billing date or until the subscription is cancelled
 		// If the subscription state was updated using the "force-update", then we need to
 		// restart the wait so that the new state is taken into account
-		duration := subscription.RenewsAt.Sub(workflow.Now(ctx))
+		// RenewsAt is the date when the subscription will be charged again
+		// NextRenewalDate is the date when the subscription will be charged again
+		logger.Info(fmt.Sprintf("*** [%s][%s] blocking until nextBillingDate=[%s]", subscription.OrgId, subscription.Id, nextCharge))
+
+		duration := nextCharge.Sub(workflow.Now(ctx))
 		ok, err := workflow.AwaitWithTimeout(ctx, duration, func() bool {
 			rollover := workflow.GetInfo(ctx).GetContinueAsNewSuggested()
 			return subscription.Status == entities.SubscriptionStatusPaused ||
@@ -109,10 +112,10 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 				restartBillingWait
 		})
 		if err != nil {
-			logger.Error("Workflow Await was interrupted by an external factor",
+			logger.Error("Workflow Await was interrupted",
 				"Error", err.Error(),
 				slog.String("status", string(subscription.Status)),
-				slog.String("nextBillingDate", subscription.RenewsAt.String()),
+				slog.String("nextBillingDate", nextCharge.String()),
 				slog.Bool("restartBillingWait", restartBillingWait))
 		}
 		if restartBillingWait {
@@ -125,15 +128,14 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			return subscription, workflow.NewContinueAsNewError(ctx, SubscriptionWorkflow, subscription)
 		}
 		if !ok {
-			logger.Info(fmt.Sprintf("**** [%s][%s] Next billing date reached [%s]", subscription.OrgId, subscription.Id, subscription.RenewsAt))
+			logger.Info(fmt.Sprintf("*** [%s][%s] Next billing date reached [%s]", subscription.OrgId, subscription.Id, nextCharge))
 		}
 
 		// If the subscription was paused, wait until it is activated again
 		if subscription.Status == entities.SubscriptionStatusPaused {
 			err = workflow.Await(ctx, func() bool {
 				logger.Debug(fmt.Sprintf("[%s][%s] pause clause", subscription.OrgId, subscription.Id))
-				return subscription.Status == entities.SubscriptionStatusActive ||
-					subscription.Status == entities.SubscriptionStatusTrial ||
+				return subscription.IsRunning() ||
 					subscription.Status == entities.SubscriptionStatusCancelled
 			})
 			continue
@@ -143,8 +145,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			err = workflow.Await(ctx, func() bool {
 				logger.Debug("Past due clause", "subscription.Status", subscription.Status)
 
-				// wait until the subscription is moved out of past due status. If active, the renew date
-				// must be in the future
+				// wait until the subscription is moved out of the non-renewing state.
 				return subscription.Status != entities.SubscriptionStatusNonRenewing
 			})
 			continue
@@ -161,20 +162,15 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			break
 		}
 
-		// Check if the subscription is active
-		activeOrTrial := subscription.Status == entities.SubscriptionStatusActive ||
-			subscription.Status == entities.SubscriptionStatusTrial ||
-			subscription.Status == entities.SubscriptionStatusPastDue
-
-		if !activeOrTrial {
-			logger.Info("Subscription is not active, skipping billing cycle", "status", subscription.Status)
+		if !subscription.IsRunning() {
+			logger.Info("Subscription is not in a running state, skipping billing cycle", "status", subscription.Status)
 			continue
 		}
 
 		// Double-check the next billing date, it must be in the past
 		// E.g. if a paused subscription is activated, the next billing date may be in the future
-		if subscription.RenewsAt.After(workflow.Now(ctx)) {
-			logger.Info("Reached the billing process but Renew date is in the future, skipping billing cycle", "nextBillingDate", subscription.RenewsAt)
+		if nextCharge.After(workflow.Now(ctx)) {
+			logger.Info("Reached the billing process but Renew date is in the future, skipping billing cycle", "nextBillingDate", nextCharge)
 			continue
 		}
 
@@ -254,7 +250,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			subscription.OrgId,
 			subscription.Id,
 			subscription.Status,
-			subscription.RenewsAt,
+			subscription.GetNextChargeDate(),
 			subscription.CyclesProcessed,
 			subscription.Amount))
 	}

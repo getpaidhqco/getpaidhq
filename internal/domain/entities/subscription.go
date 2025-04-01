@@ -49,32 +49,46 @@ const (
 )
 
 type Subscription struct {
-	OrgId              string                 `json:"org_id"`
-	Id                 string                 `json:"id"`
-	PspId              common.Gateway         `json:"psp_id"`
-	OrderId            string                 `json:"order_id"`
-	OrderItemId        string                 `json:"order_item_id"`
-	OrderItem          OrderItem              `json:"-"`
-	CustomerId         string                 `json:"customer_id"`
-	Customer           Customer               `json:"-"`
-	Status             SubscriptionStatus     `json:"status"`
-	PaymentMethodId    string                 `json:"payment_method_id,omitempty"`
+	OrgId           string             `json:"org_id"`
+	Id              string             `json:"id"`
+	PspId           common.Gateway     `json:"psp_id"`
+	OrderId         string             `json:"order_id"`
+	OrderItemId     string             `json:"order_item_id"`
+	OrderItem       OrderItem          `json:"-"`
+	CustomerId      string             `json:"customer_id"`
+	Customer        Customer           `json:"-"`
+	Status          SubscriptionStatus `json:"status"`
+	PaymentMethodId string             `json:"payment_method_id,omitempty"`
+
+	// StartDate is the date when the subscription was activated.
+	// It doesn't include the trial period, if any.
 	StartDate          time.Time              `json:"start_date"`
 	EndDate            time.Time              `json:"end_date,omitempty,omitzero"`
 	BillingInterval    prices.BillingInterval `json:"billing_interval"`
 	BillingIntervalQty int                    `json:"billing_interval_qty"`
 	Cycles             int                    `json:"cycles"`
 	BillingAnchor      int                    `json:"billing_anchor"`
-	TrialEndsAt        time.Time              `json:"trial_ends_at,omitempty,omitzero"`
-	CancelAt           time.Time              `json:"cancel_at,omitempty,omitzero"`
-	EndsAt             time.Time              `json:"ends_at,omitempty,omitzero"`
-	LastCharge         time.Time              `json:"last_charge"`
-	RenewsAt           time.Time              `json:"renews_at"`
+
+	// TrialEndsAt is the date when the trial period ends, calculated relative to StartDate.
+	TrialEndsAt time.Time `json:"trial_ends_at,omitempty,omitzero"`
+
+	// CancelAt is the date when the subscription will be cancelled, this is used when the subscription is a
+	// payment plan.
+	CancelAt   time.Time `json:"cancel_at,omitempty,omitzero"`
+	EndsAt     time.Time `json:"ends_at,omitempty,omitzero"`
+	LastCharge time.Time `json:"last_charge"`
+
+	// RenewsAt is the date when the subscription will be charged next. This is always the
+	// date based on the billing anchor and interval. Retry dates are not included in this date.
+	RenewsAt time.Time `json:"renews_at"`
 
 	CurrentPeriodStart time.Time `json:"current_period_start"`
 	CurrentPeriodEnd   time.Time `json:"current_period_end"`
 
-	Retries     int       `json:"retries"`
+	// Retries is the number of times the subscription has been retried for payment in the current billing cycle.
+	Retries int `json:"retries"`
+	// NextRetryAt is the date when the subscription will be retried for payment next.
+	// Only used if the subscription is in PastDue state.
 	NextRetryAt time.Time `json:"next_retry,omitempty,omitzero"`
 
 	Currency        string            `json:"currency"`
@@ -85,6 +99,31 @@ type Subscription struct {
 	CancelledAt     time.Time         `json:"cancelled_at,omitempty,omitzero"`
 	CreatedAt       time.Time         `json:"created_at"`
 	UpdatedAt       time.Time         `json:"updated_at"`
+}
+
+// IsRunning checks if the subscription is in an active or trial state.
+func (s *Subscription) IsRunning() bool {
+	return s.Status == SubscriptionStatusActive ||
+		s.Status == SubscriptionStatusTrial ||
+		s.Status == SubscriptionStatusPastDue
+}
+
+// GetNextChargeDate returns the next charge date for the subscription, which is the earlier of RenewsAt or NextRetryAt,
+// and only if the subscription is in Active or PastDue state.
+func (s *Subscription) GetNextChargeDate() time.Time {
+	if s.Status == SubscriptionStatusPastDue {
+		return s.NextRetryAt
+	}
+
+	if s.Status == SubscriptionStatusActive {
+		return s.RenewsAt
+	}
+
+	if s.RenewsAt.Before(s.NextRetryAt) {
+		return s.RenewsAt
+	}
+
+	return s.NextRetryAt
 }
 
 // SetMetadata merges the existing metadata with the specified values.
@@ -99,58 +138,39 @@ func (s *Subscription) SetMetadata(meta map[string]string) *Subscription {
 }
 
 // CalculateNextBillingDate calculates and returns the next billing date for a subscription
-// based on the StartDate, LastCharge, BillingInterval, BillingIntervalQty and CyclesProcessed
+// based on the StartDate, BillingInterval, BillingIntervalQty and CyclesProcessed
+// It can't use LastCharge as the base date because of retries - LastCharge could be in middle of the
+// billing cycle if a retry policy is used.
+//
 // If the subscription has not started yet, it returns the StartDate
 // If the subscription has started but has not been charged yet, it returns the StartDate
-// If the subscription has been charged, it uses the LastCharge date as the base date
-// and the BillingInterval and BillingIntervalQty
-//
-// If the subscription is in retry status, it calculates the next retry date
+
 func (s *Subscription) CalculateNextBillingDate() time.Time {
 	if s.BillingInterval == "" || s.BillingIntervalQty <= 0 {
 		return time.Time{}
 	}
-
 	var nextBillingDate time.Time
-	if s.Status == SubscriptionStatusPastDue {
-		// Next retry date is in the future
-		if !s.NextRetryAt.IsZero() && s.NextRetryAt.After(time.Now().UTC()) {
-			return s.NextRetryAt
-		}
-
-		// Next retry already happened, use as base
-		if !s.NextRetryAt.IsZero() && s.NextRetryAt.Before(time.Now().UTC()) {
-			nextBillingDate = time.Now().UTC()
-		} else {
-			// Retry hasn't happened yet, use last charge date as base
-			nextBillingDate = s.LastCharge
-		}
-
-		return nextBillingDate.Add(time.Minute * 1)
-	}
-
-	nextBillingDate = s.StartDate
 	if s.LastCharge.IsZero() && s.CyclesProcessed == 0 {
-		return nextBillingDate
+		// new subscription, not charged yet
+		return s.StartDate
 	}
 
-	if !s.LastCharge.IsZero() && s.LastCharge.After(nextBillingDate) {
-		nextBillingDate = s.LastCharge
-	}
+	//
+	base := s.CurrentPeriodEnd
 
 	switch s.BillingInterval {
 	case "minute":
-		nextBillingDate = nextBillingDate.Add(time.Minute * time.Duration(s.BillingIntervalQty))
+		nextBillingDate = base.Add(time.Minute * time.Duration(s.BillingIntervalQty))
 	case "hour":
-		nextBillingDate = nextBillingDate.Add(time.Hour * time.Duration(s.BillingIntervalQty))
+		nextBillingDate = base.Add(time.Hour * time.Duration(s.BillingIntervalQty))
 	case "day":
-		nextBillingDate = nextBillingDate.AddDate(0, 0, s.BillingIntervalQty)
+		nextBillingDate = base.AddDate(0, 0, s.BillingIntervalQty)
 	case "week":
-		nextBillingDate = nextBillingDate.AddDate(0, 0, s.BillingIntervalQty*7)
+		nextBillingDate = base.AddDate(0, 0, s.BillingIntervalQty*7)
 	case "month":
-		nextBillingDate = nextBillingDate.AddDate(0, s.BillingIntervalQty, 0)
+		nextBillingDate = base.AddDate(0, s.BillingIntervalQty, 0)
 	case "year":
-		nextBillingDate = nextBillingDate.AddDate(s.BillingIntervalQty, 0, 0)
+		nextBillingDate = base.AddDate(s.BillingIntervalQty, 0, 0)
 	}
 
 	return nextBillingDate
@@ -162,23 +182,22 @@ func (s *Subscription) SetActivationDates() *Subscription {
 	var startDate = time.Now().UTC()
 	var trialEndsAt time.Time
 	var endsAt time.Time
+
 	if s.OrderItem.Price.TrialInterval != prices.BillingIntervalNone {
 		switch s.OrderItem.Price.TrialInterval {
 		case "minute":
-			startDate = startDate.Add(time.Minute * time.Duration(s.OrderItem.Price.TrialIntervalQty))
+			trialEndsAt = startDate.Add(time.Minute * time.Duration(s.OrderItem.Price.TrialIntervalQty))
 		case "hour":
-			startDate = startDate.Add(time.Hour * time.Duration(s.OrderItem.Price.TrialIntervalQty))
+			trialEndsAt = startDate.Add(time.Hour * time.Duration(s.OrderItem.Price.TrialIntervalQty))
 		case "day":
-			startDate = startDate.AddDate(0, 0, s.OrderItem.Price.TrialIntervalQty)
+			trialEndsAt = startDate.AddDate(0, 0, s.OrderItem.Price.TrialIntervalQty)
 		case "week":
-			startDate = startDate.AddDate(0, 0, s.OrderItem.Price.TrialIntervalQty*7)
+			trialEndsAt = startDate.AddDate(0, 0, s.OrderItem.Price.TrialIntervalQty*7)
 		case "month":
-			startDate = startDate.AddDate(0, s.OrderItem.Price.TrialIntervalQty, 0)
+			trialEndsAt = startDate.AddDate(0, s.OrderItem.Price.TrialIntervalQty, 0)
 		case "year":
-			startDate = startDate.AddDate(s.OrderItem.Price.TrialIntervalQty, 0, 0)
+			trialEndsAt = startDate.AddDate(s.OrderItem.Price.TrialIntervalQty, 0, 0)
 		}
-
-		trialEndsAt = startDate
 	}
 
 	if s.OrderItem.Price.Cycles > 0 {
@@ -186,10 +205,12 @@ func (s *Subscription) SetActivationDates() *Subscription {
 		endsAt = endsAtV
 	}
 
+	s.StartDate = startDate
 	s.TrialEndsAt = trialEndsAt
 	s.EndsAt = endsAt
-	s.RenewsAt = startDate
-	s.StartDate = startDate
+	renewsAt := s.CalculateNextBillingDate()
+	s.RenewsAt = renewsAt
+
 	s.CurrentPeriodStart = startDate
 	s.CurrentPeriodEnd = s.RenewsAt
 	s.BillingAnchor = startDate.Day()
@@ -200,13 +221,13 @@ func (s *Subscription) SetActivationDates() *Subscription {
 // SetActive sets the subscription status to active and prepares the dates for the subscription and charge schedule.
 // It doesn't make any assumptions about the payment status, it just sets the subscription status to active. This
 // calls SetActivationDates() and sets the status to SubscriptionStatusActive
-func (s *Subscription) SetActive(firstPaymentCharged bool) *Subscription {
+func (s *Subscription) SetActive(payment Payment) *Subscription {
 	s.SetActivationDates()
 	s.Status = SubscriptionStatusActive
-	if firstPaymentCharged {
-		s.LastCharge = s.StartDate
-		s.TotalRevenue = s.Amount
-		s.CyclesProcessed = 1
+	if payment.OrgId != "" && payment.Amount > 0 {
+		s.LastCharge = payment.CompletedAt
+		s.TotalRevenue = payment.Amount
+		s.CyclesProcessed++
 
 		renewsAt := s.CalculateNextBillingDate()
 		s.RenewsAt = renewsAt
@@ -214,6 +235,15 @@ func (s *Subscription) SetActive(firstPaymentCharged bool) *Subscription {
 		s.CurrentPeriodEnd = renewsAt
 	}
 
+	return s
+}
+
+// SetCancelled sets the subscription status to cancelled and prepares the dates for the subscription and charge schedule.
+func (s *Subscription) SetCancelled() *Subscription {
+	s.Status = SubscriptionStatusCancelled
+	s.CancelledAt = time.Now().UTC()
+	s.RenewsAt = time.Time{}
+	s.NextRetryAt = time.Time{}
 	return s
 }
 

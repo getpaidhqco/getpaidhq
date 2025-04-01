@@ -134,11 +134,6 @@ func (s OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, input
 			subscription.LastCharge = subscription.StartDate
 			subscription.TotalRevenue = subscription.Amount
 			subscription.CyclesProcessed = 1
-
-			renewsAt := subscription.CalculateNextBillingDate()
-			subscription.RenewsAt = renewsAt
-			subscription.CurrentPeriodStart = subscription.StartDate
-			subscription.CurrentPeriodEnd = renewsAt
 		} else {
 			subscription.SetActivationDates()
 			subscription.Status = entities.SubscriptionStatusTrial

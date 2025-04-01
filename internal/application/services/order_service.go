@@ -360,8 +360,9 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 
 		firstPaymentCharged := input.Payment.Amount > 0
 		// Log the payment if it's the first payment
+		var payment entities.Payment
 		if firstPaymentCharged {
-			payment := entities.Payment{
+			payment = entities.Payment{
 				OrgId:          input.OrgId,
 				Id:             lib.GenerateId("pmt"),
 				Psp:            subscription.PspId,
@@ -381,7 +382,7 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 				CreatedAt:      time.Now().UTC(),
 				UpdatedAt:      time.Now().UTC(),
 			}
-			payment, err := s.paymentRepository.Create(ctx, payment)
+			payment, err = s.paymentRepository.Create(ctx, payment)
 			if err != nil {
 				s.logger.Error("Failed to create payment", err.Error())
 				return entities.Order{}, err
@@ -389,7 +390,7 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 		}
 
 		// Set the activation dates
-		subscription.SetActive(firstPaymentCharged)
+		subscription.SetActive(payment)
 		s.logger.Infof("Subscription [%s] activated. firstPaymentCharged=%t", subscription.Id, firstPaymentCharged)
 		newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 		if err != nil {

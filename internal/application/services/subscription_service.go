@@ -481,67 +481,65 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 	s.logger.Debug("Retry policy",
 		"attempts", retryPolicy.RetryAttempts,
 		"interval", retryPolicy.RetryInterval,
-		"qty", retryPolicy.RetryIntervalQty,
+		"qty", retryPolicy.RetryPeriod,
 		"action", retryPolicy.FailureAction,
 	)
 
-	publishPastDue := false
-	// update the subscription status and retry dates
-	if subscription.Retries < retryPolicy.RetryAttempts {
-		// update the subscription status
-		subscription.LastCharge = input.ChargeResult.ProcessedAt
-		if subscription.LastCharge.IsZero() {
-			subscription.LastCharge = time.Now().UTC()
-		}
-		if subscription.Retries == 0 {
-			// this is the first retry, so we can publish the event
-			publishPastDue = true
-		}
-
-		subscription.Status = entities.SubscriptionStatusPastDue
-		nextCharge := subscription.CalculateNextBillingDate()
-
-		subscription.RenewsAt = nextCharge
-		subscription.NextRetryAt = nextCharge
-		subscription.Retries++
-		s.logger.Debugf("Subscription [%s] charge failed, retrying", subscription.Id)
-	} else {
-		// The retries failed, so we need to cancel the subscription
-		s.logger.Debugf("Subscription [%s] charge failed, cancelling", subscription.Id)
+	nextRetryDate := retryPolicy.GetNextCharge(subscription)
+	if nextRetryDate.IsZero() {
+		// no more retries left
+		s.logger.Debugf("Subscription [%s] has no more retries left", subscription.Id)
 		if retryPolicy.FailureAction == subscriptions.FailureActionMarkUnpaid {
+			s.logger.Debugf("Marking as unpaid..")
 			subscription.Status = entities.SubscriptionStatusUnpaid
 		}
-		subscription.Status = entities.SubscriptionStatusCancelled
-		subscription.Retries = 0
-		subscription.NextRetryAt = time.Time{}
 
-		_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusPastDue, subscription)
+		if retryPolicy.FailureAction == subscriptions.FailureActionCancel {
+			s.logger.Debugf("Cancelling..")
+			subscription.SetCancelled()
+		}
+	} else {
+		s.logger.Debugf("Subscription [%s] next retry date [%s]", subscription.Id, nextRetryDate)
+		subscription.Status = entities.SubscriptionStatusPastDue
+		subscription.NextRetryAt = nextRetryDate
+		subscription.Retries++
 	}
 
-	s.logger.Infof("[%s][%s] nextCharge=[%s]", subscription.OrgId, subscription.Id, subscription.RenewsAt)
+	s.logger.Infof("[%s][%s] nextCharge=[%s]", subscription.OrgId, subscription.Id, subscription.GetNextChargeDate())
 	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
 		s.logger.Error("Failed to update subscription", err.Error())
 		return entities.Subscription{}, err
 	}
 
+	// Publish the events
 	_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionPaymentChargeFailed, map[string]interface{}{
 		"subscription":  subscription,
 		"charge_result": charge,
 	})
 
-	if publishPastDue {
-		_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusPastDue, subscription)
+	switch newSub.Status {
+	case entities.SubscriptionStatusCancelled:
+		_ = s.pubsub.Publish(subscription.OrgId, topic.TopicSubscriptionCancelled, newSub)
+	case entities.SubscriptionStatusUnpaid:
+		_ = s.pubsub.Publish(subscription.OrgId, topic.TopicSubscriptionUnpaid, newSub)
+	case entities.SubscriptionStatusExpired:
+		_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusExpired, newSub)
+	case entities.SubscriptionStatusPastDue:
+		if subscription.Retries == 1 {
+			_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusPastDue, newSub)
+		}
 	}
+
 	return newSub, nil
 }
 
 func (s SubscriptionService) GetRetryPolicy(ctx context.Context, orgId string) subscriptions.RetryPolicy {
 	defaultPolicy := subscriptions.RetryPolicy{
-		RetryAttempts:    3,
-		RetryInterval:    subscriptions.RetryIntervalDay,
-		RetryIntervalQty: 14,
-		FailureAction:    subscriptions.FailureActionCancel,
+		RetryAttempts: 3,
+		RetryInterval: subscriptions.RetryIntervalDay,
+		RetryPeriod:   14,
+		FailureAction: subscriptions.FailureActionCancel,
 	}
 	setting, err := s.settingRepository.FindById(ctx, orgId, "subscriptions", "retry_policy")
 	if err != nil || setting.Value == "" {
