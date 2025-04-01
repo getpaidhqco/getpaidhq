@@ -12,7 +12,7 @@ type Env struct {
 	TemporalHost    string `mapstructure:"TEMPORAL_HOST"`
 	Env             string `mapstructure:"ENV"`
 	LogOutput       string `mapstructure:"LOG_OUTPUT"`
-	LogLevel        string `mapstructure:"LOG_LEVEL"`
+	LogLevel        string `mapstructure:"PAYLOOP_LOG_LEVEL"`
 	DBUrl           string `mapstructure:"DATABASE_URL"`
 	CedarPolicyFile string `mapstructure:"CEDAR_POLICY"`
 
@@ -43,7 +43,7 @@ func NewEnv() Env {
 	viper.BindEnv("TEMPORAL_HOST")
 	viper.BindEnv("ENV")
 	viper.BindEnv("LOG_OUTPUT")
-	viper.BindEnv("LOG_LEVEL")
+	viper.BindEnv("PAYLOOP_LOG_LEVEL")
 	viper.BindEnv("DATABASE_URL")
 	viper.BindEnv("CEDAR_POLICY")
 	viper.BindEnv("JWT_SECRET")
@@ -60,7 +60,7 @@ func NewEnv() Env {
 		env.DBUrl = viper.GetString("DATABASE_URL")
 		env.ServerPort = viper.GetString("SERVER_PORT")
 		env.Env = viper.GetString("ENV")
-		env.LogLevel = viper.GetString("LOG_LEVEL")
+		env.LogLevel = viper.GetString("PAYLOOP_LOG_LEVEL")
 		env.ClerkSecretKey = viper.GetString("CLERK_SECRET")
 		env.TemporalHost = viper.GetString("TEMPORAL_HOST")
 
