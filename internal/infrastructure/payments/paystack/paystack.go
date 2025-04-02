@@ -51,11 +51,10 @@ func (p Paystack) InitPayment(ctx context.Context, input payment_providers.InitP
 	})
 
 	request := transactions.TransactionRequest{
-		CallbackURL: "https://www.example.com",
-		Reference:   reference,
-		Currency:    currency,
-		Amount:      float32(cart.Total),
-		Email:       email,
+		Reference: reference,
+		Currency:  currency,
+		Amount:    float32(cart.Total),
+		Email:     email,
 		Metadata: pscommon.Metadata{
 			"order_id": input.Order.Id,
 			"cart_id":  input.Cart.Id,
