@@ -245,14 +245,17 @@ func (s SubscriptionService) ResumeSubscription(ctx context.Context, input subsc
 	}
 
 	if behaviour == subscriptions.StartNewBillingPeriod {
+		s.logger.Debugf(`Starting new billing period..`)
 		// set the next billing date to the current date
 		// add a bit of a buffer to avoid charging immediately
 		nextCharge := time.Now().UTC().Add(time.Second * 20)
 		subscription.BillingAnchor = nextCharge.Day()
 		subscription.RenewsAt = nextCharge
+		subscription.CurrentPeriodStart = nextCharge
+		subscription.CurrentPeriodEnd = subscription.AddBillingInterval(nextCharge)
 	}
-	subscription.Status = entities.SubscriptionStatusActive
 
+	subscription.Status = entities.SubscriptionStatusActive
 	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
 		s.logger.Error("Failed to update subscription", err.Error())

@@ -176,6 +176,27 @@ func (s *Subscription) CalculateNextBillingDate() time.Time {
 	return nextBillingDate
 }
 
+// AddBillingInterval adds the billing interval to the base date and returns the new date
+func (s *Subscription) AddBillingInterval(base time.Time) time.Time {
+	var rsp time.Time
+	switch s.BillingInterval {
+	case "minute":
+		rsp = base.Add(time.Minute * time.Duration(s.BillingIntervalQty))
+	case "hour":
+		rsp = base.Add(time.Hour * time.Duration(s.BillingIntervalQty))
+	case "day":
+		rsp = base.AddDate(0, 0, s.BillingIntervalQty)
+	case "week":
+		rsp = base.AddDate(0, 0, s.BillingIntervalQty*7)
+	case "month":
+		rsp = base.AddDate(0, s.BillingIntervalQty, 0)
+	case "year":
+		rsp = base.AddDate(s.BillingIntervalQty, 0, 0)
+	}
+
+	return rsp
+}
+
 // SetActivation sets the activation date for a subscription based on the trial interval
 func (s *Subscription) SetActivationDates() *Subscription {
 	price := s.OrderItem.Price
