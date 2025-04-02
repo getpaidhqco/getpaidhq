@@ -248,6 +248,11 @@ func (t Temporal) getExecution(subscription entities.Subscription) (temporal.Exe
 		return temporal.Execution{}, err
 	}
 
+	t.logger.Debugf(`Getting the latest runID for workflow [%s]`, we.ID)
+	workflowRun := t.client.GetWorkflow(context.Background(), we.ID, "")
+	we.RunID = workflowRun.GetRunID()
+	t.logger.Debugf(`Found RunID [%s]`, we.RunID)
+	
 	return we, nil
 }
 
