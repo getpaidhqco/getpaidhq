@@ -104,6 +104,18 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		logger.Info(fmt.Sprintf("*** [%s][%s] blocking until nextBillingDate=[%s]", subscription.OrgId, subscription.Id, nextCharge))
 
 		duration := nextCharge.Sub(workflow.Now(ctx))
+
+		// Set a timer for the reminder event
+		reminderDuration := duration - 30*time.Second
+		reminderTimer := workflow.NewTimer(ctx, reminderDuration)
+
+		selector := workflow.NewSelector(ctx)
+		selector.AddFuture(reminderTimer, func(f workflow.Future) {
+			logger.Info("Reminder event triggered 30 seconds before the main event")
+			// Trigger the reminder event here
+			// e.g., send a notification or update the subscription state
+		})
+
 		ok, err := workflow.AwaitWithTimeout(ctx, duration, func() bool {
 			rollover := workflow.GetInfo(ctx).GetContinueAsNewSuggested()
 			return subscription.Status == entities.SubscriptionStatusPaused ||
