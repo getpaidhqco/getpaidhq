@@ -136,7 +136,6 @@ func (s SubscriptionOrchestrationService) PauseSubscription(ctx context.Context,
 	// update the subscription workflow
 	err = s.workflowEngine.UpdateSubscriptionWorkflow(ctx, "subscription.paused", subscription)
 	if err != nil {
-		s.logger.Error("Failed to update workflow", err.Error())
 		var serr lib.CustomError
 		if errors.As(err, &serr) {
 			return entities.Subscription{}, err
@@ -163,7 +162,6 @@ func (s SubscriptionOrchestrationService) UpdateWorkflowState(ctx context.Contex
 	// update the subscription workflow
 	err = s.workflowEngine.UpdateSubscriptionWorkflow(ctx, "refresh-state", subscription)
 	if err != nil {
-		s.logger.Error("Failed to update workflow", err.Error())
 		var serr lib.CustomError
 		if errors.As(err, &serr) {
 			return entities.Subscription{}, err
@@ -189,7 +187,6 @@ func (s SubscriptionOrchestrationService) ResumeSubscription(ctx context.Context
 	// update the subscription workflow
 	err = s.workflowEngine.UpdateSubscriptionWorkflow(ctx, topic.TopicSubscriptionResumed, newSub)
 	if err != nil {
-		s.logger.Error("Failed to update workflow", err.Error())
 		var serr lib.CustomError
 		if errors.As(err, &serr) {
 			return entities.Subscription{}, err
@@ -221,7 +218,6 @@ func (s SubscriptionOrchestrationService) CancelSubscription(ctx context.Context
 	s.logger.Debugf("Updating workflow for subscription %s [%s]", subscription.Id, topic.TopicSubscriptionCancelled)
 	err = s.workflowEngine.UpdateSubscriptionWorkflow(ctx, topic.TopicSubscriptionCancelled, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update workflow", err.Error())
 		var serr lib.CustomError
 		if errors.As(err, &serr) {
 			return entities.Subscription{}, err
