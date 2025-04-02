@@ -208,7 +208,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			})
 
 			// Wait for either the webhook or a timeout
-			timeout := workflow.NewTimer(ctx, 24*time.Hour)
+			timeout := workflow.NewTimer(ctx, 1*time.Hour)
 			selector.AddFuture(timeout, func(f workflow.Future) {
 				// Handle timeout
 				logger.Error("Timeout waiting for payment webhook", "Error", "")

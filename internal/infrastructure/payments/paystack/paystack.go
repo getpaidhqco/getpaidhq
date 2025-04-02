@@ -111,11 +111,26 @@ func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.Cha
 		p.logger.Errorf("failed to charge payment [%s]", err.Error())
 		var paystackErr *pserrors.APIError
 		if errors.As(err, &paystackErr) {
+
+			if paystackErr.HTTPStatusCode == 429 {
+				return payment_providers.ChargePaymentResponse{
+					Status:        payment_providers.GatewayError,
+					Retryable:     false,
+					Psp:           common.Paystack,
+					ErrorReason:   paystackErr.Details.Message,
+					ErrorCode:     strconv.Itoa(paystackErr.HTTPStatusCode),
+					Currency:      common.Currency(input.Currency),
+					AmountCharged: input.Amount,
+					PspResponse:   paystackErr,
+				}
+			}
+
 			return payment_providers.ChargePaymentResponse{
 				Status:        payment_providers.ChargePaymentStatusError,
 				Retryable:     true,
 				Psp:           common.Paystack,
 				ErrorReason:   paystackErr.Details.Message,
+				ErrorCode:     strconv.Itoa(paystackErr.HTTPStatusCode),
 				PspId:         "",
 				Reference:     "",
 				Currency:      common.Currency(input.Currency),
@@ -126,10 +141,17 @@ func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.Cha
 		}
 
 		return payment_providers.ChargePaymentResponse{
-			Status:      payment_providers.ChargePaymentStatusError,
-			Retryable:   false,
-			Psp:         common.Paystack,
-			PspResponse: err,
+			Status:        payment_providers.ChargePaymentStatusError,
+			Retryable:     true,
+			Psp:           common.Paystack,
+			ErrorReason:   err.Error(),
+			ErrorCode:     "500",
+			PspId:         "",
+			Reference:     "",
+			Currency:      common.Currency(input.Currency),
+			AmountCharged: input.Amount,
+			PaymentType:   "",
+			PspResponse:   err,
 		}
 	}
 

@@ -3,6 +3,7 @@ package activities
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 	"payloop/internal/application/interfaces"
@@ -15,6 +16,7 @@ import (
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/infrastructure/workflow/temporal/types"
+	"payloop/internal/lib"
 	"time"
 )
 
@@ -26,6 +28,7 @@ type OrderActivities struct {
 	paymentRepository      repositories.PaymentRepository
 	pubsub                 events.PubSub
 	gatewayFactory         factories.GatewayFactory
+	errorReporter          lib.ErrorReporter
 }
 
 func NewOrderActivities(
@@ -36,6 +39,7 @@ func NewOrderActivities(
 	pubsub events.PubSub,
 	paymentRepository repositories.PaymentRepository,
 	gatewayFactory factories.GatewayFactory,
+	errorReporter lib.ErrorReporter,
 ) OrderActivities {
 	return OrderActivities{
 		gatewayFactory:         gatewayFactory,
@@ -45,6 +49,7 @@ func NewOrderActivities(
 		paymentRepository:      paymentRepository,
 		settingRepository:      settingRepository,
 		pubsub:                 pubsub,
+		errorReporter:          errorReporter,
 	}
 }
 
@@ -125,6 +130,18 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 		Customer: customer,
 	})
 
+	// Gateway errors should be retried by Temporal using the retry policy in the workflow.
+	if chargeResult.Status == payment_providers.GatewayError {
+		logger.Error("Gateway error, returning error so that the charge can be retried", "error", chargeResult.ErrorReason)
+		a.errorReporter.ReportError(ctx, errors.New("gateway error while charging subscription"), map[string]interface{}{
+			"org_id":          subscription.OrgId,
+			"error":           chargeResult.ErrorReason,
+			"psp":             string(subscription.PspId),
+			"subscription_id": subscription.Id,
+		})
+		return payments.ChargeResult{}, temporal.NewApplicationError(chargeResult.ErrorReason, "gateway_error", nil)
+	}
+
 	rawData, err := json.Marshal(chargeResult.PspResponse)
 	if err != nil {
 		logger.Error("failed to marshal charge result", "error", err.Error())
@@ -147,6 +164,8 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 		Amount:      chargeResult.AmountCharged,
 		Status:      status,
 		Currency:    subscription.Currency,
+		ErrorReason: chargeResult.ErrorReason,
+		ErrorCode:   chargeResult.ErrorCode,
 		PspId:       chargeResult.PspId,
 		Reference:   chargeResult.Reference,
 		ProcessedAt: completedAt,

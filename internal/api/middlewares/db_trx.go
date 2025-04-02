@@ -58,7 +58,7 @@ func (m DatabaseTrx) Setup() {
 
 		defer func() {
 			if r := recover(); r != nil {
-				m.logger.Error("recover(), rolling back..", r)
+				m.logger.Error("recover(), rolling back..", "err", r)
 				_ = txHandle.Rollback(c.Request.Context())
 			}
 		}()

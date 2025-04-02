@@ -46,6 +46,10 @@ const (
 	ChargePaymentStatusSuccess ChargePaymentStatus = "Success"
 	ChargePaymentStatusPending ChargePaymentStatus = "Pending"
 	ChargePaymentStatusError   ChargePaymentStatus = "Error"
+
+	// GatewayError This is a generic error relating to comms with the gateway. Common error is a 429 rate exceeded.
+	// This is not a user error and should be retried by the platform instead of being seen as a failed payment.
+	GatewayError ChargePaymentStatus = "gateway_error"
 )
 
 type ChargePaymentResponse struct {
@@ -58,6 +62,7 @@ type ChargePaymentResponse struct {
 	AmountCharged int64               `json:"amount_charged"`
 	PaymentType   string              `json:"payment_type"`
 	ErrorReason   string              `json:"error_reason"`
+	ErrorCode     string              `json:"error_code"`
 
 	PspResponse interface{} `json:"psp_response"`
 }
