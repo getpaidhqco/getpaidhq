@@ -18,6 +18,7 @@ const (
 	SubscriptionStatusExpired   = "subscription.expired"
 	SubscriptionStatusCompleted = "subscription.completed"
 	SubscriptionStatusPastDue   = "subscription.past_due"
+	SubscriptionRenewalReminder = "subscription.renewal_reminder"
 
 	// Payment Method
 	PaymentMethodCreated   = "payment_method.created"

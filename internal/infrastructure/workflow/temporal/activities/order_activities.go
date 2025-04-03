@@ -8,6 +8,7 @@ import (
 	"go.temporal.io/sdk/temporal"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
+	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/entities/payments"
@@ -233,4 +234,22 @@ func (a *OrderActivities) ErrorState(ctx context.Context, subscription entities.
 
 func (a *OrderActivities) GetSubscription(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
 	return a.subscriptionRepository.FindById(ctx, orgId, id)
+}
+
+func (a *OrderActivities) ProcessReminderEvent(ctx context.Context, orgId string, id string) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("ProcessReminderEvent", "OrgId", orgId, "SubscriptionId", id)
+	subscription, err := a.subscriptionRepository.FindById(ctx, orgId, id)
+	if err != nil {
+		logger.Error("Failed to find subscription", "error", err.Error())
+		return err
+	}
+
+	err = a.pubsub.Publish(orgId, topic.SubscriptionRenewalReminder, subscription)
+	if err != nil {
+		logger.Error("Failed to publish reminder event", "error", err.Error())
+		return err
+	}
+
+	return nil
 }
