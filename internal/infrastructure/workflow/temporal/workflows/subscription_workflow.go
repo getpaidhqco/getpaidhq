@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"fmt"
+	"go.temporal.io/api/enums/v1"
 	temporalio "go.temporal.io/sdk/temporal"
 	"log/slog"
 	"payloop/internal/domain/entities"
@@ -101,20 +102,24 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		// restart the wait so that the new state is taken into account
 		// RenewsAt is the date when the subscription will be charged again
 		// NextRenewalDate is the date when the subscription will be charged again
-		logger.Info(fmt.Sprintf("*** [%s][%s] blocking until nextBillingDate=[%s]", subscription.OrgId, subscription.Id, nextCharge))
-
 		duration := nextCharge.Sub(workflow.Now(ctx))
+		reminderDuration := time.Duration(1) * time.Minute
+		reminderDate := nextCharge.Add(-reminderDuration)
+		logger.Info(fmt.Sprintf("******* [%s][%s] blocking until nextBillingDate=[%s]", subscription.OrgId, subscription.Id, nextCharge))
 
-		// Set a timer for the reminder event
-		reminderDuration := duration - 30*time.Second
-		reminderTimer := workflow.NewTimer(ctx, reminderDuration)
-
-		selector := workflow.NewSelector(ctx)
-		selector.AddFuture(reminderTimer, func(f workflow.Future) {
-			logger.Info("Reminder event triggered 30 seconds before the main event")
-			// Trigger the reminder event here
-			// e.g., send a notification or update the subscription state
+		// Start the reminder workflow
+		childCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
+			WorkflowID:        fmt.Sprintf(`sub_reminder_[%s]_[%s]_[%s]`, subscription.OrgId, subscription.Id, reminderDate.Format("20060102")),
+			ParentClosePolicy: enums.PARENT_CLOSE_POLICY_ABANDON,
 		})
+		childWorkflowFuture := workflow.ExecuteChildWorkflow(childCtx, SubscriptionChargeReminder, subscription, reminderDate)
+		// Wait for the Child Workflow Execution to spawn
+		var childWE workflow.Execution
+		if err := childWorkflowFuture.GetChildWorkflowExecution().
+			Get(ctx, &childWE); err != nil {
+			logger.Error("Unable to start subscription reminder workflow.", "err", err.Error())
+		}
+		logger.Info(fmt.Sprintf("******* sending reminder at [%s]", reminderDate))
 
 		ok, err := workflow.AwaitWithTimeout(ctx, duration, func() bool {
 			rollover := workflow.GetInfo(ctx).GetContinueAsNewSuggested()

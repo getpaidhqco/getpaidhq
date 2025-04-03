@@ -62,14 +62,13 @@ func (s WorkflowService) HandleOutboundWebhook(topic string, data []byte) {
 	}
 
 	for _, sub := range subs {
-		result, err := s.engine.StartWorkflow(context.TODO(), interfaces.OutgoingWebhook, workflow.OutgoingWebhookPayload{
+		_, err = s.engine.StartWorkflow(context.TODO(), interfaces.OutgoingWebhook, workflow.OutgoingWebhookPayload{
 			WebhookSubscription: sub,
 			Event:               payload,
 		})
 		if err != nil {
 			s.logger.Errorf("Failed to start workflow", err.Error())
 		}
-		s.logger.Infof("Workflow result: %v", result)
 	}
 
 }

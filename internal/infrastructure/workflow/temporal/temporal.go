@@ -56,6 +56,7 @@ func NewTemporalEngine(
 
 	// Workflows
 	w.RegisterWorkflow(workflows.PaymentSuccessWorkflow)
+	w.RegisterWorkflow(workflows.SubscriptionChargeReminder)
 	w.RegisterWorkflow(workflows.SubscriptionWorkflow)
 	w.RegisterWorkflow(workflows.OutgoingWebhookWorkflow)
 
@@ -120,7 +121,7 @@ func (t Temporal) StartWorkflow(ctx context.Context, id interfaces.WorkflowType,
 			t.logger.Error("Unable to get workflow result", "err", err.Error())
 			return interfaces.Result{}, err
 		}
-		t.logger.Info("Finished workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID(), "result", result)
+		t.logger.Debug("Finished PaymentSuccessWorkflow workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID(), "result", result)
 		return interfaces.Result{
 			Success: true,
 			Message: "success",
@@ -161,7 +162,7 @@ func (t Temporal) StartWorkflow(ctx context.Context, id interfaces.WorkflowType,
 // Starts the long running subscription workflow
 func (t Temporal) StartSubscriptionWorkflow(ctx context.Context, subscription entities.Subscription) error {
 
-	workflowId := fmt.Sprintf(`subscription_[%s]_[%s]`, subscription.OrgId, subscription.Id)
+	workflowId := fmt.Sprintf(`sub_[%s]_[%s]`, subscription.OrgId, subscription.Id)
 	// start workflow
 	workflowOptions := client.StartWorkflowOptions{
 		ID:        workflowId,
@@ -252,7 +253,7 @@ func (t Temporal) getExecution(subscription entities.Subscription) (temporal.Exe
 	workflowRun := t.client.GetWorkflow(context.Background(), we.ID, "")
 	we.RunID = workflowRun.GetRunID()
 	t.logger.Debugf(`Found RunID [%s]`, we.RunID)
-	
+
 	return we, nil
 }
 
