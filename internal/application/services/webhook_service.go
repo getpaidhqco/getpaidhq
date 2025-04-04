@@ -73,7 +73,7 @@ func (s WebhookService) HandlePaymentWebhook(ctx context.Context, payload webhoo
 
 	webhook, err := parser.ParseWebhook(ctx, []byte(payload.Data))
 	if err != nil {
-		s.logger.Errorf("failed to parse webhook", err.Error())
+		s.logger.Error("failed to parse webhook", "err", err.Error())
 		return events.NewQueueHandlerError("failed to parse webhook", false, err)
 	}
 
