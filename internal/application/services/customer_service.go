@@ -153,6 +153,59 @@ func (s CustomerService) CreatePaymentMethod(ctx context.Context, orgId string, 
 	return newPaymentMethod, nil
 }
 
+func (s CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string, input interfaces.UpdatePaymentMethodInput) (entities.PaymentMethod, error) {
+
+	customer, err := s.customerRepository.FindById(ctx, orgId, input.CustomerId)
+	if err != nil {
+		s.logger.Error("Failed to get customer: ", err)
+		return entities.PaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+	}
+
+	paymentMethod, err := s.paymentMethodRepository.FindById(ctx, orgId, input.PaymentMethodId)
+	if err != nil {
+		return entities.PaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Payment method not found", err)
+	}
+
+	var billingAddress = customer.BillingAddress
+	if !input.BillingAddress.IsEmpty() {
+		billingAddress = input.BillingAddress
+	}
+	if billingAddress.IsEmpty() {
+		return entities.PaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Either specify billing address or add a default billing address to the customer.", nil)
+	}
+
+	var expireAt time.Time
+	if input.Details != "" {
+		details, err := payment_methods.ParseDetails(input.Type, input.Details)
+		if err != nil {
+			return entities.PaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Invalid card details", err)
+		}
+
+		expireAt = details.GetExpiryDate()
+		s.logger.Debugf("This payment method expires at: %v", expireAt)
+	}
+
+	newPaymentMethod, err := s.paymentMethodRepository.Update(ctx, paymentMethod)
+	if err != nil {
+		s.logger.Error("Failed to update payment method: ", "err", err)
+		return entities.PaymentMethod{}, lib.MapDatabaseError(err)
+	}
+
+	if input.IsDefault {
+		// update the customer's default payment method
+		s.logger.Debugf("Updating customer %s default payment method to %s", customer.Id, newPaymentMethod.Id)
+		customer.DefaultPaymentMethodId = newPaymentMethod.Id
+		_, err = s.customerRepository.Update(ctx, customer)
+		if err != nil {
+			s.logger.Error("Failed to update customer: ", "err", err)
+			return entities.PaymentMethod{}, lib.MapDatabaseError(err)
+		}
+	}
+
+	_ = s.pubsub.Publish(orgId, topic.PaymentMethodUpdated, newPaymentMethod)
+	return newPaymentMethod, nil
+}
+
 func (s CustomerService) DetectExpiringPaymentMethods() {
 	s.logger.Infof("Detecting expiring payment methods for all organizations")
 	// Implement the logic to detect expiring payment methods

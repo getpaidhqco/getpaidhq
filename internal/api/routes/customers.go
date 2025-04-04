@@ -24,6 +24,7 @@ func (s CustomerRoutes) Setup() {
 	{
 		api.POST("/customers", s.customerController.Create)
 		api.POST("/customers/:id/payment-methods", s.checkAuthz(authz.CreatePaymentMethod), s.customerController.CreateCustomerPaymentMethod)
+		api.PUT("/customers/:id/payment-methods/:pmid", s.checkAuthz(authz.CreatePaymentMethod), s.customerController.UpdateCustomerPaymentMethod)
 	}
 }
 

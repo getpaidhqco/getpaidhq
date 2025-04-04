@@ -73,6 +73,36 @@ func (cc CustomerController) CreateCustomerPaymentMethod(c *gin.Context) {
 	c.JSON(http.StatusOK, paymentMethod)
 }
 
+// CreateCustomerPaymentMethod handles the creation of a new payment method for a customer
+func (cc CustomerController) UpdateCustomerPaymentMethod(c *gin.Context) {
+	var input request.UpdatePaymentMethodRequest
+	user, _ := c.Get("user")
+	authUser := user.(authn.User)
+	customerId := c.Param("id")
+	pmId := c.Param("pmid")
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	paymentMethod, err := cc.customerService.UpdatePaymentMethod(
+		c.Request.Context(), authUser.OrgId, interfaces.UpdatePaymentMethodInput{
+			UpdatePaymentMethodRequest: input,
+			PaymentMethodId:            pmId,
+			OrgId:                      authUser.OrgId,
+			CustomerId:                 customerId,
+		})
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	c.JSON(http.StatusOK, paymentMethod)
+}
+
 func (cc CustomerController) GetCustomerPaymentMethod(c *gin.Context) {
 	user, _ := c.Get("user")
 	authUser := user.(authn.User)

@@ -26,3 +26,14 @@ type CreatePaymentMethodRequest struct {
 	BillingAddress entities.Address                  `json:"billing_address"`
 	Metadata       map[string]string                 `json:"metadata"`
 }
+type UpdatePaymentMethodRequest struct {
+	Name string `json:"name" binding:"required"`
+
+	// Type of payment method, e.g. card, bank account, etc.
+	Type           payment_methods.PaymentMethodType `json:"type" binding:"required"`
+	Details        interface{}                       `json:"details"`
+	Token          string                            `json:"token" binding:"required"`
+	IsDefault      bool                              `json:"is_default"`
+	BillingAddress entities.Address                  `json:"billing_address"`
+	Metadata       map[string]string                 `json:"metadata"`
+}

@@ -22,8 +22,10 @@ const (
 	UpdatePaymentServiceProvider Action = "UpdatePaymentServiceProvider"
 	DeletePaymentServiceProvider Action = "DeletePaymentServiceProvider"
 
-	CreateCustomer      Action = "CreateCustomer"
+	CreateCustomer Action = "CreateCustomer"
+
 	CreatePaymentMethod Action = "CreatePaymentMethod"
+	UpdatePaymentMethod Action = "UpdatePaymentMethod"
 	GetPaymentMethod    Action = "GetPaymentMethod"
 
 	AddProductToCart   Action = "AddProductToCart"
