@@ -15,7 +15,6 @@ type PaymentMethod struct {
 	Psp            string
 	Name           string
 	CustomerId     string
-	IsDefault      bool
 	BillingAddress map[string]interface{}
 	Type           string
 	Token          string

@@ -127,7 +127,8 @@ func (r PaymentMethodRepository) Update(ctx context.Context, entity entities.Pay
 func (r PaymentMethodRepository) FindExpiringPaymentMethods(ctx context.Context, expiry time.Time) ([]entities.PaymentMethod, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	query := `SELECT org_id, id, token, psp, name, customer_id, is_default, details, type, created_at, updated_at
+	query := `SELECT org_id, id, token, psp, name, customer_id, details, type, 
+       billing_address, metadata, expire_at, created_at, updated_at
 			  FROM payment_methods
 			  WHERE expire_at <= @expiry`
 
@@ -150,9 +151,12 @@ func (r PaymentMethodRepository) FindExpiringPaymentMethods(ctx context.Context,
 			&pm.Psp,
 			&pm.Name,
 			&pm.CustomerId,
-			&pm.IsDefault,
 			&pm.Details,
 			&pm.Type,
+			&pm.BillingAddress,
+			&pm.Metadata,
+			&pm.ExpireAt,
+
 			&pm.CreatedAt,
 			&pm.UpdatedAt,
 		)
