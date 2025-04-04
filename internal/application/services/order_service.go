@@ -419,7 +419,7 @@ func (s OrderService) ListOrderSubscriptions(ctx context.Context, orgId string, 
 	// Find the order by Id
 	_, err := s.orderRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Order not found", err.Error())
+		s.logger.Error("Order not found", "err", err.Error())
 		return nil, errors.New("order not found")
 	}
 
@@ -446,7 +446,6 @@ func (s OrderService) List(ctx context.Context, orgId string, pagination request
 func (s OrderService) FindById(ctx context.Context, orgId string, id string) (entities.Order, error) {
 	order, err := s.orderRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Order not found", err.Error())
 		return entities.Order{}, errors.New("order not found")
 	}
 	return order, nil
