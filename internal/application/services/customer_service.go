@@ -185,6 +185,13 @@ func (s CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string, 
 		s.logger.Debugf("This payment method expires at: %v", expireAt)
 	}
 
+	if input.Token != "" {
+		paymentMethod.Token = input.Token
+	}
+	if input.Details != "" {
+		paymentMethod.Details = input.Details
+	}
+
 	newPaymentMethod, err := s.paymentMethodRepository.Update(ctx, paymentMethod)
 	if err != nil {
 		s.logger.Error("Failed to update payment method: ", "err", err)
