@@ -166,12 +166,8 @@ func (s CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string, 
 		return entities.PaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Payment method not found", err)
 	}
 
-	var billingAddress = customer.BillingAddress
 	if !input.BillingAddress.IsEmpty() {
-		billingAddress = input.BillingAddress
-	}
-	if billingAddress.IsEmpty() {
-		return entities.PaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Either specify billing address or add a default billing address to the customer.", nil)
+		paymentMethod.BillingAddress = input.BillingAddress
 	}
 
 	var expireAt time.Time
@@ -181,7 +177,7 @@ func (s CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string, 
 			return entities.PaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Invalid card details", err)
 		}
 
-		expireAt = details.GetExpiryDate()
+		paymentMethod.ExpireAt = details.GetExpiryDate()
 		s.logger.Debugf("This payment method expires at: %v", expireAt)
 	}
 
