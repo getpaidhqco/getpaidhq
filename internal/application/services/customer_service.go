@@ -170,7 +170,6 @@ func (s CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string, 
 		paymentMethod.BillingAddress = input.BillingAddress
 	}
 
-	var expireAt time.Time
 	if input.Details != "" {
 		details, err := payment_methods.ParseDetails(input.Type, input.Details)
 		if err != nil {
@@ -178,7 +177,7 @@ func (s CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string, 
 		}
 
 		paymentMethod.ExpireAt = details.GetExpiryDate()
-		s.logger.Debugf("This payment method expires at: %v", expireAt)
+		s.logger.Debugf("This payment method expires at: %v", paymentMethod.ExpireAt)
 	}
 
 	if input.Token != "" {
