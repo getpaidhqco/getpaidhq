@@ -16,7 +16,7 @@ import (
 
 type ReportRepository struct {
 	*PgDatabase
-	primaryDb lib.Database
+	primaryDb *PgDatabase
 	logger    logger.Logger
 }
 
@@ -170,6 +170,28 @@ func (r ReportRepository) UpsertPayment(ctx context.Context, entity entities.Pay
 	_, err := tx.Exec(ctx, query, args)
 	if err != nil {
 		r.logger.Errorf(`failed to insert Payment %s`, err.Error())
+		return err
+	}
+
+	return nil
+}
+
+func (r ReportRepository) UpsertCustomer(ctx context.Context, entity entities.Customer) error {
+	tx := r.getTransactionFromContext(ctx)
+
+	query := `INSERT INTO customers (org_id, id, created_at, updated_at)
+			  VALUES (@org_id, @id, NOW(), NOW())
+			  ON CONFLICT (org_id, id) DO UPDATE SET
+				updated_at = NOW()`
+
+	args := pgx.NamedArgs{
+		"org_id": entity.OrgId,
+		"id":     entity.Id,
+	}
+
+	_, err := tx.Exec(ctx, query, args)
+	if err != nil {
+		r.logger.Errorf(`failed to insert Customer %s`, err.Error())
 		return err
 	}
 
@@ -357,16 +379,21 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, d
 	query := `
         SELECT COALESCE(SUM(
             CASE
-                WHEN billing_interval = 'month' THEN amount / 30
+                WHEN billing_interval = 'month' THEN amount / @numdays
                 WHEN billing_interval = 'year' THEN amount / 365
             END
         ), 0) AS daily_mrr
         FROM subscriptions
-        WHERE status in ('trial','active','retry','past_due')
-        AND start_date::date <= $1
-        AND (end_date::date IS NULL OR end_date::date >= $1)
+        WHERE org_id=@org_id
+        AND status in ('trial','active','retry','past_due')
+        AND start_date::date <= @date::date
+        AND (end_date::date IS NULL OR end_date::date >= @date::date)
     `
-	err = tx.QueryRow(ctx, query, date).Scan(&mrr)
+	err = tx.QueryRow(ctx, query, pgx.NamedArgs{
+		"org_id":  orgId,
+		"date":    date,
+		"numdays": getDaysInMonth(d),
+	}).Scan(&mrr)
 	if err != nil {
 		r.logger.Errorf(`mrr %v`, err)
 		return err
@@ -450,4 +477,34 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, d
 
 	fmt.Println("Daily metrics calculated and stored successfully for", date)
 	return nil
+}
+
+func (r ReportRepository) ProcessDailyMetrics(ctx context.Context, day time.Time) error {
+	// Get all orgs
+	orgs, err := r.primaryDb.Pool.Query(ctx, "SELECT id FROM orgs where status = 'active'")
+	if err != nil {
+		return err
+	}
+
+	for orgs.Next() {
+		var orgId string
+		if err := orgs.Scan(&orgId); err != nil {
+			r.logger.Errorf("failed to get orgid %s: %v", orgId, err)
+			return err
+		}
+
+		err = r.StoreDailyMetrics(ctx, orgId, day)
+		if err != nil {
+			r.logger.Errorf("failed to store daily metrics for org %s: %v", orgId, err)
+			continue
+		}
+	}
+
+	return nil
+}
+
+func getDaysInMonth(date time.Time) int {
+	firstOfMonth := time.Date(date.Year(), date.Month(), 1, 0, 0, 0, 0, date.Location())
+	firstOfNextMonth := firstOfMonth.AddDate(0, 1, 0)
+	return int(firstOfNextMonth.Sub(firstOfMonth).Hours() / 24)
 }

@@ -20,8 +20,8 @@ type ReportService struct {
 	reportRepository repositories.ReportRepository
 	pubsub           events.PubSub
 	queueClient      events.QueueClient
-
-	cdcStream postgres.CdcStream
+	orgRepository    repositories.OrgRepository
+	cdcStream        postgres.CdcStream
 }
 
 func NewReportService(
@@ -30,17 +30,29 @@ func NewReportService(
 	pubsub events.PubSub,
 	queueClient events.QueueClient,
 	cdcStream postgres.CdcStream,
+	scheduler interfaces.Scheduler,
+	orgRepository repositories.OrgRepository,
 ) interfaces.ReportService {
 	service := ReportService{
 		logger:           logger,
 		reportRepository: reportRepository,
 		pubsub:           pubsub,
 		queueClient:      queueClient,
+		cdcStream:        cdcStream,
+		orgRepository:    orgRepository,
+	}
+
+	// set up the payment method expiry detection
+	// 3am first of every month
+	err := scheduler.ScheduleTask("0 1 * * *", service.StoreDailyMetrics)
+	if err != nil {
+		logger.Errorf("Failed to schedule task: %v", err)
+		panic(err)
 	}
 
 	cdcStream.Start(context.Background(), service.MapCdcStream)
 
-	_, err := pubsub.Subscribe(">", service.HandlePublishedEvent)
+	_, err = pubsub.Subscribe(">", service.HandlePublishedEvent)
 	if err != nil {
 		logger.Error("Failed to subscribe to topic", err.Error())
 		panic(err)
@@ -147,14 +159,45 @@ func (s ReportService) ProcessDataChange(event dto.DataChangeEvent) {
 		}
 		err = json.Unmarshal(payloadBytes, &payment)
 		if err != nil {
-			s.logger.Errorf("Failed to unmarshal subscription: %v", err)
+			s.logger.Errorf("Failed to unmarshal payment: %v", err)
 			return
 		}
 
 		err = s.reportRepository.UpsertPayment(context.Background(), payment)
 		if err != nil {
-			s.logger.Errorf("Failed to upsert subscription: %v", err)
+			s.logger.Errorf("Failed to upsert payment: %v", err)
+			return
+		}
+	case common.CustomerEntity:
+		var customer entities.Customer
+		payloadBytes, err := json.Marshal(event.NewObject)
+		if err != nil {
+			s.logger.Errorf("Failed to marshal payload data: %v", err)
+			return
+		}
+		err = json.Unmarshal(payloadBytes, &customer)
+		if err != nil {
+			s.logger.Errorf("Failed to unmarshal customer: %v", err)
+			return
+		}
+
+		err = s.reportRepository.UpsertCustomer(context.Background(), customer)
+		if err != nil {
+			s.logger.Errorf("Failed to upsert customer: %v", err)
 			return
 		}
 	}
+}
+
+func (s ReportService) StoreDailyMetrics() {
+	s.logger.Debugf("Storing daily metrics")
+	// get the date for today
+	yesterday := time.Now().AddDate(0, 0, -1)
+
+	err := s.reportRepository.ProcessDailyMetrics(context.Background(), yesterday)
+	if err != nil {
+		s.logger.Errorf("Failed to store daily metrics: %v", err)
+		return
+	}
+	s.logger.Infof("Stored daily metrics for %s", yesterday.Format("2006-01-02"))
 }
