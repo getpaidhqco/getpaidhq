@@ -13,8 +13,57 @@ datasource db {
   url      = env("REPORTING_DATABASE_URL")
 }
 
-model DailyMetrics {
-  date               DateTime @id
+enum PriceCategory {
+  one_time
+  subscription
+  free
+  variable
+}
+
+enum PriceScheme {
+  fixed
+  tiered
+  volume
+  graduated
+}
+
+enum BillingInterval {
+  none
+  minute
+  hour
+  day
+  week
+  month
+  year
+}
+
+enum SubscriptionStatus {
+  trial
+  active
+  retry
+  past_due
+  paused
+  unpaid
+  cancelled
+  pending
+  expired
+  completed
+}
+
+enum PaymentStatus {
+  pending
+  failed
+  succeeded
+  refunded
+  partial_refund
+  cancelled
+  expired
+  fraudulent
+}
+
+model DailyMetric {
+  orgId              String   @map("org_id")
+  date               DateTime
   currency           String
   arr                Int
   mrr                Int
@@ -27,5 +76,106 @@ model DailyMetrics {
   refunds            Float
   createdAt          DateTime @default(now()) @map("created_at")
 
+  @@id([orgId, date])
   @@map("daily_metrics")
+}
+
+model Subscription {
+  orgId             String             @map("org_id")
+  id                String             @default(cuid())
+  pspId             String             @map("psp_id")
+  status            SubscriptionStatus
+  orderId           String             @map("order_id")
+  orderItemId       String?            @map("order_item_id")
+  orderItemName     String?            @map("order_item_name")
+  customerId        String             @map("customer_id")
+  paymentMethodId   String?            @map("payment_method_id")
+  paymentMethodType String?            @map("payment_method_type")
+
+  startDate          DateTime?       @map("start_date")
+  endDate            DateTime?       @map("end_date")
+  billingInterval    BillingInterval @map("billing_interval")
+  billingIntervalQty Int             @map("billing_interval_qty")
+  cycles             Int
+  billingAnchor      Int             @map("billing_anchor")
+  trialEndsAt        DateTime?       @map("trial_ends_at")
+  cancelAt           DateTime?       @map("cancel_at")
+  endsAt             DateTime?       @map("ends_at")
+  lastCharge         DateTime?       @map("last_charge")
+  renewsAt           DateTime?       @map("renews_at")
+  currentPeriodStart DateTime?       @map("current_period_start")
+  currentPeriodEnd   DateTime?       @map("current_period_end")
+
+  retries   Int?
+  nextRetry DateTime? @map("next_retry")
+
+  currency String
+  amount   Int
+
+  cyclesProcessed Int       @map("cycles_processed")
+  totalRevenue    Int       @map("total_revenue")
+  cancelledAt     DateTime? @map("cancelled_at")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([orgId, id])
+  @@map("subscriptions")
+}
+
+model Payment {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  psp       String  @map("psp")
+  pspId     String? @map("psp_id")
+  reference String  @default("") @map("reference")
+  recurring Boolean @default(false)
+
+  orderId        String  @map("order_id")
+  subscriptionId String? @map("subscription_id")
+
+  amount   Int
+  currency String
+
+  status PaymentStatus
+
+  psp_fee      Int
+  platform_fee Int
+  net_amount   Int
+
+  metadata Json?
+
+  completedAt DateTime? @map("completed_at")
+  createdAt   DateTime  @default(now()) @map("created_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  @@id([orgId, id])
+  @@map("payments")
+}
+
+model Customers {
+  orgId     String   @map("org_id")
+  id        String   @default(cuid())
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([orgId, id])
+  @@map("customers")
+}
+
+model Refund {
+  orgId      String   @map("org_id")
+  id         String   @default(cuid())
+  paymentId  String   @map("payment_id")
+  currency   String
+  amount     Int
+  date       DateTime @map("date")
+  reason     String?
+  usd_amount Int?     @map("usd_amount")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@id([orgId, id])
+  @@map("refunds")
 }

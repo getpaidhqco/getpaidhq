@@ -236,16 +236,16 @@ func (a *OrderActivities) GetSubscription(ctx context.Context, orgId string, id 
 	return a.subscriptionRepository.FindById(ctx, orgId, id)
 }
 
-func (a *OrderActivities) ProcessReminderEvent(ctx context.Context, orgId string, id string) error {
+func (a *OrderActivities) ProcessReminderEvent(ctx context.Context, subscription entities.Subscription) error {
 	logger := activity.GetLogger(ctx)
-	logger.Info("ProcessReminderEvent", "OrgId", orgId, "SubscriptionId", id)
-	subscription, err := a.subscriptionRepository.FindById(ctx, orgId, id)
+	logger.Info("ProcessReminderEvent", "OrgId", subscription.OrgId, "SubscriptionId", subscription.Id)
+	subscription, err := a.subscriptionRepository.FindById(ctx, subscription.OrgId, subscription.Id)
 	if err != nil {
 		logger.Error("Failed to find subscription", "error", err.Error())
 		return err
 	}
 
-	err = a.pubsub.Publish(orgId, topic.SubscriptionRenewalReminder, subscription)
+	err = a.pubsub.Publish(subscription.OrgId, topic.SubscriptionRenewalReminder, subscription)
 	if err != nil {
 		logger.Error("Failed to publish reminder event", "error", err.Error())
 		return err

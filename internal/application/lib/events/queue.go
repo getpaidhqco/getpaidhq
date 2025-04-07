@@ -10,7 +10,8 @@ type QueueMessage struct {
 type QueueMessageType string
 
 const (
-	IncomingWebhook QueueMessageType = "incoming_webhook"
+	IncomingWebhook     QueueMessageType = "incoming_webhook"
+	ReportingDataChange QueueMessageType = "reporting_data_change"
 )
 
 type QueueMessageHandler func(msg QueueMessage) error

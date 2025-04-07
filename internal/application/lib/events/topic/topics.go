@@ -9,6 +9,8 @@ const (
 
 	OrderCompleted = "order.completed"
 
+	CustomerCreated = "customer.created"
+
 	TopicSubscriptionCreated    = "subscription.created"
 	TopicSubscriptionPaused     = "subscription.paused"
 	TopicSubscriptionActivated  = "subscription.activated"
@@ -20,6 +22,11 @@ const (
 	SubscriptionStatusPastDue   = "subscription.past_due"
 	SubscriptionRenewalReminder = "subscription.renewal_reminder"
 
+	PaymentCreated = "payment.created"
+	PaymentUpdated = "payment.updated"
+	PaymentDeleted = "payment.deleted"
+	PaymentFailed  = "payment.failed"
+	
 	// Payment Method
 	PaymentMethodCreated   = "payment_method.created"
 	PaymentMethodUpdated   = "payment_method.updated"

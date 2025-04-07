@@ -74,6 +74,7 @@ func (s CustomerService) Create(ctx context.Context, orgId string, customerReque
 		return entities.Customer{}, err
 	}
 
+	_ = s.pubsub.Publish(orgId, topic.CustomerCreated, newCustomer)
 	return newCustomer, nil
 }
 

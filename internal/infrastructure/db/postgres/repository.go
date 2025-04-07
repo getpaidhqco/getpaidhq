@@ -68,7 +68,7 @@ var RespositoryModules = fx.Options(
 	)),
 	fx.Provide(fx.Annotate(
 		NewReportRepository,
-		fx.ParamTags(`name:"reportingDb"`),
+		fx.ParamTags(`name:"reportingDb"`, `name:"primaryDb"`),
 	)),
 	fx.Provide(fx.Annotate(
 		NewGatewayRepository,

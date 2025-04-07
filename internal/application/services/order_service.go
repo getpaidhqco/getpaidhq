@@ -226,11 +226,13 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 			subscription.PspId = input.PspId
 			subscription.PaymentMethodId = input.PaymentMethodId
 
-			_, err := s.subscriptionRepository.Create(ctx, subscription)
+			newSub, err := s.subscriptionRepository.Create(ctx, subscription)
 			if err != nil {
 				s.logger.Error("Failed to create subscription", "item", item, err.Error())
 				return orders.CreateOrderResponse{}, err
 			}
+			// TODO rather do the entire order and all it;s related entites with the order.created event
+			_ = s.pubsub.Publish(orgId, topic.TopicSubscriptionCreated, newSub)
 		}
 	}
 
@@ -390,7 +392,7 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 		s.logger.Infof("Subscription [%s] activated. firstPaymentCharged=%t", subscription.Id, firstPaymentCharged)
 		newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 		if err != nil {
-			s.logger.Error("Failed to update subscription", err.Error())
+			s.logger.Error("Failed to update subscription", "err", err.Error())
 			return entities.Order{}, err
 		}
 

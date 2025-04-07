@@ -86,7 +86,7 @@ func (s SubscriptionOrchestrationService) Update(ctx context.Context, input subs
 
 	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", err.Error())
+		s.logger.Error("Failed to update subscription", "err", err.Error())
 		return entities.Subscription{}, err
 	}
 
@@ -107,7 +107,7 @@ func (s SubscriptionOrchestrationService) Activate(ctx context.Context, orgId st
 	subscription.Status = entities.SubscriptionStatusActive
 	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", err.Error())
+		s.logger.Error("Failed to update subscription", "err", err.Error())
 		return entities.Subscription{}, err
 	}
 	err = s.workflowEngine.StartSubscriptionWorkflow(ctx, subscription)

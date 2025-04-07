@@ -244,7 +244,7 @@ func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subs
 	_, err := tx.Exec(ctx, query, args)
 
 	if err != nil {
-		r.logger.Error(`failed to update Subscription`, err.Error())
+		r.logger.Error(`failed to update Subscription`, "err", err.Error())
 		return entities.Subscription{}, err
 	}
 

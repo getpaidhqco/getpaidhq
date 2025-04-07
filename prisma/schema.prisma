@@ -62,7 +62,7 @@ model Gateway {
   orgId  String  @map("org_id")
   id     String
   name   String
-  pspId String  @map("psp_id")
+  pspId  String  @map("psp_id")
   active Boolean @default(false)
 
   created_at DateTime @default(now())
@@ -483,13 +483,16 @@ model Payment {
   platform_fee Int
   net_amount   Int
 
+  refunded_amount Int @default(0) @map("refunded_amount")
+
   metadata Json?
 
   completedAt DateTime? @map("completed_at")
   createdAt   DateTime  @default(now()) @map("created_at")
   updatedAt   DateTime  @updatedAt @map("updated_at")
 
-  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org     Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  refunds Refund[]
 
   @@id([orgId, id])
   @@map("payments")
@@ -504,6 +507,24 @@ enum PaymentStatus {
   cancelled
   expired
   fraudulent
+}
+
+model Refund {
+  orgId     String   @map("org_id")
+  id        String   @default(cuid())
+  paymentId String   @map("payment_id")
+  payment   Payment  @relation(fields: [orgId, paymentId], references: [orgId, id], onDelete: Cascade)
+  amount    Int
+  currency   String
+  reason     String?
+  usd_amount Int?     @map("usd_amount")
+  date      DateTime @map("date")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+
+  @@id([orgId, id])
+  @@map("refunds")
 }
 
 model IdempotencyKey {

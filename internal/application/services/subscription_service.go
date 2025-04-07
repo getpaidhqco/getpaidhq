@@ -134,7 +134,7 @@ func (s SubscriptionService) Update(ctx context.Context, input subscriptions.Upd
 
 	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", err.Error())
+		s.logger.Error("Failed to update subscription", "err", err.Error())
 		return entities.Subscription{}, err
 	}
 
@@ -166,7 +166,7 @@ func (s SubscriptionService) Activate(ctx context.Context, orgId string, id stri
 	subscription.Status = entities.SubscriptionStatusActive
 	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", err.Error())
+		s.logger.Error("Failed to update subscription", "err", err.Error())
 		return entities.Subscription{}, err
 	}
 
@@ -194,7 +194,7 @@ func (s SubscriptionService) PauseSubscription(ctx context.Context, input subscr
 	subscription.Status = entities.SubscriptionStatusPaused
 	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", err.Error())
+		s.logger.Error("Failed to update subscription", "err", err.Error())
 		return entities.Subscription{}, err
 	}
 
@@ -258,7 +258,7 @@ func (s SubscriptionService) ResumeSubscription(ctx context.Context, input subsc
 	subscription.Status = entities.SubscriptionStatusActive
 	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", err.Error())
+		s.logger.Error("Failed to update subscription", "err", err.Error())
 		return entities.Subscription{}, err
 	}
 
@@ -294,7 +294,7 @@ func (s SubscriptionService) CancelSubscription(ctx context.Context, input subsc
 	subscription.CancelledAt = cancelledAt
 	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", err.Error())
+		s.logger.Error("Failed to update subscription", "err", err.Error())
 		return entities.Subscription{}, err
 	}
 
@@ -411,7 +411,7 @@ func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context
 	// Update the subscription in the database
 	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", err.Error())
+		s.logger.Error("Failed to update subscription", "err", err.Error())
 		return entities.Subscription{}, err
 	}
 
@@ -513,7 +513,7 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 	s.logger.Infof("[%s][%s] nextCharge=[%s]", subscription.OrgId, subscription.Id, subscription.GetNextChargeDate())
 	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", err.Error())
+		s.logger.Error("Failed to update subscription", "err", err.Error())
 		return entities.Subscription{}, err
 	}
 
@@ -522,6 +522,8 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 		"subscription":  subscription,
 		"charge_result": charge,
 	})
+	// Publish the events
+	_ = s.pubsub.Publish(subscription.OrgId, topic.PaymentCreated, payment)
 
 	switch newSub.Status {
 	case entities.SubscriptionStatusCancelled:

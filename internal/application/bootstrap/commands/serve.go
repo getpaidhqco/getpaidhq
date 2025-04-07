@@ -7,7 +7,6 @@ import (
 	"payloop/internal/api/routes"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
-
 	"payloop/internal/lib"
 )
 
@@ -36,15 +35,16 @@ func (s *ServeCommand) Run() lib.CommandRunner {
 			Reporter        lib.ErrorReporter
 		},
 	) {
+
 		params.Middlewares.Setup()
 		params.Route.Setup()
-
 		params.Logger.Info("Running server")
 		if params.Env.ServerPort == "" {
 			_ = params.Router.Gin.Run()
 		} else {
 			_ = params.Router.Gin.Run(":" + params.Env.ServerPort)
 		}
+
 	}
 }
 

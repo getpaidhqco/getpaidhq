@@ -25,4 +25,11 @@ var Module = fx.Options(
 			fx.ResultTags(`name:"reportingDb"`),
 		),
 	),
+	fx.Provide(
+		fx.Annotate(
+			func(env lib.Env, logger logger.Logger) CdcStream {
+				return NewCdcStream(env.Get("DATABASE_URL"), logger)
+			},
+		),
+	),
 )

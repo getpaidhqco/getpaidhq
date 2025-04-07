@@ -8,7 +8,6 @@ import (
 	"log/slog"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
-	"sync"
 )
 
 type PgDatabase struct {
@@ -27,37 +26,24 @@ func (r PgDatabase) getTransactionFromContext(ctx context.Context) QueryRower {
 	return p
 }
 
-var (
-	pgInstance *PgDatabase
-	pgOnce     sync.Once
-)
-
 func NewDatabase(url string, logger logger.Logger) lib.Database {
 	logger.Info("Connecting to database", "url", url)
 
-	pgOnce.Do(func() {
-		dbConfig, err := pgxpool.ParseConfig(url)
-		//dbConfig.ConnConfig.Tracer = &myQueryTracer{
-		//	logger: logger,
-		//}
-		pool, err := pgxpool.NewWithConfig(context.TODO(), dbConfig)
-		if err != nil {
-			logger.Error("could not connect to database", "error", err)
-			return
-		}
-
-		pgInstance = &PgDatabase{
-			pool,
-			nil,
-			logger,
-		}
-	})
-
-	if pgInstance == nil {
-		log.Fatalf("could not connect to database")
+	dbConfig, err := pgxpool.ParseConfig(url)
+	//dbConfig.ConnConfig.Tracer = &myQueryTracer{
+	//	logger: logger,
+	//}
+	pool, err := pgxpool.NewWithConfig(context.TODO(), dbConfig)
+	if err != nil {
+		log.Fatalf("could not connect to database %v", err)
+		return nil
 	}
 
-	return pgInstance
+	return &PgDatabase{
+		pool,
+		nil,
+		logger,
+	}
 }
 
 type myQueryTracer struct {

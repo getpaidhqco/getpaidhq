@@ -2,6 +2,7 @@ version: "3.5"
 services:
   postgresql:
     container_name: temporal-postgresql
+    command: ["-c", "wal_level=logical", "-c", "max_wal_senders=10", "-c", "max_replication_slots=10"]
     environment:
       POSTGRES_PASSWORD: postgres
       POSTGRES_USER: postgres
