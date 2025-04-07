@@ -18,9 +18,12 @@ type ApiKeyMiddleware struct {
 	env              lib.Env
 }
 
-func NewApiKeyMiddleware(handler lib.RequestHandler, logger logger.Logger,
+func NewApiKeyMiddleware(
+	handler lib.RequestHandler,
+	logger logger.Logger,
 	env lib.Env,
-	apiKeyRepository repositories.ApiKeyRepository) authn.Authenticator {
+	apiKeyRepository repositories.ApiKeyRepository,
+) authn.Authenticator {
 
 	return ApiKeyMiddleware{
 		apiKeyRepository: apiKeyRepository,

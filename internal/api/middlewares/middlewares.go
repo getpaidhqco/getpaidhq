@@ -9,7 +9,11 @@ import (
 // Module Middleware exported
 var Module = fx.Options(
 	fx.Provide(NewCorsMiddleware),
-	fx.Provide(NewDatabaseTrx),
+	fx.Provide(fx.Annotate(
+		NewDatabaseTrx,
+		fx.ParamTags(`name:"primaryDb"`),
+	)),
+
 	fx.Provide(NewMiddlewares),
 )
 

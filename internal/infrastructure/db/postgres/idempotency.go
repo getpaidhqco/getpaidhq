@@ -13,8 +13,8 @@ type IdempotencyKeyRepository struct {
 	logger logger.Logger
 }
 
-func NewIdempotencyKeyRepository(database lib.Database, logger logger.Logger) repositories.IdempotencyKeyRepository {
-	pgDatabase, ok := database.(*PgDatabase)
+func NewIdempotencyKeyRepository(primaryDb lib.Database, logger logger.Logger) repositories.IdempotencyKeyRepository {
+	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

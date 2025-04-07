@@ -13,8 +13,8 @@ type WebhookSubscriptionRepository struct {
 	logger logger.Logger
 }
 
-func NewWebhookSubscriptionRepository(database lib.Database, logger logger.Logger) repositories.WebhookSubscriptionRepository {
-	pgDatabase, ok := database.(*PgDatabase)
+func NewWebhookSubscriptionRepository(primaryDb lib.Database, logger logger.Logger) repositories.WebhookSubscriptionRepository {
+	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

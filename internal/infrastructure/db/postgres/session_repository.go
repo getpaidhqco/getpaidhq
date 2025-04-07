@@ -16,9 +16,9 @@ type SessionRepository struct {
 	customerRepository repositories.CustomerRepository
 }
 
-func NewSessionRepository(database lib.Database, customerRepository repositories.CustomerRepository, logger logger.Logger) repositories.SessionRepository {
+func NewSessionRepository(primaryDb lib.Database, customerRepository repositories.CustomerRepository, logger logger.Logger) repositories.SessionRepository {
 	logger.Debug("Creating new Session Repository")
-	pgDatabase, ok := database.(*PgDatabase)
+	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

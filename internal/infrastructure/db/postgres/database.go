@@ -32,11 +32,11 @@ var (
 	pgOnce     sync.Once
 )
 
-func NewDatabase(env lib.Env, logger logger.Logger) *PgDatabase {
-	logger.Info("Connecting to database", "url", env.DBUrl)
+func NewDatabase(url string, logger logger.Logger) lib.Database {
+	logger.Info("Connecting to database", "url", url)
 
 	pgOnce.Do(func() {
-		dbConfig, err := pgxpool.ParseConfig(env.DBUrl)
+		dbConfig, err := pgxpool.ParseConfig(url)
 		//dbConfig.ConnConfig.Tracer = &myQueryTracer{
 		//	logger: logger,
 		//}

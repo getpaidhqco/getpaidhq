@@ -36,7 +36,6 @@ type OrderService struct {
 	gatewayFactory          factories.GatewayFactory
 	pubsub                  events.PubSub
 	cartFactory             factories.CartFactory
-	db                      lib.Database
 	logger                  logger.Logger
 }
 
@@ -54,7 +53,6 @@ func NewOrderService(
 	gatewayFactory factories.GatewayFactory,
 	cartFactory factories.CartFactory,
 	pubsub events.PubSub,
-	db lib.Database,
 	logger logger.Logger,
 ) interfaces.OrderService {
 	return OrderService{
@@ -71,9 +69,7 @@ func NewOrderService(
 		cartFactory:             cartFactory,
 		paymentRepository:       paymentRepository,
 		pubsub:                  pubsub,
-		db:                      db,
-
-		orderItemRepository: orderItemRepository,
+		orderItemRepository:     orderItemRepository,
 	}
 }
 

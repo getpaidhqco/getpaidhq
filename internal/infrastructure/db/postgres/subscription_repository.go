@@ -19,8 +19,8 @@ type SubscriptionRepository struct {
 	logger logger.Logger
 }
 
-func NewSubscriptionRepository(database lib.Database, logger logger.Logger) repositories.SubscriptionRepository {
-	pgDatabase, ok := database.(*PgDatabase)
+func NewSubscriptionRepository(primaryDb lib.Database, logger logger.Logger) repositories.SubscriptionRepository {
+	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

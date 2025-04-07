@@ -2,6 +2,7 @@ package commands
 
 import (
 	"github.com/spf13/cobra"
+	"go.uber.org/fx"
 	"payloop/internal/api/middlewares"
 	"payloop/internal/api/routes"
 	"payloop/internal/application/interfaces"
@@ -21,24 +22,28 @@ func (s *ServeCommand) Setup(cmd *cobra.Command) {}
 
 func (s *ServeCommand) Run() lib.CommandRunner {
 	return func(
-		middleware middlewares.Middlewares,
-		env lib.Env,
-		router lib.RequestHandler,
-		route routes.Routes,
-		logger logger.Logger,
-		queue interfaces.QueueService,
-		workflowService interfaces.WorkflowService,
-		database lib.Database,
-		reporter lib.ErrorReporter,
+		params struct {
+			fx.In
+			Middlewares     middlewares.Middlewares
+			Env             lib.Env
+			Router          lib.RequestHandler
+			Route           routes.Routes
+			Logger          logger.Logger
+			Queue           interfaces.QueueService
+			WorkflowService interfaces.WorkflowService
+			PrimaryDb       lib.Database `name:"primaryDb"`
+			ReportingDb     lib.Database `name:"reportingDb"`
+			Reporter        lib.ErrorReporter
+		},
 	) {
-		middleware.Setup()
-		route.Setup()
+		params.Middlewares.Setup()
+		params.Route.Setup()
 
-		logger.Info("Running server")
-		if env.ServerPort == "" {
-			_ = router.Gin.Run()
+		params.Logger.Info("Running server")
+		if params.Env.ServerPort == "" {
+			_ = params.Router.Gin.Run()
 		} else {
-			_ = router.Gin.Run(":" + env.ServerPort)
+			_ = params.Router.Gin.Run(":" + params.Env.ServerPort)
 		}
 	}
 }

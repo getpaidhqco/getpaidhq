@@ -18,8 +18,8 @@ type PriceRepository struct {
 	logger logger.Logger
 }
 
-func NewPriceRepository(database lib.Database, logger logger.Logger) repositories.PriceRepository {
-	pgDatabase, ok := database.(*PgDatabase)
+func NewPriceRepository(primaryDb lib.Database, logger logger.Logger) repositories.PriceRepository {
+	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

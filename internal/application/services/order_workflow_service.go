@@ -29,7 +29,6 @@ type OrderWorkflowService struct {
 	paymentRepository       repositories.PaymentRepository
 	gatewayFactory          factories.GatewayFactory
 	pubsub                  events.PubSub
-	db                      lib.Database
 	logger                  logger.Logger
 }
 
@@ -45,7 +44,6 @@ func NewOrderWorkflowService(
 	paymentRepository repositories.PaymentRepository,
 	gatewayFactory factories.GatewayFactory,
 	pubsub events.PubSub,
-	db lib.Database,
 	logger logger.Logger,
 ) interfaces.OrderWorkflowService {
 	return OrderWorkflowService{
@@ -60,9 +58,7 @@ func NewOrderWorkflowService(
 		gatewayFactory:          gatewayFactory,
 		paymentRepository:       paymentRepository,
 		pubsub:                  pubsub,
-		db:                      db,
-
-		orderItemRepository: orderItemRepository,
+		orderItemRepository:     orderItemRepository,
 	}
 }
 

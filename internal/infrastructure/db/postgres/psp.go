@@ -14,8 +14,8 @@ type GatewayRepository struct {
 	logger logger.Logger
 }
 
-func NewGatewayRepository(database lib.Database, logger logger.Logger) repositories.PspRepository {
-	pgDatabase, ok := database.(*PgDatabase)
+func NewGatewayRepository(primaryDb lib.Database, logger logger.Logger) repositories.PspRepository {
+	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

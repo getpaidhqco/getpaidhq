@@ -12,9 +12,9 @@ import (
 
 // DatabaseTrx middleware for transactions support for database
 type DatabaseTrx struct {
-	handler lib.RequestHandler
-	logger  logger.Logger
-	db      lib.Database
+	handler   lib.RequestHandler
+	logger    logger.Logger
+	primaryDb lib.Database `name:"primaryDb"`
 }
 
 // statusInList function checks if context writer status is in provided list
@@ -29,14 +29,14 @@ func statusInList(status int, statusList []int) bool {
 
 // NewDatabaseTrx creates new database transactions middleware
 func NewDatabaseTrx(
+	primaryDb lib.Database,
 	handler lib.RequestHandler,
 	logger logger.Logger,
-	db lib.Database,
 ) DatabaseTrx {
 	return DatabaseTrx{
-		handler: handler,
-		logger:  logger,
-		db:      db,
+		handler:   handler,
+		logger:    logger,
+		primaryDb: primaryDb,
 	}
 }
 
@@ -45,7 +45,7 @@ func (m DatabaseTrx) Setup() {
 	m.logger.Debug("setting up database transaction middleware")
 
 	m.handler.Gin.Use(func(c *gin.Context) {
-		txHandle, err := m.db.Begin(c.Request.Context())
+		txHandle, err := m.primaryDb.Begin(c.Request.Context())
 		if err != nil {
 			m.logger.Error("error beginning database transaction", err)
 			c.JSON(http.StatusInternalServerError, gin.H{

@@ -15,8 +15,8 @@ type ReportRepository struct {
 	logger logger.Logger
 }
 
-func NewReportRepository(database lib.Database, logger logger.Logger) repositories.ReportRepository {
-	pgDatabase, ok := database.(*PgDatabase)
+func NewReportRepository(reportingDb lib.Database, logger logger.Logger) repositories.ReportRepository {
+	pgDatabase, ok := reportingDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}
@@ -75,6 +75,86 @@ func (r ReportRepository) GetARR(ctx context.Context, orgId string, startDate ti
 	query := `
 		SELECT DATE_TRUNC('month', completed_at) month, 
 		       DATE_TRUNC('month', completed_at) month, 
+		       SUM(amount), 
+		'mrr'
+		FROM payments 
+		WHERE org_id = $1 AND status = 'completed' AND recurring = true 
+		GROUP BY DATE_TRUNC('month', completed_at)
+	`
+
+	rows, err := tx.Query(ctx, query, orgId)
+	if err != nil {
+		r.logger.Error("failed to execute query", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var revenue values.RecurringRevenue
+		if err := rows.Scan(
+			&revenue.Period,
+			&revenue.Total,
+		); err != nil {
+			r.logger.Error("failed to scan row", err)
+			return nil, err
+		}
+		mrr = append(mrr, revenue)
+	}
+
+	if rows.Err() != nil {
+		r.logger.Error("rows iteration error", rows.Err())
+		return nil, rows.Err()
+	}
+
+	return mrr, nil
+}
+
+func (r ReportRepository) GetActiveSubscribers(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	mrr := make([]values.RecurringRevenue, 0)
+	query := `
+		SELECT DATE_TRUNC('month', completed_at) month, 
+		       SUM(amount), 
+		'mrr'
+		FROM payments 
+		WHERE org_id = $1 AND status = 'completed' AND recurring = true 
+		GROUP BY DATE_TRUNC('month', completed_at)
+	`
+
+	rows, err := tx.Query(ctx, query, orgId)
+	if err != nil {
+		r.logger.Error("failed to execute query", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var revenue values.RecurringRevenue
+		if err := rows.Scan(
+			&revenue.Period,
+			&revenue.Total,
+		); err != nil {
+			r.logger.Error("failed to scan row", err)
+			return nil, err
+		}
+		mrr = append(mrr, revenue)
+	}
+
+	if rows.Err() != nil {
+		r.logger.Error("rows iteration error", rows.Err())
+		return nil, rows.Err()
+	}
+
+	return mrr, nil
+}
+
+func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, date time.Time) ([]values.RecurringRevenue, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	mrr := make([]values.RecurringRevenue, 0)
+	query := `
+		SELECT DATE_TRUNC('month', completed_at) month, 
 		       SUM(amount), 
 		'mrr'
 		FROM payments 

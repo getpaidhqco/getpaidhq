@@ -18,8 +18,8 @@ type ProductRepository struct {
 	logger logger.Logger
 }
 
-func NewProductRepository(database lib.Database, logger logger.Logger) repositories.ProductRepository {
-	pgDatabase, ok := database.(*PgDatabase)
+func NewProductRepository(primaryDb lib.Database, logger logger.Logger) repositories.ProductRepository {
+	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

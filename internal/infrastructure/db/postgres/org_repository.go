@@ -17,8 +17,8 @@ type OrgRepository struct {
 	logger logger.Logger
 }
 
-func NewOrgRepository(database lib.Database, logger logger.Logger) repositories.OrgRepository {
-	pgDatabase, ok := database.(*PgDatabase)
+func NewOrgRepository(primaryDb lib.Database, logger logger.Logger) repositories.OrgRepository {
+	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

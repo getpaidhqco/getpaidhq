@@ -18,8 +18,8 @@ type PaymentMethodRepository struct {
 	logger logger.Logger
 }
 
-func NewPaymentMethodRepository(database lib.Database, logger logger.Logger) repositories.PaymentMethodRepository {
-	pgDatabase, ok := database.(*PgDatabase)
+func NewPaymentMethodRepository(primaryDb lib.Database, logger logger.Logger) repositories.PaymentMethodRepository {
+	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

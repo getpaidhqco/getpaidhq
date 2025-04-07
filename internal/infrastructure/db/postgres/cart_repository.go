@@ -16,8 +16,8 @@ type CartRepository struct {
 	logger logger.Logger
 }
 
-func NewCartRepository(database lib.Database, logger logger.Logger) repositories.CartRepository {
-	pgDatabase, ok := database.(*PgDatabase)
+func NewCartRepository(primaryDb lib.Database, logger logger.Logger) repositories.CartRepository {
+	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

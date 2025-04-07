@@ -27,7 +27,7 @@ var CommonModules = fx.Options(
 	factories.Module,
 
 	postgres.Module,
-
+	
 	// Authn & Authz
 	//cognito.Module,
 	//clerk.Module,

@@ -17,8 +17,8 @@ type VariantRepository struct {
 	logger logger.Logger
 }
 
-func NewVariantRepository(database lib.Database, logger logger.Logger) repositories.VariantRepository {
-	pgDatabase, ok := database.(*PgDatabase)
+func NewVariantRepository(primaryDb lib.Database, logger logger.Logger) repositories.VariantRepository {
+	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

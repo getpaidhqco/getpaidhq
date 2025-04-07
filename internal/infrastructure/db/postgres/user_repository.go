@@ -12,8 +12,8 @@ type UserRepository struct {
 	logger logger.Logger
 }
 
-func NewUserRepository(database lib.Database, logger logger.Logger) UserRepository {
-	pgDatabase, ok := database.(*PgDatabase)
+func NewUserRepository(primaryDb lib.Database, logger logger.Logger) UserRepository {
+	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

@@ -13,8 +13,8 @@ type ApiKeyRepository struct {
 	logger logger.Logger
 }
 
-func NewApiKeyRepository(database lib.Database, logger logger.Logger) repositories.ApiKeyRepository {
-	pgDatabase, ok := database.(*PgDatabase)
+func NewApiKeyRepository(primaryDb lib.Database, logger logger.Logger) repositories.ApiKeyRepository {
+	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

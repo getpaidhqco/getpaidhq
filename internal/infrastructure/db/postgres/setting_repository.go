@@ -16,8 +16,8 @@ type SettingRepository struct {
 	logger logger.Logger
 }
 
-func NewSettingRepository(database lib.Database, logger logger.Logger) repositories.SettingRepository {
-	pgDatabase, ok := database.(*PgDatabase)
+func NewSettingRepository(primaryDb lib.Database, logger logger.Logger) repositories.SettingRepository {
+	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}

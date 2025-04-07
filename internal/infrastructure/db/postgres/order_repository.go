@@ -21,8 +21,8 @@ type OrderRepository struct {
 	logger logger.Logger
 }
 
-func NewOrderRepository(database lib.Database, logger logger.Logger) repositories.OrderRepository {
-	pgDatabase, ok := database.(*PgDatabase)
+func NewOrderRepository(primaryDb lib.Database, logger logger.Logger) repositories.OrderRepository {
+	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}
