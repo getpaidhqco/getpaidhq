@@ -2,7 +2,8 @@ package cron
 
 import (
 	"fmt"
-	"github.com/robfig/cron"
+
+	"github.com/robfig/cron/v3"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
@@ -23,7 +24,7 @@ func NewCronScheduler(logger logger.Logger, env lib.Env) interfaces.Scheduler {
 
 func (c *CronScheduler) ScheduleTask(cronExpression string, task func()) error {
 	c.logger.Infof("Scheduling task with cron expression [%s]", cronExpression)
-	err := c.cron.AddFunc(cronExpression, task)
+	_, err := c.cron.AddFunc(cronExpression, task)
 	if err != nil {
 		fmt.Println("Error adding job:", err)
 		return err

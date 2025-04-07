@@ -28,15 +28,17 @@ require (
 )
 
 require (
+	github.com/Trendyol/go-pq-cdc v0.0.12
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.60
+	github.com/getsentry/sentry-go v0.31.1
+	github.com/getsentry/sentry-go/gin v0.31.1
 	github.com/joho/godotenv v1.5.1
 	github.com/mdwt/paystack-go v0.1.0
 	github.com/redis/go-redis/v9 v9.7.3
-	github.com/robfig/cron v1.2.0
+	github.com/robfig/cron/v3 v3.0.1
 )
 
 require (
-	github.com/Trendyol/go-pq-cdc v0.0.12 // indirect
 	github.com/avast/retry-go/v4 v4.6.0 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.29 // indirect
 	github.com/aws/aws-sdk-go-v2/internal/configsources v1.3.33 // indirect
@@ -58,8 +60,6 @@ require (
 	github.com/facebookgo/clock v0.0.0-20150410010913-600d898af40a // indirect
 	github.com/fsnotify/fsnotify v1.8.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
-	github.com/getsentry/sentry-go v0.31.1 // indirect
-	github.com/getsentry/sentry-go/gin v0.31.1 // indirect
 	github.com/gin-contrib/sse v1.0.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.3 // indirect
 	github.com/go-playground/errors v3.3.0+incompatible // indirect
@@ -99,6 +99,7 @@ require (
 	github.com/prometheus/client_model v0.5.0 // indirect
 	github.com/prometheus/common v0.48.0 // indirect
 	github.com/prometheus/procfs v0.12.0 // indirect
+	github.com/robfig/cron v1.2.0 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
