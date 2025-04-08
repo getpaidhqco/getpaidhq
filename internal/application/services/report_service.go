@@ -85,7 +85,18 @@ func (s ReportService) GetAnnualRecurringRevenue(ctx context.Context, orgId stri
 func (s ReportService) GetActiveSubscribers(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error) {
 	s.logger.Debugf("Getting active subs for org %s between %s and %s", orgId, startDate, endDate)
 
-	mrr, err := s.reportRepository.GetMRR(ctx, orgId, startDate, endDate)
+	mrr, err := s.reportRepository.GetActiveSubscribers(ctx, orgId, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	return mrr, nil
+}
+
+func (s ReportService) GetRefundTotals(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error) {
+	s.logger.Debugf("Getting active subs for org %s between %s and %s", orgId, startDate, endDate)
+
+	mrr, err := s.reportRepository.GetRefundTotals(ctx, orgId, startDate, endDate)
 	if err != nil {
 		return nil, err
 	}

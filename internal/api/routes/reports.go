@@ -19,6 +19,8 @@ func (s ReportRoutes) Setup() {
 	{
 		api.GET("/reports/revenue/mrr", s.reportController.GetMRR)
 		api.GET("/reports/revenue/arr", s.reportController.GetARR)
+		api.GET("/reports/active-subscribers", s.reportController.GetSubscribers)
+		api.GET("/reports/refunds", s.reportController.GetRefundTotals)
 	}
 }
 

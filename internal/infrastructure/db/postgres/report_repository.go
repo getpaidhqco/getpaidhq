@@ -198,23 +198,24 @@ func (r ReportRepository) UpsertCustomer(ctx context.Context, entity entities.Cu
 	return nil
 }
 
+// GetMRR returns the Monthly Recurring Revenue (MRR) for a given organization and date range. It queries the
+// daily_metrics table to calculate the MRR by summing the mrr values for each month within the specified date range.
 func (r ReportRepository) GetMRR(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error) {
-	tx := r.getTransactionFromContext(ctx)
 
 	mrr := make([]values.RecurringRevenue, 0)
 	query := `
-		SELECT DATE_TRUNC('month', date) month, 
+		SELECT DATE_TRUNC('month', date) m, 
 		       SUM(mrr) monthly_mrr,
 		       'mrr'
 		FROM daily_metrics 
 		WHERE org_id = $1
 		and date::date between $2::date and $3::date
-		GROUP BY month
+		GROUP BY m
 	`
 
-	rows, err := tx.Query(ctx, query, orgId, startDate, endDate)
+	rows, err := r.Pool.Query(ctx, query, orgId, startDate, endDate)
 	if err != nil {
-		r.logger.Error("failed to execute query", err)
+		r.logger.Error("failed to execute query", "err", err)
 		return nil, err
 	}
 	defer rows.Close()
@@ -241,20 +242,33 @@ func (r ReportRepository) GetMRR(ctx context.Context, orgId string, startDate ti
 }
 
 func (r ReportRepository) GetARR(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error) {
-	tx := r.getTransactionFromContext(ctx)
 
-	mrr := make([]values.RecurringRevenue, 0)
+	arr := make([]values.RecurringRevenue, 0)
+	// Query to calculate the ARR
 	query := `
-		SELECT DATE_TRUNC('month', completed_at) month, 
-		       DATE_TRUNC('month', completed_at) month, 
-		       SUM(amount), 
-		'mrr'
-		FROM payments 
-		WHERE org_id = $1 AND status = 'completed' AND recurring = true 
-		GROUP BY DATE_TRUNC('month', completed_at)
-	`
+        WITH daily_mrr AS (
+            SELECT 
+				org_id,
+                date,
+                mrr
+            FROM 
+                daily_metrics
+        )
+        SELECT 
+            DATE_TRUNC('year', date) AS year,
+            SUM(mrr) AS annual_recurring_revenue
+        FROM 
+            daily_mrr
+		WHERE 
+   			org_id = $1 AND
+ 			date BETWEEN $2::date AND $3::date
+        GROUP BY 
+            DATE_TRUNC('year', date)
+        ORDER BY 
+            year;
+    `
 
-	rows, err := tx.Query(ctx, query, orgId)
+	rows, err := r.Pool.Query(ctx, query, orgId, startDate, endDate)
 	if err != nil {
 		r.logger.Error("failed to execute query", err)
 		return nil, err
@@ -270,7 +284,8 @@ func (r ReportRepository) GetARR(ctx context.Context, orgId string, startDate ti
 			r.logger.Error("failed to scan row", err)
 			return nil, err
 		}
-		mrr = append(mrr, revenue)
+		revenue.Type = "arr"
+		arr = append(arr, revenue)
 	}
 
 	if rows.Err() != nil {
@@ -278,23 +293,27 @@ func (r ReportRepository) GetARR(ctx context.Context, orgId string, startDate ti
 		return nil, rows.Err()
 	}
 
-	return mrr, nil
+	return arr, nil
 }
 
 func (r ReportRepository) GetActiveSubscribers(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error) {
-	tx := r.getTransactionFromContext(ctx)
 
-	mrr := make([]values.RecurringRevenue, 0)
+	activeSubs := make([]values.RecurringRevenue, 0)
 	query := `
-		SELECT DATE_TRUNC('month', completed_at) month, 
-		       SUM(amount), 
-		'mrr'
-		FROM payments 
-		WHERE org_id = $1 AND status = 'completed' AND recurring = true 
-		GROUP BY DATE_TRUNC('month', completed_at)
+			SELECT 
+				DATE_TRUNC('month', date) AS week_start,
+				AVG(customer_count) AS weekly_avg_customer_count
+			FROM 
+				daily_metrics
+				where org_id=$1
+				 AND date::date between $2::date and $3::date
+			GROUP BY 
+				DATE_TRUNC('month', date)
+			ORDER BY 
+				week_start;
 	`
 
-	rows, err := tx.Query(ctx, query, orgId)
+	rows, err := r.Pool.Query(ctx, query, orgId, startDate, endDate)
 	if err != nil {
 		r.logger.Error("failed to execute query", err)
 		return nil, err
@@ -310,7 +329,8 @@ func (r ReportRepository) GetActiveSubscribers(ctx context.Context, orgId string
 			r.logger.Error("failed to scan row", err)
 			return nil, err
 		}
-		mrr = append(mrr, revenue)
+		revenue.Type = "customers"
+		activeSubs = append(activeSubs, revenue)
 	}
 
 	if rows.Err() != nil {
@@ -318,7 +338,52 @@ func (r ReportRepository) GetActiveSubscribers(ctx context.Context, orgId string
 		return nil, rows.Err()
 	}
 
-	return mrr, nil
+	return activeSubs, nil
+}
+
+func (r ReportRepository) GetRefundTotals(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error) {
+
+	results := make([]values.RecurringRevenue, 0)
+	query := `
+			SELECT 
+				DATE_TRUNC('month', date) AS month_start,
+				AVG(refunds) AS weekly_avg_refunds
+			FROM 
+				daily_metrics
+				where org_id=$1
+				 AND date::date between $2::date and $3::date
+			GROUP BY 
+				DATE_TRUNC('month', date)
+			ORDER BY 
+				month_start;
+	`
+
+	rows, err := r.Pool.Query(ctx, query, orgId, startDate, endDate)
+	if err != nil {
+		r.logger.Error("failed to execute query", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var revenue values.RecurringRevenue
+		if err := rows.Scan(
+			&revenue.Period,
+			&revenue.Total,
+		); err != nil {
+			r.logger.Error("failed to scan row", err)
+			return nil, err
+		}
+		revenue.Type = "refund_totals"
+		results = append(results, revenue)
+	}
+
+	if rows.Err() != nil {
+		r.logger.Error("rows iteration error", rows.Err())
+		return nil, rows.Err()
+	}
+
+	return results, nil
 }
 
 func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, d time.Time) error {
@@ -360,19 +425,21 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, d
 	r.logger.Debugf(`failed payments		[%d]`, failedPayments)
 
 	// Calculate refunds
-	var refunds int64
-	refundQuery := `SELECT COALESCE(SUM(amount), 0) 
+	var refundTotal int64
+	var refundCount int64
+	refundQuery := `SELECT count(*), COALESCE(SUM(amount), 0) 
 					FROM refunds 
 					WHERE org_id=@org_id 
 					  AND date::date = @date::date `
 	err = tx.QueryRow(ctx, refundQuery, pgx.NamedArgs{
 		"org_id": orgId,
 		"date":   date,
-	}).Scan(&refunds)
+	}).Scan(&refundCount, &refundTotal)
 	if err != nil {
+		r.logger.Errorf(`refunds %v`, err)
 		return err
 	}
-	r.logger.Debugf(`total refunds		%d`, refunds)
+	r.logger.Debugf(`total refunds		%d`, refundTotal)
 
 	// Calculate MRR
 	var mrr int64
@@ -385,7 +452,7 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, d
         ), 0) AS daily_mrr
         FROM subscriptions
         WHERE org_id=@org_id
-        AND status in ('trial','active','retry','past_due')
+        AND status in ('trial','active','retry')
         AND start_date::date <= @date::date
         AND (cancelled_at::date IS NULL OR cancelled_at::date <> @date::date)
         AND (end_date::date IS NULL OR end_date::date >= @date::date)
@@ -406,7 +473,17 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, d
 
 	// Calculate customer count
 	var customerCount int
-	err = tx.QueryRow(ctx, "SELECT COUNT(*) FROM customers").Scan(&customerCount)
+	customerQuery := `
+				select COUNT(*)
+				from (
+						 select distinct on (customer_id) customer_id
+						 from subscriptions
+						 where org_id = $1
+						   and status in ('active', 'past_due', 'trial')
+					 ) as unique_customers`
+
+	err = tx.QueryRow(ctx, customerQuery, orgId).
+		Scan(&customerCount)
 	if err != nil {
 		r.logger.Errorf(`customers %v`, err)
 		return err
@@ -440,22 +517,24 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, d
 	// Insert daily metrics into the database
 	dmQuery := `
 				INSERT INTO daily_metrics (org_id,date, currency, mrr, arr, 
-                           customer_count, churn_rate, arpu, cltv, successful_payments, 
-                           failed_payments, refunds ) 
+                           customer_count, churn_rate, ave_revenue_per_user, 
+				           customer_lifetime_value, successful_payments, 
+                           failed_payments, refund_total, refund_count) 
 				VALUES (@org_id, @date, @currency, @mrr, @arr, 
 				        @customer_count, @churn_rate, @arpu, @cltv, @successful_payments,
-				        @failed_payments, @refunds)
+				        @failed_payments, @refund_total, @refund_count)
 				ON CONFLICT (org_id, date) DO UPDATE SET
 					currency = EXCLUDED.currency,
 					mrr = EXCLUDED.mrr,
 					arr = EXCLUDED.arr,
 					customer_count = EXCLUDED.customer_count,
 					churn_rate = EXCLUDED.churn_rate,
-					arpu = EXCLUDED.arpu,
-					cltv = EXCLUDED.cltv,
+					ave_revenue_per_user = EXCLUDED.ave_revenue_per_user,
+					customer_lifetime_value = EXCLUDED.customer_lifetime_value,
 					successful_payments = EXCLUDED.successful_payments,
 					failed_payments = EXCLUDED.failed_payments,
-					refunds = EXCLUDED.refunds
+					refund_total = EXCLUDED.refund_total,
+					refund_count = EXCLUDED.refund_count
 `
 	_, err = tx.Exec(ctx, dmQuery, pgx.NamedArgs{
 		"org_id":              orgId,
@@ -469,7 +548,8 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, d
 		"cltv":                cltv,
 		"successful_payments": successfulPayments,
 		"failed_payments":     failedPayments,
-		"refunds":             refunds,
+		"refund_total":        refundTotal,
+		"refund_count":        refundCount,
 	})
 	if err != nil {
 		r.logger.Errorf(`failed to insert daily_metrics %v`, err)

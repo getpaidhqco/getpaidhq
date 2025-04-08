@@ -29,13 +29,13 @@ func (s ReportController) GetMRR(c *gin.Context) {
 	user, _ := c.Get("user")
 	authUser := user.(authn.User)
 
-	startTime, err := time.Parse(time.RFC3339, c.Query("start_date"))
+	startTime, err := time.Parse(time.DateOnly, c.Query("start_date"))
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
-	endTime, err := time.Parse(time.RFC3339, c.Query("end_date"))
+	endTime, err := time.Parse(time.DateOnly, c.Query("end_date"))
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -57,13 +57,13 @@ func (s ReportController) GetMRR(c *gin.Context) {
 func (s ReportController) GetARR(c *gin.Context) {
 	user, _ := c.Get("user")
 	authUser := user.(authn.User)
-	startTime, err := time.Parse(time.RFC3339, c.Query("start_date"))
+	startTime, err := time.Parse(time.DateOnly, c.Query("start_date"))
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
-	endTime, err := time.Parse(time.RFC3339, c.Query("end_date"))
+	endTime, err := time.Parse(time.DateOnly, c.Query("end_date"))
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -85,13 +85,13 @@ func (s ReportController) GetARR(c *gin.Context) {
 func (s ReportController) GetSubscribers(c *gin.Context) {
 	user, _ := c.Get("user")
 	authUser := user.(authn.User)
-	startTime, err := time.Parse(time.RFC3339, c.Query("start_date"))
+	startTime, err := time.Parse(time.DateOnly, c.Query("start_date"))
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
-	endTime, err := time.Parse(time.RFC3339, c.Query("end_date"))
+	endTime, err := time.Parse(time.DateOnly, c.Query("end_date"))
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -100,7 +100,35 @@ func (s ReportController) GetSubscribers(c *gin.Context) {
 	startTime = startTime.Truncate(24 * time.Hour)
 	endTime = endTime.Add(24 * time.Hour).Truncate(24 * time.Hour).Add(-time.Nanosecond)
 
-	arr, err := s.reportService.GetAnnualRecurringRevenue(c.Request.Context(), authUser.OrgId, startTime, endTime)
+	arr, err := s.reportService.GetActiveSubscribers(c.Request.Context(), authUser.OrgId, startTime, endTime)
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	c.JSON(200, arr)
+}
+
+func (s ReportController) GetRefundTotals(c *gin.Context) {
+	user, _ := c.Get("user")
+	authUser := user.(authn.User)
+	startTime, err := time.Parse(time.DateOnly, c.Query("start_date"))
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+	endTime, err := time.Parse(time.DateOnly, c.Query("end_date"))
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+	startTime = startTime.Truncate(24 * time.Hour)
+	endTime = endTime.Add(24 * time.Hour).Truncate(24 * time.Hour).Add(-time.Nanosecond)
+
+	arr, err := s.reportService.GetRefundTotals(c.Request.Context(), authUser.OrgId, startTime, endTime)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
