@@ -347,7 +347,7 @@ func (r ReportRepository) GetRefundTotals(ctx context.Context, orgId string, sta
 	query := `
 			SELECT 
 				DATE_TRUNC('month', date) AS month_start,
-				AVG(refunds) AS weekly_avg_refunds
+				AVG(refund_total) AS weekly_avg_refunds
 			FROM 
 				daily_metrics
 				where org_id=$1
