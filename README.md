@@ -1,4 +1,25 @@
 
+## Installation
+For the development environment, we use Docker to run the application. The application is built using Go and uses Postgres as the database.
+Use the docker compose file to run the application and the database.
+
+### Prerequisites
+- Docker
+- Docker Compose
+- Go 1.24
+- Temporal client
+
+### Post installation
+
+Create the `subscriptions` namespace in Temporal
+```
+temporal operator  namespace create -n subscriptions
+```
+
+Run the seed script to create the initial data in the database
+
+
+
 ## Database Migrations
 For the Postgres database we use Prisma to manage the database schema and migrations.  Migrations in Test and Prod environments
 are managed by the CI/CD pipeline. Migrations are executed before the Payloop backend is built and deployed.

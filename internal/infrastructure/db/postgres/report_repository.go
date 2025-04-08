@@ -387,6 +387,7 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, d
         WHERE org_id=@org_id
         AND status in ('trial','active','retry','past_due')
         AND start_date::date <= @date::date
+        AND (cancelled_at::date IS NULL OR cancelled_at::date <> @date::date)
         AND (end_date::date IS NULL OR end_date::date >= @date::date)
     `
 	err = tx.QueryRow(ctx, query, pgx.NamedArgs{
