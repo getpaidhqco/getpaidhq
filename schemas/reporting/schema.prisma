@@ -62,19 +62,22 @@ enum PaymentStatus {
 }
 
 model DailyMetric {
-  orgId              String   @map("org_id")
-  date               DateTime
-  currency           String
-  arr                Int
-  mrr                Int
-  customerCount      Int      @map("customer_count")
-  churnRate          Float    @map("churn_rate")
-  arpu               Float
-  cltv               Float
-  successfulPayments Int      @map("successful_payments")
-  failedPayments     Int      @map("failed_payments")
-  refunds            Float
-  createdAt          DateTime @default(now()) @map("created_at")
+  orgId                 String   @map("org_id")
+  date                  DateTime
+  currency              String
+  arr                   Int      @default(0) @map("arr")
+  mrr                   Int      @default(0) @map("mrr")
+  pastDueTotal          Int      @default(0) @map("past_due_total")
+  pastDueCount          Int      @default(0) @map("past_due_count")
+  customerCount         Int      @default(0) @map("customer_count")
+  churnRate             Float    @default(0.0) @map("churn_rate")
+  aveRevenuePerUser     Float    @default(0.0) @map("ave_revenue_per_user")
+  customerLifetimeValue Int      @default(0) @map("customer_lifetime_value")
+  successfulPayments    Int      @default(0) @map("successful_payments")
+  failedPayments        Int      @default(0) @map("failed_payments")
+  refundCount           Int      @default(0) @map("refund_count")
+  refundTotal           Int      @default(0) @map("refund_total")
+  createdAt             DateTime @default(now()) @map("created_at")
 
   @@id([orgId, date])
   @@map("daily_metrics")
