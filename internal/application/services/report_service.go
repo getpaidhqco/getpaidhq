@@ -44,7 +44,7 @@ func NewReportService(
 
 	// set up the payment method expiry detection
 	// 3am first of every month
-	err := scheduler.ScheduleTask("0 0 1 * * *", service.StoreDailyMetrics)
+	err := scheduler.ScheduleTask("0 1 * * *", service.StoreDailyMetrics)
 	if err != nil {
 		logger.Errorf("Failed to schedule task: %v", err)
 		panic(err)
