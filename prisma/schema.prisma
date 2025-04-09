@@ -349,15 +349,46 @@ model Customer {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   orders         Order[]
-  paymentMethods PaymentMethod[] @relation(name: "pmc")
+  paymentMethods PaymentMethod[]  @relation(name: "pmc")
   subscriptions  Subscription[]
-
-  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  cohorts        CustomerCohort[]
+  org            Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@id([orgId, id], map: "customer_primary_key")
   @@unique([orgId, email])
   @@index([orgId, email])
   @@map("customers")
+}
+
+model Cohort {
+  orgId     String           @map("org_id")
+  id        String           @default(cuid())
+  name      String
+  type      String           @default("signup")
+  metadata  Json?
+  createdAt DateTime         @default(now()) @map("created_at")
+  updatedAt DateTime         @updatedAt @map("updated_at")
+  customers CustomerCohort[]
+
+  @@id([orgId, id], map: "cohort_primary_key")
+  @@map("cohorts")
+}
+
+model CustomerCohort {
+  orgId       String   @map("org_id")
+  customerId  String   @map("customer_id")
+  cohortId    String   @map("cohort_id")
+  cohortValue String   @map("cohort_value")
+  joinedAt    DateTime @default(now()) @map("joined_at")
+
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  customer Customer @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Cascade)
+  cohort   Cohort   @relation(fields: [orgId, cohortId], references: [orgId, id], onDelete: Cascade)
+
+  @@id([orgId, customerId, cohortId])
+  @@map("customer_cohorts")
 }
 
 model PaymentMethod {
@@ -510,18 +541,17 @@ enum PaymentStatus {
 }
 
 model Refund {
-  orgId     String   @map("org_id")
-  id        String   @default(cuid())
-  paymentId String   @map("payment_id")
-  payment   Payment  @relation(fields: [orgId, paymentId], references: [orgId, id], onDelete: Cascade)
-  amount    Int
+  orgId      String   @map("org_id")
+  id         String   @default(cuid())
+  paymentId  String   @map("payment_id")
+  payment    Payment  @relation(fields: [orgId, paymentId], references: [orgId, id], onDelete: Cascade)
+  amount     Int
   currency   String
   reason     String?
   usd_amount Int?     @map("usd_amount")
-  date      DateTime @map("date")
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
+  date       DateTime @map("date")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
 
   @@id([orgId, id])
   @@map("refunds")
