@@ -42,6 +42,8 @@ async function main() {
         }
     })
 
+
+
     await prisma.customer.create({
         data: {
             orgId: orgId,
