@@ -358,6 +358,7 @@ func (r ReportRepository) GetActiveSubscribers(ctx context.Context, orgId string
 	}
 	defer rows.Close()
 
+	index := 0
 	for rows.Next() {
 		var revenue values.RecurringRevenue
 		if err := rows.Scan(
@@ -369,7 +370,15 @@ func (r ReportRepository) GetActiveSubscribers(ctx context.Context, orgId string
 		}
 		revenue.Type = "customers"
 		revenue.Total = math.Round(revenue.Total*100) / 100
+
+		if index > 0 {
+			revenue.GrowthMoM = ((revenue.Total - activeSubs[index-1].Total) / activeSubs[index-1].Total) * 100
+		} else {
+			revenue.GrowthMoM = 0 // No growth for the first month
+		}
+
 		activeSubs = append(activeSubs, revenue)
+		index++
 	}
 
 	if rows.Err() != nil {
