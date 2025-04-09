@@ -3,11 +3,12 @@ package common
 type Entity string
 
 const (
-	CustomerEntity     Entity = "customers"
-	SubscriptionEntity Entity = "subscriptions"
-	PaymentEntity      Entity = "payments"
-	OrderEntity        Entity = "orders"
-	ProductEntity      Entity = "products"
+	CustomerEntity       Entity = "customers"
+	SubscriptionEntity   Entity = "subscriptions"
+	PaymentEntity        Entity = "payments"
+	OrderEntity          Entity = "orders"
+	ProductEntity        Entity = "products"
+	CustomerCohortEntity Entity = "customer_cohorts"
 )
 
 type Operation string

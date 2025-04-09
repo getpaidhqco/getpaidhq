@@ -200,6 +200,33 @@ func (r ReportRepository) UpsertCustomer(ctx context.Context, entity entities.Cu
 	return nil
 }
 
+func (r ReportRepository) UpsertCustomerCohort(ctx context.Context, entity entities.CustomerCohort) error {
+	tx := r.getTransactionFromContext(ctx)
+
+	query := `INSERT INTO customer_cohorts (org_id, customer_id, cohort_id, cohort_value, joined_at, created_at, updated_at)
+			  VALUES (@org_id, @customer_id, @cohort_id, @cohort_value, @joined_at, NOW(), NOW())
+			  ON CONFLICT (org_id, customer_id, cohort_id) DO UPDATE SET
+				cohort_value = EXCLUDED.cohort_value,
+				joined_at = EXCLUDED.joined_at,
+				updated_at = NOW()`
+
+	args := pgx.NamedArgs{
+		"org_id":       entity.OrgId,
+		"customer_id":  entity.CustomerId,
+		"cohort_id":    entity.CohortId,
+		"cohort_value": entity.CohortValue,
+		"joined_at":    pgtype.Date{Time: entity.JoinedAt, Valid: !entity.JoinedAt.IsZero()},
+	}
+
+	_, err := tx.Exec(ctx, query, args)
+	if err != nil {
+		r.logger.Errorf(`failed to upsert CustomerCohort %s`, err.Error())
+		return err
+	}
+
+	return nil
+}
+
 // GetMRR returns the Monthly Recurring Revenue (MRR) for a given organization and date range. It queries the
 // daily_metrics table to calculate the MRR by summing the mrr values for each month within the specified date range.
 func (r ReportRepository) GetMRR(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error) {

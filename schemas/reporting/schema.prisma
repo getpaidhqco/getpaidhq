@@ -167,6 +167,21 @@ model Customers {
   @@map("customers")
 }
 
+model CustomerCohort {
+  orgId       String   @map("org_id")
+  customerId  String   @map("customer_id")
+  cohortId    String   @map("cohort_id")
+  cohortValue String   @map("cohort_value")
+  joinedAt    DateTime @default(now()) @map("joined_at")
+
+  createdAt      DateTime       @default(now()) @map("created_at")
+  updatedAt      DateTime       @updatedAt @map("updated_at")
+
+  @@id([orgId, customerId, cohortId])
+  @@map("customer_cohorts")
+}
+
+
 model Refund {
   orgId      String   @map("org_id")
   id         String   @default(cuid())

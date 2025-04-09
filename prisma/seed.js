@@ -25,9 +25,52 @@ const cohorts = [
 async function main() {
     console.log('Start seeding...');
 
+    await prisma.org.create({
+        data: {
+            id: orgId,
+            name: 'Mollie',
+            country: "ZA",
+            createdAt: faker.date.past(),
+            updatedAt: faker.date.past(),
+        },
+    }).catch((e) => {
+        if (e.code === 'P2002') {
+            console.warn('Conflict detected, ignoring:', e.meta.target);
+        } else {
+            console.error(e);
+            process.exit(1);
+        }
+    })
+
+    await prisma.customer.create({
+        data: {
+            orgId: orgId,
+            id: "cus_1",
+            firstName: faker.person.firstName(),
+            lastName: faker.person.lastName(),
+            email: faker.internet.email(),
+            createdAt: faker.date.past(),
+            updatedAt: faker.date.past(),
+        },
+    }).catch((e) => {
+        if (e.code === 'P2002') {
+            console.warn('Conflict detected, ignoring:', e.meta.target);
+        } else {
+            console.error(e);
+            process.exit(1);
+        }
+    })
+
     await Promise.all([
         prisma.cohort.createMany({
             data: cohorts,
+        }).catch((e) => {
+            if (e.code === 'P2002') {
+                console.warn('Conflict detected, ignoring:', e.meta.target);
+            } else {
+                console.error(e);
+                process.exit(1);
+            }
         }),
     ]);
 
