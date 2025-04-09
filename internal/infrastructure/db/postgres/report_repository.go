@@ -6,6 +6,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
+	"math"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
@@ -249,6 +250,7 @@ func (r ReportRepository) GetMRR(ctx context.Context, orgId string, startDate ti
 	}
 	defer rows.Close()
 
+	index := 0
 	for rows.Next() {
 		var revenue values.RecurringRevenue
 		if err := rows.Scan(
@@ -259,7 +261,14 @@ func (r ReportRepository) GetMRR(ctx context.Context, orgId string, startDate ti
 			r.logger.Error("failed to scan row", err)
 			return nil, err
 		}
+
+		if index > 0 {
+			revenue.GrowthMoM = ((revenue.Total - mrr[index-1].Total) / mrr[index-1].Total) * 100
+		} else {
+			revenue.GrowthMoM = 0 // No growth for the first month
+		}
 		mrr = append(mrr, revenue)
+		index++
 	}
 
 	if rows.Err() != nil {
@@ -359,6 +368,7 @@ func (r ReportRepository) GetActiveSubscribers(ctx context.Context, orgId string
 			return nil, err
 		}
 		revenue.Type = "customers"
+		revenue.Total = math.Round(revenue.Total*100) / 100
 		activeSubs = append(activeSubs, revenue)
 	}
 

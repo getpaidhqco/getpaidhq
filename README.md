@@ -1,3 +1,11 @@
+# Payloop (wip)
+Payloop is a payment processing system that allows users to create and manage subscriptions. 
+It is designed to be flexible and extensible, allowing developers to easily integrate it into their applications.
+
+## Project Structure
+Ref: https://github.com/sklinkert/go-ddd.git
+This project uses the Domain Driven Design (DDD) principles
+
 
 ## Installation
 For the development environment, we use Docker to run the application. The application is built using Go and uses Postgres as the database.
@@ -19,6 +27,25 @@ temporal operator  namespace create -n subscriptions
 Run the seed script to create the initial data in the database
 
 
+## Notes on Change Data Capture (CDC)
+Payloop uses two datases, the operational db `payloop` and the reporting db `payloop_reporting`. 
+The two databases are kept in sync using a change data capture (CDC) process (still testing it out)
+
+Currently (Apr 2025) the CDC library doesn't update the publication records for the logical replication, which means
+we need to manually update the publication records in the `pg_publication` table every time there's an update to the 
+CDC Stream service.  We need to remove the current publication and subscription so that the system can create 
+a new one when the server starts.
+
+```sql
+SELECT * FROM pg_publication;
+SELECT * FROM pg_replication_slots;
+
+DROP PUBLICATION cdc_pub;
+SELECT pg_terminate_backend(22081);
+SELECT pg_drop_replication_slot('cdc_slot2');
+
+```
+
 
 ## Database Migrations
 For the Postgres database we use Prisma to manage the database schema and migrations.  Migrations in Test and Prod environments
@@ -39,73 +66,6 @@ Temporal UI 9999->8080
 ```
 ssh -o StrictHostKeyChecking=no -N -L  9999:temporal-svc.temporal:8080 ec2-user@ec2-34-244-193-216.eu-west-1.compute.amazonaws.com -i cj-bastion-test.pem -v
 ```
-
-
-## Project Structure
-Ref: https://github.com/sklinkert/go-ddd.git
-This project uses the Domain Driven Design (DDD) principles 
-
-
-## Project Structure
-Ref: https://github.com/sklinkert/go-ddd.git
-This project uses the Domain Driven Design (DDD) principles
-
-Based on the provided Prisma schema, here are the proposed aggregates for the model:
-
-## Aggregates
-
-Determining the boundaries of an aggregate in your domain model involves understanding the business rules and invariants that need to be maintained consistently. Here are some guidelines to help you determine the boundaries:
-
-1. **Single Responsibility**: Each aggregate should have a single responsibility and represent a cohesive unit of behavior.
-
-2. **Consistency**: Identify the entities that need to be consistent together. These entities should be part of the same aggregate.
-
-3. **Transactional Boundaries**: Aggregates define transactional boundaries. Changes to an aggregate should be committed as a single transaction.
-
-4. **Access Control**: The aggregate root controls access to the other entities within the aggregate. Only the aggregate root should be directly accessed by other parts of the system.
-
-5. **Business Rules**: Consider the business rules and invariants that need to be enforced. Entities that share these rules should be part of the same aggregate.
-
-6. **Lifecycle**: Entities that have a shared lifecycle should be part of the same aggregate. For example, if deleting an order should also delete its order items, they should be part of the same aggregate.
-
-7. **Size and Performance**: Aggregates should not be too large. Large aggregates can lead to performance issues. Aim for a balance between consistency and performance.
-
-By following these guidelines, you can determine the appropriate boundaries for your aggregates in your domain model.
-
-
-### Org Aggregate:
-- Org
-- UserOrg
-- Setting
-
-### User Aggregate:
-- User
-- UserOrg
-
-### Product Aggregate:
-- Product
-- Variant
-- Price
-
-### Cart Aggregate:
-- Cart
-- Order
-
-### Order Aggregate:
-- Order
-- OrderItem
-- Payment
-- Subscription
-
-### Customer Aggregate:
-- Customer
-- PaymentMethod
-
-### Subscription Aggregate:
-- Subscription
-- Payment
-
-Each aggregate is designed to encapsulate related entities that need to be consistent together and share a common lifecycle.
 
 
 
