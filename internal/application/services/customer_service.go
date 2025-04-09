@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
@@ -41,11 +42,14 @@ func NewCustomerService(
 		logger.Errorf("Failed to schedule task: %v", err)
 		panic(err)
 	}
+
+	// subscribe to order events to manage cohorts
+	_, err = pubsub.Subscribe(topic.OrderCompleted, service.HandleOrderEvent)
+
 	return service
 }
 
 func (s CustomerService) Create(ctx context.Context, orgId string, customerRequest request.CreateCustomerRequest) (entities.Customer, error) {
-
 	// check for existing customer
 	exists, err := s.customerRepository.FindByEmail(ctx, orgId, customerRequest.Email)
 	if err != nil {
@@ -221,5 +225,43 @@ func (s CustomerService) DetectExpiringPaymentMethods() {
 		// send notification to customer
 		s.logger.Infof("Payment method %s is expiring", paymentMethod.Id)
 		_ = s.pubsub.Publish(paymentMethod.OrgId, topic.PaymentMethodExpired, paymentMethod)
+	}
+}
+
+func (s CustomerService) HandleOrderEvent(eventTopic string, data []byte) {
+
+	var payload events.Payload
+	err := json.Unmarshal(data, &payload)
+	if err != nil {
+		s.logger.Errorf("Failed to unmarshal payload: %v", err)
+		return
+	}
+
+	switch eventTopic {
+	case topic.OrderCompleted:
+		var order entities.Order
+		payloadBytes, err := json.Marshal(payload.Data)
+		if err != nil {
+			s.logger.Errorf("Failed to marshal payload data: %v", err)
+			return
+		}
+		err = json.Unmarshal(payloadBytes, &order)
+		if err != nil {
+			s.logger.Errorf("Failed to unmarshal event data: %v", err)
+			return
+		}
+		// add the customer to the signup_date cohort
+		s.logger.Infof("Adding customer [%s] to the [signup_date] cohort", order.CustomerId)
+		_, err = s.customerRepository.AddToCohort(
+			context.Background(),
+			order.OrgId,
+			order.CustomerId,
+			"signup_date",
+			time.Now().Format("2006-01-02"),
+		)
+		if err != nil {
+			s.logger.Errorf("Failed to add customer to cohort: %v", err)
+			return
+		}
 	}
 }

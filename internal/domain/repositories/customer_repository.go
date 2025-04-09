@@ -12,4 +12,5 @@ type CustomerRepository interface {
 	Update(ctx context.Context, entity entities.Customer) (entities.Customer, error)
 
 	FindPaymentMethodById(ctx context.Context, orgId string, id string) (entities.PaymentMethod, error)
+	AddToCohort(ctx context.Context, orgId string, customerId string, cohortId string, cohortValue string) (entities.Customer, error)
 }

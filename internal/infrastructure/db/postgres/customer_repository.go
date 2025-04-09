@@ -216,3 +216,27 @@ func (r CustomerRepository) Update(ctx context.Context, entity entities.Customer
 
 	return updatedCustomer.ToEntity(), nil
 }
+
+func (r CustomerRepository) AddToCohort(ctx context.Context, orgId string, customerId string, cohortId string, cohortValue string) (entities.Customer, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	query := `INSERT INTO customer_cohorts (org_id, customer_id, cohort_id, cohort_value, created_at, updated_at)
+			  VALUES (@org_id, @customer_id, @cohort_id, @cohort_value, now(), now())
+			  ON CONFLICT (org_id, customer_id, cohort_id) DO UPDATE SET
+			  cohort_value = EXCLUDED.cohort_value,
+			  updated_at = now()`
+
+	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
+		"org_id":       orgId,
+		"customer_id":  customerId,
+		"cohort_id":    cohortId,
+		"cohort_value": cohortValue,
+	})
+	if err != nil {
+		r.logger.Error("failed to create or update customer cohort", "orgId", orgId, "customerId", customerId, "cohortId", cohortId, "err", err.Error())
+		return entities.Customer{}, mapError(err)
+	}
+
+	// Fetch the updated customer entity
+	return r.FindById(ctx, orgId, customerId)
+}

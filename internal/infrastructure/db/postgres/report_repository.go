@@ -43,6 +43,8 @@ func NewReportRepository(
 func (r ReportRepository) UpsertSubscription(ctx context.Context, entity entities.Subscription) error {
 	tx := r.getTransactionFromContext(ctx)
 
+	r.logger.Debugf("upserting subscription for %s %s", entity.Id, entity.Status)
+
 	query := `INSERT INTO subscriptions (org_id, id, psp_id, status, order_id,
                            order_item_id, order_item_name, customer_id, payment_method_id, payment_method_type,
                            start_date,end_date,billing_interval,billing_interval_qty,cycles,
@@ -118,7 +120,7 @@ func (r ReportRepository) UpsertSubscription(ctx context.Context, entity entitie
 	}
 	_, err := tx.Exec(ctx, query, args)
 	if err != nil {
-		r.logger.Errorf(`failed to insert Subscription %s`, err.Error())
+		r.logger.Errorf(`failed to upsert Subscription %s`, err.Error())
 		return err
 	}
 

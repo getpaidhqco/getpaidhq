@@ -82,6 +82,10 @@ var RespositoryModules = fx.Options(
 		NewApiKeyRepository,
 		fx.ParamTags(`name:"primaryDb"`),
 	)),
+	fx.Provide(fx.Annotate(
+		NewCohortRepository,
+		fx.ParamTags(`name:"primaryDb"`),
+	)),
 )
 
 // RepositoryWithTrx is a generic interface for repositories with transaction support
