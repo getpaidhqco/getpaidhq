@@ -87,7 +87,7 @@ func (c *CdcStream) Start(ctx context.Context, handler func(string, string, inte
 		case *format.Delete:
 			handler("DELETE", msg.TableName, nil, msg.OldDecoded)
 		case *format.Update:
-			handler("UPDATE", msg.TableName, msg.OldDecoded, msg.NewDecoded)
+			handler("UPDATE", msg.TableName, msg.NewDecoded, msg.OldDecoded)
 		}
 
 		if err := ctx.Ack(); err != nil {
