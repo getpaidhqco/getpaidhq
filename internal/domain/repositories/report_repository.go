@@ -12,6 +12,7 @@ type ReportRepository interface {
 	GetARR(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error)
 	GetActiveSubscribers(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error)
 	GetRefundTotals(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error)
+	GetCustomerChurnTotals(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error)
 	UpsertSubscription(ctx context.Context, entity entities.Subscription) error
 	UpsertPayment(ctx context.Context, entity entities.Payment) error
 	UpsertCustomer(ctx context.Context, entity entities.Customer) error
