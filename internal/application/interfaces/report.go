@@ -13,6 +13,7 @@ type ReportService interface {
 	GetActiveSubscribers(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error)
 	GetRefundTotals(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error)
 	GetCustomerChurnTotals(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error)
+	GetCustomerChurnRates(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error)
 	HandlePublishedEvent(topic string, data []byte)
 	ProcessDataChange(event dto.DataChangeEvent)
 }

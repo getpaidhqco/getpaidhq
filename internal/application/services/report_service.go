@@ -113,6 +113,15 @@ func (s ReportService) GetCustomerChurnTotals(ctx context.Context, orgId string,
 	return mrr, nil
 }
 
+func (s ReportService) GetCustomerChurnRates(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error) {
+	mrr, err := s.reportRepository.GetCustomerChurnRates(ctx, orgId, startDate, endDate)
+	if err != nil {
+		return nil, err
+	}
+
+	return mrr, nil
+}
+
 // HandlePublishedEvent handles the published event from the pubsub and processes it
 // either via the queue or directly.  Which one to use depends on the deployment, simple
 // deployments will call the service directly, while more complex deployments will use the queue.

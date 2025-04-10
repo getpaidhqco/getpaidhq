@@ -22,6 +22,7 @@ func (s ReportRoutes) Setup() {
 		api.GET("/reports/active-subscribers", s.reportController.GetSubscribers)
 		api.GET("/reports/refunds", s.reportController.GetRefundTotals)
 		api.GET("/reports/churn/totals", s.reportController.GetCustomerChurnTotals)
+		api.GET("/reports/churn/rates", s.reportController.GetCustomerChurnRates)
 	}
 }
 

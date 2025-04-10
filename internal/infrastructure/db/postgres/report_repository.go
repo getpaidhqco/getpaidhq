@@ -7,6 +7,7 @@ import (
 	_ "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"math"
+	"payloop/internal/application/dto"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
@@ -502,10 +503,89 @@ func (r ReportRepository) GetCustomerChurnTotals(ctx context.Context, orgId stri
 	return results, nil
 }
 
-func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, d time.Time) error {
-	tx := r.getTransactionFromContext(ctx)
+func (r ReportRepository) GetCustomerChurnRates(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error) {
+	results := make([]values.RecurringRevenue, 0)
 
+	// get the churn totals for the period
+	churnTotals, err := r.GetCustomerChurnTotals(ctx, orgId, startDate, endDate)
+	if err != nil {
+		r.logger.Error("failed to get customer churn totals", err)
+		return results, err
+	}
+
+	// get the customer count at the start of each period
+	query := `
+			SELECT 
+				DATE_TRUNC('month', date) AS month_start,
+				customer_count
+			FROM 
+				daily_metrics
+				where org_id=$1
+				 AND date=DATE_TRUNC('month', date)
+
+			ORDER BY 
+				month_start;
+	`
+	rows, err := r.Pool.Query(ctx, query, orgId, startDate, endDate)
+	if err != nil {
+		r.logger.Error("failed to execute query", err)
+		return nil, err
+	}
+	defer rows.Close()
+
+	index := 0
+	for rows.Next() {
+		var churn values.RecurringRevenue
+		var period time.Time
+		var customerCount int64
+
+		if err := rows.Scan(
+			&period,
+			&customerCount,
+		); err != nil {
+			return nil, err
+		}
+
+		churn.Type = "churn_rate"
+		churn.Period = period
+
+		for _, churnTotal := range churnTotals {
+			if churnTotal.Period == period {
+				churn.Total = churnTotal.Total / float64(customerCount) * 100
+				break
+			}
+		}
+
+		if index > 0 {
+			churn.GrowthMoM = ((churn.Total - results[index-1].Total) / results[index-1].Total) * 100
+		} else {
+			churn.GrowthMoM = 0
+		}
+		results = append(results, churn)
+		index++
+	}
+
+	if rows.Err() != nil {
+		r.logger.Error("rows iteration error", rows.Err())
+		return nil, rows.Err()
+	}
+
+	return results, nil
+}
+
+func (r ReportRepository) StoreDailyMetrics(ctx context.Context, input dto.ProcessDailyMetricsInput) error {
+	tx := r.getTransactionFromContext(ctx)
+	orgId := input.OrgId
+	d := input.Date
 	date := d.Format("2006-01-02")
+	loc, _ := time.LoadLocation(input.Timezone)
+	dateInLoc := d.In(loc)
+	dayStartUtc := time.Date(dateInLoc.Year(), dateInLoc.Month(), dateInLoc.Day(), 0, 0, 0, 0, dateInLoc.Location()).UTC()
+	dayEndUtc := time.Date(dateInLoc.Year(), dateInLoc.Month(), dateInLoc.Day(), 23, 59, 59, 0, dateInLoc.Location()).UTC()
+
+	fmt.Printf("Start in UTC Time:       %s\n", dayStartUtc)
+	fmt.Printf("End in UTC Time:       %s\n", dayEndUtc)
+
 	r.logger.Debugf(`Calculating daily metrics for %s`, date)
 
 	// Calculate successful payments (example calculation)
@@ -530,10 +610,11 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, d
 					FROM payments 
 					WHERE org_id=@org_id 
 					  AND status = 'failed' 
-					  AND completed_at::date = @completed_at::date`
+					  AND completed_at between @day_start and @day_end`
 	err = tx.QueryRow(ctx, failedPaymentQuery, pgx.NamedArgs{
-		"org_id":       orgId,
-		"completed_at": date,
+		"org_id":    orgId,
+		"day_start": dayStartUtc,
+		"day_end":   dayEndUtc,
 	}).Scan(&failedPayments)
 	if err != nil {
 		return err
@@ -546,10 +627,11 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, d
 	refundQuery := `SELECT count(*), COALESCE(SUM(amount), 0) 
 					FROM refunds 
 					WHERE org_id=@org_id 
-					  AND date::date = @date::date `
+					  AND refunded_at between @day_start and @day_end`
 	err = tx.QueryRow(ctx, refundQuery, pgx.NamedArgs{
-		"org_id": orgId,
-		"date":   date,
+		"org_id":    orgId,
+		"day_start": dayStartUtc,
+		"day_end":   dayEndUtc,
 	}).Scan(&refundCount, &refundTotal)
 	if err != nil {
 		r.logger.Errorf(`refunds %v`, err)
@@ -569,14 +651,15 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, d
         FROM subscriptions
         WHERE org_id=@org_id
         AND status in ('trial','active','retry')
-        AND start_date::date <= @date::date
-        AND (cancelled_at::date IS NULL OR cancelled_at::date <> @date::date)
-        AND (end_date::date IS NULL OR end_date::date >= @date::date)
+        AND start_date <= @day_start
+        AND (cancelled_at::date IS NULL OR cancelled_at not between @day_start and @day_end)
+        AND (end_date::date IS NULL OR end_date >= @day_end)
     `
 	err = tx.QueryRow(ctx, query, pgx.NamedArgs{
-		"org_id":  orgId,
-		"date":    date,
-		"numdays": getDaysInMonth(d),
+		"org_id":    orgId,
+		"day_start": dayStartUtc,
+		"day_end":   dayEndUtc,
+		"numdays":   getDaysInMonth(d),
 	}).Scan(&mrr)
 	if err != nil {
 		r.logger.Errorf(`mrr %v`, err)
@@ -619,12 +702,13 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, d
 							), 0) AS daily_mrr
 					FROM subscriptions 
                 	WHERE org_id=@org_id
-                 	AND (end_date::date = @date::date
-                     OR cancelled_at::date = @date::date)`
+                 	AND (end_date between @day_start and @day_end
+                     OR cancelled_at between @day_start and @day_end)`
 
 	err = tx.QueryRow(ctx, churnQuery, pgx.NamedArgs{
-		"org_id": orgId,
-		"date":   date,
+		"org_id":    orgId,
+		"day_start": dayStartUtc,
+		"day_end":   dayEndUtc,
 	}).Scan(
 		&churnedCustomers,
 		&churnTotal,
@@ -645,16 +729,19 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, d
 
 	// Insert daily metrics into the database
 	dmQuery := `
-				INSERT INTO daily_metrics (org_id,date, currency, mrr, arr, 
-                        customer_count, churn_count, churn_total, churn_rate, 
-				        ave_revenue_per_user, 
-				           customer_lifetime_value, successful_payments, 
-                           failed_payments, refund_total, refund_count) 
-				VALUES (@org_id, @date, @currency, @mrr, @arr, 
+				INSERT INTO daily_metrics (org_id, date, timezone, day_start_utc, day_end_utc,
+				                           currency, mrr, arr, customer_count, churn_count, churn_total, churn_rate, 
+				        	 			ave_revenue_per_user,  customer_lifetime_value, 
+				                           successful_payments, failed_payments, refund_total, refund_count) 
+				VALUES (@org_id, @date, @timezone, @day_start_utc, @day_end_utc,
+				        @currency, @mrr, @arr, 
 				        @customer_count, @churn_count, @churn_total, @churn_rate, 
 				        @arpu, @cltv, @successful_payments,
 				        @failed_payments, @refund_total, @refund_count)
 				ON CONFLICT (org_id, date) DO UPDATE SET
+					timezone = EXCLUDED.timezone,
+					day_start_utc = EXCLUDED.day_start_utc,
+					day_end_utc = EXCLUDED.day_end_utc,
 					currency = EXCLUDED.currency,
 					mrr = EXCLUDED.mrr,
 					arr = EXCLUDED.arr,
@@ -672,6 +759,9 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, d
 	_, err = tx.Exec(ctx, dmQuery, pgx.NamedArgs{
 		"org_id":              orgId,
 		"date":                date,
+		"timezone":            input.Timezone,
+		"day_start_utc":       dayStartUtc,
+		"day_end_utc":         dayEndUtc,
 		"currency":            "USD", // Assuming currency is USD, replace with actual value if different
 		"mrr":                 mrr,
 		"arr":                 arr,
@@ -695,6 +785,9 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, orgId string, d
 	return nil
 }
 
+// ProcessDailyMetrics processes daily metrics for all organizations. It retrieves all active organizations
+// from the database and calls StoreDailyMetrics for each organization and the specified day.
+// It uses the org's timezone to calculate the start and end of the day in UTC.
 func (r ReportRepository) ProcessDailyMetrics(ctx context.Context, day time.Time) error {
 	// Get all orgs
 	orgs, err := r.primaryDb.Pool.Query(ctx, "SELECT id FROM orgs where status = 'active'")
@@ -709,7 +802,11 @@ func (r ReportRepository) ProcessDailyMetrics(ctx context.Context, day time.Time
 			return err
 		}
 
-		err = r.StoreDailyMetrics(ctx, orgId, day)
+		err = r.StoreDailyMetrics(ctx, dto.ProcessDailyMetricsInput{
+			OrgId:    orgId,
+			Date:     day,
+			Timezone: "Africa/Johannesburg",
+		})
 		if err != nil {
 			r.logger.Errorf("failed to store daily metrics for org %s: %v", orgId, err)
 			continue

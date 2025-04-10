@@ -165,3 +165,31 @@ func (s ReportController) GetCustomerChurnTotals(c *gin.Context) {
 
 	c.JSON(200, arr)
 }
+
+func (s ReportController) GetCustomerChurnRates(c *gin.Context) {
+	user, _ := c.Get("user")
+	authUser := user.(authn.User)
+	startTime, err := time.Parse(time.DateOnly, c.Query("start_date"))
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+	endTime, err := time.Parse(time.DateOnly, c.Query("end_date"))
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+	startTime = startTime.Truncate(24 * time.Hour)
+	endTime = endTime.Add(24 * time.Hour).Truncate(24 * time.Hour).Add(-time.Nanosecond)
+
+	arr, err := s.reportService.GetCustomerChurnRates(c.Request.Context(), authUser.OrgId, startTime, endTime)
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	c.JSON(200, arr)
+}

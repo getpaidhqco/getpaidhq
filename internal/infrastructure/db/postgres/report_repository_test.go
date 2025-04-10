@@ -3,10 +3,36 @@ package postgres
 import (
 	"context"
 	"github.com/stretchr/testify/assert"
+	"payloop/internal/application/dto"
 	"payloop/internal/lib"
 	"testing"
 	"time"
 )
+
+func TestStoreDailyMetricsForRange(t *testing.T) {
+	// Mock dependencies
+	env := lib.NewEnv()
+	logger := lib.GetLogger()
+	db := NewDatabase(env.Get("DATABASE_URL"), logger)
+	reportingDb := NewDatabase(env.Get("REPORTING_DATABASE_URL"), logger)
+
+	repo := NewReportRepository(reportingDb, db, logger)
+
+	// Define test data
+	orgId := "mollie"
+	startDate := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
+	endDate := time.Now().UTC()
+
+	for d := startDate; !d.After(endDate); d = d.Add(24 * time.Hour) {
+		err := repo.StoreDailyMetrics(context.Background(), dto.ProcessDailyMetricsInput{
+			OrgId:    orgId,
+			Date:     d,
+			Timezone: "Africa/Johannesburg",
+		})
+		assert.NoError(t, err)
+	}
+
+}
 
 func TestStoreDailyMetrics(t *testing.T) {
 	// Mock dependencies
@@ -19,12 +45,16 @@ func TestStoreDailyMetrics(t *testing.T) {
 
 	// Define test data
 	orgId := "mollie"
-	date := time.Now()
+	date := time.Now().UTC()
 
 	// Mock the transaction and queries
 
 	// Call the method
-	err := repo.StoreDailyMetrics(context.Background(), orgId, date)
+	err := repo.StoreDailyMetrics(context.Background(), dto.ProcessDailyMetricsInput{
+		OrgId:    orgId,
+		Date:     date,
+		Timezone: "Africa/Johannesburg",
+	})
 
 	// Assert results
 	assert.NoError(t, err)

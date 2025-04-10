@@ -62,18 +62,23 @@ enum PaymentStatus {
 }
 
 model DailyMetric {
-  orgId                 String   @map("org_id")
-  date                  DateTime
-  currency              String
-  arr                   Int      @default(0) @map("arr")
-  mrr                   Int      @default(0) @map("mrr")
-  pastDueTotal          Int      @default(0) @map("past_due_total")
-  pastDueCount          Int      @default(0) @map("past_due_count")
+  orgId       String   @map("org_id")
+  date        DateTime
+  timezone    String   @map("timezone")
+  dayStartUtc DateTime @map("day_start_utc")
+  dayEndUtc   DateTime @map("day_end_utc")
 
-  customerCount         Int      @default(0) @map("customer_count")
-  churnCount            Int      @default(0) @map("churn_count")
-  churnTotal            Int      @default(0) @map("churn_total")
-  churnRate             Float    @default(0.0) @map("churn_rate")
+  currency     String
+  arr          Int    @default(0) @map("arr")
+  mrr          Int    @default(0) @map("mrr")
+  pastDueTotal Int    @default(0) @map("past_due_total")
+  pastDueCount Int    @default(0) @map("past_due_count")
+
+  customersAtStart Int   @default(0) @map("customers_at_start")
+  customerCount    Int   @default(0) @map("customer_count")
+  churnCount       Int   @default(0) @map("churn_count")
+  churnTotal       Int   @default(0) @map("churn_total")
+  churnRate        Float @default(0.0) @map("churn_rate")
 
   aveRevenuePerUser     Float    @default(0.0) @map("ave_revenue_per_user")
   customerLifetimeValue Int      @default(0) @map("customer_lifetime_value")
@@ -178,25 +183,24 @@ model CustomerCohort {
   cohortValue String   @map("cohort_value")
   joinedAt    DateTime @default(now()) @map("joined_at")
 
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@id([orgId, customerId, cohortId])
   @@map("customer_cohorts")
 }
 
-
 model Refund {
-  orgId      String   @map("org_id")
-  id         String   @default(cuid())
-  paymentId  String   @map("payment_id")
-  currency   String
-  amount     Int
-  date       DateTime @map("date")
-  reason     String?
-  usd_amount Int?     @map("usd_amount")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  orgId       String   @map("org_id")
+  id          String   @default(cuid())
+  paymentId   String   @map("payment_id")
+  currency    String
+  amount      Int
+  refundedAt DateTime @map("refunded_at")
+  reason      String?
+  usd_amount  Int?     @map("usd_amount")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
   @@id([orgId, id])
   @@map("refunds")
