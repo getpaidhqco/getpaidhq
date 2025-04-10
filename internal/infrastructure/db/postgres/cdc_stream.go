@@ -49,6 +49,9 @@ func NewCdcStream(databaseURL string, logger logger.Logger) CdcStream {
 					Name:            "payments",
 					ReplicaIdentity: publication.ReplicaIdentityFull,
 				}, publication.Table{
+					Name:            "refunds",
+					ReplicaIdentity: publication.ReplicaIdentityFull,
+				}, publication.Table{
 					Name:            "orders",
 					ReplicaIdentity: publication.ReplicaIdentityFull,
 				}, publication.Table{

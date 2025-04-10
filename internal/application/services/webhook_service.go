@@ -112,7 +112,12 @@ func (s WebhookService) HandlePaymentWebhook(ctx context.Context, payload webhoo
 		err = s.workflowEngine.SignalSubscriptionWorkflow(ctx, "webhook-signal", subscription, chargeResult)
 
 	case payment_providers.PaymentRefunded:
-
+		// start workflow
+		_, err := s.workflowEngine.StartWorkflow(ctx, interfaces.PaymentRefunded, webhook)
+		if err != nil {
+			s.logger.Error("Failed to start workflow", err.Error())
+			return err
+		}
 	default:
 		s.logger.Info("Unknown webhook type", "type", webhook.Type)
 
