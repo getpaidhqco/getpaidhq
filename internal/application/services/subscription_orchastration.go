@@ -112,7 +112,7 @@ func (s SubscriptionOrchestrationService) Activate(ctx context.Context, orgId st
 	}
 	err = s.workflowEngine.StartSubscriptionWorkflow(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to start workflow", err.Error())
+		s.logger.Errorf("Failed to start workflow %v", err.Error())
 		return entities.Subscription{}, err
 	}
 

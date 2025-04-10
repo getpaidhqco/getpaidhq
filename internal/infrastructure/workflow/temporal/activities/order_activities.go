@@ -84,7 +84,7 @@ func (a *OrderActivities) HandlePaymentRefundedEvent(ctx context.Context, paymen
 	payment, err := a.paymentRepository.FindByPspId(ctx, paymentContext.OrgId, paymentContext.Payment.PspId)
 	if err != nil {
 		logger.Error("error finding payment", "OrgId", paymentContext.OrgId, "PspId", paymentContext.Payment.PspId, "err", err.Error())
-		return interfaces.Result{}, temporal.NewNonRetryableApplicationError("Can't find order", "order", err)
+		return interfaces.Result{}, temporal.NewNonRetryableApplicationError("can't find payment", "payment", err)
 	}
 
 	// update the payment status to refunded

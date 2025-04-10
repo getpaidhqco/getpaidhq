@@ -154,7 +154,35 @@ func (t Temporal) StartWorkflow(ctx context.Context, id interfaces.WorkflowType,
 			Message: "success",
 			Payload: result,
 		}, nil
+
+	case interfaces.PaymentRefunded:
+		workflowId := lib.GenerateId("refund")
+		// start workflow
+		workflowOptions := client.StartWorkflowOptions{
+			ID:        workflowId,
+			TaskQueue: "events",
+		}
+
+		we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, workflows.PaymentRefunded, payload)
+		if err != nil {
+			t.logger.Error("Unable to execute workflow", "err", err.Error())
+			return interfaces.Result{}, err
+		}
+
+		var result interfaces.Result
+		err = we.Get(ctx, &result)
+		if err != nil {
+			t.logger.Error("Unable to get workflow result", "err", err.Error())
+			return interfaces.Result{}, err
+		}
+		t.logger.Info("Finished workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID(), "result", result)
+		return interfaces.Result{
+			Success: true,
+			Message: "success",
+			Payload: result,
+		}, nil
 	default:
+		t.logger.Warnf("Unsupported workflow type: %s", id)
 		return interfaces.Result{}, nil
 	}
 

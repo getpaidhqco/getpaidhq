@@ -65,6 +65,11 @@ func (s WebhookService) HandlePaymentWebhook(ctx context.Context, payload webhoo
 	}
 
 	parser := s.gatewayFactory.NewWebhookParser(payload.Psp)
+	if parser == nil {
+		s.logger.Error("failed to create webhook parser")
+		return events.NewQueueHandlerError("failed to create webhook parser", false, err)
+	}
+
 	err = parser.ValidateWebhook(ctx, []byte(payload.Data))
 	if err != nil {
 		s.logger.Error("Failed to validate webhook", err.Error())
@@ -115,7 +120,7 @@ func (s WebhookService) HandlePaymentWebhook(ctx context.Context, payload webhoo
 		// start workflow
 		_, err := s.workflowEngine.StartWorkflow(ctx, interfaces.PaymentRefunded, webhook)
 		if err != nil {
-			s.logger.Error("Failed to start workflow", err.Error())
+			s.logger.Errorf("Failed to start workflow %v", err.Error())
 			return err
 		}
 	default:

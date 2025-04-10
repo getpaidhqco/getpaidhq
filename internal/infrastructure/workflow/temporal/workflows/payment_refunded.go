@@ -12,11 +12,11 @@ import (
 )
 
 // Execute executes tasks for processing a payment refunded event
-func PaymentRefunded(ctx temporal.Context, payload interfaces.WorkflowPayload) (interfaces.Result, error) {
+func PaymentRefunded(ctx temporal.Context, payload payment_providers.PaymentWebhookContext) (interfaces.Result, error) {
 	logger := temporal.GetLogger(ctx)
 
 	// parse the data to make sure we have what we need
-	paymentWebhookContext, err := payment_providers.ParsePaymentWebhookContext(payload.Data)
+	paymentWebhookContext, err := payment_providers.ParsePaymentWebhookContext(payload)
 	if err != nil {
 		logger.Error("Invalid payload data", "err", err.Error())
 		return interfaces.Result{}, errors.New("invalid payload data, expected payment_providers.PaymentWebhookContext ")
@@ -37,8 +37,8 @@ func PaymentRefunded(ctx temporal.Context, payload interfaces.WorkflowPayload) (
 	err = temporal.ExecuteActivity(ctx1, a.HandlePaymentRefundedEvent, paymentWebhookContext).
 		Get(ctx1, &completeOrderResult)
 	if err != nil {
-		logger.Error("[Complete Order] failed with error: ", "Error", err.Error())
-		return interfaces.Result{}, temporalio.NewApplicationError("Complete Order failed", "", err)
+		logger.Error("[HandlePaymentRefundedEvent] failed with error: ", "Error", err.Error())
+		return interfaces.Result{}, temporalio.NewApplicationError("handle refund event failed", "", err)
 	}
 
 	logger.Info("[PaymentRefunded] Workflow completed.")

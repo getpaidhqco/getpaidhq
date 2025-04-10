@@ -399,7 +399,7 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 		s.logger.Debugf("Starting subscription workflow")
 		err = s.workflowEngine.StartSubscriptionWorkflow(ctx, newSub)
 		if err != nil {
-			s.logger.Error("Failed to start workflow", err.Error())
+			s.logger.Errorf("Failed to start workflow %v", err.Error())
 			return entities.Order{}, err
 		}
 	}

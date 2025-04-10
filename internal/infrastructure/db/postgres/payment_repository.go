@@ -286,7 +286,7 @@ func (r PaymentRepository) FindByPspId(ctx context.Context, orgId string, pspId 
 			&payment.Id,
 		)
 	if err != nil {
-		r.logger.Error(`failed to find Payment by PspId`, err.Error())
+		r.logger.Error(`failed to find Payment by PspId`, "err", err.Error())
 		return entities.Payment{}, errors.New("not found")
 	}
 

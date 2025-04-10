@@ -67,7 +67,7 @@ func (s WorkflowService) HandleOutboundWebhook(topic string, data []byte) {
 			Event:               payload,
 		})
 		if err != nil {
-			s.logger.Errorf("Failed to start workflow", err.Error())
+			s.logger.Errorf("Failed to start workflow %v", err.Error())
 		}
 	}
 
