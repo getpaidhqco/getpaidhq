@@ -10,7 +10,7 @@ type Refund struct {
 	Amount      int64     `json:"amount" `
 	Currency    string    `json:"currency" `
 	Reason      string    `json:"reason,omitempty" ` // Nullable field
-	RefundedAt  time.Time `json:"refunde_at" `
+	RefundedAt  time.Time `json:"refunded_at" `
 	CreatedAt   time.Time `json:"created_at" `
 	UpdatedAt   time.Time `json:"updated_at" `
 }
