@@ -15,7 +15,9 @@ type WebhookParser struct {
 }
 
 func NewWebhookParser(logger logger.Logger) WebhookParser {
-	return WebhookParser{logger: logger}
+	return WebhookParser{
+		logger: logger,
+	}
 }
 
 func (p WebhookParser) ValidateWebhook(ctx context.Context, data []byte) error {
@@ -104,19 +106,16 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (payment_p
 			p.logger.Errorf("failed to parse PaymentRefundedWebhook: %s", err.Error())
 			return payment_providers.PaymentWebhookContext{}, err
 		}
-
 		orgId := webhook.Metadata["org_id"]
-		orderId := webhook.Metadata["order_id"]
-
-		if orgId == "" || orderId == "" {
-			p.logger.Errorf("missing orgId or orderId")
-			return payment_providers.PaymentWebhookContext{}, errors.New("missing orgId or orderId")
+		if orgId == "" {
+			p.logger.Errorf("missing orgId ")
+			return payment_providers.PaymentWebhookContext{}, errors.New("missing orgId")
 		}
 
 		return payment_providers.PaymentWebhookContext{
 			Type:    payment_providers.PaymentRefunded,
 			OrgId:   orgId,
-			OrderId: orderId,
+			OrderId: "",
 			Psp:     common.CheckoutDotCom,
 			Status:  string(payments.PaymentStatusRefunded),
 			Payment: payment_providers.Payment{
