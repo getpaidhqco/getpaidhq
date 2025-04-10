@@ -521,8 +521,7 @@ func (r ReportRepository) GetCustomerChurnRates(ctx context.Context, orgId strin
 			FROM 
 				daily_metrics
 				where org_id=$1
-				 AND date=DATE_TRUNC('month', date)
-
+				 AND date::date between $2 AND $3
 			ORDER BY 
 				month_start;
 	`
