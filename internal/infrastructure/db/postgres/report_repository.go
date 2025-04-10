@@ -202,6 +202,43 @@ func (r ReportRepository) UpsertCustomer(ctx context.Context, entity entities.Cu
 	return nil
 }
 
+func (r ReportRepository) UpsertRefund(ctx context.Context, entity entities.Refund) error {
+	tx := r.getTransactionFromContext(ctx)
+
+	query := `INSERT INTO refunds (org_id, id, psp_refund_id, payment_id, amount, currency, reason, refunded_at, created_at, updated_at)
+			  VALUES (@org_id, @id, @psp_refund_id, @payment_id, @amount, @currency, @reason, @refunded_at, @created_at, @updated_at)
+			  ON CONFLICT (org_id, id) DO UPDATE SET
+				psp_refund_id = EXCLUDED.psp_refund_id,
+				payment_id = EXCLUDED.payment_id,
+				amount = EXCLUDED.amount,
+				currency = EXCLUDED.currency,
+				reason = EXCLUDED.reason,
+				refunded_at = EXCLUDED.refunded_at,
+				updated_at = NOW()
+				`
+
+	args := pgx.NamedArgs{
+		"org_id":        entity.OrgId,
+		"id":            entity.Id,
+		"psp_refund_id": pgtype.Text{String: entity.PspRefundId, Valid: entity.PspRefundId != ""},
+		"payment_id":    entity.PaymentId,
+		"reason":        entity.Reason,
+		"created_at":    pgtype.Date{Time: entity.CreatedAt, Valid: !entity.CreatedAt.IsZero()},
+		"updated_at":    pgtype.Date{Time: entity.UpdatedAt, Valid: !entity.UpdatedAt.IsZero()},
+		"refunded_at":   pgtype.Date{Time: entity.RefundedAt, Valid: !entity.RefundedAt.IsZero()},
+		"amount":        entity.Amount,
+		"currency":      entity.Currency,
+	}
+
+	_, err := tx.Exec(ctx, query, args)
+	if err != nil {
+		r.logger.Errorf(`failed to upsert Refund %s`, err.Error())
+		return err
+	}
+
+	return nil
+}
+
 func (r ReportRepository) UpsertCustomerCohort(ctx context.Context, entity entities.CustomerCohort) error {
 	tx := r.getTransactionFromContext(ctx)
 

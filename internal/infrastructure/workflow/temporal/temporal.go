@@ -59,6 +59,7 @@ func NewTemporalEngine(
 	w.RegisterWorkflow(workflows.SubscriptionChargeReminder)
 	w.RegisterWorkflow(workflows.SubscriptionWorkflow)
 	w.RegisterWorkflow(workflows.OutgoingWebhookWorkflow)
+	w.RegisterWorkflow(workflows.PaymentRefunded)
 
 	w.RegisterActivity(&orderActivities)
 	w.RegisterActivity(&webhookActivities)

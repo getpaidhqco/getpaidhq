@@ -76,6 +76,48 @@ func (a *OrderActivities) CompleteOrder(ctx context.Context, paymentContext paym
 	}, nil
 }
 
+func (a *OrderActivities) HandlePaymentRefundedEvent(ctx context.Context, paymentContext payment_providers.PaymentWebhookContext) (interfaces.Result, error) {
+	logger := activity.GetLogger(ctx)
+	logger.Info("HandlePaymentRefundedEvent", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId)
+
+	// Find the payment
+	payment, err := a.paymentRepository.FindByPspId(ctx, paymentContext.OrgId, paymentContext.Payment.PspId)
+	if err != nil {
+		logger.Error("error finding payment", "OrgId", paymentContext.OrgId, "PspId", paymentContext.Payment.PspId, "err", err.Error())
+		return interfaces.Result{}, temporal.NewNonRetryableApplicationError("Can't find order", "order", err)
+	}
+
+	// update the payment status to refunded
+	payment.Status = payments.PaymentStatusRefunded
+	newPayment, err := a.paymentRepository.Update(ctx, payment)
+	if err != nil {
+		logger.Error("error completing order", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId, "err", err.Error())
+		return interfaces.Result{}, temporal.NewApplicationError("Can't update payment status", "payment", err)
+	}
+
+	// create the refund record
+	_, err = a.paymentRepository.CreateRefund(ctx, entities.Refund{
+		OrgId:      paymentContext.OrgId,
+		Id:         lib.GenerateId("refund"),
+		PaymentId:  payment.Id,
+		Amount:     paymentContext.Payment.Amount,
+		Currency:   paymentContext.Payment.Currency,
+		RefundedAt: paymentContext.Payment.PaidAt,
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
+	})
+	if err != nil {
+		logger.Error("error creating refund", "OrgId", paymentContext.OrgId, "PaymentId", payment.Id, "err", err.Error())
+		return interfaces.Result{}, temporal.NewApplicationError("Can't create refund record", "refund", err)
+	}
+
+	return interfaces.Result{
+		Success: true,
+		Message: "Refund event processing",
+		Payload: newPayment,
+	}, nil
+}
+
 func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("GetOrderSubscriptions: ", "[OrgId]", orgId, "[OrderId]", orderId)

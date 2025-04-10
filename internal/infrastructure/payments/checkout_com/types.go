@@ -7,6 +7,7 @@ type WebhookType string
 const (
 	PaymentCapturedWebhook WebhookType = "payment_captured"
 	PaymentApprovedWebhook WebhookType = "payment_approved"
+	PaymentRefundedWebhook WebhookType = "payment_refunded"
 )
 
 type WebhookData interface {
@@ -158,4 +159,37 @@ func (w PaymentApproved) GetID() string {
 
 type InitPaymentOptions struct {
 	Type string `json:"type"`
+}
+
+type PaymentRefunded struct {
+	ID              string    `json:"id"`
+	ActionID        string    `json:"action_id"`
+	Reference       string    `json:"reference"`
+	Amount          int       `json:"amount"`
+	ProcessedOn     time.Time `json:"processed_on"`
+	ResponseCode    string    `json:"response_code"`
+	ResponseSummary string    `json:"response_summary"`
+	Balances        struct {
+		TotalAuthorized    int `json:"total_authorized"`
+		TotalVoided        int `json:"total_voided"`
+		AvailableToVoid    int `json:"available_to_void"`
+		TotalCaptured      int `json:"total_captured"`
+		AvailableToCapture int `json:"available_to_capture"`
+		TotalRefunded      int `json:"total_refunded"`
+		AvailableToRefund  int `json:"available_to_refund"`
+	} `json:"balances"`
+	Metadata   map[string]string `json:"metadata"`
+	Currency   string            `json:"currency"`
+	Processing struct {
+		AcquirerTransactionID   string `json:"acquirer_transaction_id"`
+		AcquirerReferenceNumber string `json:"acquirer_reference_number"`
+	} `json:"processing"`
+	EventLinks struct {
+		Payment        string `json:"payment"`
+		PaymentActions string `json:"payment_actions"`
+	} `json:"event_links"`
+}
+
+func (w PaymentRefunded) GetID() string {
+	return w.ID
 }

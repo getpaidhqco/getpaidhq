@@ -6,6 +6,7 @@ import (
 	"errors"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/common"
+	"payloop/internal/domain/entities/payments"
 	"payloop/internal/domain/payment_providers"
 )
 
@@ -93,6 +94,39 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (payment_p
 				Type:        webhook.Source.Type,
 				IsRecurring: true,
 				Token:       webhook.Source.ID,
+			},
+			RawData: data,
+		}, nil
+
+	case PaymentRefundedWebhook:
+		webhook, err := parseData[PaymentRefunded](payload.Data)
+		if err != nil {
+			p.logger.Errorf("failed to parse PaymentRefundedWebhook: %s", err.Error())
+			return payment_providers.PaymentWebhookContext{}, err
+		}
+
+		orgId := webhook.Metadata["org_id"]
+		orderId := webhook.Metadata["order_id"]
+
+		if orgId == "" || orderId == "" {
+			p.logger.Errorf("missing orgId or orderId")
+			return payment_providers.PaymentWebhookContext{}, errors.New("missing orgId or orderId")
+		}
+
+		return payment_providers.PaymentWebhookContext{
+			Type:    payment_providers.PaymentRefunded,
+			OrgId:   orgId,
+			OrderId: orderId,
+			Psp:     common.CheckoutDotCom,
+			Status:  string(payments.PaymentStatusRefunded),
+			Payment: payment_providers.Payment{
+				Currency:    webhook.Currency,
+				Reference:   webhook.Reference,
+				PspId:       webhook.ID,
+				Amount:      int64(webhook.Amount),
+				PaidAt:      webhook.ProcessedOn,
+				PspFee:      0,
+				PlatformFee: 0,
 			},
 			RawData: data,
 		}, nil

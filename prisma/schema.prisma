@@ -381,8 +381,8 @@ model CustomerCohort {
   cohortValue String   @map("cohort_value")
   joinedAt    DateTime @default(now()) @map("joined_at")
 
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   customer Customer @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Cascade)
   cohort   Cohort   @relation(fields: [orgId, cohortId], references: [orgId, id], onDelete: Cascade)
@@ -541,17 +541,17 @@ enum PaymentStatus {
 }
 
 model Refund {
-  orgId      String   @map("org_id")
-  id         String   @default(cuid())
-  paymentId  String   @map("payment_id")
-  payment    Payment  @relation(fields: [orgId, paymentId], references: [orgId, id], onDelete: Cascade)
-  amount     Int
-  currency   String
-  reason     String?
-  usd_amount Int?     @map("usd_amount")
-  date       DateTime @map("date")
-  createdAt  DateTime @default(now()) @map("created_at")
-  updatedAt  DateTime @updatedAt @map("updated_at")
+  orgId         String   @map("org_id")
+  id            String   @default(cuid())
+  psp_refund_id String?  @map("psp_refund_id")
+  paymentId     String   @map("payment_id")
+  payment       Payment  @relation(fields: [orgId, paymentId], references: [orgId, id], onDelete: Cascade)
+  amount        Int
+  currency      String
+  reason        String?
+  refunded_at   DateTime @map("refunded_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@id([orgId, id])
   @@map("refunds")

@@ -191,16 +191,17 @@ model CustomerCohort {
 }
 
 model Refund {
-  orgId       String   @map("org_id")
-  id          String   @default(cuid())
-  paymentId   String   @map("payment_id")
-  currency    String
-  amount      Int
-  refundedAt DateTime @map("refunded_at")
-  reason      String?
-  usd_amount  Int?     @map("usd_amount")
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  orgId         String   @map("org_id")
+  id            String   @default(cuid())
+  psp_refund_id String?  @map("psp_refund_id")
+  paymentId     String   @map("payment_id")
+  currency      String
+  amount        Int
+  refundedAt    DateTime @map("refunded_at")
+  reason        String?
+  usd_amount    Int?     @map("usd_amount")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
 
   @@id([orgId, id])
   @@map("refunds")

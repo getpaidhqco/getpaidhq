@@ -6,6 +6,7 @@ const (
 	CustomerEntity       Entity = "customers"
 	SubscriptionEntity   Entity = "subscriptions"
 	PaymentEntity        Entity = "payments"
+	RefundEntity         Entity = "refunds"
 	OrderEntity          Entity = "orders"
 	ProductEntity        Entity = "products"
 	CustomerCohortEntity Entity = "customer_cohorts"

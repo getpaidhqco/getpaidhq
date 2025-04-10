@@ -4,6 +4,7 @@ import (
 	"context"
 	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/payments"
 	"payloop/internal/infrastructure/cart"
 	"time"
 )
@@ -76,6 +77,7 @@ type PaymentWebhookType string
 const (
 	Noop             PaymentWebhookType = "noop"
 	PaymentSuccess   PaymentWebhookType = "payment.success"
+	PaymentRefunded  PaymentWebhookType = "payment.refunded"
 	RecurringSuccess PaymentWebhookType = "recurring.success"
 )
 
@@ -89,13 +91,14 @@ type PaymentMethod struct {
 }
 
 type Payment struct {
-	Currency    string    `json:"currency"`
-	Reference   string    `json:"reference"`
-	PspId       string    `json:"psp_id"`
-	Amount      int64     `json:"amount"`
-	PaidAt      time.Time `json:"paid_at"`
-	PspFee      int       `json:"psp_fee"`
-	PlatformFee int       `json:"platform_fee"`
+	Currency    string                 `json:"currency"`
+	Reference   string                 `json:"reference"`
+	PspId       string                 `json:"psp_id"`
+	Amount      int64                  `json:"amount"`
+	Status      payments.PaymentStatus `json:"status"`
+	PaidAt      time.Time              `json:"paid_at"`
+	PspFee      int                    `json:"psp_fee"`
+	PlatformFee int                    `json:"platform_fee"`
 }
 
 type Customer struct {

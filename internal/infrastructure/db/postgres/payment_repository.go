@@ -202,6 +202,52 @@ func (r PaymentRepository) Create(ctx context.Context, entity entities.Payment) 
 	return payment.ToEntity(), nil
 }
 
+func (r PaymentRepository) Update(ctx context.Context, entity entities.Payment) (entities.Payment, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	query := `UPDATE payments
+	          SET psp = @psp, psp_id = @psp_id, reference = @reference, order_id = @order_id,
+	              subscription_id = @subscription_id, recurring = @recurring, status = @status,
+	              currency = @currency, amount = @amount, psp_fee = @psp_fee, platform_fee = @platform_fee,
+	              net_amount = @net_amount, metadata = @metadata, completed_at = @completed_at,
+	              updated_at = @updated_at
+	          WHERE org_id = @org_id AND id = @id
+	          RETURNING org_id, id, psp, psp_id, reference, order_id, subscription_id, recurring,
+	                    status, currency, amount, psp_fee, platform_fee, net_amount, metadata,
+	                    completed_at, created_at, updated_at`
+
+	var payment models.Payment
+
+	err := tx.QueryRow(ctx, query, paymentEntityToNamedArgs(entity)).
+		Scan(
+			&payment.OrgId,
+			&payment.Id,
+			&payment.Psp,
+			&payment.PspId,
+			&payment.Reference,
+			&payment.OrderId,
+			&payment.SubscriptionId,
+			&payment.Recurring,
+			&payment.Status,
+			&payment.Currency,
+			&payment.Amount,
+			&payment.PspFee,
+			&payment.PlatformFee,
+			&payment.NetAmount,
+			&payment.Metadata,
+			&payment.CompletedAt,
+			&payment.CreatedAt,
+			&payment.UpdatedAt,
+		)
+
+	if err != nil {
+		r.logger.Error(`failed to update Payment`, "err", err.Error())
+		return entities.Payment{}, err
+	}
+
+	return payment.ToEntity(), nil
+}
+
 func paymentEntityToNamedArgs(entity entities.Payment) pgx.NamedArgs {
 	metaJson, _ := json.Marshal(entity.Metadata)
 	return pgx.NamedArgs{
@@ -224,4 +270,66 @@ func paymentEntityToNamedArgs(entity entities.Payment) pgx.NamedArgs {
 		"created_at":      entity.CreatedAt,
 		"updated_at":      entity.UpdatedAt,
 	}
+}
+
+func (r PaymentRepository) FindByPspId(ctx context.Context, orgId string, pspId string) (entities.Payment, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	var payment models.Payment
+	query := `SELECT org_id, id
+	          FROM payments
+	          WHERE org_id = $1 AND psp_id = $2`
+
+	err := tx.QueryRow(ctx, query, orgId, pspId).
+		Scan(
+			&payment.OrgId,
+			&payment.Id,
+		)
+	if err != nil {
+		r.logger.Error(`failed to find Payment by PspId`, err.Error())
+		return entities.Payment{}, errors.New("not found")
+	}
+
+	return r.FindById(ctx, orgId, payment.Id)
+}
+
+func (r PaymentRepository) CreateRefund(ctx context.Context, refund entities.Refund) (entities.Refund, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	query := `INSERT INTO refunds (org_id, id, psp_refund_id, payment_id, amount, currency, reason, refunded_at, created_at, updated_at)
+	          VALUES (@org_id,@id, @psp_refund_id, @payment_id, @amount, @currency,  @reason, @refunded_at, @created_at, @updated_at)
+	          RETURNING org_id, id,psp_refund_id, payment_id, amount, currency, reason, refunded_at, created_at, updated_at`
+
+	var refundModel models.Refund
+
+	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
+		"org_id":        refund.OrgId,
+		"id":            refund.Id,
+		"psp_refund_id": pgtype.Text{String: refund.PspRefundId, Valid: refund.PspRefundId != ""},
+		"payment_id":    refund.PaymentId,
+		"amount":        refund.Amount,
+		"currency":      refund.Currency,
+		"reason":        refund.Reason,
+		"refunded_at":   pgtype.Date{Time: refund.RefundedAt, Valid: !refund.RefundedAt.IsZero()},
+		"created_at":    refund.CreatedAt,
+		"updated_at":    refund.UpdatedAt,
+	}).Scan(
+		&refundModel.OrgId,
+		&refundModel.Id,
+		&refundModel.PspRefundId,
+		&refundModel.PaymentId,
+		&refundModel.Amount,
+		&refundModel.Currency,
+		&refundModel.Reason,
+		&refundModel.RefundedAt,
+		&refundModel.CreatedAt,
+		&refundModel.UpdatedAt,
+	)
+
+	if err != nil {
+		r.logger.Error("failed to create PaymentRefund", "err", err.Error())
+		return entities.Refund{}, err
+	}
+
+	return refundModel.ToEntity(), nil
 }

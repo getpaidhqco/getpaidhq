@@ -18,6 +18,7 @@ type ReportRepository interface {
 	UpsertSubscription(ctx context.Context, entity entities.Subscription) error
 	UpsertPayment(ctx context.Context, entity entities.Payment) error
 	UpsertCustomer(ctx context.Context, entity entities.Customer) error
+	UpsertRefund(ctx context.Context, entity entities.Refund) error
 	UpsertCustomerCohort(ctx context.Context, entity entities.CustomerCohort) error
 	StoreDailyMetrics(ctx context.Context, input dto.ProcessDailyMetricsInput) error
 	ProcessDailyMetrics(ctx context.Context, d time.Time) error

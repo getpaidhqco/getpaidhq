@@ -215,6 +215,24 @@ func (s ReportService) ProcessDataChange(event dto.DataChangeEvent) {
 			s.logger.Errorf("Failed to upsert customer: %v", err)
 			return
 		}
+	case common.RefundEntity:
+		var refund entities.Refund
+		payloadBytes, err := json.Marshal(event.NewObject)
+		if err != nil {
+			s.logger.Errorf("Failed to marshal payload data: %v", err)
+			return
+		}
+		err = json.Unmarshal(payloadBytes, &refund)
+		if err != nil {
+			s.logger.Errorf("Failed to unmarshal customer: %v", err)
+			return
+		}
+
+		err = s.reportRepository.UpsertRefund(context.Background(), refund)
+		if err != nil {
+			s.logger.Errorf("Failed to upsert customer: %v", err)
+			return
+		}
 
 	case common.CustomerCohortEntity:
 		var customerCohort entities.CustomerCohort
