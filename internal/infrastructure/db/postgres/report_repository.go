@@ -263,7 +263,7 @@ func (r ReportRepository) GetMRR(ctx context.Context, orgId string, startDate ti
 			return nil, err
 		}
 
-		if index > 0 {
+		if index > 0 && mrr[index-1].Total != 0 {
 			revenue.GrowthMoM = ((revenue.Total - mrr[index-1].Total) / mrr[index-1].Total) * 100
 		} else {
 			revenue.GrowthMoM = 0 // No growth for the first month
@@ -372,7 +372,7 @@ func (r ReportRepository) GetActiveSubscribers(ctx context.Context, orgId string
 		revenue.Type = "customers"
 		revenue.Total = math.Round(revenue.Total*100) / 100
 
-		if index > 0 {
+		if index > 0 && activeSubs[index-1].Total != 0 {
 			revenue.GrowthMoM = ((revenue.Total - activeSubs[index-1].Total) / activeSubs[index-1].Total) * 100
 		} else {
 			revenue.GrowthMoM = 0 // No growth for the first month
@@ -429,7 +429,7 @@ func (r ReportRepository) GetRefundTotals(ctx context.Context, orgId string, sta
 		revenue.Type = "refund_totals"
 		revenue.Total = math.Round(revenue.Total*100) / 100
 		revenue.Count = math.Round(revenue.Count*100) / 100
-		if index > 0 {
+		if index > 0 && results[index-1].Total != 0 {
 			revenue.GrowthMoM = ((revenue.Total - results[index-1].Total) / results[index-1].Total) * 100
 		} else {
 			revenue.GrowthMoM = 0 // No growth for the first month
@@ -486,7 +486,7 @@ func (r ReportRepository) GetCustomerChurnTotals(ctx context.Context, orgId stri
 		}
 		revenue.Type = "churn"
 		revenue.Total = math.Round(revenue.Total*100) / 100
-		if index > 0 {
+		if index > 0 && results[index-1].Total != 0 {
 			revenue.GrowthMoM = ((revenue.Total - results[index-1].Total) / results[index-1].Total) * 100
 		} else {
 			revenue.GrowthMoM = 0 // No growth for the first month
@@ -521,6 +521,7 @@ func (r ReportRepository) GetCustomerChurnRates(ctx context.Context, orgId strin
 			FROM 
 				daily_metrics
 				where org_id=$1
+				    AND EXTRACT(DAY FROM date::date) = 1
 				 AND date::date between $2 AND $3
 			ORDER BY 
 				month_start;
@@ -557,6 +558,11 @@ func (r ReportRepository) GetCustomerChurnRates(ctx context.Context, orgId strin
 
 		if index > 0 {
 			churn.GrowthMoM = ((churn.Total - results[index-1].Total) / results[index-1].Total) * 100
+			if math.IsNaN(churn.GrowthMoM) {
+				churn.GrowthMoM = 0 // Replace NaN with 0
+			} else if math.IsInf(churn.GrowthMoM, 0) {
+				churn.GrowthMoM = 100
+			}
 		} else {
 			churn.GrowthMoM = 0
 		}
