@@ -98,7 +98,7 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (payment_p
 	case "transfer.failed":
 		p.logger.Info("transfer failed")
 	default:
-		p.logger.Info("unknown event", "event", payload.Event)
+		p.logger.Warnf("unknown event %s", payload.Event)
 	}
 
 	return payment_providers.PaymentWebhookContext{}, errors.New("unknown event")

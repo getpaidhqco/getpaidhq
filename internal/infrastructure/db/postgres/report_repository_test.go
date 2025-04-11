@@ -45,7 +45,7 @@ func TestStoreDailyMetrics(t *testing.T) {
 
 	// Define test data
 	orgId := "mollie"
-	date := time.Now().UTC()
+	date := time.Date(2025, 4, 11, 0, 0, 0, 0, time.UTC)
 
 	// Mock the transaction and queries
 

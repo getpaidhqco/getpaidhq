@@ -377,16 +377,15 @@ func (r ReportRepository) GetActiveSubscribers(ctx context.Context, orgId string
 	activeSubs := make([]values.RecurringRevenue, 0)
 	query := `
 			SELECT 
-				DATE_TRUNC('month', date) AS week_start,
-				AVG(customer_count) AS weekly_avg_customer_count
+				DATE_TRUNC('month', date) AS month_start,
+				customer_count
 			FROM 
 				daily_metrics
 				where org_id=$1
-				 AND date::date between $2::date and $3::date
-			GROUP BY 
-				DATE_TRUNC('month', date)
+				    AND EXTRACT(DAY FROM date::date) = 1
+				 AND date::date between $2 AND $3
 			ORDER BY 
-				week_start;
+				month_start;
 	`
 
 	rows, err := r.Pool.Query(ctx, query, orgId, startDate, endDate)
@@ -465,7 +464,7 @@ func (r ReportRepository) GetRefundTotals(ctx context.Context, orgId string, sta
 		}
 		revenue.Type = "refund_totals"
 		revenue.Total = math.Round(revenue.Total*100) / 100
-		revenue.Count = math.Round(revenue.Count*100) / 100
+
 		if index > 0 && results[index-1].Total != 0 {
 			revenue.GrowthMoM = ((revenue.Total - results[index-1].Total) / results[index-1].Total) * 100
 		} else {
