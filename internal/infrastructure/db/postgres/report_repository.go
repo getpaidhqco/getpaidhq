@@ -375,6 +375,8 @@ func (r ReportRepository) GetARR(ctx context.Context, orgId string, startDate ti
 func (r ReportRepository) GetActiveSubscribers(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error) {
 
 	activeSubs := make([]values.RecurringRevenue, 0)
+
+	// Get the historical customer count for the period
 	query := `
 			SELECT 
 				DATE_TRUNC('month', date) AS month_start,
@@ -422,6 +424,27 @@ func (r ReportRepository) GetActiveSubscribers(ctx context.Context, orgId string
 		r.logger.Error("rows iteration error", rows.Err())
 		return nil, rows.Err()
 	}
+
+	var currentDate time.Time
+	var currentCount int64
+	currentQuery := `SELECT date,
+						   customer_count
+					FROM daily_metrics
+					where org_id = $1
+					  AND date = (SELECT MAX(date) FROM daily_metrics WHERE org_id = 'mollie')`
+	err = r.Pool.QueryRow(ctx, currentQuery, orgId).
+		Scan(&currentDate, &currentCount)
+	if err != nil {
+		r.logger.Error("failed to execute query", err)
+		return nil, err
+	}
+
+	activeSubs = append(activeSubs, values.RecurringRevenue{
+		Period:    currentDate,
+		Total:     float64(currentCount),
+		Type:      "customers",
+		GrowthMoM: 0,
+	})
 
 	return activeSubs, nil
 }
@@ -491,7 +514,7 @@ func (r ReportRepository) GetCustomerChurnTotals(ctx context.Context, orgId stri
 			SELECT 
 				DATE_TRUNC('month', date) AS month_start,
 				SUM(churn_total) AS monthly_total,
-				AVG(churn_count) AS monthly_avg_refunds
+				SUM(churn_count) AS monthly_count
 			FROM 
 				daily_metrics
 				where org_id=$1
@@ -514,14 +537,14 @@ func (r ReportRepository) GetCustomerChurnTotals(ctx context.Context, orgId stri
 		var revenue values.RecurringRevenue
 		if err := rows.Scan(
 			&revenue.Period,
-			&revenue.Count,
 			&revenue.Total,
+			&revenue.Count,
 		); err != nil {
 			r.logger.Error("failed to scan row", err)
 			return nil, err
 		}
 		revenue.Type = "churn"
-		revenue.Total = math.Round(revenue.Total*100) / 100
+
 		if index > 0 && results[index-1].Total != 0 {
 			revenue.GrowthMoM = ((revenue.Total - results[index-1].Total) / results[index-1].Total) * 100
 		} else {
@@ -539,6 +562,8 @@ func (r ReportRepository) GetCustomerChurnTotals(ctx context.Context, orgId stri
 	return results, nil
 }
 
+// GetCustomerChurnRates returns the customer churn rates for a given date range. It calculates the churn
+// rates based on the number of churned customers over the total number of customers at the start of each period
 func (r ReportRepository) GetCustomerChurnRates(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]values.RecurringRevenue, error) {
 	results := make([]values.RecurringRevenue, 0)
 
@@ -587,7 +612,7 @@ func (r ReportRepository) GetCustomerChurnRates(ctx context.Context, orgId strin
 
 		for _, churnTotal := range churnTotals {
 			if churnTotal.Period == period {
-				churn.Total = churnTotal.Total / float64(customerCount) * 100
+				churn.Total = churnTotal.Count / float64(customerCount) * 100
 				break
 			}
 		}
@@ -732,7 +757,6 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, input dto.Proce
 	// Calculate churn rate (example calculation)
 	var churnedCustomers int
 	var churnTotal int64
-	churnRate := 0.0
 
 	churnQuery := `SELECT COUNT(*),
 						   COALESCE(SUM(
@@ -761,7 +785,6 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, input dto.Proce
 
 	arpu := 0.0
 	if customerCount > 0 {
-		churnRate = float64(churnedCustomers) / float64(customerCount) * 100
 		arpu = float64(mrr*30) / float64(customerCount)
 	}
 
@@ -771,12 +794,12 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, input dto.Proce
 	// Insert daily metrics into the database
 	dmQuery := `
 				INSERT INTO daily_metrics (org_id, date, timezone, day_start_utc, day_end_utc,
-				                           currency, mrr, arr, customer_count, churn_count, churn_total, churn_rate, 
+				                           currency, mrr, arr, customer_count, churn_count, churn_total,  
 				        	 			ave_revenue_per_user,  customer_lifetime_value, 
 				                           successful_payments, failed_payments, refund_total, refund_count) 
 				VALUES (@org_id, @date, @timezone, @day_start_utc, @day_end_utc,
 				        @currency, @mrr, @arr, 
-				        @customer_count, @churn_count, @churn_total, @churn_rate, 
+				        @customer_count, @churn_count, @churn_total,
 				        @arpu, @cltv, @successful_payments,
 				        @failed_payments, @refund_total, @refund_count)
 				ON CONFLICT (org_id, date) DO UPDATE SET
@@ -789,7 +812,6 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, input dto.Proce
 					customer_count = EXCLUDED.customer_count,
 					churn_count = EXCLUDED.churn_count,
 					churn_total = EXCLUDED.churn_total,
-					churn_rate = EXCLUDED.churn_rate,
 					ave_revenue_per_user = EXCLUDED.ave_revenue_per_user,
 					customer_lifetime_value = EXCLUDED.customer_lifetime_value,
 					successful_payments = EXCLUDED.successful_payments,
@@ -809,7 +831,6 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, input dto.Proce
 		"customer_count":      customerCount,
 		"churn_count":         churnedCustomers,
 		"churn_total":         churnTotal,
-		"churn_rate":          churnRate,
 		"arpu":                arpu,
 		"cltv":                cltv,
 		"successful_payments": successfulPayments,
