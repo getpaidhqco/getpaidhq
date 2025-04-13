@@ -11,11 +11,15 @@ import (
 )
 
 type WebhookParser struct {
-	logger logger.Logger
+	logger     logger.Logger
+	getGateway func(ctx context.Context, orgId string) (payment_providers.Gateway, error)
 }
 
-func NewWebhookParser(logger logger.Logger) WebhookParser {
-	return WebhookParser{logger: logger}
+func NewWebhookParser(logger logger.Logger, getGateway func(ctx context.Context, orgId string) (payment_providers.Gateway, error)) WebhookParser {
+	return WebhookParser{
+		logger:     logger,
+		getGateway: getGateway,
+	}
 }
 
 func (p WebhookParser) ValidateWebhook(ctx context.Context, data []byte) error {
@@ -91,11 +95,21 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (payment_p
 			},
 		}, nil
 
+	case "refund.processed":
+		webhook, err := p.parseRefundProcessed(payload.Data)
+		if err != nil {
+			p.logger.Errorf("failed to parse: %s", err.Error())
+			return payment_providers.PaymentWebhookContext{}, err
+		}
+		// try to get the orgId from the transaction
+
 	case "charge.failed":
 		p.logger.Info("charge failed")
 	case "transfer.success":
 		p.logger.Info("transfer success")
 	case "transfer.failed":
+		p.logger.Info("transfer failed")
+
 		p.logger.Info("transfer failed")
 	default:
 		p.logger.Warnf("unknown event %s", payload.Event)
@@ -144,5 +158,20 @@ func (p WebhookParser) parseChargeSuccess(data interface{}) (TransactionSuccessf
 	payload.Metadata = metadata
 
 	p.logger.Info("handling charge success", "reference", payload.Reference, "metadata", payload.Metadata)
+	return payload, nil
+}
+
+func (p WebhookParser) parseRefundProcessed(data interface{}) (RefundProcessed, error) {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		return RefundProcessed{}, err
+	}
+
+	var payload RefundProcessed
+	// Unmarshal the rest of the payload
+	if err := json.Unmarshal(jsonData, &payload); err != nil {
+		return RefundProcessed{}, err
+	}
+
 	return payload, nil
 }

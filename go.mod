@@ -33,7 +33,7 @@ require (
 	github.com/getsentry/sentry-go v0.31.1
 	github.com/getsentry/sentry-go/gin v0.31.1
 	github.com/joho/godotenv v1.5.1
-	github.com/mdwt/paystack-go v0.1.0
+	github.com/mdwt/paystack-go v0.2.0
 	github.com/redis/go-redis/v9 v9.7.3
 	github.com/robfig/cron/v3 v3.0.1
 )

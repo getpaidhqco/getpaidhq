@@ -65,6 +65,7 @@ func (s WebhookService) HandlePaymentWebhook(ctx context.Context, payload webhoo
 	}
 
 	parser := s.gatewayFactory.NewWebhookParser(payload.Psp)
+
 	if parser == nil {
 		s.logger.Error("failed to create webhook parser")
 		return events.NewQueueHandlerError("failed to create webhook parser", false, err)

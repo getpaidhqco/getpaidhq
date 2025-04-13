@@ -78,9 +78,14 @@ func (s GatewayFactory) NewGateway(ctx context.Context, orgId string, id string)
 }
 
 func (s GatewayFactory) NewWebhookParser(psp common.Gateway) payment_providers.WebhookParser {
+
+	getGateway := func(ctx context.Context, orgId string) (payment_providers.Gateway, error) {
+		return s.NewGateway(ctx, orgId, string(psp))
+	}
+
 	switch psp {
 	case common.Paystack:
-		return paystack.NewWebhookParser(s.logger)
+		return paystack.NewWebhookParser(s.logger, getGateway)
 	case common.CheckoutDotCom:
 		return checkout_com.NewWebhookParser(s.logger)
 	default:
