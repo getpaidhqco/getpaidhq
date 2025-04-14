@@ -8,6 +8,7 @@ import (
 	_ "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/infrastructure/db/postgres/models"
@@ -278,19 +279,66 @@ func (r PaymentRepository) FindByPspId(ctx context.Context, orgId string, pspId 
 	var payment models.Payment
 	query := `SELECT org_id, id
 	          FROM payments
-	          WHERE org_id = $1 AND psp_id = $2`
+	          WHERE org_id = @org_id AND psp_id = @psp_id`
 
-	err := tx.QueryRow(ctx, query, orgId, pspId).
-		Scan(
-			&payment.OrgId,
-			&payment.Id,
-		)
+	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
+		"org_id": orgId,
+		"psp_id": pspId,
+	}).Scan(
+		&payment.OrgId,
+		&payment.Id,
+	)
 	if err != nil {
 		r.logger.Error(`failed to find Payment by PspId`, "err", err.Error())
 		return entities.Payment{}, errors.New("not found")
 	}
 
 	return r.FindById(ctx, orgId, payment.Id)
+}
+
+func (r PaymentRepository) ListByPspId(ctx context.Context, psp common.Gateway, pspId string) ([]entities.Payment, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	var payments = make([]entities.Payment, 0)
+
+	query := `SELECT org_id, id, psp, psp_id, reference, order_id, subscription_id, recurring,
+	                    status, currency, amount, psp_fee, platform_fee, net_amount, metadata,
+	                    completed_at, created_at, updated_at
+	          FROM payments
+	          WHERE psp = @psp AND psp_id = @psp_id
+`
+	for rows, err := tx.Query(ctx, query, pgx.NamedArgs{
+		"psp":    psp,
+		"psp_id": pspId,
+	}); err == nil && rows.Next(); {
+		var payment models.Payment
+		if scanErr := rows.Scan(
+			&payment.OrgId,
+			&payment.Id,
+			&payment.Psp,
+			&payment.PspId,
+			&payment.Reference,
+			&payment.OrderId,
+			&payment.SubscriptionId,
+			&payment.Recurring,
+			&payment.Status,
+			&payment.Currency,
+			&payment.Amount,
+			&payment.PspFee,
+			&payment.PlatformFee,
+			&payment.NetAmount,
+			&payment.Metadata,
+			&payment.CompletedAt,
+			&payment.CreatedAt,
+			&payment.UpdatedAt,
+		); scanErr != nil {
+			r.logger.Error("failed to scan Payment", "err", scanErr.Error())
+			return nil, scanErr
+		}
+		payments = append(payments, payment.ToEntity())
+	}
+
+	return payments, nil
 }
 
 func (r PaymentRepository) CreateRefund(ctx context.Context, refund entities.Refund) (entities.Refund, error) {

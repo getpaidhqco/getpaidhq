@@ -16,11 +16,14 @@ type GatewayFactory struct {
 	pspRepository     repositories.PspRepository
 	settingRepository repositories.SettingRepository
 	logger            logger.Logger
+
+	paystackWehbookParser paystack.WebhookParser
 }
 
 func NewGatewayFactory(
 	pspRepository repositories.PspRepository,
 	settingRepository repositories.SettingRepository,
+	paystackWehbookParser paystack.WebhookParser,
 	logger logger.Logger,
 ) GatewayFactory {
 	return GatewayFactory{
@@ -79,13 +82,9 @@ func (s GatewayFactory) NewGateway(ctx context.Context, orgId string, id string)
 
 func (s GatewayFactory) NewWebhookParser(psp common.Gateway) payment_providers.WebhookParser {
 
-	getGateway := func(ctx context.Context, orgId string) (payment_providers.Gateway, error) {
-		return s.NewGateway(ctx, orgId, string(psp))
-	}
-
 	switch psp {
 	case common.Paystack:
-		return paystack.NewWebhookParser(s.logger, getGateway)
+		return s.paystackWehbookParser
 	case common.CheckoutDotCom:
 		return checkout_com.NewWebhookParser(s.logger)
 	default:

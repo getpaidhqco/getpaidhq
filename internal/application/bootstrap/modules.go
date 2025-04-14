@@ -11,6 +11,7 @@ import (
 	"payloop/internal/infrastructure/authz/cedar"
 	"payloop/internal/infrastructure/cache/redis"
 	"payloop/internal/infrastructure/db/postgres"
+	"payloop/internal/infrastructure/payments/paystack"
 	"payloop/internal/infrastructure/pubsub/nats"
 	"payloop/internal/infrastructure/queue/sqs"
 	"payloop/internal/infrastructure/scheduler/cron"
@@ -27,7 +28,7 @@ var CommonModules = fx.Options(
 	factories.Module,
 
 	postgres.Module,
-	
+
 	// Authn & Authz
 	//cognito.Module,
 	//clerk.Module,
@@ -48,4 +49,7 @@ var CommonModules = fx.Options(
 
 	// Scheduler
 	cron.Module,
+
+	// Scheduler
+	paystack.Module,
 )

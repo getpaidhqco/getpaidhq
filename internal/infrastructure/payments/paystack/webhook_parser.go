@@ -4,21 +4,31 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	paystacklib "github.com/mdwt/paystack-go"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/common"
+	"payloop/internal/domain/entities"
 	"payloop/internal/domain/payment_providers"
+	"payloop/internal/domain/repositories"
 	"strconv"
+	"time"
 )
 
 type WebhookParser struct {
-	logger     logger.Logger
-	getGateway func(ctx context.Context, orgId string) (payment_providers.Gateway, error)
+	logger            logger.Logger
+	paymentRepository repositories.PaymentRepository
+	factory           PaystackFactory
 }
 
-func NewWebhookParser(logger logger.Logger, getGateway func(ctx context.Context, orgId string) (payment_providers.Gateway, error)) WebhookParser {
+func NewWebhookParser(
+	paymentRepository repositories.PaymentRepository,
+	factory PaystackFactory,
+	logger logger.Logger,
+) WebhookParser {
 	return WebhookParser{
-		logger:     logger,
-		getGateway: getGateway,
+		logger:            logger,
+		paymentRepository: paymentRepository,
+		factory:           factory,
 	}
 }
 
@@ -32,8 +42,6 @@ func (p WebhookParser) ValidateWebhook(ctx context.Context, data []byte) error {
 }
 
 func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (payment_providers.PaymentWebhookContext, error) {
-	p.logger.Info("handling Paystack webhook", "data", string(data))
-
 	var payload WebhookPayload
 	if err := json.Unmarshal(data, &payload); err != nil {
 		p.logger.Errorf("failed to unmarshal webhook payload", err.Error())
@@ -101,7 +109,62 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (payment_p
 			p.logger.Errorf("failed to parse: %s", err.Error())
 			return payment_providers.PaymentWebhookContext{}, err
 		}
-		// try to get the orgId from the transaction
+
+		transactions, err := p.paymentRepository.ListByPspId(ctx, common.Paystack, webhook.TransactionReference)
+		if err != nil {
+			p.logger.Errorf("failed to find ListByPspId: %s", err.Error())
+			return payment_providers.PaymentWebhookContext{}, err
+		}
+		if len(transactions) == 0 {
+			p.logger.Errorf("failed to find transaction: %s", err.Error())
+			return payment_providers.PaymentWebhookContext{}, errors.New("transaction not found")
+		}
+
+		var originalPayment entities.Payment
+		for _, transaction := range transactions {
+			p.logger.Debugf(`Checking transaction %s`, transaction.PspId)
+			cli, err := p.factory.New(ctx, transaction.OrgId)
+			if err != nil {
+				p.logger.Errorf("failed to create paystack client: %s", err.Error())
+				return payment_providers.PaymentWebhookContext{}, err
+			}
+			paystack, ok := cli.(Paystack)
+			if !ok {
+				p.logger.Errorf("failed to assert cli to Paystack")
+				return payment_providers.PaymentWebhookContext{}, errors.New("invalid Paystack type")
+			}
+
+			paystackClient := paystacklib.NewPaystackApi(paystacklib.Options{
+				ApiKey:    paystack.Config.ApiKey,
+				ConnectId: paystack.Config.ConnectId,
+			})
+			refund, err := paystackClient.Refund.Fetch(ctx, webhook.ID)
+			if err != nil {
+				continue
+			}
+			p.logger.Debugf(`Found refund %s -> %s`, refund.ID, refund.Status)
+			// we now have the original payment
+			originalPayment = transaction
+			break
+		}
+
+		return payment_providers.PaymentWebhookContext{
+			Type:    payment_providers.PaymentRefunded,
+			RawData: data,
+			OrgId:   originalPayment.OrgId,
+			OrderId: "",
+			Psp:     common.Paystack,
+			Status:  "success",
+			Payment: payment_providers.Payment{
+				Currency:    webhook.Currency,
+				Reference:   originalPayment.Reference,
+				PspId:       originalPayment.PspId,
+				Amount:      webhook.Amount,
+				PaidAt:      time.Now().UTC(),
+				PspFee:      0,
+				PlatformFee: 0,
+			},
+		}, nil
 
 	case "charge.failed":
 		p.logger.Info("charge failed")

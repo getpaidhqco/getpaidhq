@@ -91,14 +91,14 @@ type RefundProcessed struct {
 	Status               string      `json:"status"`
 	TransactionReference string      `json:"transaction_reference"`
 	RefundReference      interface{} `json:"refund_reference"`
-	Amount               int         `json:"amount"`
+	Amount               int64       `json:"amount"`
 	Currency             string      `json:"currency"`
 	Customer             struct {
 		FirstName string `json:"first_name"`
 		LastName  string `json:"last_name"`
 		Email     string `json:"email"`
 	} `json:"customer"`
-	Integration  int    `json:"integration"`
+	Integration  int64  `json:"integration"`
 	Domain       string `json:"domain"`
 	ID           string `json:"id"`
 	CustomerNote string `json:"customer_note"`

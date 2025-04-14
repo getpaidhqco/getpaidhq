@@ -16,7 +16,7 @@ import (
 
 type Paystack struct {
 	logger logger.Logger
-	config PaystackConfig
+	Config PaystackConfig
 }
 
 type PaystackConfig struct {
@@ -34,7 +34,7 @@ func (c PaystackConfig) Validate() error {
 
 func NewPaystackGateway(logger logger.Logger, config PaystackConfig) payment_providers.Gateway {
 	return Paystack{
-		config: config,
+		Config: config,
 		logger: logger,
 	}
 }
@@ -46,8 +46,8 @@ func (p Paystack) InitPayment(ctx context.Context, input payment_providers.InitP
 	email := input.Customer.Email
 
 	client := paystacklib.NewPaystackApi(paystacklib.Options{
-		ApiKey:    p.config.ApiKey,
-		ConnectId: p.config.ConnectId,
+		ApiKey:    p.Config.ApiKey,
+		ConnectId: p.Config.ConnectId,
 	})
 
 	request := transactions.TransactionRequest{
@@ -80,10 +80,10 @@ func (p Paystack) InitPayment(ctx context.Context, input payment_providers.InitP
 
 func (p Paystack) ChargePayment(ctx context.Context, input payment_providers.ChargePaymentCommand) payment_providers.ChargePaymentResponse {
 	client := paystacklib.NewPaystackApi(paystacklib.Options{
-		ApiKey:    p.config.ApiKey,
-		ConnectId: p.config.ConnectId,
+		ApiKey:    p.Config.ApiKey,
+		ConnectId: p.Config.ConnectId,
 	})
-	p.logger.Infof("charging payment for connect account %s", p.config.ConnectId)
+	p.logger.Infof("charging payment for connect account %s", p.Config.ConnectId)
 
 	customer := input.Customer
 	paymentMethod := input.PaymentMethod

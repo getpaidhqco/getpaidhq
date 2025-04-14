@@ -182,8 +182,8 @@ github.com/magiconair/properties v1.8.9 h1:nWcCbLq1N2v/cpNsy5WvQ37Fb+YElfq20WJ/a
 github.com/magiconair/properties v1.8.9/go.mod h1:Dhd985XPs7jluiymwWYZ0G4Z61jb3vdS329zhj2hYo0=
 github.com/mattn/go-isatty v0.0.20 h1:xfD0iDuEKnDkl03q4limB+vH+GxLEtL/jb4xVJSWWEY=
 github.com/mattn/go-isatty v0.0.20/go.mod h1:W+V8PltTTMOvKvAeJH7IuucS94S2C6jfK/D7dTCTo3Y=
-github.com/mdwt/paystack-go v0.2.0 h1:hA7F+CMOCbsSV6m1xyPQSmvMQuar9lBvTtxDVRekMZY=
-github.com/mdwt/paystack-go v0.2.0/go.mod h1:lmwHOVimN5orQPZFdO09nyDrgIe+6vjfm6s5rasWvMQ=
+github.com/mdwt/paystack-go v0.4.0 h1:5klh+vMDNssKwzoRcbFNwx/rRBvbNz5Cc/z1+7PqlmM=
+github.com/mdwt/paystack-go v0.4.0/go.mod h1:lmwHOVimN5orQPZFdO09nyDrgIe+6vjfm6s5rasWvMQ=
 github.com/minio/highwayhash v1.0.3 h1:kbnuUMoHYyVl7szWjSxJnxw11k2U709jqFPPmIUyD6Q=
 github.com/minio/highwayhash v1.0.3/go.mod h1:GGYsuwP/fPD6Y9hMiXuapVvlIUEhFhMTh0rxU3ik1LQ=
 github.com/mitchellh/mapstructure v1.5.0 h1:jeMsZIYE/09sWLaz43PL7Gy6RuMjD2eJVyuac5Z2hdY=
