@@ -220,7 +220,7 @@ func (p WebhookParser) parseChargeSuccess(data interface{}) (TransactionSuccessf
 
 	payload.Metadata = metadata
 
-	p.logger.Info("handling charge success", "reference", payload.Reference, "metadata", payload.Metadata)
+	p.logger.Info("handling charge success", "reference", payload.Reference)
 	return payload, nil
 }
 
