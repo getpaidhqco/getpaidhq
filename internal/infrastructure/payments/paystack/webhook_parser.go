@@ -57,15 +57,16 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (payment_p
 		}
 
 		webhookType := payment_providers.PaymentSuccess
-		if webhook.Metadata.Type == "recurring" {
+		if webhook.Metadata["type"] == "recurring" {
 			// we can safely ignore recurring payments as the result is handled sync
 			webhookType = payment_providers.RecurringSuccess
 		}
 
-		if webhook.Metadata.OrgID == "" {
+		if webhook.Metadata["org_id"] == "" {
+			p.logger.Errorf("missing org_id in webhook metadata")
 			return payment_providers.PaymentWebhookContext{}, errors.New("missing org Id in webhook metadata")
 		}
-		if webhook.Metadata.OrderID == "" {
+		if webhook.Metadata["order_id"] == "" {
 			p.logger.Errorf("missing order Id in webhook metadata")
 			return payment_providers.PaymentWebhookContext{}, errors.New("missing order Id in webhook metadata")
 		}
@@ -73,8 +74,8 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (payment_p
 		return payment_providers.PaymentWebhookContext{
 			Type:    webhookType,
 			RawData: data,
-			OrgId:   webhook.Metadata.OrgID,
-			OrderId: webhook.Metadata.OrderID,
+			OrgId:   webhook.Metadata["org_id"].(string),
+			OrderId: webhook.Metadata["order_id"].(string),
 			Psp:     common.Paystack,
 			Status:  "success",
 			Payment: payment_providers.Payment{
@@ -188,7 +189,7 @@ func (p WebhookParser) parseChargeSuccess(data interface{}) (TransactionSuccessf
 	}
 
 	var payload TransactionSuccessful
-	var metadata Metadata
+	var metadata map[string]interface{}
 	// metadata field is sometimes a string, and sometimes a struct
 	var temp struct {
 		Metadata json.RawMessage `json:"metadata"`

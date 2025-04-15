@@ -23,7 +23,7 @@ type TransactionSuccessful struct {
 
 	// we dont specify a json tag here because we need to handle it as a special case
 	// it's sometimes returned as a string and sometimes an object, so unmarhalling fails
-	Metadata Metadata `json:"-"`
+	Metadata map[string]interface{} `json:"-"`
 
 	FeesBreakdown interface{} `json:"fees_breakdown"`
 	Log           interface{} `json:"log"`
