@@ -15,6 +15,7 @@ import (
 type OrgService struct {
 	pubsub            pubsub.PubSub
 	orgRepository     repositories.OrgRepository
+	cohortRepository  repositories.CohortRepository
 	apiKeyRepository  repositories.ApiKeyRepository
 	settingRepository repositories.SettingRepository
 	logger            logger.Logger
@@ -23,6 +24,7 @@ type OrgService struct {
 func NewOrgService(
 	repo repositories.OrgRepository,
 	pubsub pubsub.PubSub,
+	cohortRepository repositories.CohortRepository,
 	settingRepository repositories.SettingRepository,
 	apiKeyRepository repositories.ApiKeyRepository,
 	logger logger.Logger,
@@ -30,6 +32,7 @@ func NewOrgService(
 	return OrgService{
 		orgRepository:     repo,
 		pubsub:            pubsub,
+		cohortRepository:  cohortRepository,
 		settingRepository: settingRepository,
 		apiKeyRepository:  apiKeyRepository,
 		logger:            logger,
@@ -70,7 +73,24 @@ func (s OrgService) Create(ctx context.Context, input dto.CreateOrgInput) (entit
 		return entities.Org{}, err
 	}
 
+	cohorts := []string{"signup_date"}
+	for _, cohort := range cohorts {
+		s.logger.Debugf("Creating cohort [%s]", cohort)
+		_, err = s.cohortRepository.Create(ctx, entities.Cohort{
+			OrgId:     id,
+			Id:        cohort,
+			Name:      cohort,
+			Type:      entities.CohortType(cohort),
+			Metadata:  nil,
+			CreatedAt: time.Now().UTC(),
+			UpdatedAt: time.Now().UTC(),
+		})
+		if err != nil {
+			s.logger.Warn("Failed to create cohort", "org_id", id, "cohort", cohort, "err", err)
+		}
+	}
+
 	_ = s.pubsub.Publish(id, topic.OrgCreated, org)
-	
+
 	return org, err
 }
