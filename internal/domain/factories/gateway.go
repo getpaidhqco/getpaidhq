@@ -27,9 +27,10 @@ func NewGatewayFactory(
 	logger logger.Logger,
 ) GatewayFactory {
 	return GatewayFactory{
-		pspRepository:     pspRepository,
-		settingRepository: settingRepository,
-		logger:            logger,
+		pspRepository:         pspRepository,
+		settingRepository:     settingRepository,
+		logger:                logger,
+		paystackWehbookParser: paystackWehbookParser,
 	}
 }
 
