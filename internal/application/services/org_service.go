@@ -2,15 +2,18 @@ package services
 
 import (
 	"context"
+	"payloop/internal/application/dto"
+	pubsub "payloop/internal/application/lib/events"
+	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
-	"payloop/internal/domain/entities/orgs"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 	"time"
 )
 
 type OrgService struct {
+	pubsub            pubsub.PubSub
 	orgRepository     repositories.OrgRepository
 	apiKeyRepository  repositories.ApiKeyRepository
 	settingRepository repositories.SettingRepository
@@ -19,19 +22,21 @@ type OrgService struct {
 
 func NewOrgService(
 	repo repositories.OrgRepository,
+	pubsub pubsub.PubSub,
 	settingRepository repositories.SettingRepository,
 	apiKeyRepository repositories.ApiKeyRepository,
 	logger logger.Logger,
 ) OrgService {
 	return OrgService{
 		orgRepository:     repo,
+		pubsub:            pubsub,
 		settingRepository: settingRepository,
 		apiKeyRepository:  apiKeyRepository,
 		logger:            logger,
 	}
 }
 
-func (s OrgService) Create(ctx context.Context, input orgs.CreateOrgInput) (entities.Org, error) {
+func (s OrgService) Create(ctx context.Context, input dto.CreateOrgInput) (entities.Org, error) {
 	s.logger.Debug("Creating tenant", "input", input)
 
 	id := lib.GenerateId("org")
@@ -65,5 +70,7 @@ func (s OrgService) Create(ctx context.Context, input orgs.CreateOrgInput) (enti
 		return entities.Org{}, err
 	}
 
+	_ = s.pubsub.Publish(id, topic.OrgCreated, org)
+	
 	return org, err
 }

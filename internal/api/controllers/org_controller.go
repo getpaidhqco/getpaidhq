@@ -3,9 +3,10 @@ package controllers
 import (
 	"github.com/gin-gonic/gin"
 	"payloop/internal/api"
+	"payloop/internal/api/dto/request"
+	"payloop/internal/application/dto"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/application/services"
-	"payloop/internal/domain/entities/orgs"
 )
 
 // OrgController data type
@@ -23,7 +24,7 @@ func NewOrgController(service services.OrgService, logger logger.Logger) OrgCont
 }
 
 func (u OrgController) Create(c *gin.Context) {
-	var input orgs.CreateOrgInput
+	var input request.CreateOrgInput
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		apiErr := api.NewApiErrorFromError(err)
@@ -31,7 +32,12 @@ func (u OrgController) Create(c *gin.Context) {
 		return
 	}
 
-	t, err := u.service.Create(c.Request.Context(), input)
+	t, err := u.service.Create(c.Request.Context(), dto.CreateOrgInput{
+		Name:        input.Name,
+		Country:     input.Country,
+		Description: input.Description,
+		Metadata:    input.Metadata,
+	})
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)

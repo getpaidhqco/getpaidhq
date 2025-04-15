@@ -1,6 +1,9 @@
 package topic
 
 const (
+	// Org
+	OrgCreated = "org.created"
+
 	TopicPaymentChargeSuccess = "payment.charge.success"
 	TopicChargeFailed         = "charge.failed"
 	ProductCreated            = "product.created"
@@ -26,7 +29,7 @@ const (
 	PaymentUpdated = "payment.updated"
 	PaymentDeleted = "payment.deleted"
 	PaymentFailed  = "payment.failed"
-	
+
 	// Payment Method
 	PaymentMethodCreated   = "payment_method.created"
 	PaymentMethodUpdated   = "payment_method.updated"
