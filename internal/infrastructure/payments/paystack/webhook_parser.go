@@ -62,13 +62,13 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (payment_p
 			webhookType = payment_providers.RecurringSuccess
 		}
 
-		if webhook.Metadata["org_id"] == "" {
+		if orgID, ok := webhook.Metadata["org_id"]; !ok || orgID == "" {
 			p.logger.Errorf("missing org_id in webhook metadata")
-			return payment_providers.PaymentWebhookContext{}, errors.New("missing org Id in webhook metadata")
+			return payment_providers.PaymentWebhookContext{}, errors.New("missing org_id in webhook metadata")
 		}
-		if webhook.Metadata["order_id"] == "" {
+		if orderId, ok := webhook.Metadata["order_id"]; !ok || orderId == "" {
 			p.logger.Errorf("missing order Id in webhook metadata")
-			return payment_providers.PaymentWebhookContext{}, errors.New("missing order Id in webhook metadata")
+			return payment_providers.PaymentWebhookContext{}, errors.New("missing order_id in webhook metadata")
 		}
 
 		return payment_providers.PaymentWebhookContext{
