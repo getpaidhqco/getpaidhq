@@ -57,15 +57,7 @@ func (s WebhookService) HandlePaymentWebhook(ctx context.Context, payload webhoo
 		return nil
 	}
 
-	// Store the idempotency key
-	err = s.idempotencyRepo.Create(ctx, hashHex, time.Now().Add(24*time.Hour))
-	if err != nil {
-		s.logger.Errorf("failed to store idempotency key", err.Error())
-		return events.NewQueueHandlerError("failed to store idempotency key", false, err)
-	}
-
 	parser := s.gatewayFactory.NewWebhookParser(payload.Psp)
-
 	if parser == nil {
 		s.logger.Error("failed to create webhook parser")
 		return events.NewQueueHandlerError("failed to create webhook parser", false, err)
@@ -127,6 +119,13 @@ func (s WebhookService) HandlePaymentWebhook(ctx context.Context, payload webhoo
 	default:
 		s.logger.Info("Unknown webhook type", "type", webhook.Type)
 
+	}
+
+	// Store the idempotency key
+	err = s.idempotencyRepo.Create(ctx, hashHex, time.Now().Add(24*time.Hour))
+	if err != nil {
+		s.logger.Errorf("failed to store idempotency key", err.Error())
+		return events.NewQueueHandlerError("failed to store idempotency key", false, err)
 	}
 	return nil
 }
