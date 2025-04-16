@@ -8,6 +8,7 @@ import (
 
 // Module Middleware exported
 var Module = fx.Options(
+	fx.Provide(NewSentryMiddleware),
 	fx.Provide(NewCorsMiddleware),
 	fx.Provide(fx.Annotate(
 		NewDatabaseTrx,
@@ -34,12 +35,14 @@ func NewMiddlewares(
 	//authMiddleware cognito.CognitoMiddleware,
 	authMiddleware authn.Authenticator,
 	authzMiddleware cedar.CedarMiddleware,
+	sentryMiddleware SentryMiddleware,
 ) Middlewares {
 	return Middlewares{
 		corsMiddleware,
 		dbTrxMiddleware,
 		authMiddleware,
 		authzMiddleware,
+		sentryMiddleware,
 	}
 }
 

@@ -24,5 +24,6 @@ func NewRequestHandler(logger logger.Logger, reporter ErrorReporter) RequestHand
 	engine.Use(sentrygin.New(sentrygin.Options{
 		Repanic: true,
 	}))
+
 	return RequestHandler{Gin: engine}
 }

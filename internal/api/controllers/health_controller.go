@@ -17,5 +17,6 @@ func NewHealthController(logger logger.Logger) HealthController {
 }
 
 func (u HealthController) Healthcheck(c *gin.Context) {
+	panic("simulated panic for testing")
 	c.JSON(200, map[string]string{"status": "ök"})
 }
