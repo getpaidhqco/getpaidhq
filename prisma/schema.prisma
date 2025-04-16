@@ -39,7 +39,7 @@ model Org {
   country      String
   status       OrgStatus      @default(active)
   name         String
-  description  String?
+  timezone     String         @default("UTC")
   metadata     Json?
   createdAt    DateTime       @default(now()) @map("created_at")
   updatedAt    DateTime       @updatedAt @map("updated_at")
