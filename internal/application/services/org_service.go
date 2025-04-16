@@ -44,14 +44,14 @@ func (s OrgService) Create(ctx context.Context, input dto.CreateOrgInput) (entit
 
 	id := lib.GenerateId("org")
 	org, err := s.orgRepository.Create(ctx, entities.Org{
-		Id:          id,
-		Name:        input.Name,
-		Status:      entities.OrgStatusTrial,
-		Country:     input.Country,
-		Description: input.Description,
-		Metadata:    input.Metadata,
-		CreatedAt:   time.Now(),
-		UpdatedAt:   time.Now(),
+		Id:        id,
+		Name:      input.Name,
+		Status:    entities.OrgStatusActive,
+		Country:   input.Country,
+		Timezone:  input.Timezone,
+		Metadata:  input.Metadata,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	})
 	if err != nil {
 		s.logger.Error("Failed to create org", "err", err)

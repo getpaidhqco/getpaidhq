@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
@@ -32,9 +33,9 @@ func (r OrgRepository) Create(ctx context.Context, entity entities.Org) (entitie
 	tx := r.getTransactionFromContext(ctx)
 
 	var Org entities.Org
-	query := `INSERT INTO orgs (id, name, country, status, description, metadata, created_at, updated_at) 
-			  VALUES (@id, @name, @country, @status, @description, @metadata, NOW(), NOW())
-			  RETURNING (id,name,country,status,description, metadata,created_at,updated_at)`
+	query := `INSERT INTO orgs (id, name, country, timezone, status, description, metadata, created_at, updated_at) 
+			  VALUES (@id, @name, @country, @timezone, @status, @description, @metadata, NOW(), NOW())
+			  RETURNING (id, name, country, timezone, status, description, metadata, created_at, updated_at)`
 
 	metadata, err := json.Marshal(entity.Metadata)
 	if err != nil {
@@ -43,12 +44,12 @@ func (r OrgRepository) Create(ctx context.Context, entity entities.Org) (entitie
 	}
 
 	err = tx.QueryRow(ctx, query, pgx.NamedArgs{
-		"id":          entity.Id,
-		"name":        entity.Name,
-		"country":     entity.Country,
-		"status":      entity.Status,
-		"description": entity.Description,
-		"metadata":    metadata,
+		"id":       entity.Id,
+		"name":     entity.Name,
+		"country":  entity.Country,
+		"timezone": pgtype.Text{String: entity.Timezone, Valid: entity.Timezone != ""},
+		"status":   entity.Status,
+		"metadata": metadata,
 	}).Scan(&Org)
 
 	if err != nil {

@@ -852,7 +852,7 @@ func (r ReportRepository) StoreDailyMetrics(ctx context.Context, input dto.Proce
 // It uses the org's timezone to calculate the start and end of the day in UTC.
 func (r ReportRepository) ProcessDailyMetrics(ctx context.Context, day time.Time) error {
 	// Get all orgs
-	orgs, err := r.primaryDb.Pool.Query(ctx, "SELECT id FROM orgs where status = 'active'")
+	orgs, err := r.primaryDb.Pool.Query(ctx, "SELECT id FROM orgs where status in ('active','trial')")
 	if err != nil {
 		return err
 	}

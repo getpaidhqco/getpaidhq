@@ -13,12 +13,12 @@ const (
 )
 
 type Org struct {
-	Id          string            `json:"id"`
-	Name        string            `json:"name" binding:"required"`
-	Country     string            `json:"country" binding:"required"`
-	Status      OrgStatus         `json:"status	" binding:"required"`
-	Description string            `json:"description"`
-	Metadata    map[string]string `json:"metadata"`
-	CreatedAt   time.Time         `json:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at"`
+	Id        string            `json:"id"`
+	Name      string            `json:"name" binding:"required"`
+	Country   string            `json:"country" binding:"required"`
+	Timezone  string            `json:"timezone"`
+	Status    OrgStatus         `json:"status	" binding:"required"`
+	Metadata  map[string]string `json:"metadata"`
+	CreatedAt time.Time         `json:"created_at"`
+	UpdatedAt time.Time         `json:"updated_at"`
 }
