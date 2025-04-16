@@ -2,12 +2,12 @@ package middlewares
 
 import (
 	"context"
+	"github.com/gin-gonic/gin"
 	"log/slog"
 	"net/http"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
-
-	"github.com/gin-gonic/gin"
+	"runtime/debug"
 )
 
 // DatabaseTrx middleware for transactions support for database
@@ -58,7 +58,10 @@ func (m DatabaseTrx) Setup() {
 
 		defer func() {
 			if r := recover(); r != nil {
-				m.logger.Error("recover(), rolling back..", "err", r)
+				m.logger.Error("recover(), rolling back..",
+					"err", r,
+					"stack", string(debug.Stack()),
+					"url", c.Request.URL.String())
 				_ = txHandle.Rollback(c.Request.Context())
 			}
 		}()
