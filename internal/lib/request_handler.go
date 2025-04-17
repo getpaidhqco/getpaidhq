@@ -24,6 +24,10 @@ func NewRequestHandler(logger logger.Logger, reporter ErrorReporter) RequestHand
 	engine.Use(sentrygin.New(sentrygin.Options{
 		Repanic: true,
 	}))
+	engine.Use(func(c *gin.Context) {
+		logger.Debugf("-------- %s %s", c.Request.Method, c.Request.URL.Path)
+		c.Next()
+	})
 
 	return RequestHandler{Gin: engine}
 }
