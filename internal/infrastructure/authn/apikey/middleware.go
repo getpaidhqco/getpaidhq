@@ -46,7 +46,7 @@ func (m ApiKeyMiddleware) Setup() {
 
 		user, err := m.Authenticate(c.Request.Context(), apiKey)
 		if err != nil {
-			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"message": "invalid api key"})
+			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"message": "not allowed"})
 			return
 		}
 		c.Set("user", user)
@@ -64,6 +64,10 @@ func isPublicPath(path string) bool {
 }
 
 func (m ApiKeyMiddleware) Authenticate(ctx context.Context, token string) (apiauthn.User, error) {
+	if token == "" {
+		return apiauthn.User{}, lib.NewCustomError(lib.AuthenticationError, "not allowed", nil)
+	}
+
 	m.logger.Debugf("ApiKey Auth: [%s]", token[:5])
 
 	apiKey, err := m.apiKeyRepository.FindByKey(ctx, token)

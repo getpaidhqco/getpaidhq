@@ -19,7 +19,7 @@ func TestStoreDailyMetricsForRange(t *testing.T) {
 	repo := NewReportRepository(reportingDb, db, logger)
 
 	// Define test data
-	orgId := "mollie"
+	orgId := "org_2vl8HFwFQMPaZ1Y7fh2Foi0THpU"
 	startDate := time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC)
 	endDate := time.Now().UTC()
 
