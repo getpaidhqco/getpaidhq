@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"github.com/jackc/pgx/v5"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
@@ -64,8 +65,15 @@ func (r WebhookSubscriptionRepository) GetByID(ctx context.Context, orgId string
 func (r WebhookSubscriptionRepository) FindByEvent(ctx context.Context, orgId string, event string) ([]entities.WebhookSubscription, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	query := `SELECT org_id, id, events, url, secret, created_at, updated_at FROM webhook_subscriptions WHERE org_id=$1 AND $2 = ANY(events)`
-	rows, err := tx.Query(ctx, query, orgId, event)
+	query := `SELECT org_id, id, events, url, secret, created_at, updated_at 
+          FROM webhook_subscriptions 
+          WHERE org_id = @org_id
+           AND (@event = ANY(events) OR '*' = ANY(events))`
+
+	rows, err := tx.Query(ctx, query, pgx.NamedArgs{
+		"org_id": orgId,
+		"event":  event,
+	})
 	if err != nil {
 		r.logger.Error("failed to find WebhookSubscriptions by event", err)
 		return nil, err
