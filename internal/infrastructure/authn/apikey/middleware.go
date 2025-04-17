@@ -68,8 +68,6 @@ func (m ApiKeyMiddleware) Authenticate(ctx context.Context, token string) (apiau
 		return apiauthn.User{}, lib.NewCustomError(lib.AuthenticationError, "not allowed", nil)
 	}
 
-	m.logger.Debugf("ApiKey Auth: [%s]", token[:5])
-
 	apiKey, err := m.apiKeyRepository.FindByKey(ctx, token)
 	if err != nil {
 		return apiauthn.User{}, err
