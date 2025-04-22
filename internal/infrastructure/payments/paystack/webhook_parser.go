@@ -117,7 +117,7 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (payment_p
 			return payment_providers.PaymentWebhookContext{}, err
 		}
 		if len(transactions) == 0 {
-			p.logger.Errorf("failed to find transaction: %s", err.Error())
+			p.logger.Debugf("No transaction with ref %s", webhook.TransactionReference)
 			return payment_providers.PaymentWebhookContext{}, errors.New("transaction not found")
 		}
 
