@@ -33,9 +33,9 @@ func (r OrgRepository) Create(ctx context.Context, entity entities.Org) (entitie
 	tx := r.getTransactionFromContext(ctx)
 
 	var Org entities.Org
-	query := `INSERT INTO orgs (id, name, country, timezone, status, description, metadata, created_at, updated_at) 
-			  VALUES (@id, @name, @country, @timezone, @status, @description, @metadata, NOW(), NOW())
-			  RETURNING (id, name, country, timezone, status, description, metadata, created_at, updated_at)`
+	query := `INSERT INTO orgs (id, name, country, timezone, status, metadata, created_at, updated_at) 
+			  VALUES (@id, @name, @country, @timezone, @status, @metadata, NOW(), NOW())
+			  RETURNING (id, name, country, timezone, status, metadata, created_at, updated_at)`
 
 	metadata, err := json.Marshal(entity.Metadata)
 	if err != nil {

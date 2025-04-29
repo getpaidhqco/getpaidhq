@@ -33,10 +33,9 @@ func (u OrgController) Create(c *gin.Context) {
 	}
 
 	t, err := u.service.Create(c.Request.Context(), dto.CreateOrgInput{
-		Name:        input.Name,
-		Country:     input.Country,
-		Description: input.Description,
-		Metadata:    input.Metadata,
+		Name:     input.Name,
+		Country:  input.Country,
+		Metadata: input.Metadata,
 	})
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)

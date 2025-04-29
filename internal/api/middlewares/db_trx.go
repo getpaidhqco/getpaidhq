@@ -54,7 +54,6 @@ func (m DatabaseTrx) Setup() {
 			c.Abort()
 			return
 		}
-		m.logger.Debug("beginning database transaction")
 
 		defer func() {
 			if r := recover(); r != nil {
