@@ -35,6 +35,7 @@ func (u OrgController) Create(c *gin.Context) {
 	t, err := u.service.Create(c.Request.Context(), dto.CreateOrgInput{
 		Name:     input.Name,
 		Country:  input.Country,
+		Timezone: input.Timezone,
 		Metadata: input.Metadata,
 	})
 	if err != nil {
