@@ -19,10 +19,10 @@ import (
 )
 
 type Temporal struct {
-	logger logger.Logger
-	client client.Client
-	worker worker.Worker
-
+	logger          logger.Logger
+	client          client.Client
+	worker          worker.Worker
+	errorReporter   lib.ErrorReporter
 	orderActivities activities.OrderActivities
 
 	settingRepository repositories.SettingRepository
@@ -33,6 +33,7 @@ func NewTemporalEngine(
 	logger logger.Logger,
 	env lib.Env,
 	orderActivities activities.OrderActivities,
+	errorReporter lib.ErrorReporter,
 	webhookActivities activities.OutgoingWebhookActivities,
 	settingRepository repositories.SettingRepository,
 	pubsub events.PubSub,
@@ -74,6 +75,7 @@ func NewTemporalEngine(
 	t := Temporal{
 		logger:            logger,
 		client:            c,
+		errorReporter:     errorReporter,
 		worker:            w,
 		orderActivities:   orderActivities,
 		pubsub:            pubsub,
@@ -222,7 +224,6 @@ func (t Temporal) StartSubscriptionWorkflow(ctx context.Context, subscription en
 }
 
 func (t Temporal) UpdateSubscriptionWorkflow(ctx context.Context, updateName string, subscription entities.Subscription) error {
-
 	we, err := t.getExecution(subscription)
 	if err != nil {
 		return err
@@ -237,6 +238,13 @@ func (t Temporal) UpdateSubscriptionWorkflow(ctx context.Context, updateName str
 	})
 	if err != nil {
 		t.logger.Error("Failed to update workflow", "error", slog.String("err", err.Error()))
+		t.errorReporter.ReportError(ctx, err, map[string]interface{}{
+			"org_id":          subscription.OrgId,
+			"workflow_id":     we.ID,
+			"run_id":          we.RunID,
+			"update_name":     updateName,
+			"subscription_id": subscription.Id,
+		})
 		return err
 	}
 
@@ -247,6 +255,28 @@ func (t Temporal) UpdateSubscriptionWorkflow(ctx context.Context, updateName str
 	}
 	return nil
 }
+
+func (t Temporal) CancelSubscriptionWorkflow(ctx context.Context, subscription entities.Subscription) error {
+	we, err := t.getExecution(subscription)
+	if err != nil {
+		return err
+	}
+
+	cancelErr := t.client.CancelWorkflow(ctx, we.ID, we.RunID)
+	if cancelErr != nil {
+		t.logger.Error("Failed to cancel workflow", "error", slog.String("err", cancelErr.Error()))
+		t.errorReporter.ReportError(ctx, err, map[string]interface{}{
+			"org_id":          subscription.OrgId,
+			"workflow_id":     we.ID,
+			"run_id":          we.RunID,
+			"subscription_id": subscription.Id,
+		})
+		return cancelErr
+	}
+
+	return nil
+}
+
 func (t Temporal) SignalSubscriptionWorkflow(ctx context.Context, signal string, subscription entities.Subscription, payload interface{}) error {
 	we, err := t.getExecution(subscription)
 	if err != nil {

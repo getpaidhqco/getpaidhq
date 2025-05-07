@@ -14,6 +14,7 @@ type Engine interface {
 	StartWorkflow(ctx context.Context, id WorkflowType, payload interface{}) (Result, error)
 	StartSubscriptionWorkflow(ctx context.Context, subscription entities.Subscription) error
 	UpdateSubscriptionWorkflow(ctx context.Context, updateName string, subscription entities.Subscription) error
+	CancelSubscriptionWorkflow(ctx context.Context, subscription entities.Subscription) error
 	SignalSubscriptionWorkflow(ctx context.Context, signal string, subscription entities.Subscription, payload interface{}) error
 }
 
