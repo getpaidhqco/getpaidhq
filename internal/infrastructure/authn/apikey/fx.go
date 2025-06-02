@@ -6,5 +6,9 @@ import (
 
 // Module exports dependency
 var Module = fx.Options(
-	fx.Provide(NewApiKeyMiddleware),
+	fx.Provide(
+		fx.Annotate(
+			NewApiKeyMiddleware,
+			fx.ResultTags(`group:"authenticators"`),
+		)),
 )

@@ -2,13 +2,16 @@ package middlewares
 
 import (
 	"go.uber.org/fx"
-	"payloop/internal/application/lib/authn"
 	"payloop/internal/infrastructure/authz/cedar"
 )
 
 // Module Middleware exported
 var Module = fx.Options(
 	fx.Provide(NewSentryMiddleware),
+	fx.Provide(fx.Annotate(
+		NewAuthnWrapperMiddleware,
+		fx.ParamTags(`group:"authenticators"`),
+	)),
 	fx.Provide(NewCorsMiddleware),
 	fx.Provide(fx.Annotate(
 		NewDatabaseTrx,
@@ -31,9 +34,7 @@ type Middlewares []IMiddleware
 func NewMiddlewares(
 	corsMiddleware CorsMiddleware,
 	dbTrxMiddleware DatabaseTrx,
-	// TODO change to interfaces
-	//authMiddleware cognito.CognitoMiddleware,
-	authMiddleware authn.Authenticator,
+	authMiddleware AuthnWrapperMiddleware,
 	authzMiddleware cedar.CedarMiddleware,
 	sentryMiddleware SentryMiddleware,
 ) Middlewares {

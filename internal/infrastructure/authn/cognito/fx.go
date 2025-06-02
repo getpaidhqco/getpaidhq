@@ -6,5 +6,10 @@ import (
 
 // Module exports dependency
 var Module = fx.Options(
-	fx.Provide(NewCognitoMiddleware),
+	fx.Provide(
+		fx.Annotate(
+			NewCognitoMiddleware,
+			fx.ResultTags(`group:"authenticators"`),
+		),
+	),
 )
