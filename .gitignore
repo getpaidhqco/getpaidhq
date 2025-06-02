@@ -28,3 +28,5 @@ go.work
 # /vendor/
 
 docker/.env
+
+node_modules
