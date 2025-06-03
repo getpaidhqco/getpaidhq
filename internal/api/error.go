@@ -60,5 +60,5 @@ func NewApiErrorFromError(err error) ApiError {
 		return NewApiError(serr.Type, serr.Message, serr.Err.Error())
 	}
 
-	return NewApiError("internal_error", err.Error(), err.Error())
+	return NewApiError("bad_request", err.Error(), err.Error())
 }
