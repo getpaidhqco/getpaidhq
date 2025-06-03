@@ -101,6 +101,70 @@ type Subscription struct {
 	UpdatedAt       time.Time         `json:"updated_at"`
 }
 
+type ProrationDetails struct {
+	CreditAmount       int       `json:"credit_amount"`
+	DaysCredited       int       `json:"days_credited"`
+	CurrentPeriodStart time.Time `json:"current_period_start"`
+	CurrentPeriodEnd   time.Time `json:"current_period_end"`
+	OldBillingAnchor   int       `json:"old_billing_anchor,omitempty"`
+	NewBillingAnchor   int       `json:"new_billing_anchor,omitempty"`
+	NewPeriodStart     time.Time `json:"new_period_start,omitempty"`
+	NewPeriodEnd       time.Time `json:"new_period_end,omitempty"`
+}
+
+// CalculateProrationDetails calculates proration details based on the proration mode
+// prorationMode: "none" or "credit_unused"
+// referenceDate: the date to calculate proration from (usually the current date)
+// oldBillingAnchor: the old billing anchor day (optional)
+// newBillingAnchor: the new billing anchor day (optional)
+// newPeriodStart: the start date of the new billing period (optional)
+// newPeriodEnd: the end date of the new billing period (optional)
+func (s *Subscription) CalculateProrationDetails(
+	prorationMode string,
+	referenceDate time.Time,
+	oldBillingAnchor, newBillingAnchor int,
+	newPeriodStart, newPeriodEnd time.Time,
+) ProrationDetails {
+	details := ProrationDetails{
+		CreditAmount:       0,
+		DaysCredited:       0,
+		CurrentPeriodStart: s.CurrentPeriodStart,
+		CurrentPeriodEnd:   s.CurrentPeriodEnd,
+		OldBillingAnchor:   oldBillingAnchor,
+		NewBillingAnchor:   newBillingAnchor,
+		NewPeriodStart:     newPeriodStart,
+		NewPeriodEnd:       newPeriodEnd,
+	}
+
+	// If proration mode is none, return zero credit
+	if prorationMode == "none" {
+		return details
+	}
+
+	// If proration mode is credit_unused, calculate the credit amount
+	if prorationMode == "credit_unused" {
+		// Calculate total days in the billing period
+		totalDays := int(s.CurrentPeriodEnd.Sub(s.CurrentPeriodStart).Hours() / 24)
+		if totalDays <= 0 {
+			return details
+		}
+
+		// Calculate days remaining in the billing period from the reference date
+		daysRemaining := int(s.CurrentPeriodEnd.Sub(referenceDate).Hours() / 24)
+		if daysRemaining <= 0 {
+			return details
+		}
+
+		// Calculate the credit amount based on the proportion of days remaining
+		creditAmount := int(float64(s.Amount) * float64(daysRemaining) / float64(totalDays))
+
+		details.CreditAmount = creditAmount
+		details.DaysCredited = daysRemaining
+	}
+
+	return details
+}
+
 // IsRunning checks if the subscription is in an active or trial state.
 func (s *Subscription) IsRunning() bool {
 	return s.Status == SubscriptionStatusActive ||
@@ -197,6 +261,56 @@ func (s *Subscription) AddBillingInterval(base time.Time) time.Time {
 	return rsp
 }
 
+func (s *Subscription) UpdateBillingAnchor(anchor int, prorationMode string) ProrationDetails {
+	now := time.Now()
+	year, month, _ := now.Date()
+
+	// Use the current period start as the reference time to preserve time information
+	referenceTime := s.CurrentPeriodStart
+
+	// Try the current month first
+	nextBilling := calculateBillingAnchor(anchor, year, int(month), referenceTime)
+
+	// If the date has passed, move to next month
+	if nextBilling.Before(now) {
+		if month == 12 {
+			year++
+			month = 1
+		} else {
+			month++
+		}
+		nextBilling = calculateBillingAnchor(anchor, year, int(month), referenceTime)
+	}
+
+	// Store the old billing anchor for proration calculation
+	oldBillingAnchor := s.BillingAnchor
+
+	// Update the billing anchor
+	s.BillingAnchor = anchor
+
+	// Calculate the new billing period
+	newPeriodStart := nextBilling
+	newPeriodEnd := s.AddBillingInterval(newPeriodStart)
+
+	// Calculate proration details
+	details := s.CalculateProrationDetails(
+		prorationMode,
+		now,
+		oldBillingAnchor,
+		anchor,
+		newPeriodStart,
+		newPeriodEnd,
+	)
+
+	// Update the subscription's current period start and end
+	s.CurrentPeriodStart = newPeriodStart
+	s.CurrentPeriodEnd = newPeriodEnd
+	// Update the renews at date
+	s.RenewsAt = newPeriodEnd
+	s.UpdatedAt = time.Now().UTC()
+	return details
+}
+
 // SetActivation sets the activation date for a subscription based on the trial interval
 func (s *Subscription) SetActivationDates() *Subscription {
 	price := s.OrderItem.Price
@@ -266,6 +380,23 @@ func (s *Subscription) SetCancelled() *Subscription {
 	s.RenewsAt = time.Time{}
 	s.NextRetryAt = time.Time{}
 	return s
+}
+
+// calculateBillingAnchor calculates the billing anchor date based on the anchor day, year, and month.
+// if the anchor day is greater than the number of days in the month, it sets it to the last day of the month.
+// It preserves the time information from the reference time.
+func calculateBillingAnchor(anchor int, year int, month int, referenceTime time.Time) time.Time {
+	daysInMonth := time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0, time.UTC).Day()
+
+	billingDay := anchor
+	if anchor > daysInMonth {
+		billingDay = daysInMonth
+	}
+
+	hour, min, sec := referenceTime.Clock()
+	nsec := referenceTime.Nanosecond()
+
+	return time.Date(year, time.Month(month), billingDay, hour, min, sec, nsec, time.UTC)
 }
 
 func calculateNextDate(interval prices.BillingInterval, qty int, startDate time.Time) time.Time {

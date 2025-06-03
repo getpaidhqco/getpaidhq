@@ -301,6 +301,32 @@ func (s SubscriptionService) CancelSubscription(ctx context.Context, input subsc
 	return subscription, nil
 }
 
+func (s SubscriptionService) UpdateBillingAnchor(ctx context.Context, input subscriptions.UpdateBillingAnchorInput) (entities.ProrationDetails, error) {
+	s.logger.Infof("Updating billing anchor for subscription %s", input.Id)
+
+	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
+	if err != nil {
+		s.logger.Error("Failed to find subscriptions", err.Error())
+		var serr lib.CustomError
+		if errors.As(err, &serr) {
+			return entities.ProrationDetails{}, err
+		}
+		return entities.ProrationDetails{}, lib.NewCustomError(lib.InternalError, "", err)
+	}
+
+	// Calculate proration details and update billing anchor
+	prorationDetails := subscription.UpdateBillingAnchor(input.BillingAnchor, string(input.ProrationMode))
+
+	// Save the updated subscription
+	_, err = s.subscriptionRepository.Update(ctx, subscription)
+	if err != nil {
+		s.logger.Error("Failed to update subscription", "err", err.Error())
+		return entities.ProrationDetails{}, err
+	}
+
+	return prorationDetails, nil
+}
+
 func (s SubscriptionService) GetSubscriptionCustomer(ctx context.Context, subscription entities.Subscription) (entities.Customer, error) {
 	customer, err := s.customerRepository.FindById(ctx, subscription.OrgId, subscription.CustomerId)
 	if err != nil {

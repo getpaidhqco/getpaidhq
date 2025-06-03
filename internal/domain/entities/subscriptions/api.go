@@ -37,6 +37,13 @@ type CancelSubscriptionInput struct {
 	Reason string `json:"reason"`
 }
 
+type UpdateBillingAnchorInput struct {
+	OrgId         string        `json:"org_id"`
+	Id            string        `json:"id"`
+	BillingAnchor int           `json:"billing_anchor"`
+	ProrationMode ProrationMode `json:"proration_mode"`
+}
+
 type ProcessSubscriptionChargeInput struct {
 	Subscription entities.Subscription `json:"subscription"`
 }

@@ -48,7 +48,7 @@ func (m AuthnWrapperMiddleware) Setup() {
 				token = c.GetHeader("x-api-key")
 			}
 
-			user, err := authenticator.Authenticate(c.Request.Context(), c.GetHeader("Authorization"))
+			user, err := authenticator.Authenticate(c.Request.Context(), token)
 			if err == nil {
 				c.Set("user", user)
 				isAuthenticated = true

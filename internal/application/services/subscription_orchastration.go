@@ -230,3 +230,28 @@ func (s SubscriptionOrchestrationService) CancelSubscription(ctx context.Context
 
 	return subscription, nil
 }
+
+func (s SubscriptionOrchestrationService) UpdateBillingAnchor(ctx context.Context, input subscriptions.UpdateBillingAnchorInput) (entities.ProrationDetails, error) {
+	s.logger.Infof("Updating billing anchor for subscription %s", input.Id)
+
+	prorationDetails, err := s.SubscriptionService.UpdateBillingAnchor(ctx, input)
+	if err != nil {
+		var serr lib.CustomError
+		if errors.As(err, &serr) {
+			return entities.ProrationDetails{}, err
+		}
+		return entities.ProrationDetails{}, lib.NewCustomError(lib.InternalError, "", err)
+	}
+
+	// Get the updated subscription to publish the event
+	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
+	if err != nil {
+		s.logger.Error("Failed to find subscription for event publishing", err.Error())
+		// Don't return an error here, we still want to return the proration details
+	} else {
+		// Publish the event
+		_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionBillingAnchorChanged, subscription)
+	}
+
+	return prorationDetails, nil
+}

@@ -37,3 +37,14 @@ const (
 	// When resuming, start a new billing period. The current_billing_period.starts_at date is set to the resume date, and we immediately charge the full amount for the new billing period.
 	StartNewBillingPeriod SubscriptionResumeBehavior = "start_new_billing_period"
 )
+
+type ProrationMode string
+
+const (
+	// ProrationModeNone: No proration is applied. The subscription will not be prorated for any changes made.
+	// This is the default behavior.
+	ProrationModeNone ProrationMode = "none"
+
+	// ProrationModeProrate: Proration is applied. The subscription will be prorated for any changes made.
+	ProrationModeCreditUnused ProrationMode = "credit_unused"
+)

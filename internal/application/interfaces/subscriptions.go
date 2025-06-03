@@ -28,6 +28,7 @@ type SubscriptionService interface {
 	FindSubscriptionPayments(ctx context.Context, pk entities.EntityKey, pagination request.Pagination) ([]entities.Payment, int, error)
 	ResumeSubscription(ctx context.Context, input subscriptions.ResumeSubscriptionInput) (entities.Subscription, error)
 	CancelSubscription(ctx context.Context, input subscriptions.CancelSubscriptionInput) (entities.Subscription, error)
+	UpdateBillingAnchor(ctx context.Context, input subscriptions.UpdateBillingAnchorInput) (entities.ProrationDetails, error)
 	GetSubscriptionCustomer(ctx context.Context, subscription entities.Subscription) (entities.Customer, error)
 	GetSubscriptionPaymentMethod(ctx context.Context, subscription entities.Subscription) (entities.PaymentMethod, error)
 	HandleSubscriptionChargeSuccess(ctx context.Context, input subscriptions.SubscriptionChargeInput) (entities.Subscription, error)

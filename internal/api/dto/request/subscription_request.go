@@ -42,6 +42,10 @@ type ActivateSubscriptionRequest struct {
 type PauseSubscriptionRequest struct {
 	Reason string `json:"reason"`
 }
+type UpdateBillingAnchorRequest struct {
+	BillingAnchor int                         `json:"billing_anchor" binding:"required"`
+	ProrationMode subscriptions.ProrationMode `json:"proration_mode"`
+}
 
 type ResumeSubscriptionRequest struct {
 	ResumeBehavior subscriptions.SubscriptionResumeBehavior `json:"resume_behavior"`

@@ -164,6 +164,35 @@ func (s SubscriptionController) Cancel(c *gin.Context) {
 	c.JSON(200, response.NewSubscriptionFromEntity(subscription))
 }
 
+func (s SubscriptionController) UpdateBillingAnchor(c *gin.Context) {
+	var input request.UpdateBillingAnchorRequest
+	user, _ := c.Get("user")
+	orgId := user.(authn.User).OrgId
+	id := c.Param("id")
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	prorationDetails, err := s.subsOrchastration.UpdateBillingAnchor(
+		c.Request.Context(),
+		subscriptions.UpdateBillingAnchorInput{
+			OrgId:         orgId,
+			Id:            id,
+			BillingAnchor: input.BillingAnchor,
+			ProrationMode: input.ProrationMode,
+		})
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	c.JSON(200, response.NewProrationDetailsFromEntity(prorationDetails))
+}
+
 // List all subscriptions
 // swagger:route GET /api/subscriptions subscription listSubscriptions
 // Returns a list of subscriptions based on the pagination
