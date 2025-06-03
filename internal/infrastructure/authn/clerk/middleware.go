@@ -80,18 +80,40 @@ func MapClerkRoleToUserRole(role string) apiauthn.UserRole {
 }
 
 func (m ClerkMiddleware) Authenticate(ctx context.Context, token string) (apiauthn.User, error) {
-	session, err := m.client.VerifyToken(token)
+	session, err := m.client.VerifyToken(strings.TrimPrefix(token, "Bearer "))
 	if err != nil {
 		return apiauthn.User{}, err
 	}
 
+	// Log the session information
 	m.logger.Infof("Clerk Auth: [%s][%s][%s]", session.ActiveOrganizationID, session.Claims.Subject, token)
+
+	// If the organization ID is not in the token, try to fetch the user's organization memberships
+	orgId := session.ActiveOrganizationID
+	orgRole := session.ActiveOrganizationRole
+
+	if orgId == "" {
+		m.logger.Info("Organization ID not found in token, fetching from Clerk API")
+		// Fetch the user's organization memberships
+		memberships, err := m.client.Users().ListMemberships(clerkapi.ListMembershipsParams{
+			UserID: session.Claims.Subject,
+		})
+		if err != nil {
+			m.logger.Error("Error fetching user organization memberships", "error", err)
+		} else if len(memberships.Data) > 0 {
+			// Use the first organization as the active one
+			orgId = memberships.Data[0].Organization.ID
+			orgRole = memberships.Data[0].Role
+			m.logger.Infof("Found organization ID from API: %s with role: %s", orgId, orgRole)
+		}
+	}
+
 	return apiauthn.User{
-		OrgId:       session.ActiveOrganizationID,
+		OrgId:       orgId,
 		Id:          session.Claims.Subject,
 		Email:       "",
-		PrimaryRole: MapClerkRoleToUserRole(session.ActiveOrganizationRole),
-		Roles:       []apiauthn.UserRole{MapClerkRoleToUserRole(session.ActiveOrganizationRole)},
+		PrimaryRole: MapClerkRoleToUserRole(orgRole),
+		Roles:       []apiauthn.UserRole{MapClerkRoleToUserRole(orgRole)},
 	}, nil
 }
 
