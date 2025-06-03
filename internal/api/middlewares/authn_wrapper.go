@@ -49,15 +49,19 @@ func (m AuthnWrapperMiddleware) Setup() {
 			}
 
 			user, err := authenticator.Authenticate(c.Request.Context(), token)
-			if err == nil {
-				c.Set("user", user)
-				isAuthenticated = true
-				break
+			if err != nil {
+				continue
 			}
+			
+			c.Set("user", user)
+			isAuthenticated = true
+			break
+
 		}
 
 		// If neither middleware authenticated, abort the request
 		if !isAuthenticated {
+			m.logger.Error("Authentication failed", "message", "unauthorized access")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
 			return
 		}

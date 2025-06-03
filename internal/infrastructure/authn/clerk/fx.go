@@ -12,4 +12,5 @@ var Module = fx.Options(
 			fx.ResultTags(`group:"authenticators"`),
 		),
 	),
+	fx.Provide(NewClerkClient), // Provide the Clerk client as an AuthProvider
 )

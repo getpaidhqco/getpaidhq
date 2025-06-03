@@ -1,5 +1,10 @@
 package authn
 
+import "errors"
+
+// ErrOnboardingRequired is returned when a user needs to complete onboarding
+var ErrOnboardingRequired = errors.New("onboarding required")
+
 // UserRole represents the role of a user
 type UserRole string
 

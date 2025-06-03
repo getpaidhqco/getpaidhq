@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"payloop/internal/application/dto"
+	"payloop/internal/application/lib/authn"
 	pubsub "payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
@@ -14,6 +15,7 @@ import (
 
 type OrgService struct {
 	pubsub            pubsub.PubSub
+	authProvider      authn.AuthProvider
 	orgRepository     repositories.OrgRepository
 	cohortRepository  repositories.CohortRepository
 	apiKeyRepository  repositories.ApiKeyRepository
@@ -24,12 +26,14 @@ type OrgService struct {
 func NewOrgService(
 	repo repositories.OrgRepository,
 	pubsub pubsub.PubSub,
+	authProvider authn.AuthProvider,
 	cohortRepository repositories.CohortRepository,
 	settingRepository repositories.SettingRepository,
 	apiKeyRepository repositories.ApiKeyRepository,
 	logger logger.Logger,
 ) OrgService {
 	return OrgService{
+		authProvider:      authProvider,
 		orgRepository:     repo,
 		pubsub:            pubsub,
 		cohortRepository:  cohortRepository,
@@ -90,6 +94,11 @@ func (s OrgService) Create(ctx context.Context, input dto.CreateOrgInput) (entit
 		}
 	}
 
+	if input.Owner.Id != "" {
+		s.logger.Debug("Creating auth provider org")
+		err = s.authProvider.CreateOrg(org, input.Owner.Id)
+	}
+	
 	_ = s.pubsub.Publish(id, topic.OrgCreated, org)
 
 	return org, err

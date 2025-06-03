@@ -129,3 +129,12 @@ func (s WebhookService) HandlePaymentWebhook(ctx context.Context, payload webhoo
 	}
 	return nil
 }
+
+// HandleAuthnWebhook processes an authentication webhook and logs the provider and data.
+func (s WebhookService) HandleAuthnWebhook(ctx context.Context, payload webhooks.AuthnWebhookPayload) error {
+	s.logger.Infof("HandleAuthnWebhook: Provider=%s, Data=%s", payload.Provider, payload.Data)
+
+	// Add your business logic here, e.g., validating the payload or triggering workflows.
+
+	return nil
+}

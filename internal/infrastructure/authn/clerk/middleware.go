@@ -53,6 +53,11 @@ func (m ClerkMiddleware) Setup() {
 		}
 		user, err := m.Authenticate(c.Request.Context(), token)
 		if err != nil {
+			if errors.Is(err, apiauthn.ErrOnboardingRequired) {
+				// TODO make this URL configurable
+				c.Redirect(302, "/onboarding")
+				return
+			}
 			c.AbortWithStatusJSON(http.StatusForbidden, gin.H{"message": "invalid token"})
 			return
 		}
@@ -87,7 +92,12 @@ func (m ClerkMiddleware) Authenticate(ctx context.Context, token string) (apiaut
 
 	// Log the session information
 	m.logger.Infof("Clerk Auth: [%s][%s][%s]", session.ActiveOrganizationID, session.Claims.Subject, token)
-
+	user, err := m.client.Users().Read(session.Claims.Subject)
+	if err != nil {
+		m.logger.Error("Error fetching user from Clerk API", "error", err)
+		return apiauthn.User{}, err
+	}
+	m.logger.Infof("Clerk Auth: [%s][%s][%s]", session.ActiveOrganizationID, session.Claims.Subject, user)
 	// If the organization ID is not in the token, try to fetch the user's organization memberships
 	orgId := session.ActiveOrganizationID
 	orgRole := session.ActiveOrganizationRole
@@ -100,7 +110,9 @@ func (m ClerkMiddleware) Authenticate(ctx context.Context, token string) (apiaut
 		})
 		if err != nil {
 			m.logger.Error("Error fetching user organization memberships", "error", err)
-		} else if len(memberships.Data) > 0 {
+			return apiauthn.User{}, err
+		}
+		if len(memberships.Data) > 0 {
 			// Use the first organization as the active one
 			orgId = memberships.Data[0].Organization.ID
 			orgRole = memberships.Data[0].Role
@@ -111,7 +123,7 @@ func (m ClerkMiddleware) Authenticate(ctx context.Context, token string) (apiaut
 	return apiauthn.User{
 		OrgId:       orgId,
 		Id:          session.Claims.Subject,
-		Email:       "",
+		Email:       user.EmailAddresses[0].EmailAddress,
 		PrimaryRole: MapClerkRoleToUserRole(orgRole),
 		Roles:       []apiauthn.UserRole{MapClerkRoleToUserRole(orgRole)},
 	}, nil

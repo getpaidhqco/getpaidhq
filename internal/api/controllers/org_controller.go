@@ -3,6 +3,7 @@ package controllers
 import (
 	"github.com/gin-gonic/gin"
 	"payloop/internal/api"
+	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/dto"
 	"payloop/internal/application/lib/logger"
@@ -25,6 +26,8 @@ func NewOrgController(service services.OrgService, logger logger.Logger) OrgCont
 
 func (u OrgController) Create(c *gin.Context) {
 	var input request.CreateOrgInput
+	user, _ := c.Get("user")
+	authUser := user.(authn.User)
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		apiErr := api.NewApiErrorFromError(err)
@@ -33,6 +36,7 @@ func (u OrgController) Create(c *gin.Context) {
 	}
 
 	t, err := u.service.Create(c.Request.Context(), dto.CreateOrgInput{
+		Owner:    authUser,
 		Name:     input.Name,
 		Country:  input.Country,
 		Timezone: input.Timezone,
