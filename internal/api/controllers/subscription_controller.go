@@ -219,7 +219,7 @@ func (s SubscriptionController) List(c *gin.Context) {
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
-	var subscriptionResponses []response.Subscription
+	var subscriptionResponses = make([]response.Subscription, 0, len(subs))
 	for _, sub := range subs {
 		subscriptionResponses = append(subscriptionResponses, response.NewSubscriptionFromEntity(sub))
 	}
