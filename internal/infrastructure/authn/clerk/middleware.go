@@ -106,11 +106,20 @@ func (m ClerkMiddleware) Authenticate(ctx context.Context, token string) (apiaut
 		return apiauthn.User{}, err
 	}
 	m.logger.Infof("Clerk Auth: [%s][%s][%s]", session.ActiveOrganizationID, session.Claims.Subject, user)
+
 	// If the organization ID is not in the token, try to fetch the user's organization memberships
 	clerkOrgId := session.ActiveOrganizationID
 	orgRole := session.ActiveOrganizationRole
 
-	if clerkOrgId == "" {
+	authedUser := apiauthn.User{
+		OrgId:       clerkOrgId,
+		Id:          session.Claims.Subject,
+		Email:       user.EmailAddresses[0].EmailAddress,
+		PrimaryRole: MapClerkRoleToUserRole(orgRole),
+		Roles:       []apiauthn.UserRole{MapClerkRoleToUserRole(orgRole)},
+	}
+
+	if authedUser.OrgId == "" {
 		m.logger.Info("Organization ID not found in token, fetching from Clerk API")
 		// Fetch the user's organization memberships
 		memberships, err := m.client.Users().ListMemberships(clerkapi.ListMembershipsParams{
@@ -122,29 +131,18 @@ func (m ClerkMiddleware) Authenticate(ctx context.Context, token string) (apiaut
 		}
 		if len(memberships.Data) > 0 {
 			// Use the first organization as the active one
-			clerkOrgId = memberships.Data[0].Organization.ID
-			orgRole = memberships.Data[0].Role
+			authedUser.OrgId = memberships.Data[0].Organization.ID
+			authedUser.PrimaryRole = MapClerkRoleToUserRole(memberships.Data[0].Role)
+			authedUser.Roles = []apiauthn.UserRole{MapClerkRoleToUserRole(memberships.Data[0].Role)}
 		} else {
 			m.logger.Error("No organization memberships found for user", "user_id", session.Claims.Subject)
-			return apiauthn.User{}, apiauthn.ErrOnboardingRequired
+			return authedUser, apiauthn.ErrOnboardingRequired
 		}
 	}
 
-	v, err := m.metadataRepository.FindByValueWithoutOrg(ctx, "clerk_org_id", clerkOrgId, "org")
-	if err != nil {
-		m.logger.Error("Error fetching organization metadata", "error", err)
-		return apiauthn.User{}, err
-	}
+	m.logger.Infof("Found org ID from metadata: %s with role: %s", clerkOrgId, orgRole)
 
-	m.logger.Infof("Found org ID from metadata: %s with role: %s", v[0].OrgId, orgRole)
-
-	return apiauthn.User{
-		OrgId:       v[0].OrgId,
-		Id:          session.Claims.Subject,
-		Email:       user.EmailAddresses[0].EmailAddress,
-		PrimaryRole: MapClerkRoleToUserRole(orgRole),
-		Roles:       []apiauthn.UserRole{MapClerkRoleToUserRole(orgRole)},
-	}, nil
+	return authedUser, nil
 }
 
 func tokenFromAuthHeader(r *http.Request) (string, error) {

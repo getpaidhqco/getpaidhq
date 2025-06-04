@@ -49,22 +49,8 @@ func NewOrgService(
 func (s OrgService) Create(ctx context.Context, input dto.CreateOrgInput) (entities.Org, error) {
 	s.logger.Debug("Creating tenant", "input", input)
 
-	// TODO think about this for the Clerk case:
-	// We need to create an org in Clerk, and if we do it separately then we need to do a lookup every time to
-	// get the local org id.  If we reuse the Clerk org id as the local org id, then we can avoid this lookup.
-	// Clerk org ids format is the same as our org ids, so we can use the same id.
-	if input.Owner.Id != "" {
-		s.logger.Debug("Creating auth provider org")
-		_, err := s.authProvider.CreateOrg(ctx, org, input.Owner.Id)
-		if err != nil {
-			s.logger.Error("Failed to create org in auth provider", "org_id", id, "err", err)
-			return entities.Org{}, err
-		}
-	}
-
-	id := lib.GenerateId("org")
-	org, err := s.orgRepository.Create(ctx, entities.Org{
-		Id:        id,
+	org := entities.Org{
+		Id:        lib.GenerateId("org"),
 		Name:      input.Name,
 		Status:    entities.OrgStatusActive,
 		Country:   input.Country,
@@ -72,24 +58,39 @@ func (s OrgService) Create(ctx context.Context, input dto.CreateOrgInput) (entit
 		Metadata:  input.Metadata,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
-	})
+	}
+	// TODO think about this for e.g. in the Clerk case:
+	// We need to create an org in Clerk, and if we do it separately then we need to do a lookup every time to
+	// get the local org id.  If we reuse the Clerk org id as the local org id, then we can avoid this lookup.
+	// Clerk org ids format is the same as our org ids, so we can use the same id.
+	if input.Owner.Id != "" {
+		s.logger.Debug("Creating auth provider org")
+		extOrg, err := s.authProvider.CreateOrg(ctx, org, input.Owner.Id)
+		if err != nil {
+			s.logger.Error("Failed to create org in auth provider", "err", err)
+			return entities.Org{}, err
+		}
+		org.Id = extOrg.ExternalId
+	}
+
+	org, err := s.orgRepository.Create(ctx, org)
 	if err != nil {
 		s.logger.Error("Failed to create org", "err", err)
 		return entities.Org{}, err
 	}
 
-	s.logger.Debug("Org created", "org_id", id)
+	s.logger.Debug("Org created", "org_id", org.Id)
 	s.logger.Debug("Creating API key")
 	key := lib.GenerateId("sk")
 	_, err = s.apiKeyRepository.Create(ctx, entities.ApiKey{
-		OrgId:     id,
+		OrgId:     org.Id,
 		Id:        key,
 		Key:       key,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	})
 	if err != nil {
-		s.logger.Error("Failed to create API key", "org_id", id, "err", err)
+		s.logger.Error("Failed to create API key", "org_id", org.Id, "err", err)
 		return entities.Org{}, err
 	}
 
@@ -97,7 +98,7 @@ func (s OrgService) Create(ctx context.Context, input dto.CreateOrgInput) (entit
 	for _, cohort := range cohorts {
 		s.logger.Debugf("Creating cohort [%s]", cohort)
 		_, err = s.cohortRepository.Create(ctx, entities.Cohort{
-			OrgId:     id,
+			OrgId:     org.Id,
 			Id:        cohort,
 			Name:      cohort,
 			Type:      entities.CohortType(cohort),
@@ -106,11 +107,11 @@ func (s OrgService) Create(ctx context.Context, input dto.CreateOrgInput) (entit
 			UpdatedAt: time.Now().UTC(),
 		})
 		if err != nil {
-			s.logger.Warn("Failed to create cohort", "org_id", id, "cohort", cohort, "err", err)
+			s.logger.Warn("Failed to create cohort", "org_id", org.Id, "cohort", cohort, "err", err)
 		}
 	}
 
-	_ = s.pubsub.Publish(id, topic.OrgCreated, org)
+	_ = s.pubsub.Publish(org.Id, topic.OrgCreated, org)
 
 	return org, err
 }

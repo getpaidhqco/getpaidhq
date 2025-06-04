@@ -9,7 +9,6 @@ import (
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
-	"time"
 )
 
 type ClerkClient struct {
@@ -58,23 +57,7 @@ func (c ClerkClient) CreateOrg(ctx context.Context, org entities.Org, ownerUserI
 		c.logger.Error("Failed to create organization in Clerk", "error", err, "orgID", org.Id)
 		return authn.CreateOrgResponse{}, err
 	}
-
-	c.logger.Info("Organization created in Clerk", "orgID", createdOrg.ID, "name", org.Name)
-	_, err = c.metadataRepository.Create(ctx, entities.MetadataStore{
-		OrgId:      org.Id,
-		ParentId:   org.Id,
-		ParentType: "org",
-		Key:        "clerk_org_id",
-		Value:      createdOrg.ID,
-		Namespace:  "clerk",
-		CreatedAt:  time.Now().UTC(),
-		UpdatedAt:  time.Now().UTC(),
-	})
-	if err != nil {
-		c.logger.Error("Failed to store Clerk organization ID in metadata", "error", err, "orgID", org.Id, "clerkOrgID", createdOrg.ID)
-		return authn.CreateOrgResponse{}, err
-	}
-
+	
 	return authn.CreateOrgResponse{
 		ExternalId: createdOrg.ID,
 		Data:       createdOrg,

@@ -1,8 +1,10 @@
 package middlewares
 
 import (
+	"errors"
 	"github.com/gin-gonic/gin"
 	"net/http"
+	apiauthn "payloop/internal/api/authn"
 	"payloop/internal/application/lib/authn"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
@@ -50,13 +52,20 @@ func (m AuthnWrapperMiddleware) Setup() {
 
 			user, err := authenticator.Authenticate(c.Request.Context(), token)
 			if err != nil {
+				// special case for onboarding required
+				if errors.Is(err, apiauthn.ErrOnboardingRequired) &&
+					c.Request.Method == http.MethodPost &&
+					c.FullPath() == "/api/organizations" {
+					isAuthenticated = true
+					c.Set("user", user)
+					break
+				}
 				continue
 			}
-			
+
 			c.Set("user", user)
 			isAuthenticated = true
 			break
-
 		}
 
 		// If neither middleware authenticated, abort the request
