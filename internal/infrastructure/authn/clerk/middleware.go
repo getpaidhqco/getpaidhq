@@ -9,18 +9,25 @@ import (
 	apiauthn "payloop/internal/api/authn"
 	"payloop/internal/application/lib/authn"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 	"strings"
 )
 
 type ClerkMiddleware struct {
-	handler lib.RequestHandler
-	logger  logger.Logger
-	env     lib.Env
-	client  clerkapi.Client
+	handler            lib.RequestHandler
+	logger             logger.Logger
+	env                lib.Env
+	client             clerkapi.Client
+	metadataRepository repositories.MetadataStoreRepository
 }
 
-func NewClerkMiddleware(handler lib.RequestHandler, logger logger.Logger, env lib.Env) authn.Authenticator {
+func NewClerkMiddleware(
+	handler lib.RequestHandler,
+	logger logger.Logger,
+	env lib.Env,
+	metadataRepository repositories.MetadataStoreRepository,
+) authn.Authenticator {
 
 	client, err := clerkapi.NewClient(env.ClerkSecretKey)
 	if err != nil {
@@ -29,10 +36,11 @@ func NewClerkMiddleware(handler lib.RequestHandler, logger logger.Logger, env li
 	}
 
 	return ClerkMiddleware{
-		handler: handler,
-		logger:  logger,
-		env:     env,
-		client:  client,
+		handler:            handler,
+		metadataRepository: metadataRepository,
+		logger:             logger,
+		env:                env,
+		client:             client,
 	}
 }
 
@@ -99,10 +107,10 @@ func (m ClerkMiddleware) Authenticate(ctx context.Context, token string) (apiaut
 	}
 	m.logger.Infof("Clerk Auth: [%s][%s][%s]", session.ActiveOrganizationID, session.Claims.Subject, user)
 	// If the organization ID is not in the token, try to fetch the user's organization memberships
-	orgId := session.ActiveOrganizationID
+	clerkOrgId := session.ActiveOrganizationID
 	orgRole := session.ActiveOrganizationRole
 
-	if orgId == "" {
+	if clerkOrgId == "" {
 		m.logger.Info("Organization ID not found in token, fetching from Clerk API")
 		// Fetch the user's organization memberships
 		memberships, err := m.client.Users().ListMemberships(clerkapi.ListMembershipsParams{
@@ -114,14 +122,24 @@ func (m ClerkMiddleware) Authenticate(ctx context.Context, token string) (apiaut
 		}
 		if len(memberships.Data) > 0 {
 			// Use the first organization as the active one
-			orgId = memberships.Data[0].Organization.ID
+			clerkOrgId = memberships.Data[0].Organization.ID
 			orgRole = memberships.Data[0].Role
-			m.logger.Infof("Found organization ID from API: %s with role: %s", orgId, orgRole)
+		} else {
+			m.logger.Error("No organization memberships found for user", "user_id", session.Claims.Subject)
+			return apiauthn.User{}, apiauthn.ErrOnboardingRequired
 		}
 	}
 
+	v, err := m.metadataRepository.FindByValueWithoutOrg(ctx, "clerk_org_id", clerkOrgId, "org")
+	if err != nil {
+		m.logger.Error("Error fetching organization metadata", "error", err)
+		return apiauthn.User{}, err
+	}
+
+	m.logger.Infof("Found org ID from metadata: %s with role: %s", v[0].OrgId, orgRole)
+
 	return apiauthn.User{
-		OrgId:       orgId,
+		OrgId:       v[0].OrgId,
 		Id:          session.Claims.Subject,
 		Email:       user.EmailAddresses[0].EmailAddress,
 		PrimaryRole: MapClerkRoleToUserRole(orgRole),

@@ -35,25 +35,26 @@ model ApiKey {
 }
 
 model Org {
-  id           String         @id
-  country      String
-  status       OrgStatus      @default(active)
-  name         String
-  timezone     String         @default("UTC")
-  metadata     Json?
-  createdAt    DateTime       @default(now()) @map("created_at")
-  updatedAt    DateTime       @updatedAt @map("updated_at")
-  users        UserOrg[]
-  Session      Session[]
-  Variant      Variant[]
-  Price        Price[]
-  Order        Order[]
-  Customer     Customer[]
-  Subscription Subscription[]
-  Payment      Payment[]
-  Setting      Setting[]
-  OrderItem    OrderItem[]
-  ApiKey       ApiKey[]
+  id            String          @id
+  country       String
+  status        OrgStatus       @default(active)
+  name          String
+  timezone      String          @default("UTC")
+  metadata      Json?
+  createdAt     DateTime        @default(now()) @map("created_at")
+  updatedAt     DateTime        @updatedAt @map("updated_at")
+  users         UserOrg[]
+  Session       Session[]
+  Variant       Variant[]
+  Price         Price[]
+  Order         Order[]
+  Customer      Customer[]
+  Subscription  Subscription[]
+  Payment       Payment[]
+  Setting       Setting[]
+  OrderItem     OrderItem[]
+  ApiKey        ApiKey[]
+  MetadataStore MetadataStore[]
 
   @@map("orgs")
 }
@@ -577,4 +578,24 @@ model WebhookSubscription {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   @@map("webhook_subscriptions")
+}
+
+model MetadataStore {
+  orgId      String   @map("org_id")
+  parentId   String   @map("parent_id")
+  parentType String?  @map("parent_type")
+  key        String
+  value      String
+  namespace  String?
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, parentId, key])
+  @@index([orgId, key, value], name: "metadata_store_org_id_key_value_idx")
+  @@index([orgId, parentId], name: "metadata_store_org_id_parent_id_idx")
+  @@index([orgId, parentType, key], name: "metadata_store_org_id_parent_type_key_idx")
+  @@index([parentId], name: "metadata_store_parent_id_idx")
+  @@map("metadata_store")
 }

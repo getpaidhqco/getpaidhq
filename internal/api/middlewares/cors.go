@@ -26,7 +26,7 @@ func NewCorsMiddleware(handler lib.RequestHandler, logger logger.Logger, env lib
 func (m CorsMiddleware) Setup() {
 	m.logger.Info("Setting up cors middleware")
 
-	debug := m.env.Env == "development"
+	debug := false // m.env.Env == "development"
 	m.handler.Gin.Use(cors.New(cors.Options{
 		AllowCredentials: true,
 		AllowOriginFunc:  func(origin string) bool { return true },

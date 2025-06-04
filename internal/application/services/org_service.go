@@ -14,13 +14,14 @@ import (
 )
 
 type OrgService struct {
-	pubsub            pubsub.PubSub
-	authProvider      authn.AuthProvider
-	orgRepository     repositories.OrgRepository
-	cohortRepository  repositories.CohortRepository
-	apiKeyRepository  repositories.ApiKeyRepository
-	settingRepository repositories.SettingRepository
-	logger            logger.Logger
+	pubsub             pubsub.PubSub
+	authProvider       authn.AuthProvider
+	orgRepository      repositories.OrgRepository
+	cohortRepository   repositories.CohortRepository
+	apiKeyRepository   repositories.ApiKeyRepository
+	settingRepository  repositories.SettingRepository
+	metadataRepository repositories.MetadataStoreRepository
+	logger             logger.Logger
 }
 
 func NewOrgService(
@@ -29,22 +30,37 @@ func NewOrgService(
 	authProvider authn.AuthProvider,
 	cohortRepository repositories.CohortRepository,
 	settingRepository repositories.SettingRepository,
+	metadataRepository repositories.MetadataStoreRepository,
 	apiKeyRepository repositories.ApiKeyRepository,
 	logger logger.Logger,
 ) OrgService {
 	return OrgService{
-		authProvider:      authProvider,
-		orgRepository:     repo,
-		pubsub:            pubsub,
-		cohortRepository:  cohortRepository,
-		settingRepository: settingRepository,
-		apiKeyRepository:  apiKeyRepository,
-		logger:            logger,
+		authProvider:       authProvider,
+		orgRepository:      repo,
+		pubsub:             pubsub,
+		cohortRepository:   cohortRepository,
+		settingRepository:  settingRepository,
+		apiKeyRepository:   apiKeyRepository,
+		metadataRepository: metadataRepository,
+		logger:             logger,
 	}
 }
 
 func (s OrgService) Create(ctx context.Context, input dto.CreateOrgInput) (entities.Org, error) {
 	s.logger.Debug("Creating tenant", "input", input)
+
+	// TODO think about this for the Clerk case:
+	// We need to create an org in Clerk, and if we do it separately then we need to do a lookup every time to
+	// get the local org id.  If we reuse the Clerk org id as the local org id, then we can avoid this lookup.
+	// Clerk org ids format is the same as our org ids, so we can use the same id.
+	if input.Owner.Id != "" {
+		s.logger.Debug("Creating auth provider org")
+		_, err := s.authProvider.CreateOrg(ctx, org, input.Owner.Id)
+		if err != nil {
+			s.logger.Error("Failed to create org in auth provider", "org_id", id, "err", err)
+			return entities.Org{}, err
+		}
+	}
 
 	id := lib.GenerateId("org")
 	org, err := s.orgRepository.Create(ctx, entities.Org{
@@ -94,11 +110,6 @@ func (s OrgService) Create(ctx context.Context, input dto.CreateOrgInput) (entit
 		}
 	}
 
-	if input.Owner.Id != "" {
-		s.logger.Debug("Creating auth provider org")
-		err = s.authProvider.CreateOrg(org, input.Owner.Id)
-	}
-	
 	_ = s.pubsub.Publish(id, topic.OrgCreated, org)
 
 	return org, err

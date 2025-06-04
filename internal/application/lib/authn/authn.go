@@ -22,8 +22,14 @@ type Authenticator interface {
 	Authenticate(ctx context.Context, token string) (authn.User, error)
 }
 
+// CreateOrgResponse contains the response data from creating an organization
+type CreateOrgResponse struct {
+	ExternalId string
+	Data       interface{}
+}
+
 type AuthProvider interface {
-	CreateOrg(org entities.Org, ownerUserID string) error
+	CreateOrg(ctx context.Context, org entities.Org, ownerUserID string) (CreateOrgResponse, error)
 	AddUserToOrg(orgID string, userID string, role authn.UserRole) error
 	RemoveUserFromOrg(orgID, userID string) error
 	DeleteOrg(orgID string) error

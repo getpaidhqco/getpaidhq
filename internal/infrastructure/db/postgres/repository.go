@@ -86,6 +86,10 @@ var RespositoryModules = fx.Options(
 		NewCohortRepository,
 		fx.ParamTags(`name:"primaryDb"`),
 	)),
+	fx.Provide(fx.Annotate(
+		NewMetadataStoreRepository,
+		fx.ParamTags(`name:"primaryDb"`),
+	)),
 )
 
 // RepositoryWithTrx is a generic interface for repositories with transaction support

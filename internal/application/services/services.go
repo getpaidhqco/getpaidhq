@@ -22,4 +22,5 @@ var Module = fx.Options(
 	fx.Provide(NewQueueService),
 	fx.Provide(NewReportService),
 	fx.Provide(NewPspService),
+	fx.Provide(NewMetadataService),
 )
