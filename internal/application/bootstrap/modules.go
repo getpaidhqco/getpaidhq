@@ -7,9 +7,7 @@ import (
 	"payloop/internal/api/routes"
 	"payloop/internal/application/services"
 	"payloop/internal/domain/factories"
-	"payloop/internal/infrastructure/authn/apikey"
 	"payloop/internal/infrastructure/authn/clerk"
-	"payloop/internal/infrastructure/authn/cognito"
 	"payloop/internal/infrastructure/authz/cedar"
 	"payloop/internal/infrastructure/cache/redis"
 	"payloop/internal/infrastructure/db/postgres"
@@ -32,9 +30,9 @@ var CommonModules = fx.Options(
 	postgres.Module,
 
 	// Authn & Authz
-	cognito.Module,
+	//cognito.Module,
 	clerk.Module,
-	apikey.Module,
+	//apikey.Module,
 	cedar.Module,
 
 	// Workflow engine
