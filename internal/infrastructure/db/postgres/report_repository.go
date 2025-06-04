@@ -431,7 +431,7 @@ func (r ReportRepository) GetActiveSubscribers(ctx context.Context, orgId string
 						   customer_count
 					FROM daily_metrics
 					where org_id = $1
-					  AND date = (SELECT MAX(date) FROM daily_metrics WHERE org_id = 'mollie')`
+					  AND date = (SELECT MAX(date) FROM daily_metrics WHERE org_id = $1)`
 	err = r.Pool.QueryRow(ctx, currentQuery, orgId).
 		Scan(&currentDate, &currentCount)
 	if err != nil {
