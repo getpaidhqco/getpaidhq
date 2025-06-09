@@ -54,4 +54,12 @@ const (
 	WebhookSubscriptionCreated = "webhook.created"
 
 	SessionCreated = "session.created"
+
+	// Invoice
+	InvoiceCreated = "invoice.created"
+	InvoiceUpdated = "invoice.updated"
+	InvoicePaid    = "invoice.paid"
+	InvoiceSent    = "invoice.sent"
+	InvoiceOverdue = "invoice.overdue"
+	InvoiceCancelled = "invoice.cancelled"
 )

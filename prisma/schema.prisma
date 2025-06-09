@@ -21,6 +21,57 @@ enum OrgStatus {
   deleted
 }
 
+enum InvoiceStatus {
+  draft // Mutable, can be modified
+  sent // Immutable, delivered to customer
+  paid // Payment received
+  overdue // Past due date
+  cancelled // Cancelled before payment
+  refunded // Fully refunded via credit notes
+}
+
+enum CreditNoteReason {
+  correction // Pricing/calculation error
+  cancellation // Order cancelled
+  refund // Product/service return
+  adjustment // Discount applied
+  tax_adjustment // Tax correction
+}
+
+enum InvoiceType {
+  initial // First purchase invoice (links to order)
+  recurring // Regular subscription billing (links to subscription)
+  usage // Usage-based charges over plan limits
+  adjustment // Proration, credits, billing corrections
+  setup // One-time setup/implementation fees
+  cancellation // Early termination or final charges
+  refund // Refund processing invoices
+}
+
+enum InvoiceHistoryAction {
+  created // Invoice initially created
+  updated // Invoice details modified (draft only)
+  sent // Invoice sent to customer
+  viewed // Customer viewed invoice
+  paid // Payment received
+  partial_paid // Partial payment received
+  overdue // Invoice became overdue
+  reminded // Payment reminder sent
+  voided // Invoice cancelled/voided
+  credited // Credit note applied
+  refunded // Payment refunded
+  disputed // Customer disputed invoice
+  adjusted // Manual adjustment made
+}
+
+enum DocumentType {
+  invoice // Standard invoice for payment
+  proforma // Proforma invoice (quote/estimate)
+  quote // Formal quote/proposal
+  receipt // Payment receipt
+  statement // Account statement
+}
+
 model ApiKey {
   orgId     String   @map("org_id")
   id        String   @default(cuid())
@@ -282,7 +333,8 @@ model Order {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org     Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  Invoice Invoice[]
 
   @@id([orgId, id])
   @@map("orders")
@@ -310,7 +362,7 @@ model OrderItem {
   priceId   String @map("price_id")
 
   description String
-  quantity    Int
+  quantity    Decimal @db.Decimal(10, 3)
 
   subTotal      Int @default(0) @map("sub_total")
   total         Int @default(0)
@@ -354,6 +406,7 @@ model Customer {
   subscriptions  Subscription[]
   cohorts        CustomerCohort[]
   org            Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  Invoice        Invoice[]
 
   @@id([orgId, id], map: "customer_primary_key")
   @@unique([orgId, email])
@@ -472,7 +525,8 @@ model Subscription {
   updatedAt DateTime  @updatedAt @map("updated_at")
   payments  Payment[]
 
-  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org     Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  Invoice Invoice[]
 
   @@id([orgId, id])
   @@map("subscriptions")
@@ -502,6 +556,9 @@ model Payment {
 
   orderId String @map("order_id")
   order   Order  @relation(fields: [orgId, orderId], references: [orgId, id])
+
+  invoiceId String?
+  Invoice   Invoice? @relation(fields: [orgId, invoiceId], references: [orgId, id])
 
   subscriptionId String?       @map("subscription_id")
   subscription   Subscription? @relation(fields: [orgId, subscriptionId], references: [orgId, id])
@@ -598,4 +655,259 @@ model MetadataStore {
   @@index([orgId, parentType, key], name: "metadata_store_org_id_parent_type_key_idx")
   @@index([parentId], name: "metadata_store_parent_id_idx")
   @@map("metadata_store")
+}
+
+model Invoice {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  // References - hybrid approach
+  customerId     String? @map("customer_id")
+  orderId        String? @map("order_id") // For initial purchase invoices
+  subscriptionId String? @map("subscription_id") // For recurring invoices
+
+  // Document identity
+  sequenceId  String       @map("sequence_id") // From doc sequence
+  docNumber   String       @map("doc_number") // Human readable: INV-001
+  type        DocumentType @default(invoice) // "invoice", "proforma", "quote"
+  invoiceType InvoiceType  @map("invoice_type") // Why this invoice exists
+
+  // Status and immutability
+  status      InvoiceStatus @default(draft)
+  isImmutable Boolean       @default(false) @map("is_immutable")
+
+  // Financial data
+  currency      String @default("USD")
+  subTotal      Int    @map("sub_total")
+  taxTotal      Int    @map("tax_total")
+  discountTotal Int    @default(0) @map("discount_total")
+  total         Int
+  amountPaid    Int    @default(0) @map("amount_paid")
+  amountDue     Int    @map("amount_due")
+
+  // Tax integration
+  taxProvider      String? @map("tax_provider") // "avalara", "taxjar", etc.
+  taxTransactionId String? @map("tax_transaction_id") // External tax service reference
+  taxBreakdown     Json?   @map("tax_breakdown") // Detailed tax calculation
+
+  // Dates
+  issuedAt DateTime? @map("issued_at") // When sent to customer
+  dueAt    DateTime? @map("due_at")
+  paidAt   DateTime? @map("paid_at")
+
+  // Customer communication
+  notes         String? @db.Text // Internal notes
+  customerNotes String? @map("customer_notes") @db.Text // Customer-facing notes
+  metadata      Json?
+
+  // Exchange rate for multi-currency
+  exchangeRate Int?    @map("exchange_rate")
+  baseCurrency String? @map("base_currency") // Org's base currency
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  customer     Customer?     @relation(fields: [orgId, customerId], references: [orgId, id])
+  order        Order?        @relation(fields: [orgId, orderId], references: [orgId, id])
+  subscription Subscription? @relation(fields: [orgId, subscriptionId], references: [orgId, id])
+
+  lineItems   InvoiceLineItem[]
+  creditNotes CreditNote[]
+  payments    Payment[]
+  history     InvoiceHistory[]
+  documents   Document[]
+
+  @@id([orgId, id])
+  @@unique([orgId, sequenceId, docNumber])
+  @@index([orgId, status])
+  @@index([orgId, customerId])
+  @@index([orgId, orderId])
+  @@index([orgId, subscriptionId])
+  @@index([orgId, dueAt])
+  @@index([orgId, issuedAt])
+  @@index([orgId, invoiceType])
+  @@map("invoices")
+}
+
+// ===== INVOICE LINE ITEMS =====
+model InvoiceLineItem {
+  orgId     String @map("org_id")
+  invoiceId String @map("invoice_id")
+  id        String @default(cuid())
+
+  productId String? @map("product_id")
+  variantId String? @map("variant_id")
+  priceId   String? @map("price_id")
+
+  // Product/service details
+  description String
+  category    String? // Manual category for custom items
+
+  // Pricing
+  quantity  Decimal @db.Decimal(10, 3)
+  unitPrice Int     @map("unit_price")
+  lineTotal Int     @map("line_total")
+
+  // Discounts
+  discountType  String? @map("discount_type") // "percentage", "fixed"
+  discountValue Int?    @map("discount_value")
+  discountTotal Int     @default(0) @map("discount_total")
+
+  // Tax (calculated by external service)
+  taxCode   String? @map("tax_code") // Tax classification
+  taxRate   Int?    @map("tax_rate")
+  taxAmount Int?    @map("tax_amount")
+  taxExempt Boolean @default(false) @map("tax_exempt")
+
+  // Organization
+  seq Int? // Display sequence on invoice
+
+  // Metadata
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  invoice Invoice @relation(fields: [orgId, invoiceId], references: [orgId, id], onDelete: Cascade)
+
+  @@id([orgId, invoiceId, id])
+  @@index([orgId, productId])
+  @@index([orgId, category])
+  @@map("invoice_line_items")
+}
+
+// ===== CREDIT NOTES =====
+model CreditNote {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  // Document identity
+  sequenceId String @map("sequence_id")
+  docNumber  String @map("doc_number") // CN-001
+
+  // Reference to original invoice
+  invoiceId String? @map("invoice_id")
+
+  // Credit details
+  reason     CreditNoteReason
+  reasonNote String?          @map("reason_note") @db.Text
+
+  // Financial
+  currency  String @default("USD")
+  amount    Int
+  taxAmount Int?   @map("tax_amount")
+
+  // Status
+  status    String    @default("issued") // "draft", "issued", "applied"
+  appliedAt DateTime? @map("applied_at")
+
+  // Metadata
+  notes    String? @db.Text
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  invoice   Invoice?             @relation(fields: [orgId, invoiceId], references: [orgId, id])
+  lineItems CreditNoteLineItem[]
+  documents Document[]
+
+  @@id([orgId, id])
+  @@unique([orgId, sequenceId, docNumber])
+  @@index([orgId, invoiceId])
+  @@index([orgId, status])
+  @@map("credit_notes")
+}
+
+model CreditNoteLineItem {
+  orgId        String @map("org_id")
+  creditNoteId String @map("credit_note_id")
+  id           String @default(cuid())
+
+  description String
+  quantity    Decimal @db.Decimal(10, 3)
+  unitPrice   Int     @map("unit_price")
+  amount      Int
+  taxAmount   Int?    @map("tax_amount")
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  creditNote CreditNote @relation(fields: [orgId, creditNoteId], references: [orgId, id], onDelete: Cascade)
+
+  @@id([orgId, creditNoteId, id])
+  @@map("credit_note_line_items")
+}
+
+// ===== AUDIT TRAIL =====
+model InvoiceHistory {
+  orgId     String @map("org_id")
+  id        String @default(cuid())
+  invoiceId String @map("invoice_id")
+
+  // Change details
+  action   String // "created", "sent", "paid", "voided", "updated"
+  field    String? // Which field changed
+  oldValue Json?   @map("old_value")
+  newValue Json?   @map("new_value")
+
+  // Context
+  userId    String? @map("user_id")
+  userEmail String? @map("user_email")
+  ipAddress String? @map("ip_address")
+  userAgent String? @map("user_agent")
+
+  // Additional context
+  reason   String? // Why the change was made
+  metadata Json?
+
+  timestamp DateTime @default(now())
+
+  invoice Invoice @relation(fields: [orgId, invoiceId], references: [orgId, id], onDelete: Cascade)
+
+  @@id([orgId, id])
+  @@index([orgId, invoiceId, timestamp])
+  @@index([orgId, action, timestamp])
+  @@map("invoice_history")
+}
+
+// ===== DOCUMENT STORAGE =====
+model Document {
+  orgId        String  @map("org_id")
+  id           String  @default(cuid())
+  invoiceId    String? @map("invoice_id")
+  creditNoteId String? @map("credit_note_id")
+
+  // File details
+  filename     String
+  originalName String @map("original_name")
+  contentType  String @map("content_type")
+  size         Int // Bytes
+
+  // Storage
+  storageProvider String  @map("storage_provider") // "s3", "gcs", "local"
+  storageKey      String  @map("storage_key") // S3 key, file path, etc.
+  url             String? // Public URL if applicable
+
+  // Document type
+  type    String // "pdf", "html", "attachment", "logo"
+  purpose String? // "invoice_pdf", "invoice_html", "company_logo", "attachment"
+
+  // Security
+  isPublic    Boolean @default(false) @map("is_public")
+  accessToken String? @map("access_token")
+
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  invoice    Invoice?    @relation(fields: [orgId, invoiceId], references: [orgId, id])
+  creditNote CreditNote? @relation(fields: [orgId, creditNoteId], references: [orgId, id])
+
+  @@id([orgId, id])
+  @@index([orgId, invoiceId])
+  @@index([orgId, creditNoteId])
+  @@index([orgId, type])
+  @@index([orgId, purpose])
+  @@map("documents")
 }

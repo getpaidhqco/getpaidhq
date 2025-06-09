@@ -52,6 +52,12 @@ const (
 	// webhook subscriptions
 	CreateWebhookSubscription Action = "CreateWebhookSubscription"
 	ListWebhookSubscriptions  Action = "ListWebhookSubscriptions"
+
+	// Invoice actions
+	CreateInvoice Action = "CreateInvoice"
+	UpdateInvoice Action = "UpdateInvoice"
+	GetInvoice    Action = "GetInvoice"
+	ListInvoices  Action = "ListInvoices"
 )
 
 type Authz interface {
