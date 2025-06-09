@@ -23,4 +23,6 @@ type CustomerService interface {
 	Create(ctx context.Context, orgId string, customerRequest request.CreateCustomerRequest) (entities.Customer, error)
 	CreatePaymentMethod(ctx context.Context, orgId string, input CreatePaymentMethodInput) (entities.PaymentMethod, error)
 	UpdatePaymentMethod(ctx context.Context, orgId string, input UpdatePaymentMethodInput) (entities.PaymentMethod, error)
+	Get(ctx context.Context, orgId string, id string) (entities.Customer, error)
+	List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Customer, int, error)
 }

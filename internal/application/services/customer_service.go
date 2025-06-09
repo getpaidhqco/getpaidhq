@@ -265,3 +265,23 @@ func (s CustomerService) HandleOrderEvent(eventTopic string, data []byte) {
 		}
 	}
 }
+
+func (s CustomerService) Get(ctx context.Context, orgId string, id string) (entities.Customer, error) {
+	customer, err := s.customerRepository.FindById(ctx, orgId, id)
+	if err != nil {
+		s.logger.Error("Failed to get customer: ", err)
+		return entities.Customer{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+	}
+
+	return customer, nil
+}
+
+func (s CustomerService) List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Customer, int, error) {
+	customers, total, err := s.customerRepository.List(ctx, orgId, pagination)
+	if err != nil {
+		s.logger.Error("Failed to list customers: ", err)
+		return nil, 0, lib.NewCustomError(lib.InternalError, "Error listing customers", err)
+	}
+
+	return customers, total, nil
+}

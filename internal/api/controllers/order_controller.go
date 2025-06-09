@@ -200,7 +200,7 @@ func (o OrderController) List(c *gin.Context) {
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
-	var orderRsp []response.Order
+	var orderRsp = make([]response.Order, 0, len(ords))
 	for _, order := range ords {
 		orderRsp = append(orderRsp, response.NewOrderFromEntity(order))
 	}

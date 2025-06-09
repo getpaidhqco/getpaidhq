@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"github.com/jackc/pgx/v5"
+	"payloop/internal/api/dto/request"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
@@ -239,4 +240,98 @@ func (r CustomerRepository) AddToCohort(ctx context.Context, orgId string, custo
 
 	// Fetch the updated customer entity
 	return r.FindById(ctx, orgId, customerId)
+}
+
+func (r CustomerRepository) List(ctx context.Context, orgId string, p request.Pagination) ([]entities.Customer, int, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	var customers = make([]entities.Customer, 0)
+	var count int
+	query := `SELECT org_id, id, email, first_name, last_name,
+                       phone, billing_address, metadata, default_payment_method_id,
+                       created_at, updated_at, count(*) OVER()
+              FROM customers 
+              WHERE org_id = @org_id
+              ORDER BY
+                -- Handle timestamp columns
+                CASE
+                    WHEN @sort_col = 'created_at' AND @sort_dir = 'asc' THEN created_at
+                    ELSE NULL
+                END ASC,
+                CASE
+                    WHEN @sort_col = 'created_at' AND @sort_dir = 'desc' THEN created_at
+                    ELSE NULL
+                END DESC,
+
+                -- Handle text columns
+                CASE
+                    WHEN @sort_col = 'email' AND @sort_dir = 'asc' THEN email
+                    ELSE NULL
+                END ASC,
+                CASE
+                    WHEN @sort_col = 'email' AND @sort_dir = 'desc' THEN email
+                    ELSE NULL
+                END DESC,
+
+                CASE
+                    WHEN @sort_col = 'first_name' AND @sort_dir = 'asc' THEN first_name
+                    ELSE NULL
+                END ASC,
+                CASE
+                    WHEN @sort_col = 'first_name' AND @sort_dir = 'desc' THEN first_name
+                    ELSE NULL
+                END DESC,
+
+                CASE
+                    WHEN @sort_col = 'last_name' AND @sort_dir = 'asc' THEN last_name
+                    ELSE NULL
+                END ASC,
+                CASE
+                    WHEN @sort_col = 'last_name' AND @sort_dir = 'desc' THEN last_name
+                    ELSE NULL
+                END DESC
+              LIMIT @lim OFFSET @off;`
+
+	rows, err := tx.Query(ctx, query, pgx.NamedArgs{
+		"org_id":   orgId,
+		"lim":      p.Limit,
+		"off":      p.Offset,
+		"sort_col": p.SortBy,
+		"sort_dir": p.SortDirection,
+	})
+	if err != nil {
+		r.logger.Error(`failed to find Customers`, err.Error())
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var customer models.Customer
+		err := rows.Scan(
+			&customer.OrgId,
+			&customer.Id,
+			&customer.Email,
+			&customer.FirstName,
+			&customer.LastName,
+			&customer.Phone,
+			&customer.BillingAddress,
+			&customer.Metadata,
+			&customer.DefaultPaymentMethodId,
+			&customer.CreatedAt,
+			&customer.UpdatedAt,
+			&count,
+		)
+		if err != nil {
+			r.logger.Error(`failed to scan Customer`, err.Error())
+			return nil, 0, err
+		}
+		customers = append(customers, customer.ToEntity())
+	}
+
+	if rows.Err() != nil {
+		r.logger.Error(`rows iteration error`, rows.Err().Error())
+		return nil, 0, rows.Err()
+	}
+
+	return customers, count, nil
 }

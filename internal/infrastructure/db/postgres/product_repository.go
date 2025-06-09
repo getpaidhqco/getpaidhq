@@ -49,7 +49,7 @@ func (r ProductRepository) FindById(ctx context.Context, orgId string, id string
 	var product models.Product
 	query := `SELECT p.org_id, p.id, p.name, p.description, p.metadata, p.created_at, p.updated_at,
 	                 v.org_id, v.id, v.product_id, v.name, v.description, v.metadata, v.created_at, v.updated_at,
-	                 pr.org_id, pr.id, pr.variant_id, pr.category, pr.scheme, pr.cycles, pr.currency, pr.unit_price, pr.min_price, 
+	                 pr.org_id, pr.id, pr.label, pr.variant_id, pr.category, pr.scheme, pr.cycles, pr.currency, pr.unit_price, pr.min_price, 
                      pr.suggested_price, pr.billing_interval, pr.billing_interval_qty, pr.trial_interval, pr.trial_interval_qty,
                      pr.tax_code, pr.metadata, pr.created_at, pr.updated_at
               FROM products p
@@ -89,6 +89,7 @@ func (r ProductRepository) FindById(ctx context.Context, orgId string, id string
 			&variant.UpdatedAt,
 			&price.OrgId,
 			&price.Id,
+			&price.Label,
 			&price.VariantId,
 			&price.Category,
 			&price.Scheme,
@@ -158,7 +159,7 @@ func (r ProductRepository) Find(ctx context.Context, orgId string, p request.Pag
 						NULL
 					END
 					ASC ,
-			
+
 				-- Same as before, but for sort_dir = 'desc'
 				CASE WHEN @sort_dir = 'desc' THEN
 						 CASE @sort_col
@@ -237,4 +238,31 @@ func (r ProductRepository) CreateVariant(ctx context.Context, entity entities.Va
 		return entities.Variant{}, err
 	}
 	return variant.ToEntity(), nil
+}
+
+func (r ProductRepository) Update(ctx context.Context, product entities.Product) (entities.Product, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	_, err := tx.Exec(ctx, `UPDATE products 
+							SET name = $1, description = $2, metadata = $3, updated_at = now()
+							WHERE org_id = $4 AND id = $5`,
+		product.Name, product.Description, product.Metadata, product.OrgId, product.Id)
+
+	if err != nil {
+		r.logger.Error(`failed to update Product`, err.Error())
+		return entities.Product{}, err
+	}
+	return r.FindById(ctx, product.OrgId, product.Id)
+}
+
+func (r ProductRepository) Delete(ctx context.Context, orgId string, id string) error {
+	tx := r.getTransactionFromContext(ctx)
+
+	_, err := tx.Exec(ctx, `DELETE FROM products WHERE org_id = $1 AND id = $2`, orgId, id)
+
+	if err != nil {
+		r.logger.Error(`failed to delete Product`, err.Error())
+		return err
+	}
+	return nil
 }

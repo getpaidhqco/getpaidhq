@@ -31,7 +31,7 @@ func (m CorsMiddleware) Setup() {
 		AllowCredentials: true,
 		AllowOriginFunc:  func(origin string) bool { return true },
 		AllowedHeaders:   []string{"*"},
-		AllowedMethods:   []string{"GET", "POST", "PUT", "HEAD", "OPTIONS"},
+		AllowedMethods:   []string{"GET", "POST", "PUT", "HEAD", "PATCH", "OPTIONS", "DELETE"},
 		Debug:            debug,
 	}))
 }

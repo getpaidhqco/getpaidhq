@@ -7,6 +7,7 @@ type CreatePriceRequest struct {
 	Category           prices.PriceCategory   `json:"category" binding:"required,oneof=one_time subscription free variable"`
 	Scheme             prices.PriceScheme     `json:"scheme" binding:"required,oneof=fixed tiered volume graduated"`
 	Cycles             int                    `json:"cycles" binding:"omitempty,gt=0"`
+	Label              string                 `json:"label"`
 	Currency           string                 `json:"currency" binding:"required,iso4217"`
 	UnitPrice          int64                  `json:"unit_price" binding:"required,gte=0"`
 	MinPrice           int64                  `json:"min_price" binding:"omitempty,gte=0"`

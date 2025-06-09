@@ -10,9 +10,32 @@ type CreateProductRequest struct {
 	Variants    []CreateProductVariantRequest `json:"variants" binding:"required,dive"`
 }
 
+// UpdateProductRequest represents the request to update a product
+type UpdateProductRequest struct {
+	Name        string            `json:"name" binding:"required"`
+	Description string            `json:"description"`
+	Metadata    map[string]string `json:"metadata"`
+}
+
+// CreateVariantRequest represents the request to create a variant
+type CreateVariantRequest struct {
+	Name        string            `json:"name" binding:"required"`
+	Description string            `json:"description"`
+	Metadata    map[string]string `json:"metadata"`
+}
+
+// UpdateVariantRequest represents the request to update a variant
+type UpdateVariantRequest struct {
+	Name        string            `json:"name" binding:"required"`
+	Description string            `json:"description"`
+	Metadata    map[string]string `json:"metadata"`
+}
+
 type CreateProductVariantRequest struct {
-	Name   string                      `json:"name" binding:"required"`
-	Prices []CreateProductPriceRequest `json:"prices" binding:"required,dive"`
+	Name        string                      `json:"name" binding:"required"`
+	Description string                      `json:"description"`
+	Metadata    map[string]string           `json:"metadata"`
+	Prices      []CreateProductPriceRequest `json:"prices" binding:"required,dive"`
 }
 
 type CreateProductPriceRequest struct {

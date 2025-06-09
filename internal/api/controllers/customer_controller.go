@@ -6,6 +6,7 @@ import (
 	"payloop/internal/api"
 	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/request"
+	"payloop/internal/api/dto/response"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
 )
@@ -116,4 +117,48 @@ func (cc CustomerController) GetCustomerPaymentMethod(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, paymentMethod)
+}
+
+// Get handles retrieving a customer by ID
+func (cc CustomerController) Get(c *gin.Context) {
+	user, _ := c.Get("user")
+	authUser := user.(authn.User)
+	customerId := c.Param("id")
+
+	customer, err := cc.customerService.Get(c.Request.Context(), authUser.OrgId, customerId)
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	c.JSON(http.StatusOK, response.NewCustomerFromEntity(customer))
+}
+
+// List handles retrieving a list of customers with pagination and search
+func (cc CustomerController) List(c *gin.Context) {
+	user, _ := c.Get("user")
+	authUser := user.(authn.User)
+	pagination := request.GetPagination(c)
+
+	customers, total, err := cc.customerService.List(c.Request.Context(), authUser.OrgId, pagination)
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	customerResponses := make([]response.Customer, len(customers))
+	for i, customer := range customers {
+		customerResponses[i] = response.NewCustomerFromEntity(customer)
+	}
+
+	c.JSON(http.StatusOK, response.ListResponse{
+		Data: customerResponses,
+		Meta: response.Meta{
+			Total: total,
+			Page:  pagination.Page,
+			Limit: pagination.Limit,
+		},
+	})
 }

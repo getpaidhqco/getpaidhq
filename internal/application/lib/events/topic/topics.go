@@ -7,8 +7,16 @@ const (
 	TopicPaymentChargeSuccess = "payment.charge.success"
 	TopicChargeFailed         = "charge.failed"
 	ProductCreated            = "product.created"
+	ProductUpdated            = "product.updated"
+	ProductDeleted            = "product.deleted"
 
-	PriceCreated = "price.created"
+	VariantCreated            = "variant.created"
+	VariantUpdated            = "variant.updated"
+	VariantDeleted            = "variant.deleted"
+
+	PriceCreated              = "price.created"
+	PriceUpdated              = "price.updated"
+	PriceDeleted              = "price.deleted"
 
 	OrderCompleted = "order.completed"
 

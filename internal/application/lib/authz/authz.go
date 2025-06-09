@@ -14,8 +14,20 @@ const (
 	CreateProduct Action = "CreateProduct"
 	ListProducts  Action = "ListProducts"
 	GetProduct    Action = "GetProduct"
+	UpdateProduct Action = "UpdateProduct"
+	DeleteProduct Action = "DeleteProduct"
+
+	CreateVariant Action = "CreateVariant"
+	GetVariant    Action = "GetVariant"
+	ListVariants  Action = "ListVariants"
+	UpdateVariant Action = "UpdateVariant"
+	DeleteVariant Action = "DeleteVariant"
 
 	CreatePrice Action = "CreatePrice"
+	GetPrice    Action = "GetPrice"
+	ListPrices  Action = "ListPrices"
+	UpdatePrice Action = "UpdatePrice"
+	DeletePrice Action = "DeletePrice"
 
 	CreatePaymentServiceProvider Action = "CreatePaymentServiceProvider"
 	GetPaymentServiceProvider    Action = "GetPaymentServiceProvider"

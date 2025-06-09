@@ -10,6 +10,7 @@ import (
 type Price struct {
 	Id                 string                 `json:"id"`
 	VariantId          string                 `json:"variant_id"`
+	Label              string                 `json:"label"`
 	Category           prices.PriceCategory   `json:"category"`
 	Scheme             prices.PriceScheme     `json:"scheme"`
 	Cycles             int                    `json:"cycles"`
@@ -33,6 +34,7 @@ func NewPriceFromEntity(entity entities.Price) Price {
 		VariantId:          entity.VariantId,
 		Category:           entity.Category,
 		Scheme:             entity.Scheme,
+		Label:              entity.Label,
 		Cycles:             entity.Cycles,
 		Currency:           entity.Currency,
 		UnitPrice:          entity.UnitPrice,
