@@ -28,12 +28,14 @@ require (
 )
 
 require (
+	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.9.3
 	github.com/Trendyol/go-pq-cdc v0.0.12
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.60
 	github.com/getsentry/sentry-go v0.31.1
 	github.com/getsentry/sentry-go/gin v0.31.1
 	github.com/joho/godotenv v1.5.1
 	github.com/mdwt/paystack-go v0.4.0
+	github.com/osteele/liquid v1.7.0
 	github.com/redis/go-redis/v9 v9.7.3
 	github.com/robfig/cron/v3 v3.0.1
 )
@@ -92,6 +94,7 @@ require (
 	github.com/nats-io/nkeys v0.4.10 // indirect
 	github.com/nats-io/nuid v1.0.1 // indirect
 	github.com/nexus-rpc/sdk-go v0.3.0 // indirect
+	github.com/osteele/tuesday v1.0.3 // indirect
 	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2 // indirect

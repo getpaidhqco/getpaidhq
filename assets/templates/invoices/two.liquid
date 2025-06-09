@@ -1,0 +1,255 @@
+{% for item in items %}
+{%if item.tax.name %}
+{% assign has_item_tax = true %}
+{%endif%}
+{%endfor%}
+
+<!doctype html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <script src="https://cdn.tailwindcss.com?plugins=forms,typography,aspect-ratio,line-clamp"></script>
+</head>
+<body class="m-auto p-8 min-h-screen flex flex-col">
+<div class="flex-grow">
+  <div class="grid grid-cols-4 gap-12">
+    <div class=" font-light text-slate-500">
+      <div class="group relative">
+        <div class="aspect-w-1 aspect-h-1 overflow-hidden">
+          <img
+            src={{logo_url}}
+            class="w-48 object-contain object-top"
+          />
+        </div>
+      </div>
+    </div>
+    <div class="text-slate-500 text-sm font-light">
+      <p class=" font-medium text-slate-700">
+        {{ labels.invoice_address | default: "From" }}
+      </p>
+      {%if business.business_name%}<p>{{ business.business_name }}</p>{%endif%}
+      {%if business.address1%}<p>{{ business.address1 }}</p>{%endif%}
+      {%if business.address2%}<p>{{ business.address2 }}</p>{%endif%}
+      {%if business.address3%}<p>{{ business.address3 }}</p>{%endif%}
+      {%if business.city%}<p>{{ business.city }}</p>{%endif%}
+      {%if business.region%}<p>{{ business.region }}</p>{%endif%}
+      {%if business.postal_code%}<p>{{ business.postal_code }}</p>{%endif%}
+      {%if business.country%}<p>{{ business.country }}</p>{%endif%}
+      {%if business.phone_number%}<p>{{ business.phone_number }}</p>{%endif%}
+      {%if business.vat_number%}<p>{{ business.vat_number }}</p>{%endif%}
+      {%if business.email%}<p>{{ business.email }}</p>{%endif%}
+    </div>
+    <div class="text-slate-500 text-sm font-light">
+      <p class=" font-medium text-slate-700">
+        {{ labels.to | default: "To" }}
+      </p>
+      <p>{{ customer.name }}</p>
+      <p>{{ customer.business_name }}</p>
+      <p>{{ customer.address1 }}</p>
+      <p>{{ customer.address2 }}</p>
+      <p>{{ customer.address3 }}</p>
+      <p>{{ customer.city }}</p>
+      <p>{{ customer.region }}</p>
+      <p>{{ customer.postal_code }}</p>
+      <p>{{ customer.country }}</p>
+      <p>{{ customer.vat_number }}</p>
+      <p>{{ customer.phone_number }}</p>
+    </div>
+    <div class=" font-light text-slate-500 text-right">
+      {% if type == "credit_note" %}
+      <p class="text-4xl font-bold text-slate-700 mb-6">
+        {{ labels.credit_heading | default: "CREDIT" }}
+      </p>
+      <p></p>
+      <p class=" font-medium text-slate-700">
+        {{ labels.related_document | default: "Related Document" }}
+      </p>
+      <p>{{ related_document }}</p>
+      {% endif %}
+
+
+      <p class=" font-medium text-slate-700">
+        {% if type == "credit_note" %}
+        {{ labels.credit_number | default: "Credit Note #" }}
+        {% else %}
+        {{ labels.invoice_number | default: "Invoice #" }}
+        {% endif %}
+      </p>
+      <p>{{ document_number }}</p>
+
+
+      <p class="mt-2  font-medium text-slate-700">
+        {{ labels.due_date | default: "Due Date" }}
+      </p>
+      <p>{{ due_date }}</p>
+      <p class="mt-2  font-medium text-slate-700">
+        {{ labels.created_date | default: "Created Date" }}
+      </p>
+      <p>{{ create_date }}</p>
+    </div>
+
+  </div>
+
+  <div class="">
+    <div class="flex flex-col mx-0 mt-8">
+      <table class="min-w-full divide-y divide-slate-500">
+        <thead>
+        <tr>
+          <th scope="col"
+              class="py-3.5 pl-4 pr-3 text-left  font-normal text-slate-700 sm:pl-6 md:pl-0">
+            {{ labels.description | default: "Description" }}
+          </th>
+          <th scope="col"
+              class=" py-3.5 px-3 text-right  font-normal text-slate-700 table-cell">
+            {{ labels.quantity | default: "Qty" }}
+          </th>
+          <th scope="col"
+              class=" py-3.5 px-3 text-right  font-normal text-slate-700 table-cell">
+            {{ labels.unit_price | default: "Unit Price" }}
+          </th>
+          <th scope="col"
+              class="py-3.5 pl-3 pr-4 text-right  font-normal text-slate-700 sm:pr-6 md:pr-0">
+            {{ labels.total_ex_vat | default: "Total" }}
+          </th>
+        </tr>
+        </thead>
+        <tbody>
+        {% for item in items %}
+        <tr class="border-b border-slate-200">
+          <td class="py-4 pl-4 pr-3  sm:pl-6 md:pl-0">
+            <div class="font-medium text-slate-700">{{ item.name }}</div>
+          </td>
+          <td class="px-3 py-4  text-right text-slate-500 table-cell">
+            {{ item.quantity }}
+          </td>
+          <td class="px-3 py-4  text-right text-slate-500 table-cell">
+            {{ item.unit_price }}
+          </td>
+          <td class="py-4 pl-3 pr-4  text-right text-slate-500 sm:pr-6 md:pr-0">
+            {{ currency_symbol }}{{ item.total }}
+          </td>
+        </tr>
+        {% endfor %}
+        </tbody>
+        <tfoot>
+        <tr>
+          <th scope="row" colspan="3"
+              class=" pl-6 pr-3  font-light text-right text-slate-500 table-cell md:pl-0">
+            {{ labels.subtotal | default: "Subtotal" }}
+          </th>
+          <td class=" pl-3 pr-4  text-right text-slate-500 sm:pr-6 md:pr-0">
+            {{ currency_symbol }}{{ sub_total }}
+          </td>
+        </tr>
+        <tr>
+          <th scope="row" colspan="3"
+              class="pl-6 pr-3  font-light text-right text-slate-500 table-cell md:pl-0">
+            {{ labels.discount_total | default: "Discount" }}
+          </th>
+          <td class="pl-3 pr-4  text-right text-slate-500 sm:pr-6 md:pr-0">
+            {{ currency_symbol }}{{ discount_total }}
+          </td>
+        </tr>
+
+
+        {%if has_item_tax %}
+        {% for item in items %}
+        {%if item.tax.name %}
+        <tr>
+          <th scope="row" colspan="3"
+              class=" pl-6 pr-3  font-light text-right text-slate-500 table-cell md:pl-0">
+            {{ item.tax.name }} ({{item.tax.rate}}%)
+          </th>
+          <td class="pl-3 pr-4  text-right text-slate-500 sm:pr-6 md:pr-0">
+            {{ currency_symbol }}{{ item.tax_total }}
+          </td>
+        </tr>
+        {%endif%}
+        {%endfor%}
+
+        {% else %}
+        <tr>
+          <th scope="row" colspan="3"
+              class=" pl-6 pr-3  font-light text-right text-slate-500 table-cell md:pl-0">
+            {{ labels.tax_type | default: "Tax" }}
+          </th>
+          <td class="pl-3 pr-4  text-right text-slate-500 sm:pr-6 md:pr-0">
+            {{ currency_symbol }}{{ tax_total }}
+          </td>
+        </tr>
+        {%endif%}
+
+
+        {%if exchange_rate.rate %}
+        <tr>
+          <th scope="row" colspan="3"
+              class=" pl-6 pr-3  font-light text-right text-slate-500 table-cell md:pl-0">
+          </th>
+          <td class="pl-3 pr-4 font-light text-xs text-right text-slate-500 sm:pr-6 md:pr-0">
+            ({{exchange_rate.local_currency}} {{exchange_rate.tax_total}})
+          </td>
+        </tr>
+        {%endif%}
+
+        <tr>
+          <th scope="row" colspan="3"
+              class="pl-6 pr-3 border-t font-normal text-right text-slate-700 table-cell md:pl-0">
+            {{ labels.total | default: "Total" }}
+          </th>
+          <td class="pl-3 pr-4 border-t  font-normal text-right text-slate-700 sm:pr-6 md:pr-0">
+            {{ currency_symbol }}{{ total }}
+          </td>
+        </tr>
+
+
+        </tfoot>
+      </table>
+    </div>
+  </div>
+
+  <div class="mt-10">
+    <dt class="font-bold text-gray-900">
+      {{ labels.payment_information | default: "Payment Information" }}
+    </dt>
+    {% for payment in payments %}
+    <dd class="flex flex-wrap">
+      <div class="">
+        <p class="text-gray-900">{{ payment.payment_type }} {%if payment.processor_id%}({{
+          payment.processor_id }}){%endif%}</p>
+        <p class="text-gray-900">{{ currency_symbol }}{{ payment.amount }}</p>
+        <p class="text-gray-600">{{ reference }}</p>
+        <p class="text-gray-600">{{ payment.created_at }}</p>
+      </div>
+    </dd>
+    {% endfor %}
+  </div>
+  <div class="mt-10">
+    <div class="text-slate-700">
+      <p>
+        {{ notes }}
+      </p>
+    </div>
+  </div>
+  {%if exchange_rate.rate %}
+  <div>
+    <p class="font-light text-xs text-slate-700">
+      {{ labels.exchange_rate | default: "Exchange Rate" }}
+      ({{currency}}/{{ exchange_rate.local_currency }}): {{ exchange_rate.rate }}
+    </p>
+  </div>
+  {%endif%}
+</div>
+
+<footer class="flex justify-center border-t border-slate-200 fixed
+             inset-x-0
+             bottom-0">
+  <div class=" font-light text-slate-700 py-4">
+    <p>
+      {{ footer_text }}
+    </p>
+  </div>
+</footer>
+
+</body>
+</html>

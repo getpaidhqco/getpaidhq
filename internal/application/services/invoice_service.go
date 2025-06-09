@@ -8,6 +8,7 @@ import (
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/application/lib/pdf"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -595,6 +596,34 @@ func (s InvoiceService) ListHistory(ctx context.Context, orgId string, invoiceId
 	}
 
 	return history, nil
+}
+
+func (s InvoiceService) GeneratePDF(ctx context.Context, orgId string, invoiceId string, options pdf.GenerateOptions) ([]byte, error) {
+	// Get existing invoice
+	invoice, err := s.invoiceRepository.FindById(ctx, orgId, invoiceId)
+	if err != nil {
+		s.logger.Error("Failed to get invoice: ", err)
+		return nil, lib.NewCustomError(lib.NotFoundError, "Invoice not found", err)
+	}
+
+	// Get line items
+	lineItems, err := s.invoiceRepository.ListLineItems(ctx, orgId, invoiceId)
+	if err != nil {
+		s.logger.Error("Failed to list line items: ", err)
+		return nil, lib.NewCustomError(lib.InternalError, "Error listing line items", err)
+	}
+
+	// Create PDF generator
+	pdfGenerator := pdf.NewPDFGenerator()
+
+	// Generate PDF
+	pdfBytes, err := pdfGenerator.Generate(invoice, lineItems, options)
+	if err != nil {
+		s.logger.Error("Failed to generate PDF: ", err)
+		return nil, lib.NewCustomError(lib.InternalError, "Error generating PDF", err)
+	}
+
+	return pdfBytes, nil
 }
 
 // Helper function to recalculate invoice totals based on line items

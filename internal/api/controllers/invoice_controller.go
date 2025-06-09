@@ -9,6 +9,7 @@ import (
 	"payloop/internal/api/dto/response"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/application/lib/pdf"
 )
 
 type InvoiceController struct {
@@ -340,4 +341,41 @@ func (c InvoiceController) ListHistory(ctx *gin.Context) {
 	}
 
 	ctx.JSON(http.StatusOK, historyResponses)
+}
+
+// GeneratePDF handles generating a PDF for an invoice
+func (c InvoiceController) GeneratePDF(ctx *gin.Context) {
+	var input request.GenerateInvoicePDFRequest
+	user, _ := ctx.Get("user")
+	authUser := user.(authn.User)
+	invoiceId := ctx.Param("id")
+
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	// Convert request DTO to PDF options
+	options := pdf.GenerateOptions{
+		TemplateName: input.TemplateName,
+		OutputPath:   input.OutputPath,
+	}
+
+	// Generate PDF
+	pdfBytes, err := c.invoiceService.GeneratePDF(ctx.Request.Context(), authUser.OrgId, invoiceId, options)
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	// Set response headers for file download
+	filename := "invoice_" + invoiceId + ".pdf"
+	ctx.Header("Content-Description", "File Transfer")
+	ctx.Header("Content-Disposition", "attachment; filename="+filename)
+	ctx.Header("Content-Type", "application/pdf")
+	ctx.Header("Content-Transfer-Encoding", "binary")
+	ctx.Header("Cache-Control", "no-cache")
+	ctx.Data(http.StatusOK, "application/pdf", pdfBytes)
 }

@@ -28,16 +28,19 @@ func (s InvoiceRoutes) Setup() {
 		api.POST("/invoices", s.checkAuthz(authz.CreateInvoice), s.invoiceController.Create)
 		api.PUT("/invoices/:id", s.checkAuthz(authz.UpdateInvoice), s.invoiceController.Update)
 		api.POST("/invoices/:id/actions", s.checkAuthz(authz.UpdateInvoice), s.invoiceController.PerformAction)
-		
+
 		// Invoice line items
 		api.GET("/invoices/:id/line-items", s.invoiceController.ListLineItems)
 		api.POST("/invoices/:id/line-items", s.checkAuthz(authz.UpdateInvoice), s.invoiceController.AddLineItem)
 		api.PUT("/invoices/:id/line-items/:lineItemId", s.checkAuthz(authz.UpdateInvoice), s.invoiceController.UpdateLineItem)
 		api.DELETE("/invoices/:id/line-items/:lineItemId", s.checkAuthz(authz.UpdateInvoice), s.invoiceController.DeleteLineItem)
-		
+
 		// Invoice history
 		api.GET("/invoices/:id/history", s.invoiceController.ListHistory)
-		
+
+		// Invoice PDF generation
+		api.POST("/invoices/:id/pdf", s.checkAuthz(authz.UpdateInvoice), s.invoiceController.GeneratePDF)
+
 		// Customer invoices
 		api.GET("/customers/:id/invoices", s.invoiceController.ListByCustomer)
 	}

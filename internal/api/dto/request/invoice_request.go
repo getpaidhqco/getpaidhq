@@ -64,3 +64,9 @@ type InvoiceActionRequest struct {
 	Action string `json:"action" binding:"required"`
 	Reason string `json:"reason,omitempty"`
 }
+
+// GenerateInvoicePDFRequest represents the request to generate a PDF for an invoice
+type GenerateInvoicePDFRequest struct {
+	TemplateName string `json:"template_name" binding:"required"`
+	OutputPath   string `json:"output_path,omitempty"`
+}
