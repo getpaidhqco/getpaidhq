@@ -911,3 +911,16 @@ model Document {
   @@index([orgId, purpose])
   @@map("documents")
 }
+
+model DocSequence {
+  org_id     String
+  id         String
+  type       String
+  value      Int
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  @@id([org_id, id])
+  @@index([org_id, type])
+  @@map("doc_sequences")
+}

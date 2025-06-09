@@ -7,6 +7,10 @@ import (
 // Module exports dependency
 var RespositoryModules = fx.Options(
 	fx.Provide(fx.Annotate(
+		NewDocSequenceRepository,
+		fx.ParamTags(`name:"primaryDb"`),
+	)),
+	fx.Provide(fx.Annotate(
 		NewUserRepository,
 		fx.ParamTags(`name:"primaryDb"`),
 	)),
@@ -88,6 +92,10 @@ var RespositoryModules = fx.Options(
 	)),
 	fx.Provide(fx.Annotate(
 		NewMetadataStoreRepository,
+		fx.ParamTags(`name:"primaryDb"`),
+	)),
+	fx.Provide(fx.Annotate(
+		NewInvoiceRepository,
 		fx.ParamTags(`name:"primaryDb"`),
 	)),
 )

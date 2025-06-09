@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"fmt"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
@@ -14,23 +15,26 @@ import (
 )
 
 type InvoiceService struct {
-	invoiceRepository repositories.InvoiceRepository
-	customerRepository repositories.CustomerRepository
-	pubsub            events.PubSub
-	logger            logger.Logger
+	invoiceRepository    repositories.InvoiceRepository
+	customerRepository   repositories.CustomerRepository
+	docSequenceRepository repositories.DocSequenceRepository
+	pubsub               events.PubSub
+	logger               logger.Logger
 }
 
 func NewInvoiceService(
 	invoiceRepository repositories.InvoiceRepository,
 	customerRepository repositories.CustomerRepository,
+	docSequenceRepository repositories.DocSequenceRepository,
 	pubsub events.PubSub,
 	logger logger.Logger,
 ) interfaces.InvoiceService {
 	return InvoiceService{
-		invoiceRepository: invoiceRepository,
-		customerRepository: customerRepository,
-		pubsub:            pubsub,
-		logger:            logger,
+		invoiceRepository:    invoiceRepository,
+		customerRepository:   customerRepository,
+		docSequenceRepository: docSequenceRepository,
+		pubsub:               pubsub,
+		logger:               logger,
 	}
 }
 
@@ -43,6 +47,17 @@ func (s InvoiceService) Create(ctx context.Context, orgId string, req request.Cr
 		}
 	}
 
+	// Get next invoice sequence number
+	sequenceId := lib.GenerateId("seq")
+	nextInvoiceNumber, err := s.docSequenceRepository.GetNextValue(ctx, orgId, sequenceId, "invoice")
+	if err != nil {
+		s.logger.Error("Failed to get next invoice sequence number: ", err)
+		return entities.Invoice{}, lib.NewCustomError(lib.InternalError, "Error generating invoice sequence", err)
+	}
+
+	// Format the document number with the sequence
+	docNumber := "INV-" + time.Now().Format("20060102") + "-" + fmt.Sprintf("%04d", nextInvoiceNumber)
+
 	// Create invoice
 	invoice := entities.Invoice{
 		OrgId:          orgId,
@@ -50,8 +65,8 @@ func (s InvoiceService) Create(ctx context.Context, orgId string, req request.Cr
 		CustomerId:     req.CustomerId,
 		OrderId:        req.OrderId,
 		SubscriptionId: req.SubscriptionId,
-		SequenceId:     lib.GenerateId("seq"), // In a real implementation, this would be generated based on a sequence
-		DocNumber:      "INV-" + time.Now().Format("20060102") + "-" + lib.GenerateId("inv")[:4], // Simple doc number generation
+		SequenceId:     sequenceId, // Using the sequence ID we generated
+		DocNumber:      docNumber, // Using the formatted document number
 		Type:           req.Type,
 		InvoiceType:    req.InvoiceType,
 		Status:         entities.InvoiceStatusDraft,

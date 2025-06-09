@@ -46,6 +46,7 @@ func NewRoutes(
 	reportRoutes ReportRoutes,
 	paymentMethodRoutes PaymentMethodRoutes,
 	pspRoutes PspRoutes,
+	invoiceRoutes InvoiceRoutes,
 ) Routes {
 	return Routes{
 		userRoutes,
@@ -62,6 +63,7 @@ func NewRoutes(
 		reportRoutes,
 		paymentMethodRoutes,
 		pspRoutes,
+		invoiceRoutes,
 	}
 }
 
