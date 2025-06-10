@@ -34,6 +34,7 @@ require (
 	github.com/getsentry/sentry-go v0.31.1
 	github.com/getsentry/sentry-go/gin v0.31.1
 	github.com/joho/godotenv v1.5.1
+	github.com/mark3labs/mcp-go v0.31.0
 	github.com/mdwt/paystack-go v0.4.0
 	github.com/osteele/liquid v1.7.0
 	github.com/redis/go-redis/v9 v9.7.3
@@ -117,6 +118,7 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
+	github.com/yosida95/uritemplate/v3 v3.0.2 // indirect
 	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.14.0 // indirect

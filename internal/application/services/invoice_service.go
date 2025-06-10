@@ -2,6 +2,7 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/interfaces"
@@ -16,11 +17,11 @@ import (
 )
 
 type InvoiceService struct {
-	invoiceRepository    repositories.InvoiceRepository
-	customerRepository   repositories.CustomerRepository
+	invoiceRepository     repositories.InvoiceRepository
+	customerRepository    repositories.CustomerRepository
 	docSequenceRepository repositories.DocSequenceRepository
-	pubsub               events.PubSub
-	logger               logger.Logger
+	pubsub                events.PubSub
+	logger                logger.Logger
 }
 
 func NewInvoiceService(
@@ -30,12 +31,48 @@ func NewInvoiceService(
 	pubsub events.PubSub,
 	logger logger.Logger,
 ) interfaces.InvoiceService {
-	return InvoiceService{
-		invoiceRepository:    invoiceRepository,
-		customerRepository:   customerRepository,
+	service := InvoiceService{
+		invoiceRepository:     invoiceRepository,
+		customerRepository:    customerRepository,
 		docSequenceRepository: docSequenceRepository,
-		pubsub:               pubsub,
-		logger:               logger,
+		pubsub:                pubsub,
+		logger:                logger,
+	}
+
+	// subscribe to order events to manage cohorts
+	_, err := pubsub.Subscribe(topic.SubscriptionPaymentChargeSuccess, service.HandleSubscriptionPaymentSuccessEvent)
+	if err != nil {
+		logger.Errorf("Failed to subscribe to topic %s: %v", topic.SubscriptionPaymentChargeSuccess, err)
+		panic(err)
+	}
+	return service
+}
+
+func (s InvoiceService) HandleSubscriptionPaymentSuccessEvent(eventTopic string, data []byte) {
+
+	var payload events.Payload
+	err := json.Unmarshal(data, &payload)
+	if err != nil {
+		s.logger.Errorf("Failed to unmarshal payload: %v", err)
+		return
+	}
+
+	switch eventTopic {
+	case topic.SubscriptionPaymentChargeSuccess:
+		var paymentSuccess topic.SubscriptionPaymentChargeSuccessEvent
+		payloadBytes, err := json.Marshal(payload.Data)
+		if err != nil {
+			s.logger.Errorf("Failed to marshal payload data: %v", err)
+			return
+		}
+		err = json.Unmarshal(payloadBytes, &paymentSuccess)
+		if err != nil {
+			s.logger.Errorf("Failed to unmarshal event data: %v", err)
+			return
+		}
+		// TODO if invoicing is enabled then create the invoice (via the queue)
+		s.logger.Infof("Payment success", paymentSuccess.PaymentId)
+
 	}
 }
 
@@ -67,7 +104,7 @@ func (s InvoiceService) Create(ctx context.Context, orgId string, req request.Cr
 		OrderId:        req.OrderId,
 		SubscriptionId: req.SubscriptionId,
 		SequenceId:     sequenceId, // Using the sequence ID we generated
-		DocNumber:      docNumber, // Using the formatted document number
+		DocNumber:      docNumber,  // Using the formatted document number
 		Type:           req.Type,
 		InvoiceType:    req.InvoiceType,
 		Status:         entities.InvoiceStatusDraft,

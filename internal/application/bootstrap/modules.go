@@ -17,12 +17,14 @@ import (
 	"payloop/internal/infrastructure/scheduler/cron"
 	"payloop/internal/infrastructure/workflow/temporal"
 	"payloop/internal/lib"
+	"payloop/internal/mcp"
 )
 
 var CommonModules = fx.Options(
 	controllers.Module,
 	routes.Module,
 	lib.Module,
+	mcp.Module,
 	services.Module,
 	middlewares.Module,
 	factories.Module,

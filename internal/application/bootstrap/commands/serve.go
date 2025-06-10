@@ -8,6 +8,7 @@ import (
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
+	"payloop/internal/mcp"
 )
 
 // ServeCommand test command
@@ -25,6 +26,7 @@ func (s *ServeCommand) Run() lib.CommandRunner {
 			fx.In
 			Middlewares     middlewares.Middlewares
 			Env             lib.Env
+			Mcp             mcp.MCPServer
 			Router          lib.RequestHandler
 			Route           routes.Routes
 			Logger          logger.Logger
@@ -38,6 +40,7 @@ func (s *ServeCommand) Run() lib.CommandRunner {
 
 		params.Middlewares.Setup()
 		params.Route.Setup()
+		_ = params.Mcp.SSEServer.Start(":8084")
 		params.Logger.Info("Running server")
 		if params.Env.ServerPort == "" {
 			_ = params.Router.Gin.Run()
