@@ -40,8 +40,11 @@ func (s *ServeCommand) Run() lib.CommandRunner {
 
 		params.Middlewares.Setup()
 		params.Route.Setup()
-		_ = params.Mcp.SSEServer.Start(":8084")
-		params.Logger.Info("Running server")
+		go func() {
+			params.Logger.Info("Running MCP server on port server", "port", params.Env.McpSsePort)
+			_ = params.Mcp.SSEServer.Start(":" + params.Env.McpSsePort)
+		}()
+
 		if params.Env.ServerPort == "" {
 			_ = params.Router.Gin.Run()
 		} else {

@@ -137,7 +137,21 @@ func (r OrderItemRepository) FindByOrderId(ctx context.Context, orgId string, or
 	query := `SELECT oi.org_id, oi.id, oi.order_id, oi.price_id, oi.description, oi.product_id, oi.variant_id,
       				 oi.quantity, oi.sub_total, oi.tax_total, oi.total, oi.discount_total,
        				 oi.metadata, oi.created_at, oi.updated_at,
-			  		 p.org_id, p.id, p.trial_interval, p.trial_interval_qty, p.billing_interval, p.billing_interval_qty, p.currency, p.unit_price, p.tax_code
+			  		 p.org_id, 
+			  		 p.id, 
+			  	  	 p.variant_id,
+			  		 p.category,
+			  		 p.scheme,
+			  		 p.label,			  		
+			  		 p.trial_interval, 
+			  		 p.trial_interval_qty, 
+			  		 p.billing_interval, 
+			  		 p.billing_interval_qty, 
+			  		 p.currency, 
+			  		 p.unit_price, 
+			  		 p.tax_code,
+			  		 p.created_at,
+			  		 p.updated_at
 			  FROM order_items oi
 			  JOIN prices p ON oi.org_id = p.org_id AND oi.price_id = p.id
 			  WHERE oi.org_id = $1 AND oi.order_id = $2`
@@ -172,6 +186,10 @@ func (r OrderItemRepository) FindByOrderId(ctx context.Context, orgId string, or
 
 			&price.OrgId,
 			&price.Id,
+			&price.VariantId,
+			&price.Category,
+			&price.Scheme,
+			&price.Label,
 			&price.TrialInterval,
 			&price.TrialIntervalQty,
 			&price.BillingInterval,
@@ -179,6 +197,8 @@ func (r OrderItemRepository) FindByOrderId(ctx context.Context, orgId string, or
 			&price.Currency,
 			&price.UnitPrice,
 			&price.TaxCode,
+			&price.CreatedAt,
+			&price.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err

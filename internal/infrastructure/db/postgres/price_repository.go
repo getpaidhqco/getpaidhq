@@ -6,6 +6,7 @@ import (
 	"errors"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"log/slog"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/lib/logger"
@@ -65,7 +66,7 @@ func (r PriceRepository) Create(ctx context.Context, entity entities.Price) (ent
 		"billing_interval_qty": entity.BillingIntervalQty,
 		"trial_interval":       entity.TrialInterval,
 		"trial_interval_qty":   entity.TrialIntervalQty,
-		"tax_code":             entity.TaxCode,
+		"tax_code":             pgtype.Text{String: entity.TaxCode, Valid: entity.TaxCode != ""},
 		"metadata":             metadata,
 	})
 

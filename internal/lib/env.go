@@ -9,6 +9,7 @@ import (
 // Env has environment stored
 type Env struct {
 	ServerPort      string `mapstructure:"SERVER_PORT"`
+	McpSsePort      string `mapstructure:"MCP_SSE_PORT"`
 	TemporalHost    string `mapstructure:"TEMPORAL_HOST"`
 	Env             string `mapstructure:"ENV"`
 	LogOutput       string `mapstructure:"LOG_OUTPUT"`
@@ -40,6 +41,7 @@ func NewEnv() Env {
 	var env Env
 
 	viper.BindEnv("SERVER_PORT")
+	viper.BindEnv("MCP_SSE_PORT")
 	viper.BindEnv("TEMPORAL_HOST")
 	viper.BindEnv("ENV")
 	viper.BindEnv("LOG_OUTPUT")
@@ -63,6 +65,7 @@ func NewEnv() Env {
 		env.LogLevel = viper.GetString("PAYLOOP_LOG_LEVEL")
 		env.ClerkSecretKey = viper.GetString("CLERK_SECRET")
 		env.TemporalHost = viper.GetString("TEMPORAL_HOST")
+		env.McpSsePort = viper.GetString("MCP_SSE_PORT")
 
 		return env
 	}

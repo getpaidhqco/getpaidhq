@@ -105,7 +105,7 @@ func (m ClerkMiddleware) Authenticate(ctx context.Context, token string) (apiaut
 		m.logger.Error("Error fetching user from Clerk API", "error", err)
 		return apiauthn.User{}, err
 	}
-	m.logger.Infof("Clerk Auth: [%s][%s][%s]", session.ActiveOrganizationID, session.Claims.Subject, user)
+	m.logger.Infof("Clerk authed user: [%s][%s]", session.ActiveOrganizationID, user.EmailAddresses[0].EmailAddress)
 
 	// If the organization ID is not in the token, try to fetch the user's organization memberships
 	clerkOrgId := session.ActiveOrganizationID

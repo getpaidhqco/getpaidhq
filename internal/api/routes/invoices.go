@@ -39,7 +39,7 @@ func (s InvoiceRoutes) Setup() {
 		api.GET("/invoices/:id/history", s.invoiceController.ListHistory)
 
 		// Invoice PDF generation
-		api.POST("/invoices/:id/pdf", s.checkAuthz(authz.UpdateInvoice), s.invoiceController.GeneratePDF)
+		api.POST("/invoices/:id/pdf", s.checkAuthz(authz.DownloadInvoice), s.invoiceController.GeneratePDF)
 
 		// Customer invoices
 		api.GET("/customers/:id/invoices", s.invoiceController.ListByCustomer)
