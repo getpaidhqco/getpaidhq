@@ -13,9 +13,17 @@ type GatewayConfig interface {
 	Validate() error
 }
 
+type RefundPaymentCommand struct {
+	PaymentId string
+	Currency  common.Currency
+	Amount    int64
+	Reason    string
+}
+
 type Gateway interface {
 	InitPayment(ctx context.Context, input InitPaymentCommand) (InitPaymentResponse, error)
 	ChargePayment(ctx context.Context, input ChargePaymentCommand) ChargePaymentResponse
+	RefundPayment(ctx context.Context, input RefundPaymentCommand) (RefundPaymentResponse, error)
 }
 
 type WebhookParser interface {
@@ -70,6 +78,18 @@ type ChargePaymentResponse struct {
 
 type InitPaymentResponse struct {
 	PspResponse interface{}
+}
+
+type RefundPaymentResponse struct {
+	Status         string          `json:"status"`
+	Psp            common.Gateway  `json:"psp"`
+	PspId          string          `json:"psp_id"`
+	Reference      string          `json:"reference"`
+	Currency       common.Currency `json:"currency"`
+	AmountRefunded int64           `json:"amount_refunded"`
+	ErrorReason    string          `json:"error_reason"`
+	ErrorCode      string          `json:"error_code"`
+	PspResponse    interface{}     `json:"psp_response"`
 }
 
 type PaymentWebhookType string

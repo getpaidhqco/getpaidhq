@@ -59,6 +59,9 @@ const (
 	DownloadInvoice Action = "DownloadInvoice"
 	GetInvoice      Action = "GetInvoice"
 	ListInvoices    Action = "ListInvoices"
+
+	// Payment actions
+	RefundPayment   Action = "RefundPayment"
 )
 
 type Authz interface {

@@ -10,13 +10,13 @@ const (
 	ProductUpdated            = "product.updated"
 	ProductDeleted            = "product.deleted"
 
-	VariantCreated            = "variant.created"
-	VariantUpdated            = "variant.updated"
-	VariantDeleted            = "variant.deleted"
+	VariantCreated = "variant.created"
+	VariantUpdated = "variant.updated"
+	VariantDeleted = "variant.deleted"
 
-	PriceCreated              = "price.created"
-	PriceUpdated              = "price.updated"
-	PriceDeleted              = "price.deleted"
+	PriceCreated = "price.created"
+	PriceUpdated = "price.updated"
+	PriceDeleted = "price.deleted"
 
 	OrderCompleted = "order.completed"
 
@@ -34,10 +34,18 @@ const (
 	SubscriptionRenewalReminder      = "subscription.renewal_reminder"
 	SubscriptionBillingAnchorChanged = "subscription.billing_anchor_changed"
 
-	PaymentCreated = "payment.created"
-	PaymentUpdated = "payment.updated"
-	PaymentDeleted = "payment.deleted"
-	PaymentFailed  = "payment.failed"
+	PaymentCreated  = "payment.created"
+	PaymentUpdated  = "payment.updated"
+	PaymentDeleted  = "payment.deleted"
+	PaymentFailed   = "payment.failed"
+	PaymentRefunded = "payment.refunded"
+
+	// Refund
+	RefundCreated   = "refund.created"
+	RefundUpdated   = "refund.updated"
+	RefundDeleted   = "refund.deleted"
+	RefundFailed    = "refund.failed"
+	RefundProcessed = "refund.processed"
 
 	// Payment Method
 	PaymentMethodCreated   = "payment_method.created"
@@ -56,10 +64,10 @@ const (
 	SessionCreated = "session.created"
 
 	// Invoice
-	InvoiceCreated = "invoice.created"
-	InvoiceUpdated = "invoice.updated"
-	InvoicePaid    = "invoice.paid"
-	InvoiceSent    = "invoice.sent"
-	InvoiceOverdue = "invoice.overdue"
+	InvoiceCreated   = "invoice.created"
+	InvoiceUpdated   = "invoice.updated"
+	InvoicePaid      = "invoice.paid"
+	InvoiceSent      = "invoice.sent"
+	InvoiceOverdue   = "invoice.overdue"
 	InvoiceCancelled = "invoice.cancelled"
 )

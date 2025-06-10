@@ -14,7 +14,9 @@ type Refund struct {
 	Amount      int64       `json:"amount"`
 	Currency    string      `json:"currency"`
 	Reason      pgtype.Text `json:"reason,omitempty"` // Nullable field
+	Status      string      `json:"status"`
 	RefundedAt  time.Time   `json:"refunded_at"`
+	CompletedAt pgtype.Time `json:"completed_at,omitempty"` // Nullable field
 	CreatedAt   time.Time   `json:"created_at"`
 	UpdatedAt   time.Time   `json:"updated_at"`
 }

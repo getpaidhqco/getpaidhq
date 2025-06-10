@@ -598,18 +598,26 @@ enum PaymentStatus {
   fraudulent
 }
 
+enum RefundStatus {
+  pending
+  completed
+  error
+}
+
 model Refund {
-  orgId         String   @map("org_id")
-  id            String   @default(cuid())
-  psp_refund_id String?  @map("psp_refund_id")
-  paymentId     String   @map("payment_id")
-  payment       Payment  @relation(fields: [orgId, paymentId], references: [orgId, id], onDelete: Cascade)
+  orgId         String       @map("org_id")
+  id            String       @default(cuid())
+  psp_refund_id String?      @map("psp_refund_id")
+  paymentId     String       @map("payment_id")
+  payment       Payment      @relation(fields: [orgId, paymentId], references: [orgId, id], onDelete: Cascade)
   amount        Int
   currency      String
   reason        String?
-  refunded_at   DateTime @map("refunded_at")
-  createdAt     DateTime @default(now()) @map("created_at")
-  updatedAt     DateTime @updatedAt @map("updated_at")
+  status        RefundStatus @default(pending)
+  refunded_at   DateTime     @map("refunded_at")
+  completedAt   DateTime?    @map("completed_at")
+  createdAt     DateTime     @default(now()) @map("created_at")
+  updatedAt     DateTime     @updatedAt @map("updated_at")
 
   @@id([orgId, id])
   @@map("refunds")

@@ -205,17 +205,24 @@ func (r ReportRepository) UpsertCustomer(ctx context.Context, entity entities.Cu
 func (r ReportRepository) UpsertRefund(ctx context.Context, entity entities.Refund) error {
 	tx := r.getTransactionFromContext(ctx)
 
-	query := `INSERT INTO refunds (org_id, id, psp_refund_id, payment_id, amount, currency, reason, refunded_at, created_at, updated_at)
-			  VALUES (@org_id, @id, @psp_refund_id, @payment_id, @amount, @currency, @reason, @refunded_at, @created_at, @updated_at)
+	query := `INSERT INTO refunds (org_id, id, psp_refund_id, payment_id, amount, currency, reason, status, refunded_at, completed_at, created_at, updated_at)
+			  VALUES (@org_id, @id, @psp_refund_id, @payment_id, @amount, @currency, @reason, @status, @refunded_at, @completed_at, @created_at, @updated_at)
 			  ON CONFLICT (org_id, id) DO UPDATE SET
 				psp_refund_id = EXCLUDED.psp_refund_id,
 				payment_id = EXCLUDED.payment_id,
 				amount = EXCLUDED.amount,
 				currency = EXCLUDED.currency,
 				reason = EXCLUDED.reason,
+				status = EXCLUDED.status,
 				refunded_at = EXCLUDED.refunded_at,
+				completed_at = EXCLUDED.completed_at,
 				updated_at = NOW()
 				`
+
+	var completedAt pgtype.Timestamptz
+	if entity.CompletedAt != nil {
+		completedAt = pgtype.Timestamptz{Time: *entity.CompletedAt, Valid: true}
+	}
 
 	args := pgx.NamedArgs{
 		"org_id":        entity.OrgId,
@@ -223,9 +230,11 @@ func (r ReportRepository) UpsertRefund(ctx context.Context, entity entities.Refu
 		"psp_refund_id": pgtype.Text{String: entity.PspRefundId, Valid: entity.PspRefundId != ""},
 		"payment_id":    entity.PaymentId,
 		"reason":        entity.Reason,
+		"status":        string(entity.Status),
 		"created_at":    pgtype.Date{Time: entity.CreatedAt, Valid: !entity.CreatedAt.IsZero()},
 		"updated_at":    pgtype.Date{Time: entity.UpdatedAt, Valid: !entity.UpdatedAt.IsZero()},
 		"refunded_at":   pgtype.Date{Time: entity.RefundedAt, Valid: !entity.RefundedAt.IsZero()},
+		"completed_at":  completedAt,
 		"amount":        entity.Amount,
 		"currency":      entity.Currency,
 	}

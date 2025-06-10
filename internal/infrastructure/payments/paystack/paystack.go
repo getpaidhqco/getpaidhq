@@ -7,6 +7,7 @@ import (
 	paystacklib "github.com/mdwt/paystack-go"
 	pscommon "github.com/mdwt/paystack-go/common"
 	pserrors "github.com/mdwt/paystack-go/errors"
+	"github.com/mdwt/paystack-go/refunds"
 	"github.com/mdwt/paystack-go/transactions"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/common"
@@ -75,6 +76,39 @@ func (p Paystack) InitPayment(ctx context.Context, input payment_providers.InitP
 	p.logger.Info("created Paystack transaction", "reference", transaction.Reference, "code", transaction.AccessCode)
 	return payment_providers.InitPaymentResponse{
 		PspResponse: transaction,
+	}, nil
+}
+
+func (p Paystack) RefundPayment(ctx context.Context, input payment_providers.RefundPaymentCommand) (payment_providers.RefundPaymentResponse, error) {
+	// This is a stub implementation that will be completed later
+	p.logger.Infof("refunding payment %s", input.PaymentId)
+
+	client := paystacklib.NewPaystackApi(paystacklib.Options{
+		ApiKey:    p.Config.ApiKey,
+		ConnectId: p.Config.ConnectId,
+	})
+
+	rsp, err := client.Refund.Create(ctx, &refunds.CreateRefundRequest{
+		Transaction:  input.PaymentId,
+		Amount:       input.Amount,
+		Currency:     string(input.Currency),
+		CustomerNote: input.Reason,
+		MerchantNote: input.Reason,
+	})
+	if err != nil {
+		p.logger.Errorf("failed to refund payment [%s]", err.Error())
+		return payment_providers.RefundPaymentResponse{}, err
+	}
+	p.logger.Infof("RefundPayment [%s][%s]", rsp.Status, rsp.ID)
+
+	return payment_providers.RefundPaymentResponse{
+		Status:         rsp.Status,
+		Psp:            common.Paystack,
+		PspId:          strconv.Itoa(rsp.ID),
+		Reference:      strconv.Itoa(rsp.ID),
+		Currency:       input.Currency,
+		AmountRefunded: int64(rsp.DeductedAmount),
+		PspResponse:    rsp,
 	}, nil
 }
 

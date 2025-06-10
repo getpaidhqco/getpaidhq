@@ -172,6 +172,23 @@ func (p CheckoutDotCom) InitPayment(ctx context.Context, input payment_providers
 
 }
 
+func (p CheckoutDotCom) RefundPayment(ctx context.Context, input payment_providers.RefundPaymentCommand) (payment_providers.RefundPaymentResponse, error) {
+	// This is a stub implementation that will be completed later
+	p.logger.Infof("refunding payment %s", input.PaymentId)
+
+	return payment_providers.RefundPaymentResponse{
+		Status:        "not_implemented",
+		Psp:           common.CheckoutDotCom,
+		PspId:         "",
+		Reference:     "",
+		Currency:      "",
+		AmountRefunded: 0,
+		ErrorReason:   "Not implemented",
+		ErrorCode:     "501",
+		PspResponse:   nil,
+	}, nil
+}
+
 func (p CheckoutDotCom) ChargePayment(ctx context.Context, input payment_providers.ChargePaymentCommand) payment_providers.ChargePaymentResponse {
 	//customer := input.Customer
 	paymentMethod := input.PaymentMethod

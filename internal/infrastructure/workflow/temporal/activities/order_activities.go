@@ -102,6 +102,7 @@ func (a *OrderActivities) HandlePaymentRefundedEvent(ctx context.Context, paymen
 		PaymentId:  payment.Id,
 		Amount:     paymentContext.Payment.Amount,
 		Currency:   paymentContext.Payment.Currency,
+		Status:     entities.RefundStatusPending,
 		RefundedAt: time.Now().UTC(), // paymentContext.Payment.PaidAt,
 		CreatedAt:  time.Now().UTC(),
 		UpdatedAt:  time.Now().UTC(),
