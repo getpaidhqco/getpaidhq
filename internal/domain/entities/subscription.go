@@ -112,6 +112,7 @@ type ProrationDetails struct {
 	NewPeriodEnd       time.Time `json:"new_period_end,omitempty"`
 }
 
+
 // CalculateProrationDetails calculates proration details based on the proration mode
 // prorationMode: "none" or "credit_unused"
 // referenceDate: the date to calculate proration from (usually the current date)

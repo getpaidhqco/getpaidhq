@@ -1,6 +1,7 @@
 package response
 
 import (
+	"payloop/internal/application/dto"
 	"payloop/internal/domain/entities"
 	"time"
 )
@@ -17,6 +18,12 @@ type ProrationDetails struct {
 	NewPeriodEnd       time.Time `json:"new_period_end,omitempty"`
 }
 
+// UpdateBillingAnchorResult is the response struct for update billing anchor result
+type UpdateBillingAnchorResult struct {
+	Subscription     Subscription     `json:"subscription"`
+	ProrationDetails ProrationDetails `json:"proration_details"`
+}
+
 // NewProrationDetailsFromEntity creates a new ProrationDetails response from an entity
 func NewProrationDetailsFromEntity(details entities.ProrationDetails) ProrationDetails {
 	return ProrationDetails{
@@ -28,5 +35,28 @@ func NewProrationDetailsFromEntity(details entities.ProrationDetails) ProrationD
 		NewBillingAnchor:   details.NewBillingAnchor,
 		NewPeriodStart:     details.NewPeriodStart,
 		NewPeriodEnd:       details.NewPeriodEnd,
+	}
+}
+
+
+// NewProrationDetailsFromDto creates a new ProrationDetails response from a DTO
+func NewProrationDetailsFromDto(details dto.ProrationDetails) ProrationDetails {
+	return ProrationDetails{
+		CreditAmount:       details.CreditAmount,
+		DaysCredited:       details.DaysCredited,
+		CurrentPeriodStart: details.CurrentPeriodStart,
+		CurrentPeriodEnd:   details.CurrentPeriodEnd,
+		OldBillingAnchor:   details.OldBillingAnchor,
+		NewBillingAnchor:   details.NewBillingAnchor,
+		NewPeriodStart:     details.NewPeriodStart,
+		NewPeriodEnd:       details.NewPeriodEnd,
+	}
+}
+
+// NewUpdateBillingAnchorResultFromDto creates a new UpdateBillingAnchorResult response from a DTO
+func NewUpdateBillingAnchorResultFromDto(result dto.UpdateBillingAnchorResult) UpdateBillingAnchorResult {
+	return UpdateBillingAnchorResult{
+		Subscription:     NewSubscriptionFromEntity(result.Subscription),
+		ProrationDetails: NewProrationDetailsFromDto(result.ProrationDetails),
 	}
 }

@@ -1,6 +1,7 @@
 package request
 
 import (
+	"payloop/internal/application/dto"
 	"payloop/internal/domain/entities/prices"
 	"payloop/internal/domain/entities/subscriptions"
 )
@@ -44,8 +45,8 @@ type PauseSubscriptionRequest struct {
 }
 type UpdateBillingAnchorRequest struct {
 	// BillingAnchor the new billing anchor as a day between 1 and 31. If the day is not valid for the current month, it will be adjusted to the last day of the month.
-	BillingAnchor int                         `json:"billing_anchor" binding:"required,gte=1,lte=31"`
-	ProrationMode subscriptions.ProrationMode `json:"proration_mode" binding:"required,oneof=none prorate"`
+	BillingAnchor int              `json:"billing_anchor" binding:"required,gte=1,lte=31"`
+	ProrationMode dto.ProrationMode `json:"proration_mode" binding:"required,oneof=none credit_unused"`
 }
 
 type ResumeSubscriptionRequest struct {

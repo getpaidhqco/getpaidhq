@@ -7,6 +7,7 @@ import (
 	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/api/dto/response"
+	"payloop/internal/application/dto"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
@@ -176,13 +177,13 @@ func (s SubscriptionController) UpdateBillingAnchor(c *gin.Context) {
 		return
 	}
 
-	prorationDetails, err := s.subsOrchastration.UpdateBillingAnchor(
+	result, err := s.subsOrchastration.UpdateBillingAnchor(
 		c.Request.Context(),
-		subscriptions.UpdateBillingAnchorInput{
+		dto.UpdateBillingAnchorInput{
 			OrgId:         orgId,
 			Id:            id,
 			BillingAnchor: input.BillingAnchor,
-			ProrationMode: input.ProrationMode,
+			ProrationMode: dto.ProrationMode(input.ProrationMode),
 		})
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
@@ -190,7 +191,7 @@ func (s SubscriptionController) UpdateBillingAnchor(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, response.NewProrationDetailsFromEntity(prorationDetails))
+	c.JSON(200, response.NewUpdateBillingAnchorResultFromDto(result))
 }
 
 // List all subscriptions

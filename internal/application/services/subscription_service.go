@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"payloop/internal/api/dto/request"
+	"payloop/internal/application/dto"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
@@ -299,7 +300,7 @@ func (s SubscriptionService) CancelSubscription(ctx context.Context, input subsc
 	return subscription, nil
 }
 
-func (s SubscriptionService) UpdateBillingAnchor(ctx context.Context, input subscriptions.UpdateBillingAnchorInput) (entities.ProrationDetails, error) {
+func (s SubscriptionService) UpdateBillingAnchor(ctx context.Context, input dto.UpdateBillingAnchorInput) (dto.UpdateBillingAnchorResult, error) {
 	s.logger.Infof("Updating billing anchor for subscription %s", input.Id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
@@ -307,22 +308,36 @@ func (s SubscriptionService) UpdateBillingAnchor(ctx context.Context, input subs
 		s.logger.Error("Failed to find subscriptions", err.Error())
 		var serr lib.CustomError
 		if errors.As(err, &serr) {
-			return entities.ProrationDetails{}, err
+			return dto.UpdateBillingAnchorResult{}, err
 		}
-		return entities.ProrationDetails{}, lib.NewCustomError(lib.InternalError, "", err)
+		return dto.UpdateBillingAnchorResult{}, lib.NewCustomError(lib.InternalError, "", err)
 	}
 
 	// Calculate proration details and update billing anchor
 	prorationDetails := subscription.UpdateBillingAnchor(input.BillingAnchor, string(input.ProrationMode))
 
 	// Save the updated subscription
-	_, err = s.subscriptionRepository.Update(ctx, subscription)
+	updatedSubscription, err := s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
 		s.logger.Error("Failed to update subscription", "err", err.Error())
-		return entities.ProrationDetails{}, err
+		return dto.UpdateBillingAnchorResult{}, err
 	}
 
-	return prorationDetails, nil
+	result := dto.UpdateBillingAnchorResult{
+		Subscription:     updatedSubscription,
+		ProrationDetails: dto.ProrationDetails{
+			CreditAmount:       prorationDetails.CreditAmount,
+			DaysCredited:       prorationDetails.DaysCredited,
+			CurrentPeriodStart: prorationDetails.CurrentPeriodStart,
+			CurrentPeriodEnd:   prorationDetails.CurrentPeriodEnd,
+			OldBillingAnchor:   prorationDetails.OldBillingAnchor,
+			NewBillingAnchor:   prorationDetails.NewBillingAnchor,
+			NewPeriodStart:     prorationDetails.NewPeriodStart,
+			NewPeriodEnd:       prorationDetails.NewPeriodEnd,
+		},
+	}
+
+	return result, nil
 }
 
 func (s SubscriptionService) GetSubscriptionCustomer(ctx context.Context, subscription entities.Subscription) (entities.Customer, error) {

@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"payloop/internal/application/dto"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
@@ -231,27 +232,30 @@ func (s SubscriptionOrchestrationService) CancelSubscription(ctx context.Context
 	return subscription, nil
 }
 
-func (s SubscriptionOrchestrationService) UpdateBillingAnchor(ctx context.Context, input subscriptions.UpdateBillingAnchorInput) (entities.ProrationDetails, error) {
+func (s SubscriptionOrchestrationService) UpdateBillingAnchor(ctx context.Context, input dto.UpdateBillingAnchorInput) (dto.UpdateBillingAnchorResult, error) {
 	s.logger.Infof("Updating billing anchor for subscription %s", input.Id)
 
-	prorationDetails, err := s.SubscriptionService.UpdateBillingAnchor(ctx, input)
+	result, err := s.SubscriptionService.UpdateBillingAnchor(ctx, input)
 	if err != nil {
 		var serr lib.CustomError
 		if errors.As(err, &serr) {
-			return entities.ProrationDetails{}, err
+			return dto.UpdateBillingAnchorResult{}, err
 		}
-		return entities.ProrationDetails{}, lib.NewCustomError(lib.InternalError, "", err)
+		return dto.UpdateBillingAnchorResult{}, lib.NewCustomError(lib.InternalError, "", err)
 	}
 
-	// Get the updated subscription to publish the event
-	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
+	// update the workflow
+	sub, err := s.UpdateWorkflowState(ctx, result.Subscription.OrgId, result.Subscription.Id)
 	if err != nil {
-		s.logger.Error("Failed to find subscription for event publishing", err.Error())
-		// Don't return an error here, we still want to return the proration details
-	} else {
-		// Publish the event
-		_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionBillingAnchorChanged, subscription)
+		var serr lib.CustomError
+		if errors.As(err, &serr) {
+			return dto.UpdateBillingAnchorResult{}, err
+		}
+		return dto.UpdateBillingAnchorResult{}, lib.NewCustomError(lib.InternalError, "", err)
 	}
 
-	return prorationDetails, nil
+	// Publish the event
+	_ = s.pubsub.Publish(result.Subscription.OrgId, topic.SubscriptionBillingAnchorChanged, sub)
+
+	return result, nil
 }

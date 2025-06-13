@@ -58,6 +58,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 	err = workflow.SetUpdateHandler(ctx, "subscription.cancelled", handler)
 	err = workflow.SetUpdateHandler(ctx, "subscription.resumed", handler)
 	err = workflow.SetUpdateHandler(ctx, "subscription.activated", handler)
+	err = workflow.SetUpdateHandler(ctx, "subscription.billing_anchor_changed", handler)
 	err = workflow.SetUpdateHandler(ctx, "refresh-state", forceUpdateHandler)
 
 	// Register signal handler for cancelling the subscription
@@ -110,8 +111,11 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		// Start the reminder workflow
 		childCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
 			WorkflowID:        fmt.Sprintf(`sub_reminder_[%s]_[%s]_[%s]`, subscription.OrgId, subscription.Id, reminderDate.Format("20060102")),
-			ParentClosePolicy: enums.PARENT_CLOSE_POLICY_ABANDON,
+			ParentClosePolicy: enums.PARENT_CLOSE_POLICY_TERMINATE,
 		})
+		// Create a cancellable context for the child workflow
+		childCtx, cancelReminderWorkflow := workflow.WithCancel(childCtx)
+
 		childWorkflowFuture := workflow.ExecuteChildWorkflow(childCtx, SubscriptionChargeReminder, subscription, reminderDate)
 		// Wait for the Child Workflow Execution to spawn
 		var childWE workflow.Execution
@@ -138,6 +142,9 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		if restartBillingWait {
 			logger.Info("RESTART BILLING WAIT - The subscription state was refreshed, clearing the flag and restarting the loop")
 			restartBillingWait = false
+			if cancelReminderWorkflow != nil {
+				cancelReminderWorkflow() // Cancel the reminder workflow if it is still running
+			}
 			continue
 		}
 		if workflow.GetInfo(ctx).GetContinueAsNewSuggested() {
