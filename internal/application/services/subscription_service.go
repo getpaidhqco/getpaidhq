@@ -11,6 +11,7 @@ import (
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/settings"
 	"payloop/internal/domain/entities/subscriptions"
 	"payloop/internal/domain/factories"
 	"payloop/internal/domain/repositories"
@@ -324,7 +325,7 @@ func (s SubscriptionService) UpdateBillingAnchor(ctx context.Context, input dto.
 	}
 
 	result := dto.UpdateBillingAnchorResult{
-		Subscription:     updatedSubscription,
+		Subscription: updatedSubscription,
 		ProrationDetails: dto.ProrationDetails{
 			CreditAmount:       prorationDetails.CreditAmount,
 			DaysCredited:       prorationDetails.DaysCredited,
@@ -583,21 +584,30 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 func (s SubscriptionService) GetRetryPolicy(ctx context.Context, orgId string) subscriptions.RetryPolicy {
 	defaultPolicy := subscriptions.RetryPolicy{
 		RetryAttempts: 3,
-		RetryInterval: subscriptions.RetryIntervalMinute,
-		RetryPeriod:   4,
+		RetryInterval: subscriptions.RetryIntervalDay,
+		RetryPeriod:   10,
 		FailureAction: subscriptions.FailureActionCancel,
 	}
-	setting, err := s.settingRepository.FindById(ctx, orgId, "subscriptions", "retry_policy")
-	if err != nil || setting.Value == "" {
+	setting, err := s.GetOrgSubscriptionSettings(ctx, orgId)
+	if err != nil {
 		s.logger.Infof(`Retry policy not set, using default policy`)
 		return defaultPolicy
 	}
 
-	var retryPolicy subscriptions.RetryPolicy
-	err = json.Unmarshal([]byte(setting.Value), &retryPolicy)
+	return setting.RetryPolicy
+}
+
+func (s SubscriptionService) GetOrgSubscriptionSettings(ctx context.Context, orgId string) (settings.Subscription, error) {
+	subscription, err := s.settingRepository.FindById(ctx, orgId, orgId, "subscriptions")
 	if err != nil {
-		s.logger.Error("Failed to unmarshal retry policy", "error", err)
-		return defaultPolicy
+		return settings.Subscription{}, err
 	}
-	return retryPolicy
+
+	var subscriptionSettings settings.Subscription
+	err = json.Unmarshal([]byte(subscription.Value), &subscriptionSettings)
+	if err != nil {
+		return settings.Subscription{}, errors.New("invalid subscription settings format")
+	}
+
+	return subscriptionSettings, nil
 }
