@@ -12,6 +12,7 @@ import (
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/entities/payments"
+	"payloop/internal/domain/entities/settings"
 	"payloop/internal/domain/entities/subscriptions"
 	"payloop/internal/domain/factories"
 	"payloop/internal/domain/payment_providers"
@@ -274,15 +275,52 @@ func (a *OrderActivities) ErrorState(ctx context.Context, subscription entities.
 
 	return nil
 }
+func (a *OrderActivities) NotifyWorkflowEnded(ctx context.Context, orgId string, subId string) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("NotifyWorkflowEnded", "OrgId", orgId, "SubscriptionId", subId)
+
+	_ = a.pubsub.Publish(orgId, topic.SubscriptionWorkflowEnded, map[string]string{
+		"orgId":           orgId,
+		"subscription_id": subId,
+	})
+	return nil
+}
 
 func (a *OrderActivities) GetSubscription(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
 	return a.subscriptionRepository.FindById(ctx, orgId, id)
 }
 
+func (a *OrderActivities) GetSubscriptionSettings(ctx context.Context, orgId string) (settings.Subscription, error) {
+	s, err := a.settingRepository.FindById(ctx, orgId, orgId, "subscriptions")
+	if err != nil {
+		return settings.Subscription{}, err
+	}
+
+	var subscriptionSettings settings.Subscription
+	err = json.Unmarshal([]byte(s.Value), &subscriptionSettings)
+	if err != nil {
+		return settings.Subscription{}, errors.New("invalid subscription settings format")
+	}
+
+	return subscriptionSettings, nil
+}
+
 func (a *OrderActivities) ProcessReminderEvent(ctx context.Context, subscription entities.Subscription) error {
 	logger := activity.GetLogger(ctx)
 	logger.Info("ProcessReminderEvent", "OrgId", subscription.OrgId, "SubscriptionId", subscription.Id)
-	subscription, err := a.subscriptionRepository.FindById(ctx, subscription.OrgId, subscription.Id)
+
+	subSettings, err := a.GetSubscriptionSettings(ctx, subscription.OrgId)
+	if err != nil {
+		logger.Error("Failed to get subscription settings", "error", err.Error())
+		return err
+	}
+
+	if !subSettings.EmailReminders {
+		logger.Info("Email reminders are disabled for this subscription, skipping reminder processing")
+		return nil
+	}
+
+	subscription, err = a.subscriptionRepository.FindById(ctx, subscription.OrgId, subscription.Id)
 	if err != nil {
 		logger.Error("Failed to find subscription", "error", err.Error())
 		return err

@@ -3,7 +3,9 @@ package temporal
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 	temporal "go.temporal.io/sdk/workflow"
@@ -16,6 +18,7 @@ import (
 	"payloop/internal/infrastructure/workflow/temporal/activities"
 	"payloop/internal/infrastructure/workflow/temporal/workflows"
 	"payloop/internal/lib"
+	"payloop/internal/lib/apperrors"
 )
 
 type Temporal struct {
@@ -237,6 +240,12 @@ func (t Temporal) UpdateSubscriptionWorkflow(ctx context.Context, updateName str
 		Args:         []interface{}{subscription},
 	})
 	if err != nil {
+		var notFoundErr *serviceerror.NotFound
+		if errors.As(err, &notFoundErr) {
+			t.logger.Error("Workflow not found", "error", slog.String("err", err.Error()))
+			return apperrors.NewNotFound("Workflow not found", err)
+		}
+
 		t.logger.Error("Failed to update workflow", "error", slog.String("err", err.Error()))
 		t.errorReporter.ReportError(ctx, err, map[string]interface{}{
 			"org_id":          subscription.OrgId,

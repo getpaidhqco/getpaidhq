@@ -25,4 +25,5 @@ var Module = fx.Options(
 	fx.Provide(NewPspService),
 	fx.Provide(NewMetadataService),
 	fx.Provide(NewPaymentService),
+	fx.Provide(NewSettingsService),
 )

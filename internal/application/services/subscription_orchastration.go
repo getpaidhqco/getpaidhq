@@ -11,6 +11,7 @@ import (
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/subscriptions"
 	"payloop/internal/domain/factories"
+	"payloop/internal/lib/apperrors"
 
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -219,11 +220,20 @@ func (s SubscriptionOrchestrationService) CancelSubscription(ctx context.Context
 	s.logger.Debugf("Updating workflow for subscription %s [%s]", subscription.Id, topic.TopicSubscriptionCancelled)
 	err = s.workflowEngine.UpdateSubscriptionWorkflow(ctx, topic.TopicSubscriptionCancelled, subscription)
 	if err != nil {
-		var serr lib.CustomError
-		if errors.As(err, &serr) {
-			return entities.Subscription{}, err
+		switch e := err.(type) {
+		case apperrors.NotFound:
+			// since we're cancelling, we don't care if the workflow is not found
+			s.logger.Warnf("Workflow not found for subscription %s: %v", subscription.Id, e)
+			break
+
+		default:
+			var serr lib.CustomError
+			if errors.As(err, &serr) {
+				return entities.Subscription{}, err
+			}
+			return entities.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
 		}
-		return entities.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
+
 	}
 
 	// publi

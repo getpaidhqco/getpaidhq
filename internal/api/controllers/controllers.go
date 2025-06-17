@@ -19,4 +19,5 @@ var Module = fx.Options(
 	fx.Provide(NewReportController),
 	fx.Provide(NewPspController),
 	fx.Provide(NewPaymentController),
+	fx.Provide(NewSettingsController),
 )

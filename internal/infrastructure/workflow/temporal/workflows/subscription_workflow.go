@@ -2,11 +2,13 @@ package workflows
 
 import (
 	"fmt"
+	"github.com/Trendyol/go-pq-cdc/logger"
 	"go.temporal.io/api/enums/v1"
 	temporalio "go.temporal.io/sdk/temporal"
 	"log/slog"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/payments"
+	settings2 "payloop/internal/domain/entities/settings"
 	"payloop/internal/infrastructure/workflow/temporal/activities"
 	"time"
 
@@ -23,13 +25,22 @@ type SubscriptionInput struct {
 // https://learn.temporal.io/tutorials/typescript/recurring-billing-system/
 
 func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (entities.Subscription, error) {
+	logger.Info("SubscriptionWorkflow started", "Subscription:", input.Id)
+	var a *activities.OrderActivities
+
+	defer func() {
+		// Emit your event here (e.g., call an activity to notify)
+		logger.Info("calling NotifyWorkflowEnded", "Orgid", input.OrgId, "id", input.Id)
+		_ = workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+			StartToCloseTimeout: time.Second * 60,
+		}), a.NotifyWorkflowEnded, input.OrgId, input.Id).Get(ctx, nil)
+	}()
+
 	logger := workflow.GetLogger(ctx)
 	subscription := input
 	// A flag to indicate if the workflow should be refreshed. Used by the "force-update" signal
 	restartBillingWait := false
 
-	logger.Info("SubscriptionWorkflow started", "Subscription:", subscription.Id)
-	var a *activities.OrderActivities
 	// Register query handler for subscription details
 	err := workflow.SetQueryHandler(ctx, "get-state", func() (entities.Subscription, error) {
 		return subscription, nil
@@ -98,14 +109,35 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			break
 		}
 
+		// Charge the customer
+		var subscriptionSettings settings2.Subscription
+		settingsCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+			StartToCloseTimeout: time.Second * 60,
+			RetryPolicy: &temporalio.RetryPolicy{
+				InitialInterval:    time.Minute * 2,
+				BackoffCoefficient: 1.2,
+			},
+		})
+		err = workflow.ExecuteActivity(settingsCtx, a.GetSubscriptionSettings, subscription.OrgId).
+			Get(settingsCtx, &subscriptionSettings)
+		if err != nil {
+			// a system error occurred when attempting to charge the customer
+			// This shouldn't be reached because of the retry policy which will retry forever
+			// The workflow can be stopped using updates
+			// TODO report this error
+			logger.Error("ChargeCustomerForBillingPeriod failed completely, ending workflow", "Error", err.Error())
+			return subscription, err
+		}
+
 		// Wait here until the next billing date or until the subscription is cancelled
 		// If the subscription state was updated using the "force-update", then we need to
 		// restart the wait so that the new state is taken into account
 		// RenewsAt is the date when the subscription will be charged again
 		// NextRenewalDate is the date when the subscription will be charged again
 		duration := nextCharge.Sub(workflow.Now(ctx))
-		reminderDuration := time.Duration(1) * time.Minute
+		reminderDuration := time.Duration(subscriptionSettings.ReminderDays) * time.Hour * 24
 		reminderDate := nextCharge.Add(-reminderDuration)
+		logger.Info(fmt.Sprintf("******* [%s][%s] reminder event set for [%d] days before", subscription.OrgId, subscription.Id, subscriptionSettings.ReminderDays))
 		logger.Info(fmt.Sprintf("******* [%s][%s] blocking until nextBillingDate=[%s]", subscription.OrgId, subscription.Id, nextCharge))
 
 		// Start the reminder workflow

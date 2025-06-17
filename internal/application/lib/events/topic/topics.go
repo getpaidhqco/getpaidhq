@@ -58,6 +58,7 @@ const (
 	SubscriptionPaymentChargeFailed  = "subscription.payment.charge.failed"
 
 	SubscriptionWorkflowStartupFailed = "subscription.workflow.startup.failed"
+	SubscriptionWorkflowEnded         = "subscription.workflow.ended"
 
 	WebhookSubscriptionCreated = "webhook.created"
 
