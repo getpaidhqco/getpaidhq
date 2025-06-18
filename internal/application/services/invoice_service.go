@@ -213,7 +213,7 @@ func (s InvoiceService) Create(ctx context.Context, orgId string, input dto.Crea
 		Type:           input.Type,
 		InvoiceType:    input.InvoiceType,
 		Status:         status,
-		IsImmutable:    status != entities.InvoiceStatusDraft, // Immutable if not draftw
+		IsImmutable:    status != entities.InvoiceStatusDraft,
 		Currency:       input.Currency,
 		SubTotal:       0, // Will be calculated from line items
 		TaxTotal:       0, // Will be calculated from line items
@@ -221,10 +221,14 @@ func (s InvoiceService) Create(ctx context.Context, orgId string, input dto.Crea
 		Total:          0, // Will be calculated from line items
 		AmountPaid:     0,
 		AmountDue:      0, // Will be calculated
+		IssuedAt:       input.IssuedAt,
+		DueAt:          input.DueAt,
+		PaidAt:         input.PaidAt,
 		Notes:          input.Notes,
 		CustomerNotes:  input.CustomerNotes,
 		Metadata:       input.Metadata,
-		DueAt:          input.DueAt,
+		ExchangeRate:   1,
+		BaseCurrency:   input.Currency,
 		CreatedAt:      time.Now().UTC(),
 		UpdatedAt:      time.Now().UTC(),
 	}
