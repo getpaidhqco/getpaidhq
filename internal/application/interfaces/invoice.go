@@ -19,7 +19,7 @@ type InvoiceService interface {
 	PerformAction(ctx context.Context, orgId string, id string, req dto.InvoiceActionRequest) (entities.Invoice, error)
 
 	// Line item operations
-	AddLineItem(ctx context.Context, orgId string, invoiceId string, req dto.CreateInvoiceLineItemRequest) (entities.InvoiceLineItem, error)
+	AddLineItem(ctx context.Context, orgId string, invoiceId string, req dto.CreateInvoiceLineItemInput) (entities.InvoiceLineItem, error)
 	UpdateLineItem(ctx context.Context, orgId string, invoiceId string, lineItemId string, req dto.UpdateInvoiceLineItemRequest) (entities.InvoiceLineItem, error)
 	DeleteLineItem(ctx context.Context, orgId string, invoiceId string, lineItemId string) error
 	ListLineItems(ctx context.Context, orgId string, invoiceId string) ([]entities.InvoiceLineItem, error)

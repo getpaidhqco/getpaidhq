@@ -7,18 +7,20 @@ import (
 
 // CreateInvoiceInput represents the request to create a new invoice
 type CreateInvoiceInput struct {
-	CustomerId     string                         `json:"customer_id" binding:"required"`
-	OrderId        string                         `json:"order_id,omitempty"`
-	SubscriptionId string                         `json:"subscription_id,omitempty"`
-	Type           entities.DocumentType          `json:"type" binding:"required"`
-	InvoiceType    entities.InvoiceType           `json:"invoice_type" binding:"required"`
-	Status         entities.InvoiceStatus         `json:"status,omitempty"`
-	Currency       string                         `json:"currency" binding:"required"`
-	DueAt          time.Time                      `json:"due_at,omitempty"`
-	Notes          string                         `json:"notes,omitempty"`
-	CustomerNotes  string                         `json:"customer_notes,omitempty"`
-	Metadata       map[string]string              `json:"metadata,omitempty"`
-	LineItems      []CreateInvoiceLineItemRequest `json:"line_items,omitempty"`
+	CustomerId     string                       `json:"customer_id" binding:"required"`
+	OrderId        string                       `json:"order_id,omitempty"`
+	SubscriptionId string                       `json:"subscription_id,omitempty"`
+	Type           entities.DocumentType        `json:"type" binding:"required"`
+	InvoiceType    entities.InvoiceType         `json:"invoice_type" binding:"required"`
+	Status         entities.InvoiceStatus       `json:"status,omitempty"`
+	Currency       string                       `json:"currency" binding:"required"`
+	DueAt          time.Time                    `json:"due_at,omitempty"`
+	IssuedAt       time.Time                    `json:"issued_at,omitempty"`
+	PaidAt         time.Time                    `json:"paid_at,omitempty"`
+	Notes          string                       `json:"notes,omitempty"`
+	CustomerNotes  string                       `json:"customer_notes,omitempty"`
+	Metadata       map[string]string            `json:"metadata,omitempty"`
+	LineItems      []CreateInvoiceLineItemInput `json:"line_items,omitempty"`
 }
 
 // UpdateInvoiceRequest represents the request to update an existing invoice
@@ -29,8 +31,8 @@ type UpdateInvoiceRequest struct {
 	Metadata      map[string]string `json:"metadata,omitempty"`
 }
 
-// CreateInvoiceLineItemRequest represents the request to create a new invoice line item
-type CreateInvoiceLineItemRequest struct {
+// CreateInvoiceLineItemInput represents the request to create a new invoice line item
+type CreateInvoiceLineItemInput struct {
 	ProductId     string            `json:"product_id,omitempty"`
 	VariantId     string            `json:"variant_id,omitempty"`
 	PriceId       string            `json:"price_id,omitempty"`

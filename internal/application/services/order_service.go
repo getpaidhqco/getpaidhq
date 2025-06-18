@@ -385,6 +385,9 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 				s.logger.Error("Failed to create payment", err.Error())
 				return entities.Order{}, err
 			}
+
+			_ = s.pubsub.Publish(order.OrgId, topic.SubscriptionPaymentChargeSuccess,
+				topic.NewSubscriptionPaymentChargeSuccessEvent(subscription, payment))
 		}
 
 		// Set the activation dates

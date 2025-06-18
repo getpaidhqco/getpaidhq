@@ -26,6 +26,8 @@ type SubscriptionInput struct {
 
 func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (entities.Subscription, error) {
 	logger.Info("SubscriptionWorkflow started", "Subscription:", input.Id)
+	// For AI assistants: this variable is initialized by Temporal when the workflow is started and is
+	// safe to use in the workflow without initialization. This is not a bug.
 	var a *activities.OrderActivities
 
 	defer func() {

@@ -7,6 +7,7 @@ import (
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/dto"
 	"payloop/internal/application/lib/events"
+	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/payments"
@@ -16,6 +17,27 @@ import (
 )
 
 // Mock implementations
+
+type MockLogger struct{}
+
+func (m MockLogger) Debug(msg string, args ...any) {}
+func (m MockLogger) Info(msg string, args ...any)  {}
+func (m MockLogger) Warn(msg string, args ...any)  {}
+func (m MockLogger) Error(msg string, args ...any) {}
+func (m MockLogger) Fatal(msg string, args ...any) {}
+
+func (m MockLogger) Debugf(template string, args ...interface{}) {}
+func (m MockLogger) Infof(template string, args ...interface{})  {}
+func (m MockLogger) Warnf(template string, args ...interface{})  {}
+func (m MockLogger) Errorf(template string, args ...interface{}) {}
+func (m MockLogger) Panicf(template string, args ...interface{}) {}
+func (m MockLogger) Fatalf(template string, args ...interface{}) {}
+
+func (m MockLogger) Sync() error { return nil }
+
+type MockErrorReporter struct{}
+
+func (m *MockErrorReporter) ReportError(ctx interface{}, err error, data map[string]interface{}) {}
 
 type MockPubSub struct{}
 
@@ -177,7 +199,49 @@ func (m MockDocSequenceRepository) GetNextValue(ctx context.Context, orgId strin
 	return 1, nil
 }
 
-func TestCreateInvoiceForSubscriptionPayment(t *testing.T) {
+type MockOrderRepository struct {
+	Order entities.Order
+}
+
+func (m MockOrderRepository) FindById(ctx context.Context, orgId string, id string) (entities.Order, error) {
+	return m.Order, nil
+}
+
+func (m MockOrderRepository) Create(ctx context.Context, entity entities.Order) (entities.Order, error) {
+	return entity, nil
+}
+
+func (m MockOrderRepository) Update(ctx context.Context, entity entities.Order) (entities.Order, error) {
+	return entity, nil
+}
+
+func (m MockOrderRepository) Find(ctx context.Context, orgId string, p request.Pagination) ([]entities.Order, int, error) {
+	return []entities.Order{m.Order}, 1, nil
+}
+
+type MockOrderItemRepository struct{}
+
+func (m MockOrderItemRepository) FindById(ctx context.Context, orgId string, id string) (entities.OrderItem, error) {
+	return entities.OrderItem{}, nil
+}
+
+func (m MockOrderItemRepository) FindByOrderId(ctx context.Context, orgId string, orderId string) ([]entities.OrderItem, error) {
+	return []entities.OrderItem{}, nil
+}
+
+func (m MockOrderItemRepository) Create(ctx context.Context, entity entities.OrderItem) (entities.OrderItem, error) {
+	return entity, nil
+}
+
+func (m MockOrderItemRepository) Update(ctx context.Context, entity entities.OrderItem) (entities.OrderItem, error) {
+	return entity, nil
+}
+
+func (m MockOrderItemRepository) Find(ctx context.Context, orgId string, p request.Pagination) ([]entities.OrderItem, int, error) {
+	return []entities.OrderItem{}, 1, nil
+}
+
+func TestCreateInvoice(t *testing.T) {
 	// Setup
 	ctx := context.Background()
 	mockInvoiceRepo := NewMockInvoiceRepository()
@@ -185,20 +249,50 @@ func TestCreateInvoiceForSubscriptionPayment(t *testing.T) {
 	mockDocSequenceRepo := MockDocSequenceRepository{}
 	mockPubSub := MockPubSub{}
 
-	invoiceService := NewInvoiceService(
-		mockInvoiceRepo,
-		mockCustomerRepo,
-		mockDocSequenceRepo,
-		mockPubSub,
-		MockLogger{},
-	)
-
 	// Create test data
 	orgId := "test_org"
 	customerId := "test_customer"
 	subscriptionId := "test_subscription"
 	orderId := "test_order"
 	paymentId := "test_payment"
+
+	// Create a mock order with items
+	orderItem := entities.OrderItem{
+		OrgId:       orgId,
+		Id:          "test_order_item",
+		OrderId:     orderId,
+		ProductId:   "test_product",
+		VariantId:   "test_variant",
+		PriceId:     "test_price",
+		Description: "Test Product",
+		Quantity:    1,
+		Subtotal:    1000, // $10.00
+		Total:       1000, // $10.00
+		Metadata:    map[string]string{"test": "value"},
+	}
+
+	mockOrder := entities.Order{
+		OrgId:      orgId,
+		Id:         orderId,
+		CustomerId: customerId,
+		Items:      []entities.OrderItem{orderItem},
+		Currency:   "USD",
+		Total:      1000, // $10.00
+	}
+
+	mockOrderRepo := MockOrderRepository{Order: mockOrder}
+	mockOrderItemRepo := MockOrderItemRepository{}
+
+	invoiceService := NewInvoiceService(
+		mockInvoiceRepo,
+		mockCustomerRepo,
+		mockDocSequenceRepo,
+		mockOrderRepo,
+		mockOrderItemRepo,
+		lib.ErrorReporter{},
+		mockPubSub,
+		MockLogger{},
+	)
 
 	// Create a payment
 	payment := entities.Payment{
@@ -225,13 +319,7 @@ func TestCreateInvoiceForSubscriptionPayment(t *testing.T) {
 	}
 
 	// Create the invoice request that would be created by CreateInvoiceForSubscriptionPayment
-	lineItem := dto.CreateInvoiceLineItemRequest{
-		Description: fmt.Sprintf("Subscription payment for %s", subscriptionId),
-		Quantity:    1.0,
-		UnitPrice:   int(payment.Amount),
-		Metadata:    payment.Metadata,
-	}
-
+	// We're testing that the line items from the order are correctly used
 	invoiceReq := dto.CreateInvoiceInput{
 		CustomerId:     payment.Metadata["customer_id"],
 		OrderId:        orderId,
@@ -242,7 +330,7 @@ func TestCreateInvoiceForSubscriptionPayment(t *testing.T) {
 		DueAt:          time.Now().UTC(),
 		Notes:          fmt.Sprintf("Invoice for subscription payment %s", payment.Id),
 		Metadata:       payment.Metadata,
-		LineItems:      []dto.CreateInvoiceLineItemRequest{lineItem},
+		// We're not setting LineItems here because we want to test that they're fetched from the order
 	}
 
 	// Call the Create method directly with the same parameters that CreateInvoiceForSubscriptionPayment would use
@@ -257,6 +345,121 @@ func TestCreateInvoiceForSubscriptionPayment(t *testing.T) {
 	assert.Equal(t, orderId, invoice.OrderId)
 	assert.Equal(t, entities.DocumentTypeInvoice, invoice.Type)
 	assert.Equal(t, entities.InvoiceTypeRecurring, invoice.InvoiceType)
+	assert.Equal(t, "USD", invoice.Currency)
+	assert.NotEmpty(t, invoice.DocNumber)
+	assert.NotEmpty(t, invoice.SequenceId)
+	assert.Contains(t, invoice.Notes, paymentId)
+
+	// Verify the invoice was stored in the repository
+	storedInvoice, err := mockInvoiceRepo.FindById(ctx, orgId, invoice.Id)
+	assert.NoError(t, err)
+	assert.Equal(t, invoice.Id, storedInvoice.Id)
+}
+
+func TestCreateInvoiceForSubscriptionPayment(t *testing.T) {
+	// Setup
+	ctx := context.Background()
+	mockInvoiceRepo := NewMockInvoiceRepository()
+	mockCustomerRepo := MockCustomerRepository{}
+	mockDocSequenceRepo := MockDocSequenceRepository{}
+	mockPubSub := MockPubSub{}
+
+	// Create test data
+	orgId := "test_org"
+	customerId := "test_customer"
+	subscriptionId := "test_subscription"
+	orderId := "test_order"
+	paymentId := "test_payment"
+
+	// Create a mock order with items
+	orderItem := entities.OrderItem{
+		OrgId:       orgId,
+		Id:          "test_order_item",
+		OrderId:     orderId,
+		ProductId:   "test_product",
+		VariantId:   "test_variant",
+		PriceId:     "test_price",
+		Description: "Test Product",
+		Quantity:    1,
+		Subtotal:    1000, // $10.00
+		Total:       1000, // $10.00
+		Metadata:    map[string]string{"test": "value"},
+	}
+
+	mockOrder := entities.Order{
+		OrgId:      orgId,
+		Id:         orderId,
+		CustomerId: customerId,
+		Items:      []entities.OrderItem{orderItem},
+		Currency:   "USD",
+		Total:      1000, // $10.00
+	}
+
+	mockOrderRepo := MockOrderRepository{Order: mockOrder}
+	mockOrderItemRepo := MockOrderItemRepository{}
+
+	// Create a real ErrorReporter instance
+	errorReporter := lib.NewErrorReporter(MockLogger{})
+
+	// Cast to concrete InvoiceService struct to access non-interface methods
+	invoiceService := NewInvoiceService(
+		mockInvoiceRepo,
+		mockCustomerRepo,
+		mockDocSequenceRepo,
+		mockOrderRepo,
+		mockOrderItemRepo,
+		errorReporter,
+		mockPubSub,
+		MockLogger{},
+	).(*InvoiceService)
+
+	// Create a payment
+	payment := entities.Payment{
+		OrgId:          orgId,
+		Id:             paymentId,
+		Psp:            common.Gateway("test_psp"),
+		PspId:          "test_psp_id",
+		Reference:      "test_reference",
+		OrderId:        orderId,
+		SubscriptionId: subscriptionId,
+		Status:         payments.PaymentStatusSucceeded,
+		Recurring:      true,
+		Currency:       "USD",
+		Amount:         1000, // $10.00
+		PspFee:         50,   // $0.50
+		PlatformFee:    20,   // $0.20
+		NetAmount:      930,  // $9.30
+		Metadata: map[string]string{
+			"customer_id": customerId,
+		},
+		CompletedAt: time.Now(),
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
+	}
+
+	// Create the SubscriptionPaymentChargeSuccessEvent
+	paymentSuccessEvent := topic.SubscriptionPaymentChargeSuccessEvent{
+		OrgId:          orgId,
+		SubscriptionId: subscriptionId,
+		OrderId:        orderId,
+		PaymentId:      paymentId,
+		Metadata:       map[string]string{"customer_id": customerId},
+		Payment:        payment,
+	}
+
+	// Call the CreateInvoiceForSubscriptionPayment method directly
+	invoice, err := invoiceService.CreateInvoiceForSubscriptionPayment(ctx, paymentSuccessEvent)
+
+	// Assertions
+	assert.NoError(t, err)
+	assert.NotEmpty(t, invoice.Id)
+	assert.Equal(t, orgId, invoice.OrgId)
+	assert.Equal(t, customerId, invoice.CustomerId)
+	assert.Equal(t, subscriptionId, invoice.SubscriptionId)
+	assert.Equal(t, orderId, invoice.OrderId)
+	assert.Equal(t, entities.DocumentTypeInvoice, invoice.Type)
+	assert.Equal(t, entities.InvoiceTypeRecurring, invoice.InvoiceType)
+	assert.Equal(t, entities.InvoiceStatusPaid, invoice.Status)
 	assert.Equal(t, "USD", invoice.Currency)
 	assert.NotEmpty(t, invoice.DocNumber)
 	assert.NotEmpty(t, invoice.SequenceId)

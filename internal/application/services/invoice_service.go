@@ -32,23 +32,35 @@ type InvoiceService struct {
 	invoiceRepository     repositories.InvoiceRepository
 	customerRepository    repositories.CustomerRepository
 	docSequenceRepository repositories.DocSequenceRepository
+	orderRepository       repositories.OrderRepository
+	orderItemRepository   repositories.OrderItemRepository
+	errorReporter         lib.ErrorReporter
 	pubsub                events.PubSub
 	logger                logger.Logger
+	transactionService    interfaces.TransactionService
 }
 
 func NewInvoiceService(
 	invoiceRepository repositories.InvoiceRepository,
 	customerRepository repositories.CustomerRepository,
 	docSequenceRepository repositories.DocSequenceRepository,
+	orderRepository repositories.OrderRepository,
+	orderItemRepository repositories.OrderItemRepository,
+	errorReporter lib.ErrorReporter,
 	pubsub events.PubSub,
 	logger logger.Logger,
+	transactionService interfaces.TransactionService,
 ) interfaces.InvoiceService {
 	service := InvoiceService{
 		invoiceRepository:     invoiceRepository,
 		customerRepository:    customerRepository,
 		docSequenceRepository: docSequenceRepository,
+		orderRepository:       orderRepository,
+		errorReporter:         errorReporter,
+		orderItemRepository:   orderItemRepository,
 		pubsub:                pubsub,
 		logger:                logger,
+		transactionService:    transactionService,
 	}
 
 	// subscribe to order events to manage cohorts
@@ -88,6 +100,10 @@ func (s InvoiceService) HandleSubscriptionPaymentSuccessEvent(eventTopic string,
 		invoice, err := s.CreateInvoiceForSubscriptionPayment(context.Background(), paymentSuccess)
 		if err != nil {
 			s.logger.Errorf("Failed to create invoice for subscription payment: %v", err)
+			s.errorReporter.ReportError(context.Background(), err, map[string]interface{}{
+				"org_id": payload.OrgId,
+				"id":     payload.Id,
+			})
 			return
 		}
 
@@ -100,27 +116,43 @@ func (s InvoiceService) HandleSubscriptionPaymentSuccessEvent(eventTopic string,
 func (s InvoiceService) CreateInvoiceForSubscriptionPayment(ctx context.Context, paymentSuccess topic.SubscriptionPaymentChargeSuccessEvent) (entities.Invoice, error) {
 	payment := paymentSuccess.Payment
 
-	// Create a line item for the payment
-	lineItem := dto.CreateInvoiceLineItemRequest{
-		Description: fmt.Sprintf("Subscription payment for %s", paymentSuccess.SubscriptionId),
-		Quantity:    1.0,
-		UnitPrice:   int(payment.Amount),
-		Metadata:    payment.Metadata,
+	// get the line items from the order
+	order, err := s.orderRepository.FindById(ctx, paymentSuccess.OrgId, paymentSuccess.OrderId)
+	if err != nil {
+		s.logger.Errorf("Failed to find order %s: %v", paymentSuccess.OrderId, err)
+		return entities.Invoice{}, err
+	}
+
+	// Convert order items to invoice line items
+	var lineItems []dto.CreateInvoiceLineItemInput
+	for _, item := range order.Items {
+		lineItem := dto.CreateInvoiceLineItemInput{
+			ProductId:   item.ProductId,
+			VariantId:   item.VariantId,
+			PriceId:     item.PriceId,
+			Description: item.Description,
+			Quantity:    float64(item.Quantity),
+			UnitPrice:   int(item.Subtotal / int64(item.Quantity)),
+			Metadata:    item.Metadata,
+		}
+		lineItems = append(lineItems, lineItem)
 	}
 
 	// Create the invoice request
 	invoiceReq := dto.CreateInvoiceInput{
-		CustomerId:     payment.Metadata["customer_id"], // Assuming customer_id is stored in metadata
-		OrderId:        paymentSuccess.OrderId,
+		CustomerId:     order.CustomerId,
+		OrderId:        order.Id,
 		SubscriptionId: paymentSuccess.SubscriptionId,
 		Status:         entities.InvoiceStatusPaid,
 		Type:           entities.DocumentTypeInvoice,
 		InvoiceType:    entities.InvoiceTypeRecurring,
 		Currency:       payment.Currency,
 		DueAt:          time.Now().UTC(),
+		IssuedAt:       time.Now().UTC(),
+		PaidAt:         paymentSuccess.Payment.CompletedAt,
 		Notes:          fmt.Sprintf("Invoice for subscription payment %s", payment.Id),
 		Metadata:       payment.Metadata,
-		LineItems:      []dto.CreateInvoiceLineItemRequest{lineItem},
+		LineItems:      lineItems,
 	}
 
 	// Create the invoice
@@ -452,7 +484,7 @@ func (s InvoiceService) PerformAction(ctx context.Context, orgId string, id stri
 	return updatedInvoice, nil
 }
 
-func (s InvoiceService) AddLineItem(ctx context.Context, orgId string, invoiceId string, req dto.CreateInvoiceLineItemRequest) (entities.InvoiceLineItem, error) {
+func (s InvoiceService) AddLineItem(ctx context.Context, orgId string, invoiceId string, req dto.CreateInvoiceLineItemInput) (entities.InvoiceLineItem, error) {
 	// Get existing invoice
 	invoice, err := s.invoiceRepository.FindById(ctx, orgId, invoiceId)
 	if err != nil {

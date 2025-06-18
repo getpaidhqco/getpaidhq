@@ -100,40 +100,44 @@ func TestUpsertSetting(t *testing.T) {
 	orgId := "test_org"
 	parentId := "test_parent"
 	settingId := "test_setting"
-	settingType := "json"
 	settingValue := `{"key1": "value1"}`
 
-	// Create a new setting
-	setting := entities.Setting{
-		OrgId:    orgId,
-		ParentId: parentId,
-		Id:       settingId,
-		Type:     settingType,
-		Value:    settingValue,
-	}
+	// We'll use these values for testing
 
 	// Test creating a new setting
-	createdSetting, err := settingsService.UpsertSetting(ctx, setting)
+	var value map[string]interface{}
+	err := json.Unmarshal([]byte(settingValue), &value)
+	assert.NoError(t, err)
+
+	createdSetting, err := settingsService.UpsertSetting(ctx, orgId, parentId, settingId, value)
 	assert.NoError(t, err)
 	assert.Equal(t, orgId, createdSetting.OrgId)
 	assert.Equal(t, parentId, createdSetting.ParentId)
 	assert.Equal(t, settingId, createdSetting.Id)
-	assert.Equal(t, settingType, createdSetting.Type)
-	assert.Equal(t, settingValue, createdSetting.Value)
-	assert.False(t, createdSetting.CreatedAt.IsZero())
-	assert.False(t, createdSetting.UpdatedAt.IsZero())
+
+	// Parse the JSON to compare it properly
+	var createdValueMap map[string]interface{}
+	err = json.Unmarshal([]byte(createdSetting.Value), &createdValueMap)
+	assert.NoError(t, err)
+	assert.Equal(t, "value1", createdValueMap["key1"])
+
+	// Check that timestamps are set
+	assert.NotZero(t, createdSetting.CreatedAt)
+	assert.NotZero(t, createdSetting.UpdatedAt)
 
 	// Update the setting with new values
 	updatedValue := `{"key1": "value1", "key2": "value2"}`
-	setting.Value = updatedValue
+
+	var updatedValueObj map[string]interface{}
+	err = json.Unmarshal([]byte(updatedValue), &updatedValueObj)
+	assert.NoError(t, err)
 
 	// Test updating an existing setting
-	updatedSetting, err := settingsService.UpsertSetting(ctx, setting)
+	updatedSetting, err := settingsService.UpsertSetting(ctx, orgId, parentId, settingId, updatedValueObj)
 	assert.NoError(t, err)
 	assert.Equal(t, orgId, updatedSetting.OrgId)
 	assert.Equal(t, parentId, updatedSetting.ParentId)
 	assert.Equal(t, settingId, updatedSetting.Id)
-	assert.Equal(t, settingType, updatedSetting.Type)
 
 	// Parse the JSON to compare it properly
 	var updatedValueMap map[string]interface{}
@@ -147,16 +151,20 @@ func TestUpsertSetting(t *testing.T) {
 		updatedSetting.UpdatedAt.Equal(createdSetting.UpdatedAt))
 
 	// Test invalid JSON
-	invalidSetting := entities.Setting{
-		OrgId:    orgId,
-		ParentId: parentId,
-		Id:       "invalid_json_setting",
-		Type:     settingType,
-		Value:    `{"key": "value"`, // Invalid JSON missing closing brace
-	}
-	_, err = settingsService.UpsertSetting(ctx, invalidSetting)
+	invalidSettingId := "invalid_json_setting"
+	invalidJSON := `{"key": "value"` // Invalid JSON missing closing brace
+
+	// Try to parse the invalid JSON
+	var invalidValue interface{}
+	err = json.Unmarshal([]byte(invalidJSON), &invalidValue)
 	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "invalid JSON")
+
+	// Since we can't even parse the invalid JSON, we'll create a different test
+	// We'll try to use a value that can't be properly marshaled to JSON
+	invalidValue = make(chan int) // channels can't be marshaled to JSON
+
+	_, err = settingsService.UpsertSetting(ctx, orgId, parentId, invalidSettingId, invalidValue)
+	assert.Error(t, err)
 
 	// Clean up - delete the test setting
 	err = settingsService.DeleteSetting(ctx, orgId, parentId, settingId)

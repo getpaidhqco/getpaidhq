@@ -6,6 +6,10 @@ import (
 
 // Module exports services present
 var Module = fx.Options(
+	fx.Provide(fx.Annotate(
+		NewTransactionService,
+		fx.ParamTags(`name:"primaryDb"`),
+	)),
 	fx.Provide(NewUserService),
 	fx.Provide(NewOrderService),
 	fx.Provide(NewInvoiceService),

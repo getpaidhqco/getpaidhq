@@ -1,0 +1,11 @@
+package interfaces
+
+import (
+	"context"
+)
+
+// TransactionService provides transaction management capabilities
+type TransactionService interface {
+	// WithTransaction executes the given function within a transaction
+	WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error
+}
