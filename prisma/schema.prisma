@@ -557,7 +557,7 @@ model Payment {
   orderId String @map("order_id")
   order   Order  @relation(fields: [orgId, orderId], references: [orgId, id])
 
-  invoiceId String?
+  invoiceId String?  @map("invoice_id")
   Invoice   Invoice? @relation(fields: [orgId, invoiceId], references: [orgId, id])
 
   subscriptionId String?       @map("subscription_id")
@@ -568,11 +568,11 @@ model Payment {
 
   status PaymentStatus
 
-  psp_fee      Int
-  platform_fee Int
-  net_amount   Int
+  pspFee      Int @map("psp_fee")
+  platformFee Int @map("platform_fee")
+  netAmount   Int @map("net_amount")
 
-  refunded_amount Int @default(0) @map("refunded_amount")
+  refundedAmount Int @default(0) @map("refunded_amount")
 
   metadata Json?
 
@@ -584,6 +584,8 @@ model Payment {
   refunds Refund[]
 
   @@id([orgId, id])
+  @@index([orgId, invoiceId])
+  @@index([orgId, subscriptionId])
   @@map("payments")
 }
 
@@ -699,9 +701,11 @@ model Invoice {
   taxBreakdown     Json?   @map("tax_breakdown") // Detailed tax calculation
 
   // Dates
-  issuedAt DateTime? @map("issued_at") // When sent to customer
-  dueAt    DateTime? @map("due_at")
-  paidAt   DateTime? @map("paid_at")
+  issuedAt   DateTime? @map("issued_at") // When sent to customer
+  dueAt      DateTime? @map("due_at")
+  scheduleAt DateTime? @map("schedule_at")
+  finalizeAt DateTime? @map("finalize_at")
+  paidAt     DateTime? @map("paid_at")
 
   // Customer communication
   notes         String? @db.Text // Internal notes

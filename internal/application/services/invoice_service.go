@@ -14,6 +14,7 @@ import (
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
+	"payloop/internal/lib/apperrors"
 	"time"
 )
 
@@ -33,6 +34,7 @@ type InvoiceService struct {
 	customerRepository    repositories.CustomerRepository
 	docSequenceRepository repositories.DocSequenceRepository
 	orderRepository       repositories.OrderRepository
+	paymentRepository     repositories.PaymentRepository
 	orderItemRepository   repositories.OrderItemRepository
 	errorReporter         lib.ErrorReporter
 	pubsub                events.PubSub
@@ -156,7 +158,22 @@ func (s InvoiceService) CreateInvoiceForSubscriptionPayment(ctx context.Context,
 	}
 
 	// Create the invoice
-	return s.Create(ctx, paymentSuccess.OrgId, invoiceReq)
+	invoice, err := s.Create(ctx, paymentSuccess.OrgId, invoiceReq)
+	if err != nil {
+		s.logger.Errorf("Failed to create invoice for subscription payment %s: %v", payment.Id, err)
+		return entities.Invoice{}, apperrors.NewInternalError("Error creating invoice for subscription payment", err)
+	}
+
+	// update the payment with the invoice ID
+	payment.InvoiceId = invoice.Id
+	payment.UpdatedAt = time.Now().UTC()
+	_, err = s.paymentRepository.Update(ctx, payment)
+	if err != nil {
+		s.logger.Errorf("Failed to update payment %s: %v", payment.Id, err)
+		return entities.Invoice{}, apperrors.NewInternalError("Can't update payment with invoice ID", err)
+	}
+
+	return invoice, nil
 }
 
 func (s InvoiceService) Create(ctx context.Context, orgId string, input dto.CreateInvoiceInput) (entities.Invoice, error) {

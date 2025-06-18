@@ -35,7 +35,7 @@ func (r PaymentRepository) FindById(ctx context.Context, orgId string, id string
 	tx := r.getTransactionFromContext(ctx)
 
 	var payment models.Payment
-	query := `SELECT org_id, id,psp,psp_id, reference, order_id, subscription_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata,completed_at, created_at, updated_at
+	query := `SELECT org_id, id,psp,psp_id, reference, order_id, subscription_id, invoice_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata,completed_at, created_at, updated_at
 		          FROM payments
 		          WHERE org_id = $1 AND id = $2`
 
@@ -48,6 +48,7 @@ func (r PaymentRepository) FindById(ctx context.Context, orgId string, id string
 			&payment.Reference,
 			&payment.OrderId,
 			&payment.SubscriptionId,
+			&payment.InvoiceId,
 			&payment.Status,
 			&payment.Currency,
 			&payment.Amount,
@@ -71,7 +72,7 @@ func (r PaymentRepository) FindBySubscriptionId(ctx context.Context, orgId strin
 
 	var payments []entities.Payment
 	var total int
-	query := `SELECT org_id, id, psp, psp_id, reference, order_id, subscription_id,
+	query := `SELECT org_id, id, psp, psp_id, reference, order_id, subscription_id, invoice_id,
        status, currency, amount, psp_fee, platform_fee, net_amount, metadata, 
        completed_at, created_at, updated_at,
         count(*) OVER()
@@ -129,6 +130,98 @@ func (r PaymentRepository) FindBySubscriptionId(ctx context.Context, orgId strin
 			&payment.Reference,
 			&payment.OrderId,
 			&payment.SubscriptionId,
+			&payment.InvoiceId,
+			&payment.Status,
+			&payment.Currency,
+			&payment.Amount,
+			&payment.PspFee,
+			&payment.PlatformFee,
+			&payment.NetAmount,
+			&payment.Metadata,
+			&payment.CompletedAt,
+			&payment.CreatedAt,
+			&payment.UpdatedAt,
+			&total,
+		)
+		if err != nil {
+			r.logger.Error(`failed to scan Payment`, err.Error())
+			return nil, 0, err
+		}
+		payments = append(payments, payment.ToEntity())
+	}
+
+	if rows.Err() != nil {
+		r.logger.Error(`rows iteration error`, rows.Err().Error())
+		return nil, 0, rows.Err()
+	}
+
+	return payments, total, nil
+}
+
+func (r PaymentRepository) FindByInvoiceId(ctx context.Context, orgId string, id string, p entities.Pagination) ([]entities.Payment, int, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	var payments []entities.Payment
+	var total int
+	query := `SELECT org_id, id, psp, psp_id, reference, order_id, subscription_id, invoice_id,
+       status, currency, amount, psp_fee, platform_fee, net_amount, metadata, 
+       completed_at, created_at, updated_at,
+        count(*) OVER()
+	          FROM payments
+	          WHERE org_id = @org_id AND invoice_id = @id
+	          ORDER BY
+    -- Simplified to NULL if not sorting in ascending order.
+    CASE
+        WHEN @sort_dir = 'asc' THEN
+            CASE @sort_col
+                -- Check for each possible value of sort_col.
+                WHEN 'created_at' THEN created_at
+                --- etc.
+                ELSE NULL
+                END
+        ELSE
+            NULL
+        END
+        ASC ,
+
+    -- Same as before, but for sort_dir = 'desc'
+    CASE WHEN @sort_dir = 'desc' THEN
+             CASE @sort_col
+                 WHEN 'created_at' THEN created_at
+                 ELSE NULL
+                 END
+         ELSE
+             NULL
+        END
+        DESC
+	LIMIT @lim OFFSET @off;
+	         `
+
+	rows, err := tx.Query(ctx, query, pgx.NamedArgs{
+		"org_id":   orgId,
+		"id":       id,
+		"lim":      p.Limit,
+		"off":      p.Offset,
+		"sort_col": p.SortBy,
+		"sort_dir": p.SortDirection,
+	})
+	if err != nil {
+		r.logger.Error(`failed to find Payments by InvoiceId`, err.Error())
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var payment models.Payment
+		err := rows.Scan(
+			&payment.OrgId,
+			&payment.Id,
+			&payment.Psp,
+			&payment.PspId,
+			&payment.Reference,
+			&payment.OrderId,
+			&payment.SubscriptionId,
+			&payment.InvoiceId,
 			&payment.Status,
 			&payment.Currency,
 			&payment.Amount,
@@ -161,7 +254,7 @@ func (r PaymentRepository) List(ctx context.Context, orgId string, p entities.Pa
 
 	var payments = make([]entities.Payment, 0)
 	var total int
-	query := `SELECT org_id, id, psp, psp_id, reference, order_id, subscription_id,
+	query := `SELECT org_id, id, psp, psp_id, reference, order_id, subscription_id, invoice_id,
        status, currency, amount, psp_fee, platform_fee, net_amount, metadata, 
        completed_at, created_at, updated_at,
         count(*) OVER()
@@ -218,6 +311,7 @@ func (r PaymentRepository) List(ctx context.Context, orgId string, p entities.Pa
 			&payment.Reference,
 			&payment.OrderId,
 			&payment.SubscriptionId,
+			&payment.InvoiceId,
 			&payment.Status,
 			&payment.Currency,
 			&payment.Amount,
@@ -249,15 +343,15 @@ func (r PaymentRepository) Create(ctx context.Context, entity entities.Payment) 
 	tx := r.getTransactionFromContext(ctx)
 
 	query := `INSERT INTO payments (org_id, id, psp, psp_id, reference, 
-                      order_id, subscription_id, recurring, status, currency, 
+                      order_id, subscription_id, invoice_id, recurring, status, currency, 
                       amount, psp_fee, platform_fee, net_amount, metadata, 
                       completed_at, created_at, updated_at)
           VALUES (@org_id, @id, @psp, @psp_id, @reference, 
-                  @order_id, @subscription_id, @recurring, @status, @currency, 
+                  @order_id, @subscription_id, @invoice_id, @recurring, @status, @currency, 
                   @amount, @psp_fee, @platform_fee, @net_amount, @metadata, 
                   @completed_at, @created_at, @updated_at)
           RETURNING org_id, id, psp, psp_id, reference, 
-              order_id, subscription_id, recurring, status, currency, 
+              order_id, subscription_id, invoice_id, recurring, status, currency, 
               amount, psp_fee, platform_fee, net_amount, metadata, 
               completed_at, created_at, updated_at`
 	var payment models.Payment
@@ -271,6 +365,7 @@ func (r PaymentRepository) Create(ctx context.Context, entity entities.Payment) 
 			&payment.Reference,
 			&payment.OrderId,
 			&payment.SubscriptionId,
+			&payment.InvoiceId,
 			&payment.Recurring,
 			&payment.Status,
 			&payment.Currency,
@@ -297,12 +392,12 @@ func (r PaymentRepository) Update(ctx context.Context, entity entities.Payment) 
 
 	query := `UPDATE payments
 	          SET psp = @psp, psp_id = @psp_id, reference = @reference, order_id = @order_id,
-	              subscription_id = @subscription_id, recurring = @recurring, status = @status,
+	              subscription_id = @subscription_id, invoice_id = @invoice_id, recurring = @recurring, status = @status,
 	              currency = @currency, amount = @amount, psp_fee = @psp_fee, platform_fee = @platform_fee,
 	              net_amount = @net_amount, metadata = @metadata, completed_at = @completed_at,
 	              updated_at = @updated_at
 	          WHERE org_id = @org_id AND id = @id
-	          RETURNING org_id, id, psp, psp_id, reference, order_id, subscription_id, recurring,
+	          RETURNING org_id, id, psp, psp_id, reference, order_id, subscription_id, invoice_id, recurring,
 	                    status, currency, amount, psp_fee, platform_fee, net_amount, metadata,
 	                    completed_at, created_at, updated_at`
 
@@ -317,6 +412,7 @@ func (r PaymentRepository) Update(ctx context.Context, entity entities.Payment) 
 			&payment.Reference,
 			&payment.OrderId,
 			&payment.SubscriptionId,
+			&payment.InvoiceId,
 			&payment.Recurring,
 			&payment.Status,
 			&payment.Currency,
@@ -348,6 +444,7 @@ func paymentEntityToNamedArgs(entity entities.Payment) pgx.NamedArgs {
 		"reference":       entity.Reference,
 		"order_id":        entity.OrderId,
 		"subscription_id": pgtype.Text{String: entity.SubscriptionId, Valid: entity.SubscriptionId != ""},
+		"invoice_id":      pgtype.Text{String: entity.InvoiceId, Valid: entity.InvoiceId != ""},
 		"status":          entity.Status,
 		"currency":        entity.Currency,
 		"amount":          entity.Amount,
@@ -390,7 +487,7 @@ func (r PaymentRepository) ListByPspId(ctx context.Context, psp common.Gateway, 
 
 	var payments = make([]entities.Payment, 0)
 
-	query := `SELECT org_id, id, psp, psp_id, reference, order_id, subscription_id, recurring,
+	query := `SELECT org_id, id, psp, psp_id, reference, order_id, subscription_id, invoice_id, recurring,
 	                    status, currency, amount, psp_fee, platform_fee, net_amount, metadata,
 	                    completed_at, created_at, updated_at
 	          FROM payments
@@ -409,6 +506,7 @@ func (r PaymentRepository) ListByPspId(ctx context.Context, psp common.Gateway, 
 			&payment.Reference,
 			&payment.OrderId,
 			&payment.SubscriptionId,
+			&payment.InvoiceId,
 			&payment.Recurring,
 			&payment.Status,
 			&payment.Currency,

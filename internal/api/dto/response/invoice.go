@@ -34,6 +34,7 @@ type Invoice struct {
 	CreatedAt      time.Time             `json:"created_at"`
 	UpdatedAt      time.Time             `json:"updated_at"`
 	LineItems      []InvoiceLineItem     `json:"line_items,omitempty"`
+	Payments       []Payment             `json:"payments,omitempty"`
 }
 
 // InvoiceLineItem represents the response for an invoice line item

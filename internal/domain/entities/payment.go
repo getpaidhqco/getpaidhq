@@ -13,6 +13,7 @@ type Payment struct {
 	PspId          string                 `json:"psp_id"`
 	Reference      string                 `json:"reference"`
 	OrderId        string                 `json:"order_id"`
+	InvoiceId      string                 `json:"invoice_id"`
 	SubscriptionId string                 `json:"subscription_id"`
 	Status         payments.PaymentStatus `json:"status"`
 	Recurring      bool                   `json:"recurring"`

@@ -99,13 +99,13 @@ func (m ClerkMiddleware) Authenticate(ctx context.Context, token string) (apiaut
 	}
 
 	// Log the session information
-	m.logger.Infof("Clerk Auth: [%s][%s][%s]", session.ActiveOrganizationID, session.Claims.Subject, token)
+	m.logger.Debugf("Clerk Auth: [%s][%s][%s]", session.ActiveOrganizationID, session.Claims.Subject, token)
 	user, err := m.client.Users().Read(session.Claims.Subject)
 	if err != nil {
 		m.logger.Error("Error fetching user from Clerk API", "error", err)
 		return apiauthn.User{}, err
 	}
-	m.logger.Infof("Clerk authed user: [%s][%s]", session.ActiveOrganizationID, user.EmailAddresses[0].EmailAddress)
+	m.logger.Debugf("Clerk authed user: [%s][%s]", session.ActiveOrganizationID, user.EmailAddresses[0].EmailAddress)
 
 	// If the organization ID is not in the token, try to fetch the user's organization memberships
 	clerkOrgId := session.ActiveOrganizationID
@@ -140,7 +140,7 @@ func (m ClerkMiddleware) Authenticate(ctx context.Context, token string) (apiaut
 		}
 	}
 
-	m.logger.Infof("Found org ID from metadata: %s with role: %s", clerkOrgId, orgRole)
+	m.logger.Debugf("Clerk Org ID [%s] with role [%s]", clerkOrgId, orgRole)
 
 	return authedUser, nil
 }

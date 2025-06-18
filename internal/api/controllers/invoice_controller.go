@@ -11,18 +11,21 @@ import (
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/application/lib/pdf"
-	"time"
+	"payloop/internal/domain/entities"
+	"payloop/internal/domain/repositories"
 )
 
 type InvoiceController struct {
-	invoiceService interfaces.InvoiceService
-	logger         logger.Logger
+	invoiceService    interfaces.InvoiceService
+	paymentRepository repositories.PaymentRepository
+	logger            logger.Logger
 }
 
-func NewInvoiceController(invoiceService interfaces.InvoiceService, logger logger.Logger) InvoiceController {
+func NewInvoiceController(invoiceService interfaces.InvoiceService, paymentRepository repositories.PaymentRepository, logger logger.Logger) InvoiceController {
 	return InvoiceController{
-		invoiceService: invoiceService,
-		logger:         logger,
+		invoiceService:    invoiceService,
+		paymentRepository: paymentRepository,
+		logger:            logger,
 	}
 }
 
@@ -45,7 +48,7 @@ func (c InvoiceController) Create(ctx *gin.Context) {
 		Type:           input.Type,
 		InvoiceType:    input.InvoiceType,
 		Currency:       input.Currency,
-		DueAt:          time.Time(input.DueAt),
+		DueAt:          input.DueAt,
 		Notes:          input.Notes,
 		CustomerNotes:  input.CustomerNotes,
 		Metadata:       input.Metadata,
@@ -107,6 +110,28 @@ func (c InvoiceController) Get(ctx *gin.Context) {
 	invoiceResponse := response.NewInvoiceFromEntity(invoice)
 	invoiceResponse.LineItems = lineItemResponses
 
+	// Get payments related to the invoice
+	var payments []response.Payment
+
+	// Fetch payments using FindByInvoiceId
+	paymentEntities, _, err := c.paymentRepository.FindByInvoiceId(ctx.Request.Context(), authUser.OrgId, invoice.Id, entities.Pagination{
+		Page:  1,
+		Limit: 100, // Fetch up to 100 payments
+	})
+	if err != nil {
+		c.logger.Error("Failed to get payments for invoice: ", err)
+		// Continue even if payments retrieval fails
+	} else {
+		// Convert payment entities to response DTOs
+		payments = make([]response.Payment, len(paymentEntities))
+		for i, payment := range paymentEntities {
+			payments[i] = response.NewPaymentFromEntity(payment)
+		}
+	}
+
+	// Add payments to the invoice response
+	invoiceResponse.Payments = payments
+
 	ctx.JSON(http.StatusOK, invoiceResponse)
 }
 
@@ -146,6 +171,28 @@ func (c InvoiceController) Update(ctx *gin.Context) {
 	// Create response DTO
 	invoiceResponse := response.NewInvoiceFromEntity(invoice)
 	invoiceResponse.LineItems = lineItemResponses
+
+	// Get payments related to the invoice
+	var payments []response.Payment
+
+	// Fetch payments using FindByInvoiceId
+	paymentEntities, _, err := c.paymentRepository.FindByInvoiceId(ctx.Request.Context(), authUser.OrgId, invoice.Id, entities.Pagination{
+		Page:  1,
+		Limit: 100, // Fetch up to 100 payments
+	})
+	if err != nil {
+		c.logger.Error("Failed to get payments for invoice: ", err)
+		// Continue even if payments retrieval fails
+	} else {
+		// Convert payment entities to response DTOs
+		payments = make([]response.Payment, len(paymentEntities))
+		for i, payment := range paymentEntities {
+			payments[i] = response.NewPaymentFromEntity(payment)
+		}
+	}
+
+	// Add payments to the invoice response
+	invoiceResponse.Payments = payments
 
 	ctx.JSON(http.StatusOK, invoiceResponse)
 }
@@ -245,6 +292,28 @@ func (c InvoiceController) PerformAction(ctx *gin.Context) {
 	// Create response DTO
 	invoiceResponse := response.NewInvoiceFromEntity(invoice)
 	invoiceResponse.LineItems = lineItemResponses
+
+	// Get payments related to the invoice
+	var payments []response.Payment
+
+	// Fetch payments using FindByInvoiceId
+	paymentEntities, _, err := c.paymentRepository.FindByInvoiceId(ctx.Request.Context(), authUser.OrgId, invoice.Id, entities.Pagination{
+		Page:  1,
+		Limit: 100, // Fetch up to 100 payments
+	})
+	if err != nil {
+		c.logger.Error("Failed to get payments for invoice: ", err)
+		// Continue even if payments retrieval fails
+	} else {
+		// Convert payment entities to response DTOs
+		payments = make([]response.Payment, len(paymentEntities))
+		for i, payment := range paymentEntities {
+			payments[i] = response.NewPaymentFromEntity(payment)
+		}
+	}
+
+	// Add payments to the invoice response
+	invoiceResponse.Payments = payments
 
 	ctx.JSON(http.StatusOK, invoiceResponse)
 }
