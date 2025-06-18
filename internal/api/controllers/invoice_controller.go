@@ -7,9 +7,11 @@ import (
 	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/api/dto/response"
+	"payloop/internal/application/dto"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/application/lib/pdf"
+	"time"
 )
 
 type InvoiceController struct {
@@ -36,7 +38,19 @@ func (c InvoiceController) Create(ctx *gin.Context) {
 		return
 	}
 
-	invoice, err := c.invoiceService.Create(ctx.Request.Context(), authUser.OrgId, input)
+	invoice, err := c.invoiceService.Create(ctx.Request.Context(), authUser.OrgId, dto.CreateInvoiceInput{
+		CustomerId:     input.CustomerId,
+		OrderId:        input.OrderId,
+		SubscriptionId: input.SubscriptionId,
+		Type:           input.Type,
+		InvoiceType:    input.InvoiceType,
+		Currency:       input.Currency,
+		DueAt:          time.Time(input.DueAt),
+		Notes:          input.Notes,
+		CustomerNotes:  input.CustomerNotes,
+		Metadata:       input.Metadata,
+		LineItems:      request.ToLineItemDTOs(input.LineItems),
+	})
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -109,7 +123,7 @@ func (c InvoiceController) Update(ctx *gin.Context) {
 		return
 	}
 
-	invoice, err := c.invoiceService.Update(ctx.Request.Context(), authUser.OrgId, invoiceId, input)
+	invoice, err := c.invoiceService.Update(ctx.Request.Context(), authUser.OrgId, invoiceId, input.ToDTO())
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -142,7 +156,7 @@ func (c InvoiceController) List(ctx *gin.Context) {
 	authUser := user.(authn.User)
 	pagination := request.GetPagination(ctx)
 
-	invoices, total, err := c.invoiceService.List(ctx.Request.Context(), authUser.OrgId, pagination)
+	invoices, total, err := c.invoiceService.List(ctx.Request.Context(), authUser.OrgId, pagination.ToDTO())
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -172,7 +186,7 @@ func (c InvoiceController) ListByCustomer(ctx *gin.Context) {
 	customerId := ctx.Param("id")
 	pagination := request.GetPagination(ctx)
 
-	invoices, total, err := c.invoiceService.FindByCustomerId(ctx.Request.Context(), authUser.OrgId, customerId, pagination)
+	invoices, total, err := c.invoiceService.FindByCustomerId(ctx.Request.Context(), authUser.OrgId, customerId, pagination.ToDTO())
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -208,7 +222,7 @@ func (c InvoiceController) PerformAction(ctx *gin.Context) {
 		return
 	}
 
-	invoice, err := c.invoiceService.PerformAction(ctx.Request.Context(), authUser.OrgId, invoiceId, input)
+	invoice, err := c.invoiceService.PerformAction(ctx.Request.Context(), authUser.OrgId, invoiceId, input.ToDTO())
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -248,7 +262,7 @@ func (c InvoiceController) AddLineItem(ctx *gin.Context) {
 		return
 	}
 
-	lineItem, err := c.invoiceService.AddLineItem(ctx.Request.Context(), authUser.OrgId, invoiceId, input)
+	lineItem, err := c.invoiceService.AddLineItem(ctx.Request.Context(), authUser.OrgId, invoiceId, request.ToLineItemDTO(input))
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -272,7 +286,7 @@ func (c InvoiceController) UpdateLineItem(ctx *gin.Context) {
 		return
 	}
 
-	lineItem, err := c.invoiceService.UpdateLineItem(ctx.Request.Context(), authUser.OrgId, invoiceId, lineItemId, input)
+	lineItem, err := c.invoiceService.UpdateLineItem(ctx.Request.Context(), authUser.OrgId, invoiceId, lineItemId, input.ToDTO())
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)

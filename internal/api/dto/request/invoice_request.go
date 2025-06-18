@@ -1,6 +1,7 @@
 package request
 
 import (
+	"payloop/internal/application/dto"
 	"payloop/internal/domain/entities"
 	"time"
 )
@@ -19,6 +20,8 @@ type CreateInvoiceRequest struct {
 	Metadata       map[string]string `json:"metadata,omitempty"`
 	LineItems      []CreateInvoiceLineItemRequest `json:"line_items,omitempty"`
 }
+
+
 
 // UpdateInvoiceRequest represents the request to update an existing invoice
 type UpdateInvoiceRequest struct {
@@ -69,4 +72,32 @@ type InvoiceActionRequest struct {
 type GenerateInvoicePDFRequest struct {
 	TemplateName string `json:"template_name" binding:"required"`
 	OutputPath   string `json:"output_path,omitempty"`
+}
+
+// ToLineItemDTO converts a single CreateInvoiceLineItemRequest to a dto.CreateInvoiceLineItemRequest
+func ToLineItemDTO(item CreateInvoiceLineItemRequest) dto.CreateInvoiceLineItemRequest {
+	return dto.CreateInvoiceLineItemRequest{
+		ProductId:     item.ProductId,
+		VariantId:     item.VariantId,
+		PriceId:       item.PriceId,
+		Description:   item.Description,
+		Category:      item.Category,
+		Quantity:      item.Quantity,
+		UnitPrice:     item.UnitPrice,
+		DiscountType:  item.DiscountType,
+		DiscountValue: item.DiscountValue,
+		TaxCode:       item.TaxCode,
+		TaxRate:       item.TaxRate,
+		TaxExempt:     item.TaxExempt,
+		Metadata:      item.Metadata,
+	}
+}
+
+// ToLineItemDTOs converts a slice of CreateInvoiceLineItemRequest to a slice of dto.CreateInvoiceLineItemRequest
+func ToLineItemDTOs(items []CreateInvoiceLineItemRequest) []dto.CreateInvoiceLineItemRequest {
+	result := make([]dto.CreateInvoiceLineItemRequest, len(items))
+	for i, item := range items {
+		result[i] = ToLineItemDTO(item)
+	}
+	return result
 }
