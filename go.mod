@@ -28,9 +28,9 @@ require (
 )
 
 require (
-	github.com/SebastiaanKlippert/go-wkhtmltopdf v1.9.3
 	github.com/Trendyol/go-pq-cdc v0.0.12
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.60
+	github.com/chromedp/chromedp v0.13.7
 	github.com/getsentry/sentry-go v0.31.1
 	github.com/getsentry/sentry-go/gin v0.31.1
 	github.com/joho/godotenv v1.5.1
@@ -57,6 +57,8 @@ require (
 	github.com/bytedance/sonic v1.12.9 // indirect
 	github.com/bytedance/sonic/loader v0.2.3 // indirect
 	github.com/cespare/xxhash/v2 v2.3.0 // indirect
+	github.com/chromedp/cdproto v0.0.0-20250403032234-65de8f5d025b // indirect
+	github.com/chromedp/sysutil v1.1.0 // indirect
 	github.com/cloudwego/base64x v0.1.5 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
 	github.com/dgryski/go-rendezvous v0.0.0-20200823014737-9f7001d12a5f // indirect
@@ -65,9 +67,13 @@ require (
 	github.com/gabriel-vasile/mimetype v1.4.8 // indirect
 	github.com/gin-contrib/sse v1.0.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.3 // indirect
+	github.com/go-json-experiment/json v0.0.0-20250211171154-1ae217ad3535 // indirect
 	github.com/go-playground/errors v3.3.0+incompatible // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
 	github.com/go-playground/universal-translator v0.18.1 // indirect
+	github.com/gobwas/httphead v0.1.0 // indirect
+	github.com/gobwas/pool v0.2.1 // indirect
+	github.com/gobwas/ws v1.4.0 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/mock v1.6.0 // indirect

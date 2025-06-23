@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"payloop/internal/api/dto/request"
 	"payloop/internal/application/dto"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
@@ -17,17 +16,6 @@ import (
 	"payloop/internal/lib/apperrors"
 	"time"
 )
-
-// Convert dto.Pagination to request.Pagination
-func toPaginationRequest(p dto.Pagination) request.Pagination {
-	return request.Pagination{
-		Page:          p.Page,
-		Limit:         p.Limit,
-		Offset:        p.Offset,
-		SortDirection: p.SortDirection,
-		SortBy:        p.SortBy,
-	}
-}
 
 type InvoiceService struct {
 	invoiceRepository     repositories.InvoiceRepository
@@ -47,6 +35,7 @@ func NewInvoiceService(
 	customerRepository repositories.CustomerRepository,
 	docSequenceRepository repositories.DocSequenceRepository,
 	orderRepository repositories.OrderRepository,
+	paymentRepository repositories.PaymentRepository,
 	orderItemRepository repositories.OrderItemRepository,
 	errorReporter lib.ErrorReporter,
 	pubsub events.PubSub,
@@ -55,6 +44,7 @@ func NewInvoiceService(
 ) interfaces.InvoiceService {
 	service := InvoiceService{
 		invoiceRepository:     invoiceRepository,
+		paymentRepository:     paymentRepository,
 		customerRepository:    customerRepository,
 		docSequenceRepository: docSequenceRepository,
 		orderRepository:       orderRepository,
@@ -240,6 +230,7 @@ func (s InvoiceService) Create(ctx context.Context, orgId string, input dto.Crea
 		return entities.Invoice{}, lib.NewCustomError(lib.InternalError, "Error creating invoice", err)
 	}
 
+	var lineItems = make([]entities.InvoiceLineItem, len(input.LineItems))
 	// Add line items if provided
 	if len(input.LineItems) > 0 {
 		for _, item := range input.LineItems {
@@ -287,6 +278,7 @@ func (s InvoiceService) Create(ctx context.Context, orgId string, input dto.Crea
 				s.logger.Error("Failed to add line item: ", err)
 				// Continue with other line items even if one fails
 			}
+			lineItems = append(lineItems, lineItem)
 		}
 
 		// Recalculate invoice totals
@@ -311,6 +303,16 @@ func (s InvoiceService) Create(ctx context.Context, orgId string, input dto.Crea
 	if err != nil {
 		s.logger.Error("Failed to add invoice history: ", err)
 		// Continue even if history creation fails
+	}
+
+	// create a PDF for the invoice
+	// TODO this doesn't have to be done here, it can be done in a background job
+	pdfGenerator := pdf.NewPDFGenerator(s.logger)
+	_, err = pdfGenerator.Generate(createdInvoice, lineItems, pdf.GenerateOptions{
+		TemplateName: "one.liquid",
+	})
+	if err != nil {
+		s.logger.Error("Failed to generate PDF for invoice: ", err)
 	}
 
 	// Publish event
@@ -385,7 +387,7 @@ func (s InvoiceService) Update(ctx context.Context, orgId string, id string, req
 }
 
 func (s InvoiceService) List(ctx context.Context, orgId string, pagination dto.Pagination) ([]entities.Invoice, int, error) {
-	invoices, total, err := s.invoiceRepository.List(ctx, orgId, toPaginationRequest(pagination))
+	invoices, total, err := s.invoiceRepository.List(ctx, orgId, pagination)
 	if err != nil {
 		s.logger.Error("Failed to list invoices: ", err)
 		return nil, 0, lib.NewCustomError(lib.InternalError, "Error listing invoices", err)
@@ -395,7 +397,7 @@ func (s InvoiceService) List(ctx context.Context, orgId string, pagination dto.P
 }
 
 func (s InvoiceService) FindByCustomerId(ctx context.Context, orgId string, customerId string, pagination dto.Pagination) ([]entities.Invoice, int, error) {
-	invoices, total, err := s.invoiceRepository.FindByCustomerId(ctx, orgId, customerId, toPaginationRequest(pagination))
+	invoices, total, err := s.invoiceRepository.FindByCustomerId(ctx, orgId, customerId, pagination)
 	if err != nil {
 		s.logger.Error("Failed to find invoices by customer ID: ", err)
 		return nil, 0, lib.NewCustomError(lib.InternalError, "Error finding invoices", err)
@@ -760,7 +762,7 @@ func (s InvoiceService) GeneratePDF(ctx context.Context, orgId string, invoiceId
 	}
 
 	// Create PDF generator
-	pdfGenerator := pdf.NewPDFGenerator()
+	pdfGenerator := pdf.NewPDFGenerator(s.logger)
 
 	// Generate PDF
 	pdfBytes, err := pdfGenerator.Generate(invoice, lineItems, options)

@@ -1,13 +1,16 @@
 package pdf
 
 import (
-	"bytes"
+	"context"
 	"fmt"
 	"os"
 	"path/filepath"
+	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
+	"time"
 
-	"github.com/SebastiaanKlippert/go-wkhtmltopdf"
+	"github.com/chromedp/cdproto/page"
+	"github.com/chromedp/chromedp"
 	"github.com/osteele/liquid"
 )
 
@@ -73,39 +76,95 @@ type PDFEngine interface {
 	Generate(htmlContent string) ([]byte, error)
 }
 
-// WkhtmltopdfEngine is an implementation of PDFEngine using wkhtmltopdf
-type WkhtmltopdfEngine struct{}
+// ChromedpEngine is an implementation of PDFEngine using chromedp
+type ChromedpEngine struct {
+	timeout time.Duration
+}
 
-// Generate generates a PDF from HTML content using wkhtmltopdf
-func (e WkhtmltopdfEngine) Generate(htmlContent string) ([]byte, error) {
-	// Create a new PDF generator
-	pdfg, err := wkhtmltopdf.NewPDFGenerator()
+// NewChromedpEngine creates a new ChromedpEngine with default settings
+func NewChromedpEngine() *ChromedpEngine {
+	return &ChromedpEngine{
+		timeout: 30 * time.Second,
+	}
+}
+
+// Generate generates a PDF from HTML content using chromedp
+func (e ChromedpEngine) Generate(htmlContent string) ([]byte, error) {
+	// Create context with timeout
+	ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
+	defer cancel()
+
+	// Set up chromedp options
+	opts := append(chromedp.DefaultExecAllocatorOptions[:],
+		chromedp.Flag("headless", true),
+		chromedp.Flag("no-sandbox", true),
+		chromedp.Flag("disable-gpu", true),
+		chromedp.Flag("disable-dev-shm-usage", true),
+		chromedp.Flag("disable-extensions", true),
+		chromedp.Flag("no-first-run", true),
+		chromedp.Flag("disable-default-apps", true),
+	)
+
+	// Create context
+	allocCtx, cancel := chromedp.NewExecAllocator(ctx, opts...)
+	defer cancel()
+
+	ctx, cancel = chromedp.NewContext(allocCtx)
+	defer cancel()
+
+	// Generate PDF
+	var pdfBytes []byte
+
+	// Create a temporary HTML file
+	tempFile, err := os.CreateTemp("", "pdf-*.html")
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to create temp file: %w", err)
+	}
+	tempFilePath := tempFile.Name()
+	defer os.Remove(tempFilePath) // Clean up the temp file when done
+
+	// Write HTML content to the temp file
+	if _, err := tempFile.WriteString(htmlContent); err != nil {
+		return nil, fmt.Errorf("failed to write HTML to temp file: %w", err)
+	}
+	if err := tempFile.Close(); err != nil {
+		return nil, fmt.Errorf("failed to close temp file: %w", err)
 	}
 
-	// Set options
-	pdfg.Dpi.Set(300)
-	pdfg.Orientation.Set(wkhtmltopdf.OrientationPortrait)
-	pdfg.Grayscale.Set(false)
+	// Convert the file path to a URL
+	fileURL := fmt.Sprintf("file://%s", tempFilePath)
 
-	// Add HTML content
-	page := wkhtmltopdf.NewPageReader(bytes.NewReader([]byte(htmlContent)))
-	page.EnableLocalFileAccess.Set(true)
-	pdfg.AddPage(page)
+	err = chromedp.Run(ctx,
+		chromedp.Navigate(fileURL),
+		chromedp.WaitReady("body"),
+		chromedp.ActionFunc(func(ctx context.Context) error {
+			buf, _, err := page.PrintToPDF().
+				WithPrintBackground(true).
+				WithMarginTop(0.4).
+				WithMarginBottom(0.4).
+				WithMarginLeft(0.4).
+				WithMarginRight(0.4).
+				WithPaperWidth(8.27).
+				WithPaperHeight(11.7).
+				Do(ctx)
+			if err != nil {
+				return err
+			}
+			pdfBytes = buf
+			return nil
+		}),
+	)
 
-	// Create PDF
-	err = pdfg.Create()
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("failed to generate PDF: %w", err)
 	}
 
-	// Get PDF bytes
-	return pdfg.Bytes(), nil
+	return pdfBytes, nil
 }
 
 // PDFGenerator is a utility for generating PDF documents from templates
 type PDFGenerator struct {
+	logger         logger.Logger
 	templateEngine TemplateEngine
 	fileSystem     FileSystem
 	pdfEngine      PDFEngine
@@ -113,12 +172,13 @@ type PDFGenerator struct {
 }
 
 // NewPDFGenerator creates a new PDFGenerator instance with default dependencies
-func NewPDFGenerator() *PDFGenerator {
+func NewPDFGenerator(logger logger.Logger) *PDFGenerator {
 	templateEngine := NewLiquidTemplateEngine()
 	return &PDFGenerator{
+		logger:         logger,
 		templateEngine: templateEngine,
 		fileSystem:     DefaultFileSystem{},
-		pdfEngine:      WkhtmltopdfEngine{},
+		pdfEngine:      NewChromedpEngine(),
 		templateDir:    TemplateDir,
 	}
 }
@@ -171,12 +231,22 @@ func (g *PDFGenerator) Generate(invoice entities.Invoice, lineItems []entities.I
 		return nil, fmt.Errorf("failed to generate PDF: %w", err)
 	}
 
-	// Save to file if output path is provided
-	if options.OutputPath != "" {
-		err = g.fileSystem.WriteFile(options.OutputPath, pdfBytes, 0644)
+	outputPath := options.OutputPath
+	if outputPath == "" {
+		tmpFile, err := os.CreateTemp("", "invoice-*.pdf")
 		if err != nil {
-			return nil, fmt.Errorf("failed to write PDF to file: %w", err)
+			return nil, fmt.Errorf("failed to create temp file: %w", err)
 		}
+		defer tmpFile.Close()
+		outputPath = tmpFile.Name()
+	}
+	err = g.fileSystem.WriteFile(outputPath, pdfBytes, 0644)
+	if err != nil {
+		return nil, fmt.Errorf("failed to write PDF to file: %w", err)
+	}
+
+	if g.logger != nil {
+		g.logger.Debugf("PDF generated at %s", outputPath)
 	}
 
 	return pdfBytes, nil
@@ -229,7 +299,6 @@ func (g *PDFGenerator) prepareTemplateData(invoice entities.Invoice, lineItems [
 
 	return data, nil
 }
-
 
 // Helper functions for formatting data
 

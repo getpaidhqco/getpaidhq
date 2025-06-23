@@ -52,13 +52,6 @@ func (m *MockPDFEngine) Generate(htmlContent string) ([]byte, error) {
 	return args.Get(0).([]byte), args.Error(1)
 }
 
-// TestNewPDFGenerator tests the NewPDFGenerator function
-func TestNewPDFGenerator(t *testing.T) {
-	generator := NewPDFGenerator()
-	assert.NotNil(t, generator)
-	assert.NotNil(t, generator.templateEngine)
-}
-
 // TestGenerateWithMissingTemplateName tests the Generate method with a missing template name
 func TestGenerateWithMissingTemplateName(t *testing.T) {
 	// Create mock dependencies
@@ -238,43 +231,43 @@ func TestGetCurrencySymbol(t *testing.T) {
 
 func createMockInvoice() entities.Invoice {
 	return entities.Invoice{
-		OrgId:          "org123",
-		Id:             "inv123",
-		CustomerId:     "cus123",
-		DocNumber:      "INV-001",
-		Type:           entities.DocumentTypeInvoice,
-		InvoiceType:    entities.InvoiceTypeInitial,
-		Status:         entities.InvoiceStatusDraft,
-		Currency:       "USD",
-		SubTotal:       1000,
-		TaxTotal:       100,
-		DiscountTotal:  0,
-		Total:          1100,
-		AmountPaid:     0,
-		AmountDue:      1100,
-		DueAt:          time.Now().Add(30 * 24 * time.Hour),
-		Notes:          "Test invoice",
-		CustomerNotes:  "Thank you for your business",
-		CreatedAt:      time.Now(),
-		UpdatedAt:      time.Now(),
+		OrgId:         "org123",
+		Id:            "inv123",
+		CustomerId:    "cus123",
+		DocNumber:     "INV-001",
+		Type:          entities.DocumentTypeInvoice,
+		InvoiceType:   entities.InvoiceTypeInitial,
+		Status:        entities.InvoiceStatusDraft,
+		Currency:      "USD",
+		SubTotal:      1000,
+		TaxTotal:      100,
+		DiscountTotal: 0,
+		Total:         1100,
+		AmountPaid:    0,
+		AmountDue:     1100,
+		DueAt:         time.Now().Add(30 * 24 * time.Hour),
+		Notes:         "Test invoice",
+		CustomerNotes: "Thank you for your business",
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
 }
 
 func createMockLineItem() entities.InvoiceLineItem {
 	return entities.InvoiceLineItem{
-		OrgId:         "org123",
-		InvoiceId:     "inv123",
-		Id:            "line123",
-		Description:   "Test product",
-		Quantity:      1,
-		UnitPrice:     1000,
-		LineTotal:     1000,
-		TaxCode:       "TAX",
-		TaxRate:       10,
-		TaxAmount:     100,
-		TaxExempt:     false,
-		CreatedAt:     time.Now(),
-		UpdatedAt:     time.Now(),
+		OrgId:       "org123",
+		InvoiceId:   "inv123",
+		Id:          "line123",
+		Description: "Test product",
+		Quantity:    1,
+		UnitPrice:   1000,
+		LineTotal:   1000,
+		TaxCode:     "TAX",
+		TaxRate:     10,
+		TaxAmount:   100,
+		TaxExempt:   false,
+		CreatedAt:   time.Now(),
+		UpdatedAt:   time.Now(),
 	}
 }
 

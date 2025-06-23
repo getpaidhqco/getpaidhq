@@ -8,7 +8,7 @@ import (
 	_ "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgtype"
-	"payloop/internal/api/dto/request"
+	"payloop/internal/application/dto"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
@@ -275,7 +275,7 @@ func (r InvoiceRepository) Update(ctx context.Context, entity entities.Invoice) 
 	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
-func (r InvoiceRepository) List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Invoice, int, error) {
+func (r InvoiceRepository) List(ctx context.Context, orgId string, pagination dto.Pagination) ([]entities.Invoice, int, error) {
 	tx := r.getTransactionFromContext(ctx)
 
 	var invoices = make([]entities.Invoice, 0)
@@ -382,7 +382,7 @@ func (r InvoiceRepository) List(ctx context.Context, orgId string, pagination re
 	return invoices, count, nil
 }
 
-func (r InvoiceRepository) FindByCustomerId(ctx context.Context, orgId string, customerId string, pagination request.Pagination) ([]entities.Invoice, int, error) {
+func (r InvoiceRepository) FindByCustomerId(ctx context.Context, orgId string, customerId string, pagination dto.Pagination) ([]entities.Invoice, int, error) {
 	tx := r.getTransactionFromContext(ctx)
 
 	var invoices = make([]entities.Invoice, 0)
@@ -573,7 +573,7 @@ func (r InvoiceRepository) FindByOrderId(ctx context.Context, orgId string, orde
 	return invoices, count, nil
 }
 
-func (r InvoiceRepository) FindBySubscriptionId(ctx context.Context, orgId string, subscriptionId string, pagination request.Pagination) ([]entities.Invoice, int, error) {
+func (r InvoiceRepository) FindBySubscriptionId(ctx context.Context, orgId string, subscriptionId string, pagination dto.Pagination) ([]entities.Invoice, int, error) {
 	tx := r.getTransactionFromContext(ctx)
 
 	var invoices = make([]entities.Invoice, 0)
