@@ -324,7 +324,7 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 		}
 
 		// Create payment method entity
-		paymentMethod := entities.PaymentMethod{
+		paymentMethod = entities.PaymentMethod{
 			OrgId:      order.OrgId,
 			Id:         lib.GenerateId("pm"),
 			CustomerId: order.CustomerId,

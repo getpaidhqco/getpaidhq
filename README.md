@@ -12,23 +12,34 @@ Payloop is a smart recurring payment processing framework designed to provide fl
 - [Authentication & Authorization](#authentication--authorization)
 - [Installation](#installation)
 - [Configuration](#configuration)
+  - [AWS S3 Configuration](#aws-s3-configuration)
+  - [Security Vault Configuration](#security-vault-configuration)
+  - [Email Service Configuration](#email-service-configuration)
+  - [PDF Generation System](#pdf-generation-system)
+  - [Model Context Protocol (MCP) Integration](#model-context-protocol-mcp-integration)
 - [Database Migrations](#database-migrations)
 - [Development](#development)
+  - [Development Commands](#development-commands)
+  - [Change Data Capture (CDC)](#change-data-capture-cdc)
 - [Deployment](#deployment)
 
 ## Overview
 
 Payloop is a comprehensive payment processing system that focuses on subscription management. It provides:
 
-- Subscription creation and management
-- Payment processing with multiple providers
-- Customer management
-- Product and pricing configuration
-- Order processing
-- Webhook integrations
-- Reporting capabilities
+- **Subscription Management**: Complete lifecycle management with billing anchors, pause/resume, and recovery workflows
+- **Payment Processing**: Multi-provider support (Paystack, Checkout.com) with secure vault encryption
+- **Invoice System**: Automated PDF generation with ChromeDP and Liquid templates
+- **Customer Management**: Cohort-based segmentation with secure payment method storage
+- **Document Storage**: AWS S3 integration for secure PDF storage and retrieval
+- **Email Integration**: Transactional email notifications via Loops
+- **Security Vault**: Encrypted storage for sensitive payment tokens using AES or AWS Secrets Manager
+- **Dual Database Architecture**: Operational and reporting databases with CDC synchronization
+- **AI Integration**: Model Context Protocol (MCP) for AI-friendly invoice operations
+- **Webhook System**: Reliable outgoing webhook delivery via Temporal workflows
+- **Comprehensive Reporting**: Dedicated analytics database with real-time synchronization
 
-The system is built using Domain-Driven Design (DDD) principles and follows a clean architecture approach.
+The system is built using Domain-Driven Design (DDD) principles and follows a clean architecture approach with extensive dependency injection.
 
 ## Architecture
 
@@ -54,25 +65,36 @@ Payloop follows a layered architecture based on DDD principles:
    - Factories: Create complex domain objects
 
 4. **Infrastructure Layer** (`internal/infrastructure/`)
-   - Database: PostgreSQL implementation of repositories
-   - Authentication: API key, Cognito, and Clerk implementations
-   - Authorization: Cedar policy engine
-   - Payment Providers: Paystack integration
-   - Cache: Redis implementation
-   - Pub/Sub: NATS implementation
-   - Queue: AWS SQS implementation
-   - Workflow: Temporal implementation
-   - Scheduler: Cron implementation
+   - **Database**: PostgreSQL with dual database architecture (operational + reporting)
+   - **Authentication**: Clerk (active), Cognito, and API key implementations
+   - **Authorization**: Cedar policy engine with role-based access control
+   - **Payment Providers**: Paystack (primary), Checkout.com (secondary)
+   - **Storage**: AWS S3 for document and PDF storage
+   - **Security**: Token vault with AES/AWS Secrets Manager encryption
+   - **Email**: Loops integration for transactional emails
+   - **Cache**: Redis implementation for performance optimization
+   - **Pub/Sub**: NATS for event messaging and workflow coordination
+   - **Queue**: AWS SQS for background job processing
+   - **Workflow**: Temporal for complex business process orchestration
+   - **Scheduler**: Cron implementation for recurring tasks
 
 ### Key Components
 
-- **Dependency Injection**: Uses Uber's FX library for dependency injection
-- **Web Framework**: Uses Gin for HTTP routing and handling
-- **Database**: PostgreSQL with Prisma for schema management
-- **Workflow Engine**: Temporal for orchestrating complex workflows
-- **Event System**: NATS for pub/sub messaging
-- **Caching**: Redis for caching
-- **Authorization**: Cedar for policy-based access control
+- **Runtime**: Go 1.24 with advanced dependency injection via Uber FX
+- **Web Framework**: Gin HTTP router with comprehensive middleware support
+- **Database System**: 
+  - **Primary**: PostgreSQL operational database with Prisma ORM
+  - **Reporting**: Dedicated analytics database with CDC synchronization
+  - **Schema Management**: Prisma with automated migrations
+- **PDF Generation**: ChromeDP (headless Chrome) with Liquid templating
+- **Document Storage**: AWS S3 with server-side encryption and presigned URLs
+- **Security Vault**: Multi-provider encryption (AES, AWS Secrets Manager)
+- **Workflow Engine**: Temporal for complex business process orchestration
+- **Event System**: NATS for pub/sub messaging and real-time coordination
+- **Caching**: Redis for performance optimization and session management
+- **Authorization**: Cedar policy engine with granular role-based permissions
+- **Email Service**: Loops integration for transactional notifications
+- **AI Integration**: Model Context Protocol (MCP) server for AI-friendly operations
 
 ## API Endpoints
 
@@ -121,31 +143,35 @@ Payloop's data model includes the following key entities:
 - **Org**: Organizations that use the system
 - **User**: Users who can access the system
 - **ApiKey**: API keys for authentication
+- **Document**: File storage references with metadata
 
 ### Product Catalog
 
 - **Product**: Products that can be sold
-- **Variant**: Product variants
-- **Price**: Pricing information for variants
+- **Variant**: Product variants with configuration options
+- **Price**: Pricing information for variants with tax handling
 
 ### Sales
 
-- **Cart**: Shopping carts
-- **Session**: User sessions
-- **Order**: Customer orders
-- **OrderItem**: Items in an order
+- **Cart**: Shopping carts with item management
+- **Session**: User sessions with state tracking
+- **Order**: Customer orders with fulfillment status
+- **OrderItem**: Items in an order with quantity and pricing
 
 ### Customers
 
-- **Customer**: Customer information
-- **PaymentMethod**: Customer payment methods
-- **Cohort**: Customer groupings
+- **Customer**: Customer information with profile data
+- **PaymentMethod**: Customer payment methods (insecure references)
+- **SecurePaymentMethod**: Vault-encrypted payment method storage
+- **Cohort**: Customer groupings for analytics and targeting
 
 ### Billing
 
-- **Subscription**: Recurring billing subscriptions
-- **Payment**: Payment transactions
-- **Refund**: Payment refunds
+- **Subscription**: Recurring billing subscriptions with lifecycle management
+- **Invoice**: Billing documents with PDF generation and storage
+- **InvoiceHistory**: Audit trail of invoice changes
+- **Payment**: Payment transactions with provider integration
+- **Refund**: Payment refunds with accounting reconciliation
 
 ### Integration
 
@@ -188,36 +214,79 @@ injection, or remove the FX DI in modules.go.
 
 ### Prerequisites
 
-- Docker
-- Docker Compose
-- Go 1.24
-- Temporal client
+- **Docker & Docker Compose**: For running required services locally
+- **Go 1.24+**: Latest Go runtime with modules support
+- **Node.js & pnpm**: For Prisma database management
+- **Temporal CLI**: For workflow namespace management
+- **AWS CLI**: For S3 storage configuration (production)
+- **Chrome/Chromium**: For PDF generation (automatically handled in Docker)
 
 ### Setup
 
-1. Clone the repository
-2. Run Docker Compose to start the required services:
+1. **Clone the repository**
+   ```bash
+   git clone <repository-url>
+   cd payloop
    ```
+
+2. **Install dependencies**
+   ```bash
+   go mod download
+   pnpm install  # For Prisma
+   ```
+
+3. **Configure environment**
+   ```bash
+   cp .env.example .env
+   # Edit .env with your configuration
+   ```
+
+4. **Start infrastructure services**
+   ```bash
    docker-compose up -d
    ```
-3. Create the `subscriptions` namespace in Temporal:
+
+5. **Set up databases**
+   ```bash
+   # Generate Prisma client
+   pnpm dlx prisma generate
+   
+   # Push schema to development database
+   pnpm dlx prisma db push
+   
+   # Push reporting schema
+   pnpm dlx prisma db push --schema=schemas/reporting/schema.prisma
    ```
+
+6. **Create Temporal namespace**
+   ```bash
    temporal operator namespace create -n subscriptions
    ```
-4. Run the seed script to create initial data
+
+7. **Seed initial data**
+   ```bash
+   node prisma/seed.js
+   ```
+
+8. **Start the application**
+   ```bash
+   go run main.go serve
+   ```
 
 ## Configuration
 
-Configuration is managed through the `.env` file, which includes settings for:
+Configuration is managed through the `.env` file with the `GETPAIDHQ_` prefix convention. Key configuration areas include:
 
-- Server (port, host)
-- Database connection
-- Logging
-- Authentication
-- Payment providers
-- Pub/Sub
-- Subscriptions
-- File storage (S3)
+- **Server**: Port, host, and MCP SSE port configuration
+- **Database**: Dual database URLs (operational and reporting)
+- **Logging**: Level, format, and output configuration
+- **Authentication**: Clerk, Cognito, and API key settings
+- **Payment Providers**: Paystack and Checkout.com credentials
+- **Security Vault**: AES encryption keys and AWS Secrets Manager settings
+- **Email Service**: Loops API configuration
+- **File Storage**: AWS S3 bucket and region settings
+- **Infrastructure**: NATS, Redis, SQS, and Temporal configuration
+- **CDC**: Change Data Capture settings for database synchronization
 
 ### AWS S3 Configuration
 
@@ -275,6 +344,66 @@ S3_REGION=us-east-1
 - Bucket should have proper CORS configuration if accessed from web clients
 - Consider enabling S3 bucket versioning for document history
 
+### Security Vault Configuration
+
+Payloop includes a secure vault system for encrypting sensitive payment tokens and data.
+
+#### AES Vault (Default)
+```bash
+# Generate a 32-byte AES key
+GETPAIDHQ_TOKEN_VAULT_TYPE=aes
+GETPAIDHQ_TOKEN_VAULT_AES_KEY=$(openssl rand -base64 32)
+```
+
+#### AWS Secrets Manager Vault
+```bash
+GETPAIDHQ_TOKEN_VAULT_TYPE=aws_secrets_manager
+GETPAIDHQ_TOKEN_VAULT_AWS_REGION=us-east-1
+GETPAIDHQ_TOKEN_VAULT_AWS_PATH=payloop/payment-tokens
+```
+
+### Email Service Configuration
+
+Configure Loops for transactional email delivery:
+
+```bash
+# Email Service Configuration
+GETPAIDHQ_EMAIL_PROVIDER=loops
+GETPAIDHQ_LOOPS_API_KEY=your_loops_api_key
+GETPAIDHQ_LOOPS_API_ENDPOINT=https://api.loops.so/v1/transactional
+GETPAIDHQ_EMAIL_FROM_EMAIL=invoices@yourdomain.com
+GETPAIDHQ_EMAIL_FROM_NAME=Your Company Name
+```
+
+### PDF Generation System
+
+The system uses ChromeDP (headless Chrome) for high-quality PDF generation:
+
+- **Templates**: Liquid templates located in `assets/templates/invoices/`
+- **Fonts**: Custom fonts can be added to support various languages
+- **Styling**: CSS-based styling with full Chrome rendering capabilities
+- **Performance**: Automatic resource management and memory cleanup
+- **Storage**: Generated PDFs are automatically uploaded to S3
+
+#### Template Customization
+1. Modify templates in `assets/templates/invoices/`
+2. Use Liquid syntax for dynamic content
+3. Test with `go test -v ./internal/application/lib/pdf/...`
+
+### Model Context Protocol (MCP) Integration
+
+Payloop includes an MCP server for AI-friendly operations:
+
+- **Server**: Runs on port 8084 with Server-Sent Events
+- **Tools**: Invoice creation and management operations
+- **Location**: `/internal/mcp/`
+- **Usage**: Enables AI assistants to interact with Payloop programmatically
+
+#### Available MCP Tools
+- `hello_world`: Basic connectivity test
+- `create_invoice`: Create invoices with AI assistance
+- More tools can be added by implementing the MCP tool interface
+
 ## Database Migrations
 
 Payloop uses Prisma to manage database schema and migrations:
@@ -287,6 +416,49 @@ environments are managed by the CI/CD pipeline. Migrations are executed before t
 Check the buildspec.yml file for more details.
 
 ## Development
+
+### Development Commands
+
+The following commands are available for development and testing:
+
+#### Building and Running
+```bash
+go run main.go serve                    # Start the API server
+docker-compose up -d                    # Start required services
+```
+
+#### Database Operations
+```bash
+pnpm dlx prisma generate                # Generate Prisma client
+pnpm dlx prisma db push                 # Push schema changes to development database
+pnpm dlx prisma migrate deploy          # Deploy migrations (used in CI/CD)
+pnpm dlx prisma format                  # Format Prisma schema files
+```
+
+#### Reporting Database
+```bash
+pnpm dlx prisma format --schema=schemas/reporting/schema.prisma         # Format reporting schema
+pnpm dlx prisma db push --schema=schemas/reporting/schema.prisma        # Push reporting schema changes
+```
+
+#### Testing
+```bash
+go test ./...                           # Run all tests
+go test ./internal/application/services/...    # Run service layer tests
+go test -v ./internal/application/lib/pdf/...  # Run PDF generation tests with verbose output
+```
+
+#### Deployment
+```bash
+pnpm run deploy:test                    # Deploy to test environment
+pnpm run deploy:prod                    # Deploy to production environment
+```
+
+#### Development Tunnels
+```bash
+pnpm run tunnel:test                    # Create SSH tunnel to test environment resources
+pnpm run tunnel:prod                    # Create SSH tunnel to production environment resources
+```
 
 ### Change Data Capture (CDC)
 
