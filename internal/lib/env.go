@@ -52,10 +52,6 @@ type Env struct {
 
 	// Pubsub configuration
 	PubsubProvider string `mapstructure:"GETPAIDHQ_PUBSUB_PROVIDER"`
-	PubsubTopic    string `mapstructure:"GETPAIDHQ_PUBSUB_TOPIC"`
-
-	// Subscriptions configuration
-	SubscriptionsMaxRetries int `mapstructure:"GETPAIDHQ_SUBSCRIPTIONS_MAX_RETRIES"`
 
 	// S3 Storage configuration
 	S3Bucket string `mapstructure:"GETPAIDHQ_S3_BUCKET"`
@@ -101,8 +97,6 @@ func NewEnv() Env {
 	viper.BindEnv("GETPAIDHQ_TOKEN_VAULT_AWS_REGION")
 	viper.BindEnv("GETPAIDHQ_TOKEN_VAULT_AWS_PATH")
 	viper.BindEnv("GETPAIDHQ_PUBSUB_PROVIDER")
-	viper.BindEnv("GETPAIDHQ_PUBSUB_TOPIC")
-	viper.BindEnv("GETPAIDHQ_SUBSCRIPTIONS_MAX_RETRIES")
 	viper.BindEnv("GETPAIDHQ_S3_BUCKET")
 	viper.BindEnv("GETPAIDHQ_S3_REGION")
 	err = viper.Unmarshal(&env)
@@ -143,10 +137,6 @@ func NewEnv() Env {
 
 		// Pubsub configuration
 		env.PubsubProvider = viper.GetString("GETPAIDHQ_PUBSUB_PROVIDER")
-		env.PubsubTopic = viper.GetString("GETPAIDHQ_PUBSUB_TOPIC")
-
-		// Subscriptions configuration
-		env.SubscriptionsMaxRetries = viper.GetInt("GETPAIDHQ_SUBSCRIPTIONS_MAX_RETRIES")
 
 		// S3 Storage configuration
 		env.S3Bucket = viper.GetString("GETPAIDHQ_S3_BUCKET")
