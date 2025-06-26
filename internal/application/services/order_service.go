@@ -17,6 +17,7 @@ import (
 	"payloop/internal/domain/factories"
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
+	"payloop/internal/domain/security"
 	"payloop/internal/infrastructure/cart"
 	"payloop/internal/lib"
 	"time"
@@ -36,6 +37,7 @@ type OrderService struct {
 	gatewayFactory          factories.GatewayFactory
 	pubsub                  events.PubSub
 	cartFactory             factories.CartFactory
+	tokenVault              security.TokenVault
 	logger                  logger.Logger
 }
 
@@ -53,6 +55,7 @@ func NewOrderService(
 	gatewayFactory factories.GatewayFactory,
 	cartFactory factories.CartFactory,
 	pubsub events.PubSub,
+	tokenVault security.TokenVault,
 	logger logger.Logger,
 ) interfaces.OrderService {
 	return OrderService{
@@ -70,6 +73,7 @@ func NewOrderService(
 		paymentRepository:       paymentRepository,
 		pubsub:                  pubsub,
 		orderItemRepository:     orderItemRepository,
+		tokenVault:              tokenVault,
 	}
 }
 
@@ -319,27 +323,42 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 			s.logger.Debugf("This payment method expires at: %v", expireAt)
 		}
 
-		// create the payment method
-		paymentMethod, err = s.paymentMethodRepository.Create(ctx, entities.PaymentMethod{
-			OrgId:          order.OrgId,
-			Id:             lib.GenerateId("pm"),
-			Psp:            input.PaymentMethod.Psp,
-			Status:         payment_methods.Active,
-			ExpireAt:       expireAt,
-			Metadata:       input.PaymentMethod.Metadata,
-			Name:           input.PaymentMethod.Name,
-			CustomerId:     order.CustomerId,
-			BillingAddress: entities.Address{},
-			Type:           payment_methods.PaymentMethodType(input.PaymentMethod.Type),
-			Token:          input.PaymentMethod.Token,
-			Details:        input.PaymentMethod.Details,
-			CreatedAt:      time.Now().UTC(),
-			UpdatedAt:      time.Now().UTC(),
-		})
+		// Create payment method entity
+		paymentMethod := entities.PaymentMethod{
+			OrgId:      order.OrgId,
+			Id:         lib.GenerateId("pm"),
+			CustomerId: order.CustomerId,
+			Psp:        input.PaymentMethod.Psp,
+			Type:       input.PaymentMethod.Type,
+			Status:     payment_methods.Active,
+			Name:       input.PaymentMethod.Name,
+			Details:    input.PaymentMethod.Details,
+			Metadata:   input.PaymentMethod.Metadata,
+			ExpireAt:   expireAt,
+			// billing address will be set from order/customer
+		}
+
+		// create the secure payment method
+		securityService := entities.NewPaymentMethodSecurityService(s.tokenVault)
+		securePaymentMethod, err := securityService.CreateSecurePaymentMethod(
+			ctx,
+			paymentMethod,
+			input.PaymentMethod.Token,
+		)
 		if err != nil {
-			s.logger.Error("Failed to create payment method", err.Error())
+			s.logger.Error("Failed to create secure payment method", err.Error())
+			return entities.Order{}, lib.NewCustomError(lib.InternalError, "Failed to create secure payment method", err)
+		}
+
+		// Save to database using secure method
+		savedSecurePaymentMethod, err := s.paymentMethodRepository.CreateSecure(ctx, securePaymentMethod)
+		if err != nil {
+			s.logger.Error("Failed to save secure payment method", err.Error())
 			return entities.Order{}, err
 		}
+
+		// Convert back to regular PaymentMethod for compatibility
+		paymentMethod = savedSecurePaymentMethod.ToEntity()
 		s.logger.Debugf(`Created payment method [%s] for order [%s]`, paymentMethod.Id, order.Id)
 	}
 

@@ -10,6 +10,7 @@ import (
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/application/lib/pdf"
+	"payloop/internal/domain/email_providers"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -28,6 +29,8 @@ type InvoiceService struct {
 	pubsub                events.PubSub
 	logger                logger.Logger
 	transactionService    interfaces.TransactionService
+	emailProvider         email_providers.Provider
+	documentService       interfaces.DocumentService
 }
 
 func NewInvoiceService(
@@ -41,6 +44,8 @@ func NewInvoiceService(
 	pubsub events.PubSub,
 	logger logger.Logger,
 	transactionService interfaces.TransactionService,
+	emailProvider email_providers.Provider,
+	documentService interfaces.DocumentService,
 ) interfaces.InvoiceService {
 	service := InvoiceService{
 		invoiceRepository:     invoiceRepository,
@@ -53,6 +58,8 @@ func NewInvoiceService(
 		pubsub:                pubsub,
 		logger:                logger,
 		transactionService:    transactionService,
+		emailProvider:         emailProvider,
+		documentService:       documentService,
 	}
 
 	// subscribe to order events to manage cohorts
@@ -223,20 +230,13 @@ func (s InvoiceService) Create(ctx context.Context, orgId string, input dto.Crea
 		UpdatedAt:      time.Now().UTC(),
 	}
 
-	// Create invoice in database
-	createdInvoice, err := s.invoiceRepository.Create(ctx, invoice)
-	if err != nil {
-		s.logger.Error("Failed to create invoice: ", err)
-		return entities.Invoice{}, lib.NewCustomError(lib.InternalError, "Error creating invoice", err)
-	}
-
-	var lineItems = make([]entities.InvoiceLineItem, len(input.LineItems))
 	// Add line items if provided
 	if len(input.LineItems) > 0 {
+		var lineItems []entities.InvoiceLineItem
 		for _, item := range input.LineItems {
 			lineItem := entities.InvoiceLineItem{
 				OrgId:         orgId,
-				InvoiceId:     createdInvoice.Id,
+				InvoiceId:     invoice.Id,
 				Id:            lib.GenerateId("ili"),
 				ProductId:     item.ProductId,
 				VariantId:     item.VariantId,
@@ -248,10 +248,10 @@ func (s InvoiceService) Create(ctx context.Context, orgId string, input dto.Crea
 				LineTotal:     int(item.Quantity * float64(item.UnitPrice)),
 				DiscountType:  item.DiscountType,
 				DiscountValue: item.DiscountValue,
-				DiscountTotal: 0, // Would be calculated based on discount type and value
+				DiscountTotal: 0, // Will be calculated based on discount type and value
 				TaxCode:       item.TaxCode,
 				TaxRate:       item.TaxRate,
-				TaxAmount:     0, // Would be calculated based on tax rate
+				TaxAmount:     0, // Will be calculated based on tax rate
 				TaxExempt:     item.TaxExempt,
 				Metadata:      item.Metadata,
 				CreatedAt:     time.Now().UTC(),
@@ -273,22 +273,18 @@ func (s InvoiceService) Create(ctx context.Context, orgId string, input dto.Crea
 				lineItem.TaxAmount = int(float64(lineItem.LineTotal) * float64(item.TaxRate) / 100.0)
 			}
 
-			_, err := s.invoiceRepository.AddLineItem(ctx, lineItem)
-			if err != nil {
-				s.logger.Error("Failed to add line item: ", err)
-				// Continue with other line items even if one fails
-			}
 			lineItems = append(lineItems, lineItem)
 		}
 
-		// Recalculate invoice totals
-		updatedInvoice, err := s.recalculateInvoiceTotals(ctx, orgId, createdInvoice.Id)
-		if err != nil {
-			s.logger.Error("Failed to recalculate invoice totals: ", err)
-			// Return the created invoice even if recalculation fails
-			return createdInvoice, nil
-		}
-		createdInvoice = updatedInvoice
+		// Attach line items to invoice
+		invoice.LineItems = lineItems
+	}
+
+	// Create invoice with line items in database
+	createdInvoice, err := s.invoiceRepository.Create(ctx, invoice)
+	if err != nil {
+		s.logger.Error("Failed to create invoice: ", err)
+		return entities.Invoice{}, lib.NewCustomError(lib.InternalError, "Error creating invoice", err)
 	}
 
 	// Add invoice history entry
@@ -308,7 +304,7 @@ func (s InvoiceService) Create(ctx context.Context, orgId string, input dto.Crea
 	// create a PDF for the invoice
 	// TODO this doesn't have to be done here, it can be done in a background job
 	pdfGenerator := pdf.NewPDFGenerator(s.logger)
-	_, err = pdfGenerator.Generate(createdInvoice, lineItems, pdf.GenerateOptions{
+	_, err = pdfGenerator.Generate(createdInvoice, pdf.GenerateOptions{
 		TemplateName: "one.liquid",
 	})
 	if err != nil {
@@ -332,7 +328,7 @@ func (s InvoiceService) Get(ctx context.Context, orgId string, id string) (entit
 }
 
 func (s InvoiceService) Update(ctx context.Context, orgId string, id string, req dto.UpdateInvoiceRequest) (entities.Invoice, error) {
-	// Get existing invoice
+	// Get existing invoice with line items
 	invoice, err := s.invoiceRepository.FindById(ctx, orgId, id)
 	if err != nil {
 		s.logger.Error("Failed to get invoice: ", err)
@@ -359,8 +355,127 @@ func (s InvoiceService) Update(ctx context.Context, orgId string, id string, req
 	}
 	invoice.UpdatedAt = time.Now().UTC()
 
-	// Update invoice in database
-	updatedInvoice, err := s.invoiceRepository.Update(ctx, invoice)
+	// Update line items if provided
+	if req.LineItems != nil && len(req.LineItems) > 0 {
+		// Create a map of existing line items for easier lookup
+		existingLineItems := make(map[string]entities.InvoiceLineItem)
+		for _, item := range invoice.LineItems {
+			existingLineItems[item.Id] = item
+		}
+
+		var updatedLineItems []entities.InvoiceLineItem
+
+		for _, item := range req.LineItems {
+			if item.Id != "" && item.Id != "0" {
+				// Update existing line item
+				if existingItem, exists := existingLineItems[item.Id]; exists {
+					// Update fields that are provided
+					if item.Description != "" {
+						existingItem.Description = item.Description
+					}
+					if item.Category != "" {
+						existingItem.Category = item.Category
+					}
+					if item.Quantity != 0 {
+						existingItem.Quantity = item.Quantity
+					}
+					if item.UnitPrice != 0 {
+						existingItem.UnitPrice = item.UnitPrice
+					}
+					if item.DiscountType != "" {
+						existingItem.DiscountType = item.DiscountType
+					}
+					if item.DiscountValue != 0 {
+						existingItem.DiscountValue = item.DiscountValue
+					}
+					if item.TaxCode != "" {
+						existingItem.TaxCode = item.TaxCode
+					}
+					if item.TaxRate != 0 {
+						existingItem.TaxRate = item.TaxRate
+					}
+					existingItem.TaxExempt = item.TaxExempt
+					if item.Metadata != nil {
+						existingItem.Metadata = item.Metadata
+					}
+					existingItem.UpdatedAt = time.Now().UTC()
+
+					// Recalculate line total
+					existingItem.LineTotal = int(existingItem.Quantity * float64(existingItem.UnitPrice))
+
+					// Recalculate discount if applicable
+					if existingItem.DiscountType != "" && existingItem.DiscountValue > 0 {
+						if existingItem.DiscountType == "percentage" {
+							existingItem.DiscountTotal = int(float64(existingItem.LineTotal) * float64(existingItem.DiscountValue) / 100.0)
+						} else if existingItem.DiscountType == "fixed" {
+							existingItem.DiscountTotal = existingItem.DiscountValue
+						}
+						existingItem.LineTotal -= existingItem.DiscountTotal
+					}
+
+					// Recalculate tax if applicable and not exempt
+					if !existingItem.TaxExempt && existingItem.TaxRate > 0 {
+						existingItem.TaxAmount = int(float64(existingItem.LineTotal) * float64(existingItem.TaxRate) / 100.0)
+					} else {
+						existingItem.TaxAmount = 0
+					}
+
+					updatedLineItems = append(updatedLineItems, existingItem)
+				}
+			} else {
+				// Create new line item
+				newItem := entities.InvoiceLineItem{
+					OrgId:         orgId,
+					InvoiceId:     invoice.Id,
+					Id:            lib.GenerateId("ili"),
+					ProductId:     item.ProductId,
+					VariantId:     item.VariantId,
+					PriceId:       item.PriceId,
+					Description:   item.Description,
+					Category:      item.Category,
+					Quantity:      item.Quantity,
+					UnitPrice:     item.UnitPrice,
+					LineTotal:     int(item.Quantity * float64(item.UnitPrice)),
+					DiscountType:  item.DiscountType,
+					DiscountValue: item.DiscountValue,
+					DiscountTotal: 0, // Will be calculated
+					TaxCode:       item.TaxCode,
+					TaxRate:       item.TaxRate,
+					TaxAmount:     0, // Will be calculated
+					TaxExempt:     item.TaxExempt,
+					Metadata:      item.Metadata,
+					CreatedAt:     time.Now().UTC(),
+					UpdatedAt:     time.Now().UTC(),
+				}
+
+				// Calculate discount if applicable
+				if item.DiscountType != "" && item.DiscountValue > 0 {
+					if item.DiscountType == "percentage" {
+						newItem.DiscountTotal = int(float64(newItem.LineTotal) * float64(item.DiscountValue) / 100.0)
+					} else if item.DiscountType == "fixed" {
+						newItem.DiscountTotal = item.DiscountValue
+					}
+					newItem.LineTotal -= newItem.DiscountTotal
+				}
+
+				// Calculate tax if applicable and not exempt
+				if !item.TaxExempt && item.TaxRate > 0 {
+					newItem.TaxAmount = int(float64(newItem.LineTotal) * float64(item.TaxRate) / 100.0)
+				}
+
+				updatedLineItems = append(updatedLineItems, newItem)
+			}
+		}
+
+ 	// Update the invoice's line items
+ 	invoice.LineItems = updatedLineItems
+
+ 	// Recalculate invoice totals
+ 	invoice.RecalculateTotals()
+ }
+
+ // Update invoice in database
+ updatedInvoice, err := s.invoiceRepository.Update(ctx, invoice)
 	if err != nil {
 		s.logger.Error("Failed to update invoice: ", err)
 		return entities.Invoice{}, lib.NewCustomError(lib.InternalError, "Error updating invoice", err)
@@ -747,25 +862,18 @@ func (s InvoiceService) ListHistory(ctx context.Context, orgId string, invoiceId
 }
 
 func (s InvoiceService) GeneratePDF(ctx context.Context, orgId string, invoiceId string, options pdf.GenerateOptions) ([]byte, error) {
-	// Get existing invoice
+	// Get invoice with line items in a single call
 	invoice, err := s.invoiceRepository.FindById(ctx, orgId, invoiceId)
 	if err != nil {
-		s.logger.Error("Failed to get invoice: ", err)
+		s.logger.Error("Failed to get invoice with line items: ", err)
 		return nil, lib.NewCustomError(lib.NotFoundError, "Invoice not found", err)
-	}
-
-	// Get line items
-	lineItems, err := s.invoiceRepository.ListLineItems(ctx, orgId, invoiceId)
-	if err != nil {
-		s.logger.Error("Failed to list line items: ", err)
-		return nil, lib.NewCustomError(lib.InternalError, "Error listing line items", err)
 	}
 
 	// Create PDF generator
 	pdfGenerator := pdf.NewPDFGenerator(s.logger)
 
-	// Generate PDF
-	pdfBytes, err := pdfGenerator.Generate(invoice, lineItems, options)
+	// Generate PDF with complete invoice aggregate
+	pdfBytes, err := pdfGenerator.Generate(invoice, options)
 	if err != nil {
 		s.logger.Error("Failed to generate PDF: ", err)
 		return nil, lib.NewCustomError(lib.InternalError, "Error generating PDF", err)
@@ -774,37 +882,34 @@ func (s InvoiceService) GeneratePDF(ctx context.Context, orgId string, invoiceId
 	return pdfBytes, nil
 }
 
+func (s InvoiceService) GenerateAndStorePDF(ctx context.Context, orgId string, invoiceId string, options pdf.GenerateOptions) (*entities.Document, error) {
+	// Generate PDF
+	pdfBytes, err := s.GeneratePDF(ctx, orgId, invoiceId, options)
+	if err != nil {
+		return nil, err
+	}
+
+	// Upload PDF to storage
+	document, err := s.documentService.UploadInvoicePDF(ctx, orgId, invoiceId, pdfBytes)
+	if err != nil {
+		s.logger.Error("Failed to upload invoice PDF: ", err)
+		return nil, lib.NewCustomError(lib.InternalError, "Error storing invoice PDF", err)
+	}
+
+	s.logger.Info("Invoice PDF generated and stored successfully", "invoice_id", invoiceId, "document_id", document.Id)
+	return document, nil
+}
+
 // Helper function to recalculate invoice totals based on line items
 func (s InvoiceService) recalculateInvoiceTotals(ctx context.Context, orgId string, invoiceId string) (entities.Invoice, error) {
-	// Get existing invoice
+	// Get invoice with line items in a single call
 	invoice, err := s.invoiceRepository.FindById(ctx, orgId, invoiceId)
 	if err != nil {
 		return entities.Invoice{}, err
 	}
 
-	// Get line items
-	lineItems, err := s.invoiceRepository.ListLineItems(ctx, orgId, invoiceId)
-	if err != nil {
-		return entities.Invoice{}, err
-	}
-
-	// Calculate totals
-	subTotal := 0
-	taxTotal := 0
-	discountTotal := 0
-
-	for _, item := range lineItems {
-		subTotal += int(item.Quantity * float64(item.UnitPrice))
-		discountTotal += item.DiscountTotal
-		taxTotal += item.TaxAmount
-	}
-
-	// Update invoice
-	invoice.SubTotal = subTotal
-	invoice.DiscountTotal = discountTotal
-	invoice.TaxTotal = taxTotal
-	invoice.Total = subTotal - discountTotal + taxTotal
-	invoice.AmountDue = invoice.Total - invoice.AmountPaid
+	// Use entity business logic to recalculate totals
+	invoice.RecalculateTotals()
 	invoice.UpdatedAt = time.Now().UTC()
 
 	// Update invoice in database

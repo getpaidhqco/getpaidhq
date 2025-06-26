@@ -8,6 +8,7 @@ import (
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
+	"payloop/internal/domain/security"
 	"payloop/internal/infrastructure/db/postgres/models"
 	"payloop/internal/lib"
 	"time"
@@ -173,4 +174,44 @@ func (r PaymentMethodRepository) FindExpiringPaymentMethods(ctx context.Context,
 	}
 
 	return paymentMethods, nil
+}
+
+// FindSecureById retrieves a payment method and wraps it with secure token handling
+func (r PaymentMethodRepository) FindSecureById(ctx context.Context, orgId string, id string, vault security.TokenVault) (entities.SecurePaymentMethod, error) {
+	pm, err := r.FindById(ctx, orgId, id)
+	if err != nil {
+		return entities.SecurePaymentMethod{}, err
+	}
+
+	return entities.NewSecurePaymentMethod(pm, vault), nil
+}
+
+// CreateSecure creates a payment method with encrypted token storage
+func (r PaymentMethodRepository) CreateSecure(ctx context.Context, secureEntity entities.SecurePaymentMethod) (entities.SecurePaymentMethod, error) {
+	// Extract the underlying entity for database storage
+	entity := secureEntity.ToEntity()
+
+	// Create the payment method in the database
+	createdEntity, err := r.Create(ctx, entity)
+	if err != nil {
+		return entities.SecurePaymentMethod{}, err
+	}
+
+	// Return a new secure payment method with the same vault
+	return entities.NewSecurePaymentMethod(createdEntity, secureEntity.GetTokenVault()), nil
+}
+
+// UpdateSecure updates a payment method with encrypted token storage
+func (r PaymentMethodRepository) UpdateSecure(ctx context.Context, secureEntity entities.SecurePaymentMethod) (entities.SecurePaymentMethod, error) {
+	// Extract the underlying entity for database storage
+	entity := secureEntity.ToEntity()
+
+	// Update the payment method in the database
+	updatedEntity, err := r.Update(ctx, entity)
+	if err != nil {
+		return entities.SecurePaymentMethod{}, err
+	}
+
+	// Return a new secure payment method with the same vault
+	return entities.NewSecurePaymentMethod(updatedEntity, secureEntity.GetTokenVault()), nil
 }

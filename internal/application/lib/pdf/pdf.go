@@ -199,8 +199,13 @@ type GenerateOptions struct {
 	OutputPath   string // Optional: if provided, the PDF will be saved to this path
 }
 
-// Generate generates a PDF from an invoice using the specified template
-func (g *PDFGenerator) Generate(invoice entities.Invoice, lineItems []entities.InvoiceLineItem, options GenerateOptions) ([]byte, error) {
+// Generate generates a PDF from an invoice using the specified template (new aggregate version)
+func (g *PDFGenerator) Generate(invoice entities.Invoice, options GenerateOptions) ([]byte, error) {
+	return g.GenerateWithLineItems(invoice, invoice.LineItems, options)
+}
+
+// GenerateWithLineItems generates a PDF from an invoice using the specified template (backwards compatible)
+func (g *PDFGenerator) GenerateWithLineItems(invoice entities.Invoice, lineItems []entities.InvoiceLineItem, options GenerateOptions) ([]byte, error) {
 	// Validate options
 	if options.TemplateName == "" {
 		return nil, fmt.Errorf("template name is required")

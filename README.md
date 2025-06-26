@@ -208,7 +208,7 @@ injection, or remove the FX DI in modules.go.
 
 ## Configuration
 
-Configuration is managed through the `config.yml` file, which includes settings for:
+Configuration is managed through the `.env` file, which includes settings for:
 
 - Server (port, host)
 - Database connection
@@ -217,6 +217,63 @@ Configuration is managed through the `config.yml` file, which includes settings 
 - Payment providers
 - Pub/Sub
 - Subscriptions
+- File storage (S3)
+
+### AWS S3 Configuration
+
+The document storage service requires S3 access for storing invoice PDFs and other documents. When running on ECS, ensure your ECS task role has the following IAM permissions:
+
+#### Required S3 Permissions
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:GetObject",
+                "s3:PutObject",
+                "s3:DeleteObject",
+                "s3:PutObjectAcl"
+            ],
+            "Resource": "arn:aws:s3:::your-document-bucket/*"
+        },
+        {
+            "Effect": "Allow",
+            "Action": [
+                "s3:ListBucket",
+                "s3:GetBucketLocation"
+            ],
+            "Resource": "arn:aws:s3:::your-document-bucket"
+        }
+    ]
+}
+```
+
+#### Environment Variables
+
+Set the following environment variables for S3 configuration:
+
+```bash
+# S3 Configuration
+S3_BUCKET=your-document-bucket
+S3_REGION=us-east-1
+```
+
+#### ECS Task Role Setup
+
+1. Create an IAM role for your ECS task
+2. Attach the above policy to the role
+3. Assign the role to your ECS task definition
+4. The AWS SDK will automatically use the role credentials
+
+#### Security Considerations
+
+- Documents are encrypted at rest using AES-256 server-side encryption
+- Private documents use access tokens and presigned URLs for secure access
+- Bucket should have proper CORS configuration if accessed from web clients
+- Consider enabling S3 bucket versioning for document history
 
 ## Database Migrations
 

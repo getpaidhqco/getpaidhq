@@ -98,6 +98,10 @@ var RespositoryModules = fx.Options(
 		NewInvoiceRepository,
 		fx.ParamTags(`name:"primaryDb"`),
 	)),
+	fx.Provide(fx.Annotate(
+		NewDocumentRepository,
+		fx.ParamTags(`name:"primaryDb"`),
+	)),
 )
 
 // RepositoryWithTrx is a generic interface for repositories with transaction support

@@ -153,9 +153,16 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 		return payments.ChargeResult{}, err
 	}
 
-	paymentMethod, err := a.subscriptionService.GetSubscriptionPaymentMethod(ctx, subscription)
+	securePaymentMethod, err := a.subscriptionService.GetSubscriptionPaymentMethod(ctx, subscription)
 	if err != nil {
-		logger.Error("failed to get paymentMethod", "error", err.Error())
+		logger.Error("failed to get secure paymentMethod", "error", err.Error())
+		return payments.ChargeResult{}, err
+	}
+
+	// Get the decrypted token for payment processing
+	decryptedToken, err := securePaymentMethod.GetToken(ctx)
+	if err != nil {
+		logger.Error("failed to decrypt payment token", "error", err.Error())
 		return payments.ChargeResult{}, err
 	}
 
@@ -166,11 +173,11 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 		Amount:         subscription.Amount,
 		Currency:       subscription.Currency,
 		PaymentMethod: payment_providers.PaymentMethod{
-			PspId:       paymentMethod.Id,
-			Name:        paymentMethod.Name,
-			Type:        string(paymentMethod.Type),
+			PspId:       securePaymentMethod.Id,
+			Name:        securePaymentMethod.Name,
+			Type:        string(securePaymentMethod.Type),
 			IsRecurring: true,
-			Token:       paymentMethod.Token,
+			Token:       decryptedToken, // Use decrypted token
 		},
 		Customer: customer,
 	})

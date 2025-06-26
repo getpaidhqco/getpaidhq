@@ -15,6 +15,7 @@ import (
 	"payloop/internal/domain/entities/subscriptions"
 	"payloop/internal/domain/factories"
 	"payloop/internal/domain/repositories"
+	"payloop/internal/domain/security"
 	"payloop/internal/lib"
 	"time"
 )
@@ -30,6 +31,7 @@ type SubscriptionService struct {
 	orderItemRepository    repositories.OrderItemRepository
 	workflowService        interfaces.WorkflowService
 	gatewayFactory         factories.GatewayFactory
+	tokenVault             security.TokenVault
 	pubsub                 events.PubSub
 	logger                 logger.Logger
 }
@@ -43,6 +45,7 @@ func NewSubscriptionService(
 	customerRepository repositories.CustomerRepository,
 	orderRepository repositories.OrderRepository,
 	paymentRepository repositories.PaymentRepository,
+	tokenVault security.TokenVault,
 	pubsub events.PubSub,
 	gatewayFactory factories.GatewayFactory,
 	logger logger.Logger,
@@ -65,6 +68,7 @@ func NewSubscriptionService(
 		orderRepository:        orderRepository,
 		orderItemRepository:    orderItemRepository,
 		subscriptionRepository: subscriptionRepository,
+		tokenVault:             tokenVault,
 		pubsub:                 pubsub,
 		logger:                 logger,
 		gatewayFactory:         gatewayFactory,
@@ -351,17 +355,19 @@ func (s SubscriptionService) GetSubscriptionCustomer(ctx context.Context, subscr
 	return customer, nil
 }
 
-func (s SubscriptionService) GetSubscriptionPaymentMethod(ctx context.Context, subscription entities.Subscription) (entities.PaymentMethod, error) {
-	s.logger.Infof("Fetching payment method for subscription [%s] %s - %s",
+func (s SubscriptionService) GetSubscriptionPaymentMethod(ctx context.Context, subscription entities.Subscription) (entities.SecurePaymentMethod, error) {
+	s.logger.Infof("Fetching secure payment method for subscription [%s] %s - %s",
 		subscription.OrgId, subscription.Id, subscription.PaymentMethodId)
 
 	paymentMethod, err := s.customerRepository.FindPaymentMethodById(ctx, subscription.OrgId, subscription.PaymentMethodId)
 	if err != nil {
 		s.logger.Error("Failed to find payment method", err.Error())
-		return entities.PaymentMethod{}, err
+		return entities.SecurePaymentMethod{}, err
 	}
 
-	return paymentMethod, nil
+	// Wrap in secure payment method for token access
+	securePaymentMethod := entities.NewSecurePaymentMethod(paymentMethod, s.tokenVault)
+	return securePaymentMethod, nil
 }
 
 func (s SubscriptionService) FindSubscriptionPayments(ctx context.Context, pk entities.EntityKey, pagination request.Pagination) ([]entities.Payment, int, error) {

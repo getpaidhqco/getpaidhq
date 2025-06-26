@@ -32,7 +32,7 @@ func (m MockLogger) Sync() error { return nil }
 // TestIntegrationPDFGeneratorGenerate tests the Generate method with actual database lookups
 func TestIntegrationPDFGeneratorGenerate(t *testing.T) {
 	// Set up database connection
-	dbURL := os.Getenv("DATABASE_URL")
+	dbURL := os.Getenv("GETPAIDHQ_DATABASE_URL")
 	if dbURL == "" {
 		dbURL = "postgres://postgres:postgres@localhost:5432/payloop"
 	}
@@ -71,7 +71,9 @@ func TestIntegrationPDFGeneratorGenerate(t *testing.T) {
 	require.NoError(t, err, "Failed to fetch line items from database")
 
 	// Generate the PDF using the data from the database
-	pdfBytes, err := generator.Generate(dbInvoice, dbLineItems, options)
+	// Attach line items to invoice for PDF generation
+	dbInvoice.LineItems = dbLineItems
+	pdfBytes, err := generator.Generate(dbInvoice, options)
 
 	// Verify the result
 	assert.NoError(t, err, "Failed to generate PDF")

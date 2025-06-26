@@ -70,7 +70,7 @@ func TestGenerateWithMissingTemplateName(t *testing.T) {
 	}
 
 	// Generate the PDF
-	_, err := generator.Generate(invoice, lineItems, options)
+	_, err := generator.GenerateWithLineItems(invoice, lineItems, options)
 
 	// Verify the result
 	assert.Error(t, err)
@@ -104,7 +104,7 @@ func TestGenerateWithNonExistentTemplate(t *testing.T) {
 	}
 
 	// Generate the PDF
-	_, err := generator.Generate(invoice, lineItems, options)
+	_, err := generator.GenerateWithLineItems(invoice, lineItems, options)
 
 	// Verify the result
 	assert.Error(t, err)
@@ -287,6 +287,7 @@ func TestGenerateWithMocks(t *testing.T) {
 	mockFileSystem.On("ReadFile", filepath.Join(tempDir, templateName)).Return([]byte(templateContent), nil)
 	mockTemplateEngine.On("ParseAndRenderString", string(templateContent), mock.Anything).Return("<html><body>Rendered Template</body></html>", nil)
 	mockPDFEngine.On("Generate", "<html><body>Rendered Template</body></html>").Return([]byte("PDF Content"), nil)
+	mockFileSystem.On("WriteFile", mock.AnythingOfType("string"), []byte("PDF Content"), os.FileMode(0644)).Return(nil)
 
 	// Create a PDFGenerator with the mock dependencies
 	generator := NewPDFGeneratorWithDeps(mockTemplateEngine, mockFileSystem, mockPDFEngine, tempDir)
@@ -299,7 +300,7 @@ func TestGenerateWithMocks(t *testing.T) {
 	}
 
 	// Generate the PDF
-	pdfBytes, err := generator.Generate(invoice, lineItems, options)
+	pdfBytes, err := generator.GenerateWithLineItems(invoice, lineItems, options)
 
 	// Verify the result
 	assert.NoError(t, err)
@@ -342,7 +343,7 @@ func TestGenerateWithOutputPath(t *testing.T) {
 	}
 
 	// Generate the PDF
-	pdfBytes, err := generator.Generate(invoice, lineItems, options)
+	pdfBytes, err := generator.GenerateWithLineItems(invoice, lineItems, options)
 
 	// Verify the result
 	assert.NoError(t, err)

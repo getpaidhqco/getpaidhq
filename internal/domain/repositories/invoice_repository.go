@@ -7,6 +7,7 @@ import (
 )
 
 type InvoiceRepository interface {
+	// Basic invoice operations (always include line items)
 	FindById(ctx context.Context, orgId string, id string) (entities.Invoice, error)
 	Create(ctx context.Context, entity entities.Invoice) (entities.Invoice, error)
 	Update(ctx context.Context, entity entities.Invoice) (entities.Invoice, error)

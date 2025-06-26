@@ -45,17 +45,20 @@ func (r InvoiceRepository) WithTrx(trxHandle interface{}) InvoiceRepository {
 func (r InvoiceRepository) FindById(ctx context.Context, orgId string, id string) (entities.Invoice, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	var invoiceModel models.Invoice
-
 	query := `SELECT org_id, id, customer_id, order_id, subscription_id, sequence_id, doc_number, 
               type, invoice_type, status, is_immutable, currency, sub_total, tax_total, 
               discount_total, total, amount_paid, amount_due, tax_provider, tax_transaction_id, 
               tax_breakdown, issued_at, due_at, paid_at, notes, customer_notes, metadata, 
               exchange_rate, base_currency, created_at, updated_at
 			  FROM invoices
-			  WHERE org_id = $1 AND id = $2`
+			  WHERE org_id = @org_id AND id = @id`
 
-	err := tx.QueryRow(ctx, query, orgId, id).Scan(
+	var invoiceModel models.Invoice
+
+	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
+		"org_id": orgId,
+		"id":     id,
+	}).Scan(
 		&invoiceModel.OrgId,
 		&invoiceModel.Id,
 		&invoiceModel.CustomerId,
@@ -90,24 +93,36 @@ func (r InvoiceRepository) FindById(ctx context.Context, orgId string, id string
 	)
 
 	if err != nil {
-		var pgErr *pgconn.PgError
-		if errors.As(err, &pgErr) {
-			r.logger.Error("failed to find Invoice", "err", pgErr.Message, "code", pgErr.Code)
-		}
 		if errors.Is(err, pgx.ErrNoRows) {
-			r.logger.Error("Invoice not found")
+			return entities.Invoice{}, err
 		}
+		r.logger.Error(`failed to find Invoice by id`, err.Error())
 		return entities.Invoice{}, err
 	}
 
 	// Convert model to entity
 	invoice := invoiceModel.ToEntity()
+
+	// Fetch line items for the invoice
+	lineItems, err := r.ListLineItems(ctx, orgId, id)
+	if err != nil {
+		r.logger.Error(`failed to fetch line items for invoice`, err.Error())
+		return entities.Invoice{}, err
+	}
+
+	// Attach line items to the invoice
+	invoice.LineItems = lineItems
+
 	return invoice, nil
 }
 
 func (r InvoiceRepository) Create(ctx context.Context, entity entities.Invoice) (entities.Invoice, error) {
 	tx := r.getTransactionFromContext(ctx)
 
+	// Store line items for later
+	lineItems := entity.LineItems
+
+	// Create the invoice without line items first
 	query := `INSERT INTO invoices (org_id, id, customer_id, order_id, subscription_id, sequence_id, 
               doc_number, type, invoice_type, status, is_immutable, currency, sub_total, tax_total, 
               discount_total, total, amount_paid, amount_due, tax_provider, tax_transaction_id, 
@@ -187,12 +202,56 @@ func (r InvoiceRepository) Create(ctx context.Context, entity entities.Invoice) 
 		return entities.Invoice{}, err
 	}
 
-	return r.FindById(ctx, entity.OrgId, entity.Id)
+	// Get the created invoice
+	createdInvoice, err := r.FindById(ctx, entity.OrgId, entity.Id)
+	if err != nil {
+		return entities.Invoice{}, err
+	}
+
+	// If there are line items, create them
+	if len(lineItems) > 0 {
+		var createdLineItems []entities.InvoiceLineItem
+		for _, lineItem := range lineItems {
+			lineItem.InvoiceId = createdInvoice.Id
+			lineItem.OrgId = createdInvoice.OrgId
+
+			createdLineItem, err := r.AddLineItem(ctx, lineItem)
+			if err != nil {
+				return entities.Invoice{}, err
+			}
+			createdLineItems = append(createdLineItems, createdLineItem)
+		}
+
+		// Attach line items to the created invoice
+		createdInvoice.LineItems = createdLineItems
+
+		// Recalculate totals based on line items
+		createdInvoice.RecalculateTotals()
+
+		// Update the invoice with recalculated totals
+		updatedInvoice, err := r.Update(ctx, createdInvoice)
+		if err != nil {
+			return entities.Invoice{}, err
+		}
+
+		// Return the complete invoice with line items
+		updatedInvoice.LineItems = createdLineItems
+		return updatedInvoice, nil
+	}
+
+	return createdInvoice, nil
 }
 
 func (r InvoiceRepository) Update(ctx context.Context, entity entities.Invoice) (entities.Invoice, error) {
 	tx := r.getTransactionFromContext(ctx)
 
+	// Get existing invoice with line items
+	existingInvoice, err := r.FindById(ctx, entity.OrgId, entity.Id)
+	if err != nil {
+		return entities.Invoice{}, err
+	}
+
+	// Update the base invoice
 	query := `UPDATE invoices
 			  SET customer_id = @customer_id, order_id = @order_id, subscription_id = @subscription_id, 
               sequence_id = @sequence_id, doc_number = @doc_number, type = @type, invoice_type = @invoice_type, 
@@ -235,7 +294,7 @@ func (r InvoiceRepository) Update(ctx context.Context, entity entities.Invoice) 
 		paidAtTimestamp.Valid = true
 	}
 
-	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
+	_, err = tx.Exec(ctx, query, pgx.NamedArgs{
 		"org_id":             entity.OrgId,
 		"id":                 entity.Id,
 		"customer_id":        customerIdText,
@@ -272,7 +331,65 @@ func (r InvoiceRepository) Update(ctx context.Context, entity entities.Invoice) 
 		return entities.Invoice{}, err
 	}
 
-	return r.FindById(ctx, entity.OrgId, entity.Id)
+	// Get the updated invoice
+	updatedInvoice, err := r.FindById(ctx, entity.OrgId, entity.Id)
+	if err != nil {
+		return entities.Invoice{}, err
+	}
+
+	// Handle line items if provided
+	if entity.LineItems != nil {
+		// Create maps for easier lookup
+		existingItems := make(map[string]entities.InvoiceLineItem)
+		for _, item := range existingInvoice.LineItems {
+			existingItems[item.Id] = item
+		}
+
+		newItems := make(map[string]entities.InvoiceLineItem)
+		for _, item := range entity.LineItems {
+			newItems[item.Id] = item
+		}
+
+		// Update or create line items
+		var finalLineItems []entities.InvoiceLineItem
+		for _, item := range entity.LineItems {
+			if item.Id == "" {
+				// New item - create it
+				item.InvoiceId = updatedInvoice.Id
+				item.OrgId = updatedInvoice.OrgId
+				createdItem, err := r.AddLineItem(ctx, item)
+				if err != nil {
+					return entities.Invoice{}, err
+				}
+				finalLineItems = append(finalLineItems, createdItem)
+			} else if _, exists := existingItems[item.Id]; exists {
+				// Existing item - update it
+				updatedItem, err := r.UpdateLineItem(ctx, item)
+				if err != nil {
+					return entities.Invoice{}, err
+				}
+				finalLineItems = append(finalLineItems, updatedItem)
+			}
+		}
+
+		// Delete items that are no longer present
+		for _, existingItem := range existingInvoice.LineItems {
+			if _, stillExists := newItems[existingItem.Id]; !stillExists {
+				err := r.DeleteLineItem(ctx, updatedInvoice.OrgId, updatedInvoice.Id, existingItem.Id)
+				if err != nil {
+					return entities.Invoice{}, err
+				}
+			}
+		}
+
+		// Attach final line items
+		updatedInvoice.LineItems = finalLineItems
+		return updatedInvoice, nil
+	}
+
+	// If no line items provided, just return the updated invoice with existing line items
+	updatedInvoice.LineItems = existingInvoice.LineItems
+	return updatedInvoice, nil
 }
 
 func (r InvoiceRepository) List(ctx context.Context, orgId string, pagination dto.Pagination) ([]entities.Invoice, int, error) {
@@ -321,7 +438,7 @@ func (r InvoiceRepository) List(ctx context.Context, orgId string, pagination dt
 	})
 
 	if err != nil {
-		r.logger.Error(`failed to find Invoices`, err.Error())
+		r.logger.Error(`failed to list Invoices`, err.Error())
 		return nil, 0, err
 	}
 	defer rows.Close()
@@ -377,6 +494,17 @@ func (r InvoiceRepository) List(ctx context.Context, orgId string, pagination dt
 	if rows.Err() != nil {
 		r.logger.Error(`rows iteration error`, rows.Err().Error())
 		return nil, 0, rows.Err()
+	}
+
+	// Then get line items for each invoice
+	for i := range invoices {
+		lineItems, err := r.ListLineItems(ctx, orgId, invoices[i].Id)
+		if err != nil {
+			// Log error but continue with other invoices
+			r.logger.Error("failed to load line items for invoice", "invoice_id", invoices[i].Id, "error", err.Error())
+			continue
+		}
+		invoices[i].LineItems = lineItems
 	}
 
 	return invoices, count, nil
@@ -487,6 +615,17 @@ func (r InvoiceRepository) FindByCustomerId(ctx context.Context, orgId string, c
 		return nil, 0, rows.Err()
 	}
 
+	// Then get line items for each invoice
+	for i := range invoices {
+		lineItems, err := r.ListLineItems(ctx, orgId, invoices[i].Id)
+		if err != nil {
+			// Log error but continue with other invoices
+			r.logger.Error("failed to load line items for invoice", "invoice_id", invoices[i].Id, "error", err.Error())
+			continue
+		}
+		invoices[i].LineItems = lineItems
+	}
+
 	return invoices, count, nil
 }
 
@@ -568,6 +707,17 @@ func (r InvoiceRepository) FindByOrderId(ctx context.Context, orgId string, orde
 	if rows.Err() != nil {
 		r.logger.Error(`rows iteration error`, rows.Err().Error())
 		return nil, 0, rows.Err()
+	}
+
+	// Then get line items for each invoice
+	for i := range invoices {
+		lineItems, err := r.ListLineItems(ctx, orgId, invoices[i].Id)
+		if err != nil {
+			// Log error but continue with other invoices
+			r.logger.Error("failed to load line items for invoice", "invoice_id", invoices[i].Id, "error", err.Error())
+			continue
+		}
+		invoices[i].LineItems = lineItems
 	}
 
 	return invoices, count, nil
@@ -676,6 +826,17 @@ func (r InvoiceRepository) FindBySubscriptionId(ctx context.Context, orgId strin
 	if rows.Err() != nil {
 		r.logger.Error(`rows iteration error`, rows.Err().Error())
 		return nil, 0, rows.Err()
+	}
+
+	// Then get line items for each invoice
+	for i := range invoices {
+		lineItems, err := r.ListLineItems(ctx, orgId, invoices[i].Id)
+		if err != nil {
+			// Log error but continue with other invoices
+			r.logger.Error("failed to load line items for invoice", "invoice_id", invoices[i].Id, "error", err.Error())
+			continue
+		}
+		invoices[i].LineItems = lineItems
 	}
 
 	return invoices, count, nil

@@ -25,10 +25,11 @@ type CreateInvoiceInput struct {
 
 // UpdateInvoiceRequest represents the request to update an existing invoice
 type UpdateInvoiceRequest struct {
-	Notes         string            `json:"notes,omitempty"`
-	CustomerNotes string            `json:"customer_notes,omitempty"`
-	DueAt         time.Time         `json:"due_at,omitempty"`
-	Metadata      map[string]string `json:"metadata,omitempty"`
+	Notes         string                        `json:"notes,omitempty"`
+	CustomerNotes string                        `json:"customer_notes,omitempty"`
+	DueAt         time.Time                     `json:"due_at,omitempty"`
+	Metadata      map[string]string             `json:"metadata,omitempty"`
+	LineItems     []UpdateInvoiceLineItemRequest `json:"line_items,omitempty"`
 }
 
 // CreateInvoiceLineItemInput represents the request to create a new invoice line item
@@ -50,6 +51,10 @@ type CreateInvoiceLineItemInput struct {
 
 // UpdateInvoiceLineItemRequest represents the request to update an existing invoice line item
 type UpdateInvoiceLineItemRequest struct {
+	Id            string            `json:"id,omitempty"`
+	ProductId     string            `json:"product_id,omitempty"`
+	VariantId     string            `json:"variant_id,omitempty"`
+	PriceId       string            `json:"price_id,omitempty"`
 	Description   string            `json:"description,omitempty"`
 	Category      string            `json:"category,omitempty"`
 	Quantity      float64           `json:"quantity,omitempty"`

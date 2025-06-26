@@ -25,4 +25,9 @@ type CustomerService interface {
 	UpdatePaymentMethod(ctx context.Context, orgId string, input UpdatePaymentMethodInput) (entities.PaymentMethod, error)
 	Get(ctx context.Context, orgId string, id string) (entities.Customer, error)
 	List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Customer, int, error)
+
+	// Secure payment method operations
+	GetSecurePaymentMethod(ctx context.Context, orgId string, id string) (entities.SecurePaymentMethod, error)
+	CreateSecurePaymentMethod(ctx context.Context, orgId string, input CreatePaymentMethodInput) (entities.SecurePaymentMethod, error)
+	UpdateSecurePaymentMethod(ctx context.Context, orgId string, input UpdatePaymentMethodInput) (entities.SecurePaymentMethod, error)
 }

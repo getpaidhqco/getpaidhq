@@ -11,6 +11,7 @@ import (
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/payment_methods"
 	"payloop/internal/domain/repositories"
+	"payloop/internal/domain/security"
 	"payloop/internal/lib"
 	"time"
 )
@@ -18,6 +19,7 @@ import (
 type CustomerService struct {
 	customerRepository      repositories.CustomerRepository
 	paymentMethodRepository repositories.PaymentMethodRepository
+	tokenVault              security.TokenVault
 	pubsub                  events.PubSub
 	logger                  logger.Logger
 }
@@ -25,6 +27,7 @@ type CustomerService struct {
 func NewCustomerService(
 	customerRepository repositories.CustomerRepository,
 	paymentMethodRepository repositories.PaymentMethodRepository,
+	tokenVault security.TokenVault,
 	pubsub events.PubSub,
 	logger logger.Logger,
 	scheduler interfaces.Scheduler,
@@ -32,6 +35,7 @@ func NewCustomerService(
 	service := CustomerService{
 		customerRepository:      customerRepository,
 		paymentMethodRepository: paymentMethodRepository,
+		tokenVault:              tokenVault,
 		pubsub:                  pubsub,
 		logger:                  logger,
 	}
@@ -211,6 +215,153 @@ func (s CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string, 
 
 	_ = s.pubsub.Publish(orgId, topic.PaymentMethodUpdated, newPaymentMethod)
 	return newPaymentMethod, nil
+}
+
+// GetSecurePaymentMethod retrieves a payment method with secure token handling
+func (s CustomerService) GetSecurePaymentMethod(ctx context.Context, orgId string, id string) (entities.SecurePaymentMethod, error) {
+	securePaymentMethod, err := s.paymentMethodRepository.FindSecureById(ctx, orgId, id, s.tokenVault)
+	if err != nil {
+		s.logger.Error("Failed to get secure payment method: ", err)
+		return entities.SecurePaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Payment method not found", err)
+	}
+
+	return securePaymentMethod, nil
+}
+
+// CreateSecurePaymentMethod creates a payment method with encrypted token storage
+func (s CustomerService) CreateSecurePaymentMethod(ctx context.Context, orgId string, input interfaces.CreatePaymentMethodInput) (entities.SecurePaymentMethod, error) {
+	customer, err := s.customerRepository.FindById(ctx, orgId, input.CustomerId)
+	if err != nil {
+		s.logger.Error("Failed to get customer: ", err)
+		return entities.SecurePaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+	}
+
+	var billingAddress = customer.BillingAddress
+	if !input.BillingAddress.IsEmpty() {
+		billingAddress = input.BillingAddress
+	}
+	if billingAddress.IsEmpty() {
+		return entities.SecurePaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Either specify billing address or add a default billing address to the customer.", nil)
+	}
+
+	var expireAt time.Time
+	if input.Details != "" {
+		details, err := payment_methods.ParseDetails(input.Type, input.Details)
+		if err != nil {
+			return entities.SecurePaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Invalid card details", err)
+		}
+
+		expireAt = details.GetExpiryDate()
+		s.logger.Debugf("This payment method expires at: %v", expireAt)
+	}
+
+	// Create payment method entity
+	paymentMethod := entities.PaymentMethod{
+		OrgId:          orgId,
+		Id:             lib.GenerateId("pm"),
+		CustomerId:     input.CustomerId,
+		Psp:            input.Psp,
+		Type:           input.Type,
+		BillingAddress: billingAddress,
+		Name:           input.Name,
+		Details:        input.Details,
+		Metadata:       input.Metadata,
+		ExpireAt:       expireAt,
+	}
+
+	// Create secure payment method using the security service
+	securityService := entities.NewPaymentMethodSecurityService(s.tokenVault)
+	securePaymentMethod, err := securityService.CreateSecurePaymentMethod(
+		ctx,
+		paymentMethod,
+		input.Token,
+	)
+	if err != nil {
+		s.logger.Error("Failed to create secure payment method: ", "err", err)
+		return entities.SecurePaymentMethod{}, lib.NewCustomError(lib.InternalError, "Failed to create secure payment method", err)
+	}
+
+	// Save to database
+	savedSecurePaymentMethod, err := s.paymentMethodRepository.CreateSecure(ctx, securePaymentMethod)
+	if err != nil {
+		s.logger.Error("Failed to save secure payment method: ", "err", err)
+		return entities.SecurePaymentMethod{}, lib.MapDatabaseError(err)
+	}
+
+	if input.IsDefault {
+		// update the customer's default payment method
+		s.logger.Debugf("Updating customer %s default payment method to %s", customer.Id, savedSecurePaymentMethod.Id)
+		customer.DefaultPaymentMethodId = savedSecurePaymentMethod.Id
+		_, err = s.customerRepository.Update(ctx, customer)
+		if err != nil {
+			s.logger.Error("Failed to update customer: ", "err", err)
+			return entities.SecurePaymentMethod{}, lib.MapDatabaseError(err)
+		}
+	}
+
+	_ = s.pubsub.Publish(orgId, topic.PaymentMethodCreated, savedSecurePaymentMethod.ToEntity())
+	return savedSecurePaymentMethod, nil
+}
+
+// UpdateSecurePaymentMethod updates a payment method with encrypted token storage
+func (s CustomerService) UpdateSecurePaymentMethod(ctx context.Context, orgId string, input interfaces.UpdatePaymentMethodInput) (entities.SecurePaymentMethod, error) {
+	customer, err := s.customerRepository.FindById(ctx, orgId, input.CustomerId)
+	if err != nil {
+		s.logger.Error("Failed to get customer: ", err)
+		return entities.SecurePaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+	}
+
+	securePaymentMethod, err := s.paymentMethodRepository.FindSecureById(ctx, orgId, input.PaymentMethodId, s.tokenVault)
+	if err != nil {
+		return entities.SecurePaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Payment method not found", err)
+	}
+
+	if !input.BillingAddress.IsEmpty() {
+		securePaymentMethod.BillingAddress = input.BillingAddress
+	}
+
+	if input.Details != "" {
+		details, err := payment_methods.ParseDetails(input.Type, input.Details)
+		if err != nil {
+			return entities.SecurePaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Invalid card details", err)
+		}
+
+		securePaymentMethod.ExpireAt = details.GetExpiryDate()
+		s.logger.Debugf("This payment method expires at: %v", securePaymentMethod.ExpireAt)
+	}
+
+	if input.Token != "" {
+		err = (&securePaymentMethod).SetToken(ctx, input.Token)
+		if err != nil {
+			s.logger.Error("Failed to update secure token: ", "err", err)
+			return entities.SecurePaymentMethod{}, lib.NewCustomError(lib.InternalError, "Failed to update token", err)
+		}
+	}
+	if input.Details != "" {
+		securePaymentMethod.Details = input.Details
+	}
+
+	securePaymentMethod.UpdatedAt = time.Now().UTC()
+
+	updatedSecurePaymentMethod, err := s.paymentMethodRepository.UpdateSecure(ctx, securePaymentMethod)
+	if err != nil {
+		s.logger.Error("Failed to update secure payment method: ", "err", err)
+		return entities.SecurePaymentMethod{}, lib.MapDatabaseError(err)
+	}
+
+	if input.IsDefault {
+		// update the customer's default payment method
+		s.logger.Debugf("Updating customer %s default payment method to %s", customer.Id, updatedSecurePaymentMethod.Id)
+		customer.DefaultPaymentMethodId = updatedSecurePaymentMethod.Id
+		_, err = s.customerRepository.Update(ctx, customer)
+		if err != nil {
+			s.logger.Error("Failed to update customer: ", "err", err)
+			return entities.SecurePaymentMethod{}, lib.MapDatabaseError(err)
+		}
+	}
+
+	_ = s.pubsub.Publish(orgId, topic.PaymentMethodUpdated, updatedSecurePaymentMethod.ToEntity())
+	return updatedSecurePaymentMethod, nil
 }
 
 func (s CustomerService) DetectExpiringPaymentMethods() {
