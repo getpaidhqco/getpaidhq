@@ -242,11 +242,11 @@ func (t Temporal) UpdateSubscriptionWorkflow(ctx context.Context, updateName str
 	if err != nil {
 		var notFoundErr *serviceerror.NotFound
 		if errors.As(err, &notFoundErr) {
-			t.logger.Error("Workflow not found", "error", slog.String("err", err.Error()))
+			t.logger.Error("Workflow not found", slog.String("err", err.Error()))
 			return apperrors.NewNotFound("Workflow not found", err)
 		}
 
-		t.logger.Error("Failed to update workflow", "error", slog.String("err", err.Error()))
+		t.logger.Error("Failed to update workflow", slog.String("err", err.Error()))
 		t.errorReporter.ReportError(ctx, err, map[string]interface{}{
 			"org_id":          subscription.OrgId,
 			"workflow_id":     we.ID,
