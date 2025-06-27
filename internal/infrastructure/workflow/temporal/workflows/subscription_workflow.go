@@ -52,6 +52,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 	}
 
 	handler := func(ctx workflow.Context, newSub entities.Subscription) (entities.Subscription, error) {
+		logger.Info("[update handler] updating the subscription state", "Subscription:", subscription.Id)
 		// 👉 update the subscription state
 		var prevSub entities.Subscription
 		prevSub, subscription = subscription, newSub
