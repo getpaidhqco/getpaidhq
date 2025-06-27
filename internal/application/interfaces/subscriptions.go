@@ -5,6 +5,7 @@ import (
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/dto"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/settings"
 	"payloop/internal/domain/entities/subscriptions"
 )
 
@@ -34,4 +35,5 @@ type SubscriptionService interface {
 	GetSubscriptionPaymentMethod(ctx context.Context, subscription entities.Subscription) (entities.SecurePaymentMethod, error)
 	HandleSubscriptionChargeSuccess(ctx context.Context, input subscriptions.SubscriptionChargeInput) (entities.Subscription, error)
 	HandleSubscriptionChargeFailure(ctx context.Context, input subscriptions.SubscriptionChargeInput) (entities.Subscription, error)
+	GetOrgSubscriptionSettings(ctx context.Context, orgId string) (settings.Subscription, error)
 }

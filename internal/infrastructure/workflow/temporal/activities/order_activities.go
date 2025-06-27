@@ -297,37 +297,31 @@ func (a *OrderActivities) GetSubscription(ctx context.Context, orgId string, id 
 	return a.subscriptionRepository.FindById(ctx, orgId, id)
 }
 
+// GetSubscriptionSettings retrieves the subscription settings for the given organization.
+// It returns a default settings.Subscription if the settings are not found or if an error occurs.
 func (a *OrderActivities) GetSubscriptionSettings(ctx context.Context, orgId string) (settings.Subscription, error) {
-	s, err := a.settingRepository.FindById(ctx, orgId, orgId, "subscriptions")
-	if err != nil {
-		return settings.Subscription{}, err
-	}
 
-	var subscriptionSettings settings.Subscription
-	err = json.Unmarshal([]byte(s.Value), &subscriptionSettings)
+	setting, err := a.subscriptionService.GetOrgSubscriptionSettings(ctx, orgId)
 	if err != nil {
-		return settings.Subscription{}, errors.New("invalid subscription settings format")
+		logger := activity.GetLogger(ctx)
+		logger.Warn("Failed to get Org Subscription settings", "OrgId", orgId, "error", err.Error())
+		return settings.Subscription{}, nil
 	}
-
-	return subscriptionSettings, nil
+	return setting, nil
 }
 
 func (a *OrderActivities) ProcessReminderEvent(ctx context.Context, subscription entities.Subscription) error {
 	logger := activity.GetLogger(ctx)
 	logger.Info("ProcessReminderEvent", "OrgId", subscription.OrgId, "SubscriptionId", subscription.Id)
 
-	subSettings, err := a.GetSubscriptionSettings(ctx, subscription.OrgId)
-	if err != nil {
-		logger.Error("Failed to get subscription settings", "error", err.Error())
-		return err
-	}
+	subSettings, _ := a.GetSubscriptionSettings(ctx, subscription.OrgId)
 
 	if !subSettings.EmailReminders {
 		logger.Info("Email reminders are disabled for this subscription, skipping reminder processing")
 		return nil
 	}
 
-	subscription, err = a.subscriptionRepository.FindById(ctx, subscription.OrgId, subscription.Id)
+	subscription, err := a.subscriptionRepository.FindById(ctx, subscription.OrgId, subscription.Id)
 	if err != nil {
 		logger.Error("Failed to find subscription", "error", err.Error())
 		return err
