@@ -269,3 +269,32 @@ func (s SubscriptionOrchestrationService) UpdateBillingAnchor(ctx context.Contex
 
 	return result, nil
 }
+
+// ChangeSubscriptionPlan changes a subscription's plan to a different variant/price and updates the workflow
+func (s SubscriptionOrchestrationService) ChangeSubscriptionPlan(ctx context.Context, input subscriptions.ChangePlanInput) (*entities.Subscription, *entities.SubscriptionPlanChange, error) {
+	s.logger.Info("Changing subscription plan", "orgId", input.OrgId, "id", input.Id)
+
+	subscription, planChange, err := s.SubscriptionService.ChangeSubscriptionPlan(ctx, input)
+	if err != nil {
+		var serr lib.CustomError
+		if errors.As(err, &serr) {
+			return nil, nil, err
+		}
+		return nil, nil, lib.NewCustomError(lib.InternalError, "", err)
+	}
+
+	// update the workflow
+	_, err = s.UpdateWorkflowState(ctx, subscription.OrgId, subscription.Id)
+	if err != nil {
+		var serr lib.CustomError
+		if errors.As(err, &serr) {
+			return subscription, planChange, err
+		}
+		return subscription, planChange, lib.NewCustomError(lib.InternalError, "", err)
+	}
+
+	// Publish the event (the base service already publishes the plan changed event)
+	// We're just updating the workflow here
+
+	return subscription, planChange, nil
+}

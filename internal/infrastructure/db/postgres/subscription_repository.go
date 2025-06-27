@@ -35,7 +35,9 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 
 	var subscription models.Subscription
 	var customer models.Customer
-	query := `SELECT s.org_id, s.id, s.psp_id, s.order_id, s.order_item_id, s.customer_id, s.status, s.payment_method_id, s.start_date, s.end_date,
+	query := `SELECT s.org_id, s.id, s.psp_id, s.order_id, s.order_item_id, s.customer_id, s.status, s.payment_method_id, 
+       s.product_id, s.variant_id, s.price_id,
+       s.start_date, s.end_date,
        s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at,
        s.last_charge, 
        s.renews_at,
@@ -60,6 +62,9 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 		&subscription.CustomerId,
 		&subscription.Status,
 		&subscription.PaymentMethodId,
+		&subscription.ProductId,
+		&subscription.VariantId,
+		&subscription.PriceId,
 		&subscription.StartDate,
 		&subscription.EndDate,
 		&subscription.BillingInterval,
@@ -104,13 +109,13 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 	tx := r.getTransactionFromContext(ctx)
 	var subscriptions = make([]entities.Subscription, 0)
 	query := `SELECT s.org_id, s.id, s.psp_id, s.order_id, s.order_item_id, s.customer_id, 
-       s.status, s.payment_method_id, s.start_date, s.end_date, 
+       s.status, s.payment_method_id, s.product_id, s.variant_id, s.price_id, s.start_date, s.end_date, 
        s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at, 
        s.last_charge, s.renews_at, 
        s.current_period_start,
        s.current_period_end, s.retries, s.next_retry, s.currency, s.amount, s.metadata, s.cycles_processed, 
        s.total_revenue, s.cancelled_at, s.created_at, s.updated_at, 
-      
+
        oi.org_id, oi.id, oi.price_id, oi.quantity, oi.description,oi.created_at, oi.updated_at
 			FROM subscriptions s
 			JOIN order_items oi ON s.org_id = oi.org_id AND s.order_id = oi.order_id
@@ -137,6 +142,9 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 			&subscription.CustomerId,
 			&subscription.Status,
 			&subscription.PaymentMethodId,
+			&subscription.ProductId,
+			&subscription.VariantId,
+			&subscription.PriceId,
 			&subscription.StartDate,
 			&subscription.EndDate,
 			&subscription.BillingInterval,
@@ -189,12 +197,14 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 	tx := r.getTransactionFromContext(ctx)
 
 	query := `INSERT INTO subscriptions (org_id, id, psp_id, payment_method_id, order_id, order_item_id, customer_id, status, 
+                           product_id, variant_id, price_id,
                            start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, 
                            trial_ends_at, cancel_at, ends_at, last_charge, renews_at, 
                            current_period_start, current_period_end, retries, next_retry, 
                            currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, 
                            created_at, updated_at) 
 			  VALUES (@org_id, @id, @psp_id, @payment_method_id, @order_id, @order_item_id, @customer_id, @status, 
+			          @product_id, @variant_id, @price_id,
 			          @start_date, @end_date, @billing_interval, @billing_interval_qty, @cycles, @billing_anchor, 
 			          @trial_ends_at, @cancel_at, @ends_at, @last_charge, @renews_at, 
 			          @current_period_start, @current_period_end, @retries, @next_retry, 
@@ -217,6 +227,9 @@ func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subs
 	query := `UPDATE subscriptions
 			  SET status=@status, 
 			      payment_method_id=@payment_method_id, 
+			      product_id=@product_id,
+			      variant_id=@variant_id,
+			      price_id=@price_id,
 			      start_date=@start_date, end_date=@end_date, 
 			      billing_interval=@billing_interval,
 			      billing_interval_qty=@billing_interval_qty, 
@@ -257,7 +270,8 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
 
 	var subscriptions = make([]entities.Subscription, 0)
 	var count int
-	query := `SELECT s.org_id, s.id, s.order_id, s.order_item_id, s.customer_id, s.status, s.payment_method_id, s.start_date, s.end_date,
+	query := `SELECT s.org_id, s.id, s.order_id, s.order_item_id, s.customer_id, s.status, s.payment_method_id, 
+       s.product_id, s.variant_id, s.price_id, s.start_date, s.end_date,
        s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at,
        s.last_charge, s.renews_at, s.retries, s.next_retry, s.currency, s.amount, s.metadata, s.cycles_processed,
        s.total_revenue, s.cancelled_at, s.created_at, s.updated_at,
@@ -318,6 +332,9 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
 			&subscription.CustomerId,
 			&subscription.Status,
 			&subscription.PaymentMethodId,
+			&subscription.ProductId,
+			&subscription.VariantId,
+			&subscription.PriceId,
 			&subscription.StartDate,
 			&subscription.EndDate,
 			&subscription.BillingInterval,
@@ -365,6 +382,135 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
 	return subscriptions, count, nil
 }
 
+// CreatePlanChange creates a new subscription plan change record
+func (r SubscriptionRepository) CreatePlanChange(ctx context.Context, entity entities.SubscriptionPlanChange) (entities.SubscriptionPlanChange, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	metaJson, _ := json.Marshal(entity.Metadata)
+	query := `INSERT INTO subscription_plan_changes (
+		org_id, id, subscription_id, 
+		from_product_id, from_variant_id, from_price_id, from_amount,
+		to_product_id, to_variant_id, to_price_id, to_amount,
+		change_type, effective_date, proration_mode, proration_amount, reason, initiated_by, metadata, created_at
+	) VALUES (
+		@org_id, @id, @subscription_id, 
+		@from_product_id, @from_variant_id, @from_price_id, @from_amount,
+		@to_product_id, @to_variant_id, @to_price_id, @to_amount,
+		@change_type, @effective_date, @proration_mode, @proration_amount, @reason, @initiated_by, @metadata, NOW()
+	) RETURNING *`
+
+	var planChange models.SubscriptionPlanChange
+	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
+		"org_id":           entity.OrgId,
+		"id":               entity.Id,
+		"subscription_id":  entity.SubscriptionId,
+		"from_product_id":  entity.FromProductId,
+		"from_variant_id":  entity.FromVariantId,
+		"from_price_id":    entity.FromPriceId,
+		"from_amount":      entity.FromAmount,
+		"to_product_id":    entity.ToProductId,
+		"to_variant_id":    entity.ToVariantId,
+		"to_price_id":      entity.ToPriceId,
+		"to_amount":        entity.ToAmount,
+		"change_type":      entity.ChangeType,
+		"effective_date":   pgtype.Date{Time: entity.EffectiveDate, Valid: !entity.EffectiveDate.IsZero()},
+		"proration_mode":   entity.ProrationMode,
+		"proration_amount": entity.ProrationAmount,
+		"reason":           pgtype.Text{String: entity.Reason, Valid: entity.Reason != ""},
+		"initiated_by":     entity.InitiatedBy,
+		"metadata":         metaJson,
+	}).Scan(
+		&planChange.Id,
+		&planChange.OrgId,
+		&planChange.SubscriptionId,
+		&planChange.FromProductId,
+		&planChange.FromVariantId,
+		&planChange.FromPriceId,
+		&planChange.FromAmount,
+		&planChange.ToProductId,
+		&planChange.ToVariantId,
+		&planChange.ToPriceId,
+		&planChange.ToAmount,
+		&planChange.ChangeType,
+		&planChange.EffectiveDate,
+		&planChange.ProrationMode,
+		&planChange.ProrationAmount,
+		&planChange.Reason,
+		&planChange.InitiatedBy,
+		&planChange.Metadata,
+		&planChange.CreatedAt,
+	)
+
+	if err != nil {
+		r.logger.Error(`failed to create SubscriptionPlanChange`, err.Error())
+		return entities.SubscriptionPlanChange{}, err
+	}
+
+	return planChange.ToEntity(), nil
+}
+
+// FindPlanChangesBySubscriptionId finds all plan changes for a subscription
+func (r SubscriptionRepository) FindPlanChangesBySubscriptionId(ctx context.Context, orgId string, subscriptionId string) ([]entities.SubscriptionPlanChange, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	query := `SELECT 
+		id, org_id, subscription_id, 
+		from_product_id, from_variant_id, from_price_id, from_amount,
+		to_product_id, to_variant_id, to_price_id, to_amount,
+		change_type, effective_date, proration_mode, proration_amount, reason, initiated_by, metadata, created_at
+	FROM subscription_plan_changes
+	WHERE org_id = @org_id AND subscription_id = @subscription_id
+	ORDER BY created_at DESC`
+
+	rows, err := tx.Query(ctx, query, pgx.NamedArgs{
+		"org_id":          orgId,
+		"subscription_id": subscriptionId,
+	})
+	if err != nil {
+		r.logger.Error(`failed to find SubscriptionPlanChanges`, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+
+	var planChanges []entities.SubscriptionPlanChange
+	for rows.Next() {
+		var planChange models.SubscriptionPlanChange
+		err := rows.Scan(
+			&planChange.Id,
+			&planChange.OrgId,
+			&planChange.SubscriptionId,
+			&planChange.FromProductId,
+			&planChange.FromVariantId,
+			&planChange.FromPriceId,
+			&planChange.FromAmount,
+			&planChange.ToProductId,
+			&planChange.ToVariantId,
+			&planChange.ToPriceId,
+			&planChange.ToAmount,
+			&planChange.ChangeType,
+			&planChange.EffectiveDate,
+			&planChange.ProrationMode,
+			&planChange.ProrationAmount,
+			&planChange.Reason,
+			&planChange.InitiatedBy,
+			&planChange.Metadata,
+			&planChange.CreatedAt,
+		)
+		if err != nil {
+			r.logger.Error(`failed to scan SubscriptionPlanChange`, err.Error())
+			return nil, err
+		}
+		planChanges = append(planChanges, planChange.ToEntity())
+	}
+
+	if rows.Err() != nil {
+		r.logger.Error(`rows iteration error`, rows.Err().Error())
+		return nil, rows.Err()
+	}
+
+	return planChanges, nil
+}
+
 func entityToNamedArgs(entity entities.Subscription) pgx.NamedArgs {
 	metaJson, _ := json.Marshal(entity.Metadata)
 	return pgx.NamedArgs{
@@ -376,6 +522,9 @@ func entityToNamedArgs(entity entities.Subscription) pgx.NamedArgs {
 		"order_item_id":        entity.OrderItemId,
 		"customer_id":          entity.CustomerId,
 		"status":               entity.Status,
+		"product_id":           pgtype.Text{String: entity.ProductId, Valid: entity.ProductId != ""},
+		"variant_id":           pgtype.Text{String: entity.VariantId, Valid: entity.VariantId != ""},
+		"price_id":             pgtype.Text{String: entity.PriceId, Valid: entity.PriceId != ""},
 		"start_date":           pgtype.Date{Time: entity.StartDate, Valid: !entity.StartDate.IsZero()},
 		"end_date":             pgtype.Date{Time: entity.EndDate, Valid: !entity.EndDate.IsZero()},
 		"billing_interval":     entity.BillingInterval,

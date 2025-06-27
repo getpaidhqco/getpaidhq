@@ -33,6 +33,7 @@ const (
 	SubscriptionStatusPastDue        = "subscription.past_due"
 	SubscriptionRenewalReminder      = "subscription.renewal_reminder"
 	SubscriptionBillingAnchorChanged = "subscription.billing_anchor_changed"
+	SubscriptionPlanChanged          = "subscription.plan_changed"
 
 	PaymentCreated  = "payment.created"
 	PaymentUpdated  = "payment.updated"

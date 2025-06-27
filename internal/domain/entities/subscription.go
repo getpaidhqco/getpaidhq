@@ -60,6 +60,11 @@ type Subscription struct {
 	Status          SubscriptionStatus `json:"status"`
 	PaymentMethodId string             `json:"payment_method_id,omitempty"`
 
+	// Product, variant and price references
+	ProductId string `json:"product_id"`
+	VariantId string `json:"variant_id"`
+	PriceId   string `json:"price_id"`
+
 	// StartDate is the date when the subscription was activated.
 	// It doesn't include the trial period, if any.
 	StartDate          time.Time              `json:"start_date"`
@@ -111,7 +116,6 @@ type ProrationDetails struct {
 	NewPeriodStart     time.Time `json:"new_period_start,omitempty"`
 	NewPeriodEnd       time.Time `json:"new_period_end,omitempty"`
 }
-
 
 // CalculateProrationDetails calculates proration details based on the proration mode
 // prorationMode: "none" or "credit_unused"
@@ -427,6 +431,9 @@ func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 		OrderId:            item.OrderId,
 		OrderItemId:        item.Id,
 		OrderItem:          item,
+		ProductId:          item.ProductId,
+		VariantId:          item.VariantId,
+		PriceId:            item.Price.Id,
 		Status:             SubscriptionStatusPending,
 		BillingInterval:    item.Price.BillingInterval,
 		BillingIntervalQty: item.Price.BillingIntervalQty,

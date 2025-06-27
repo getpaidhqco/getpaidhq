@@ -495,6 +495,11 @@ model Subscription {
   paymentMethodId String?        @map("payment_method_id")
   paymentMethod   PaymentMethod? @relation(fields: [orgId, paymentMethodId], references: [orgId, id])
 
+  // Product, variant and price references
+  productId String? @map("product_id")
+  variantId String? @map("variant_id")
+  priceId   String? @map("price_id")
+
   startDate          DateTime?       @map("start_date")
   endDate            DateTime?       @map("end_date")
   billingInterval    BillingInterval @map("billing_interval")
@@ -530,6 +535,39 @@ model Subscription {
 
   @@id([orgId, id])
   @@map("subscriptions")
+
+  // Relation to subscription plan changes
+  planChanges SubscriptionPlanChange[]
+}
+
+model SubscriptionPlanChange {
+  id              String   @default(cuid())
+  orgId           String   @map("org_id")
+  subscriptionId  String   @map("subscription_id")
+
+  fromProductId   String   @map("from_product_id")
+  fromVariantId   String   @map("from_variant_id")
+  fromPriceId     String   @map("from_price_id")
+  fromAmount      BigInt   @map("from_amount")
+
+  toProductId     String   @map("to_product_id")
+  toVariantId     String   @map("to_variant_id")
+  toPriceId       String   @map("to_price_id")
+  toAmount        BigInt   @map("to_amount")
+
+  changeType      String   @map("change_type")
+  effectiveDate   DateTime @map("effective_date")
+  prorationMode   String   @map("proration_mode")
+  prorationAmount BigInt   @map("proration_amount")
+  reason          String?  @map("reason")
+  initiatedBy     String   @map("initiated_by")
+  metadata        Json?    @map("metadata")
+  createdAt       DateTime @default(now()) @map("created_at")
+
+  subscription    Subscription @relation(fields: [orgId, subscriptionId], references: [orgId, id])
+
+  @@id([orgId, id])
+  @@map("subscription_plan_changes")
 }
 
 enum SubscriptionStatus {

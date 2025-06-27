@@ -18,6 +18,11 @@ type Subscription struct {
 	Customer           Customer    `json:"-"`
 	Status             string      `json:"status"`
 	PaymentMethodId    pgtype.Text `json:"payment_method_id,omitempty"`
+
+	// Product, variant and price references
+	ProductId          pgtype.Text `json:"product_id"`
+	VariantId          pgtype.Text `json:"variant_id"`
+	PriceId            pgtype.Text `json:"price_id"`
 	StartDate          pgtype.Date `json:"start_date"`
 	EndDate            pgtype.Date `json:"end_date"`
 	BillingInterval    string      `json:"billing_interval"`
@@ -58,6 +63,9 @@ func (s *Subscription) ToEntity() entities.Subscription {
 		Customer:           s.Customer.ToEntity(),
 		Status:             entities.SubscriptionStatus(s.Status),
 		PaymentMethodId:    s.PaymentMethodId.String,
+		ProductId:          s.ProductId.String,
+		VariantId:          s.VariantId.String,
+		PriceId:            s.PriceId.String,
 		StartDate:          s.StartDate.Time,
 		EndDate:            s.EndDate.Time,
 		BillingInterval:    prices.BillingInterval(s.BillingInterval),

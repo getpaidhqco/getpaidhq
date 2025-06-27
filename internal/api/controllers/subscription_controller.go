@@ -264,3 +264,48 @@ func (s SubscriptionController) ListPayments(c *gin.Context) {
 		},
 	})
 }
+
+// ChangePlan changes a subscription's plan to a different variant/price
+// swagger:route PUT /api/subscriptions/{id}/change-plan subscriptions changePlan
+// Changes a subscription's plan to a different variant/price
+//
+// Produces:
+// - application/json
+//
+// Consumes:
+// - application/json
+//
+// Schemes: http
+//
+// Responses:
+// default: apiError
+// 200: subscription
+func (s SubscriptionController) ChangePlan(c *gin.Context) {
+	var input request.ChangePlanRequest
+	user, _ := c.Get("user")
+	orgId := user.(authn.User).OrgId
+	id := c.Param("id")
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	subscription, _, err := s.subsOrchastration.ChangeSubscriptionPlan(c.Request.Context(), subscriptions.ChangePlanInput{
+		OrgId:         orgId,
+		Id:            id,
+		NewVariantId:  input.NewVariantId,
+		NewPriceId:    input.NewPriceId,
+		ProrationMode: input.ProrationMode,
+		EffectiveDate: input.EffectiveDate,
+		Reason:        input.Reason,
+	})
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	c.JSON(200, response.NewSubscriptionFromEntity(*subscription))
+}

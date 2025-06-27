@@ -18,7 +18,7 @@ import (
 	"payloop/internal/infrastructure/queue/sqs"
 	"payloop/internal/infrastructure/scheduler/cron"
 	"payloop/internal/infrastructure/storage/s3"
-	"payloop/internal/infrastructure/vault"
+	"payloop/internal/infrastructure/vault/aes_vault"
 	"payloop/internal/infrastructure/workflow/temporal"
 	"payloop/internal/lib"
 	"payloop/internal/mcp"
@@ -36,7 +36,7 @@ var CommonModules = fx.Options(
 	postgres.Module,
 
 	// Security
-	vault.Module,
+	aes_vault.Module,
 
 	// Authn & Authz
 	//cognito.Module,
