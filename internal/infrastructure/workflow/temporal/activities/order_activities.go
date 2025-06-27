@@ -333,6 +333,11 @@ func (a *OrderActivities) ProcessReminderEvent(ctx context.Context, subscription
 		return err
 	}
 
+	if subscription.Status != entities.SubscriptionStatusActive {
+		logger.Info("Subscription is not active, skipping reminder processing", "Status", subscription.Status)
+		return nil
+	}
+
 	err = a.pubsub.Publish(subscription.OrgId, topic.SubscriptionRenewalReminder, subscription)
 	if err != nil {
 		logger.Error("Failed to publish reminder event", "error", err.Error())
