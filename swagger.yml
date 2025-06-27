@@ -1,15 +1,15 @@
 openapi: 3.0.3
 info:
-  title: Payloop API
+  title: getpaidhq API
   description: Subscription billing platform API
   version: 1.0.0
   contact:
-    name: Payloop Support
-    url: https://payloop.com
+    name: GetPaidHQ Support
+    url: https://getpaidhq.co
 servers:
-  - url: https://api.payloop.com
+  - url: https://api.getpaidhq.co
     description: Production server
-  - url: https://api.test.payloop.com
+  - url: https://api.test.getpaidhq.co
     description: Test server
 
 security:
@@ -920,6 +920,109 @@ paths:
               schema:
                 $ref: '#/components/schemas/Invoice'
 
+  /api/invoices/{id}/line-items:
+    get:
+      tags: [Invoices]
+      summary: List invoice line items
+      operationId: listInvoiceLineItems
+      parameters:
+        - $ref: '#/components/parameters/InvoiceId'
+      responses:
+        '200':
+          description: List of line items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InvoiceLineItem'
+    post:
+      tags: [Invoices]
+      summary: Add line item to invoice
+      operationId: addInvoiceLineItem
+      parameters:
+        - $ref: '#/components/parameters/InvoiceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvoiceLineItemRequest'
+      responses:
+        '200':
+          description: Line item added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceLineItem'
+
+  /api/invoices/{id}/line-items/{lineItemId}:
+    put:
+      tags: [Invoices]
+      summary: Update invoice line item
+      operationId: updateInvoiceLineItem
+      parameters:
+        - $ref: '#/components/parameters/InvoiceId'
+        - name: lineItemId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Line item ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInvoiceLineItemRequest'
+      responses:
+        '200':
+          description: Line item updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InvoiceLineItem'
+    delete:
+      tags: [Invoices]
+      summary: Delete invoice line item
+      operationId: deleteInvoiceLineItem
+      parameters:
+        - $ref: '#/components/parameters/InvoiceId'
+        - name: lineItemId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Line item ID
+      responses:
+        '200':
+          description: Line item deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "success"
+
+  /api/invoices/{id}/history:
+    get:
+      tags: [Invoices]
+      summary: List invoice history
+      operationId: listInvoiceHistory
+      parameters:
+        - $ref: '#/components/parameters/InvoiceId'
+      responses:
+        '200':
+          description: List of history entries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InvoiceHistory'
+
   /api/invoices/{id}/pdf:
     post:
       tags: [Invoices]
@@ -1338,6 +1441,35 @@ components:
           type: string
         price_id:
           type: string
+        description:
+          type: string
+        category:
+          type: string
+        quantity:
+          type: number
+          minimum: 0
+        unit_price:
+          type: integer
+          minimum: 0
+        discount_type:
+          type: string
+          enum: [percentage, fixed]
+        discount_value:
+          type: integer
+        tax_code:
+          type: string
+        tax_rate:
+          type: integer
+        tax_exempt:
+          type: boolean
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    UpdateInvoiceLineItemRequest:
+      type: object
+      properties:
         description:
           type: string
         category:
@@ -1889,6 +2021,28 @@ components:
           type: string
           format: date-time
         updated_at:
+          type: string
+          format: date-time
+
+    InvoiceHistory:
+      type: object
+      properties:
+        id:
+          type: string
+        action:
+          type: string
+          enum: [created, updated, finalized, sent, paid, voided]
+        field:
+          type: string
+        old_value:
+          type: object
+        new_value:
+          type: object
+        user_email:
+          type: string
+        reason:
+          type: string
+        timestamp:
           type: string
           format: date-time
 
