@@ -606,12 +606,14 @@ func (s SubscriptionService) GetRetryPolicy(ctx context.Context, orgId string) s
 func (s SubscriptionService) GetOrgSubscriptionSettings(ctx context.Context, orgId string) (settings.Subscription, error) {
 	subscription, err := s.settingRepository.FindById(ctx, orgId, orgId, "subscriptions")
 	if err != nil {
+		s.logger.Warn(`failed to find org subscription settings`, "parentId", orgId)
 		return settings.Subscription{}, err
 	}
 
 	var subscriptionSettings settings.Subscription
 	err = json.Unmarshal([]byte(subscription.Value), &subscriptionSettings)
 	if err != nil {
+		s.logger.Warn(`invalid subscription settings format`, "parentId", orgId, "id", "subscriptions")
 		return settings.Subscription{}, errors.New("invalid subscription settings format")
 	}
 

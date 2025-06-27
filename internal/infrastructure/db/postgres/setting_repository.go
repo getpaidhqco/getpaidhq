@@ -47,7 +47,6 @@ func (r SettingRepository) FindById(ctx context.Context, orgId string, parentId 
 			&setting.UpdatedAt,
 		)
 	if err != nil {
-		r.logger.Error(`failed to find Setting`, err.Error())
 		return entities.Setting{}, errors.New("not found")
 	}
 
@@ -64,7 +63,7 @@ func (r SettingRepository) FindAll(ctx context.Context, orgId string, parentId s
 
 	rows, err := tx.Query(ctx, query, orgId, parentId)
 	if err != nil {
-		r.logger.Error(`failed to find Settings`, err.Error())
+		r.logger.Error(`failed to find settings`, "parentId", parentId)
 		return nil, err
 	}
 	defer rows.Close()
