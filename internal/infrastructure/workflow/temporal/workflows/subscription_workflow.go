@@ -58,7 +58,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		return prevSub, nil
 	}
 	forceUpdateHandler := func(ctx workflow.Context, newSub entities.Subscription) (entities.Subscription, error) {
-		logger.Info("Subscription force update", "Subscription:", subscription.Id)
+		logger.Info("[ForceUpdate] Restarting subscription processing loop", "Subscription:", subscription.Id)
 		// 👉 update the subscription state
 		// Do some validation here
 		var prevSub entities.Subscription
@@ -69,9 +69,10 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 
 	err = workflow.SetUpdateHandler(ctx, "subscription.paused", handler)
 	err = workflow.SetUpdateHandler(ctx, "subscription.cancelled", handler)
-	err = workflow.SetUpdateHandler(ctx, "subscription.resumed", handler)
 	err = workflow.SetUpdateHandler(ctx, "subscription.activated", handler)
-	err = workflow.SetUpdateHandler(ctx, "subscription.billing_anchor_changed", handler)
+	// the following updates are used to force the workflow to refresh its state
+	err = workflow.SetUpdateHandler(ctx, "subscription.billing_anchor_changed", forceUpdateHandler)
+	err = workflow.SetUpdateHandler(ctx, "subscription.resumed", forceUpdateHandler)
 	err = workflow.SetUpdateHandler(ctx, "refresh-state", forceUpdateHandler)
 
 	// Register signal handler for cancelling the subscription
