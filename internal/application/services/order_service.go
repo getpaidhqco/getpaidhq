@@ -359,7 +359,7 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 
 		// Convert back to regular PaymentMethod for compatibility
 		paymentMethod = savedSecurePaymentMethod.ToEntity()
-		s.logger.Debugf(`Created payment method [%s] for order [%s]`, paymentMethod.Id, order.Id)
+		s.logger.Debugf(`Created payment method [%s] for order [%s] with encrypted token`, paymentMethod.Id, order.Id)
 	}
 
 	// find subscriptions for the order and update the status to active
