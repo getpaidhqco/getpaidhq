@@ -86,26 +86,28 @@ model ApiKey {
 }
 
 model Org {
-  id            String          @id
-  country       String
-  status        OrgStatus       @default(active)
-  name          String
-  timezone      String          @default("UTC")
-  metadata      Json?
-  createdAt     DateTime        @default(now()) @map("created_at")
-  updatedAt     DateTime        @updatedAt @map("updated_at")
-  users         UserOrg[]
-  Session       Session[]
-  Variant       Variant[]
-  Price         Price[]
-  Order         Order[]
-  Customer      Customer[]
-  Subscription  Subscription[]
-  Payment       Payment[]
-  Setting       Setting[]
-  OrderItem     OrderItem[]
-  ApiKey        ApiKey[]
-  MetadataStore MetadataStore[]
+  id                   String                 @id
+  country              String
+  status               OrgStatus              @default(active)
+  name                 String
+  timezone             String                 @default("UTC")
+  metadata             Json?
+  createdAt            DateTime               @default(now()) @map("created_at")
+  updatedAt            DateTime               @updatedAt @map("updated_at")
+  users                UserOrg[]
+  Session              Session[]
+  Variant              Variant[]
+  Price                Price[]
+  Order                Order[]
+  Customer             Customer[]
+  Subscription         Subscription[]
+  Payment              Payment[]
+  Setting              Setting[]
+  OrderItem            OrderItem[]
+  ApiKey               ApiKey[]
+  MetadataStore        MetadataStore[]
+  DunningCampaign      DunningCampaign[]
+  DunningConfiguration DunningConfiguration[]
 
   @@map("orgs")
 }
@@ -398,6 +400,9 @@ model Customer {
   defaultPaymentMethodId String?        @map("default_payment_method_id")
   defaultPaymentMethod   PaymentMethod? @relation(name: "dpm", fields: [orgId, defaultPaymentMethodId], references: [orgId, id])
 
+  // Dunning preferences
+  dunningPreferences Json? @map("dunning_preferences")
+
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -407,6 +412,12 @@ model Customer {
   cohorts        CustomerCohort[]
   org            Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
   Invoice        Invoice[]
+
+  // Dunning relationships
+  dunningCampaigns      DunningCampaign[]
+  dunningCommunications DunningCommunication[]
+  paymentTokens         PaymentUpdateToken[]
+  dunningHistory        CustomerDunningHistory?
 
   @@id([orgId, id], map: "customer_primary_key")
   @@unique([orgId, email])
@@ -514,9 +525,6 @@ model Subscription {
   currentPeriodStart DateTime?       @map("current_period_start")
   currentPeriodEnd   DateTime?       @map("current_period_end")
 
-  retries   Int?
-  nextRetry DateTime? @map("next_retry")
-
   currency String
   amount   Int
 
@@ -526,6 +534,10 @@ model Subscription {
   totalRevenue    Int       @map("total_revenue")
   cancelledAt     DateTime? @map("cancelled_at")
 
+  // Dunning-related additions
+  dunningActive           Boolean   @default(false) @map("dunning_active")
+  activeDunningCampaignId String?   @map("active_dunning_campaign_id")
+
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   payments  Payment[]
@@ -533,27 +545,31 @@ model Subscription {
   org     Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
   Invoice Invoice[]
 
-  @@id([orgId, id])
-  @@map("subscriptions")
+  // Dunning relationships
+  dunningCampaigns DunningCampaign[]
+  paymentTokens    PaymentUpdateToken[]
 
   // Relation to subscription plan changes
   planChanges SubscriptionPlanChange[]
+
+  @@id([orgId, id])
+  @@map("subscriptions")
 }
 
 model SubscriptionPlanChange {
-  id              String   @default(cuid())
-  orgId           String   @map("org_id")
-  subscriptionId  String   @map("subscription_id")
+  id             String @default(cuid())
+  orgId          String @map("org_id")
+  subscriptionId String @map("subscription_id")
 
-  fromProductId   String   @map("from_product_id")
-  fromVariantId   String   @map("from_variant_id")
-  fromPriceId     String   @map("from_price_id")
-  fromAmount      BigInt   @map("from_amount")
+  fromProductId String @map("from_product_id")
+  fromVariantId String @map("from_variant_id")
+  fromPriceId   String @map("from_price_id")
+  fromAmount    BigInt @map("from_amount")
 
-  toProductId     String   @map("to_product_id")
-  toVariantId     String   @map("to_variant_id")
-  toPriceId       String   @map("to_price_id")
-  toAmount        BigInt   @map("to_amount")
+  toProductId String @map("to_product_id")
+  toVariantId String @map("to_variant_id")
+  toPriceId   String @map("to_price_id")
+  toAmount    BigInt @map("to_amount")
 
   changeType      String   @map("change_type")
   effectiveDate   DateTime @map("effective_date")
@@ -564,7 +580,7 @@ model SubscriptionPlanChange {
   metadata        Json?    @map("metadata")
   createdAt       DateTime @default(now()) @map("created_at")
 
-  subscription    Subscription @relation(fields: [orgId, subscriptionId], references: [orgId, id])
+  subscription Subscription @relation(fields: [orgId, subscriptionId], references: [orgId, id])
 
   @@id([orgId, id])
   @@map("subscription_plan_changes")
@@ -581,6 +597,7 @@ enum SubscriptionStatus {
   pending
   expired
   completed
+  non_renewing
 }
 
 model Payment {
@@ -600,6 +617,11 @@ model Payment {
 
   subscriptionId String?       @map("subscription_id")
   subscription   Subscription? @relation(fields: [orgId, subscriptionId], references: [orgId, id])
+
+  // Dunning context
+  dunningCampaignId    String? @map("dunning_campaign_id")
+  dunningAttemptNumber Int?    @map("dunning_attempt_number")
+  isDunningRecovery    Boolean @default(false) @map("is_dunning_recovery")
 
   amount   Int
   currency String
@@ -973,4 +995,379 @@ model DocSequence {
   @@id([org_id, id])
   @@index([org_id, type])
   @@map("doc_sequences")
+}
+
+// Dunning campaign tracking
+model DunningCampaign {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  // Relationships
+  subscriptionId String @map("subscription_id")
+  customerId     String @map("customer_id")
+
+  // Workflow metadata
+  temporalWorkflowId String  @map("temporal_workflow_id")
+  temporalRunId      String  @map("temporal_run_id")
+  parentWorkflowId   String? @map("parent_workflow_id")
+
+  // Campaign details
+  status               DunningStatus @default(active)
+  failedAmount         Int           @map("failed_amount")
+  currency             String
+  initialFailureReason String?       @map("initial_failure_reason")
+
+  // Attempt tracking
+  totalAttempts       Int @default(0) @map("total_attempts")
+  immediateAttempts   Int @default(0) @map("immediate_attempts")
+  progressiveAttempts Int @default(0) @map("progressive_attempts")
+
+  // Timeline
+  startedAt     DateTime  @default(now()) @map("started_at")
+  lastAttemptAt DateTime? @map("last_attempt_at")
+  nextAttemptAt DateTime? @map("next_attempt_at")
+  completedAt   DateTime? @map("completed_at")
+
+  // Outcomes
+  recoveryMethod     String?   @map("recovery_method")
+  recoveredAmount    Int?      @map("recovered_amount")
+  recoveredAt        DateTime? @map("recovered_at")
+  finalFailureReason String?   @map("final_failure_reason")
+
+  // Configuration snapshot
+  configSnapshot Json? @map("config_snapshot")
+
+  // Metadata
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  subscription   Subscription           @relation(fields: [orgId, subscriptionId], references: [orgId, id])
+  customer       Customer               @relation(fields: [orgId, customerId], references: [orgId, id])
+  attempts       DunningAttempt[]
+  communications DunningCommunication[]
+  tokens         PaymentUpdateToken[]
+  org            Org                    @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, id])
+  @@map("dunning_campaigns")
+}
+
+enum DunningStatus {
+  active
+  paused
+  recovered
+  failed
+  cancelled
+  expired
+}
+
+// Individual payment retry attempts
+model DunningAttempt {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  // Relationships
+  dunningCampaignId String @map("dunning_campaign_id")
+  subscriptionId    String @map("subscription_id")
+
+  // Attempt details
+  attemptNumber Int                @map("attempt_number")
+  attemptType   DunningAttemptType @map("attempt_type")
+
+  // Payment details
+  amount          Int
+  currency        String
+  paymentMethodId String? @map("payment_method_id")
+
+  // Results
+  status            PaymentStatus
+  failureReason     String?       @map("failure_reason")
+  failureCode       String?       @map("failure_code")
+  processorResponse Json?         @map("processor_response")
+
+  // Performance metrics
+  processingTimeMs Int?      @map("processing_time_ms")
+  attemptedAt      DateTime  @default(now()) @map("attempted_at")
+  completedAt      DateTime? @map("completed_at")
+
+  // Context
+  triggeredBy String? @map("triggered_by")
+  metadata    Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Relationships
+  campaign DunningCampaign @relation(fields: [orgId, dunningCampaignId], references: [orgId, id])
+
+  @@id([orgId, id])
+  @@map("dunning_attempts")
+}
+
+enum DunningAttemptType {
+  immediate
+  progressive
+  manual
+  triggered
+}
+
+// Customer communications during dunning
+model DunningCommunication {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  // Relationships
+  dunningCampaignId String @map("dunning_campaign_id")
+  customerId        String @map("customer_id")
+
+  // Communication details
+  channel       CommunicationChannel
+  templateId    String               @map("template_id")
+  attemptNumber Int                  @map("attempt_number")
+
+  // Content
+  subject             String?
+  contentPreview      String? @map("content_preview")
+  personalizationData Json?   @map("personalization_data")
+
+  // Delivery tracking
+  sentAt      DateTime? @map("sent_at")
+  deliveredAt DateTime? @map("delivered_at")
+  openedAt    DateTime? @map("opened_at")
+  clickedAt   DateTime? @map("clicked_at")
+  bouncedAt   DateTime? @map("bounced_at")
+
+  // Provider details
+  provider          String
+  providerMessageId String? @map("provider_message_id")
+  providerResponse  Json?   @map("provider_response")
+
+  // Status
+  status        CommunicationStatus @default(pending)
+  failureReason String?             @map("failure_reason")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  campaign DunningCampaign @relation(fields: [orgId, dunningCampaignId], references: [orgId, id])
+  customer Customer        @relation(fields: [orgId, customerId], references: [orgId, id])
+
+  @@id([orgId, id])
+  @@map("dunning_communications")
+}
+
+enum CommunicationChannel {
+  email
+  sms
+  push
+  webhook
+  in_app
+}
+
+enum CommunicationStatus {
+  pending
+  sent
+  delivered
+  failed
+  bounced
+}
+
+// Secure payment update tokens
+model PaymentUpdateToken {
+  orgId   String @map("org_id")
+  tokenId String @map("token_id")
+
+  // Relationships
+  subscriptionId    String  @map("subscription_id")
+  customerId        String  @map("customer_id")
+  dunningCampaignId String? @map("dunning_campaign_id")
+
+  // Token data
+  tokenData Json   @map("token_data")
+  signature String
+
+  // Security & usage
+  expiresAt DateTime    @map("expires_at")
+  maxUses   Int         @default(5) @map("max_uses")
+  usedCount Int         @default(0) @map("used_count")
+  status    TokenStatus @default(active)
+
+  // Allowed actions
+  allowedActions Json @map("allowed_actions")
+
+  // Admin generation tracking
+  adminGenerated Boolean @default(false) @map("admin_generated")
+  adminUserId    String? @map("admin_user_id")
+  adminReason    String? @map("admin_reason")
+  adminNotes     String? @map("admin_notes")
+
+  // Audit trail
+  createdBy  String    @map("created_by")
+  createdAt  DateTime  @default(now()) @map("created_at")
+  lastUsedAt DateTime? @map("last_used_at")
+  lastUsedIp String?   @map("last_used_ip")
+
+  // Relationships
+  subscription Subscription        @relation(fields: [orgId, subscriptionId], references: [orgId, id])
+  customer     Customer            @relation(fields: [orgId, customerId], references: [orgId, id])
+  campaign     DunningCampaign?    @relation(fields: [orgId, dunningCampaignId], references: [orgId, id])
+  usageHistory PaymentTokenUsage[]
+
+  @@id([orgId, tokenId])
+  @@map("payment_update_tokens")
+}
+
+enum TokenStatus {
+  active
+  expired
+  revoked
+  max_uses_reached
+}
+
+// Token usage tracking
+model PaymentTokenUsage {
+  orgId       String   @map("org_id")
+  tokenId     String   @map("token_id")
+  usedAt      DateTime @default(now()) @map("used_at")
+  ipAddress   String?  @map("ip_address")
+  userAgent   String?  @map("user_agent")
+  actionTaken String?  @map("action_taken")
+  success     Boolean?
+
+  // Relationships
+  token PaymentUpdateToken @relation(fields: [orgId, tokenId], references: [orgId, tokenId])
+
+  @@id([orgId, tokenId, usedAt])
+  @@map("payment_token_usage")
+}
+
+// Dunning configuration
+model DunningConfiguration {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  // Configuration hierarchy
+  name        String
+  description String?
+  priority    Int     @default(0)
+
+  // Targeting rules
+  appliesTo   DunningConfigScope @default(organization) @map("applies_to")
+  targetRules Json?              @map("target_rules")
+
+  // The actual configuration
+  config Json
+
+  // Status and testing
+  status           ConfigStatus @default(active)
+  isAbTest         Boolean      @default(false) @map("is_ab_test")
+  abTestPercentage Decimal?     @map("ab_test_percentage")
+
+  // Metadata
+  createdBy String?  @map("created_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, id])
+  @@map("dunning_configurations")
+}
+
+enum DunningConfigScope {
+  organization
+  customer_segment
+  subscription_tier
+  customer
+  ab_test
+}
+
+enum ConfigStatus {
+  active
+  inactive
+  archived
+}
+
+// Analytics tables
+model DunningAnalyticsDaily {
+  orgId String   @map("org_id")
+  date  DateTime @db.Date
+
+  // Volume metrics
+  campaignsStarted   Int @default(0) @map("campaigns_started")
+  campaignsCompleted Int @default(0) @map("campaigns_completed")
+  totalAttempts      Int @default(0) @map("total_attempts")
+
+  // Recovery metrics
+  immediateRecoveries   Int @default(0) @map("immediate_recoveries")
+  progressiveRecoveries Int @default(0) @map("progressive_recoveries")
+  manualRecoveries      Int @default(0) @map("manual_recoveries")
+  totalRecoveries       Int @default(0) @map("total_recoveries")
+
+  // Financial metrics
+  amountAtRisk    Int @default(0) @map("amount_at_risk")
+  amountRecovered Int @default(0) @map("amount_recovered")
+  amountLost      Int @default(0) @map("amount_lost")
+
+  // Communication metrics
+  emailsSent          Int @default(0) @map("emails_sent")
+  smsSent             Int @default(0) @map("sms_sent")
+  totalCommunications Int @default(0) @map("total_communications")
+
+  // Performance metrics
+  avgRecoveryTimeHours  Decimal? @map("avg_recovery_time_hours")
+  avgAttemptsToRecovery Decimal? @map("avg_attempts_to_recovery")
+
+  // Segmentation
+  customerSegment       String? @map("customer_segment")
+  subscriptionTier      String? @map("subscription_tier")
+  failureReasonCategory String? @map("failure_reason_category")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([orgId, date])
+  @@map("dunning_analytics_daily")
+}
+
+// Customer dunning history summary
+model CustomerDunningHistory {
+  orgId      String @map("org_id")
+  customerId String @map("customer_id")
+
+  // Lifetime stats
+  totalDunningCampaigns Int @default(0) @map("total_dunning_campaigns")
+  successfulRecoveries  Int @default(0) @map("successful_recoveries")
+  failedCampaigns       Int @default(0) @map("failed_campaigns")
+
+  // Financial impact
+  totalAmountAtRisk    Int @default(0) @map("total_amount_at_risk")
+  totalAmountRecovered Int @default(0) @map("total_amount_recovered")
+  totalAmountLost      Int @default(0) @map("total_amount_lost")
+
+  // Behavior patterns
+  avgRecoveryTimeHours    Decimal?              @map("avg_recovery_time_hours")
+  preferredRecoveryMethod String?               @map("preferred_recovery_method")
+  mostResponsiveChannel   CommunicationChannel? @map("most_responsive_channel")
+
+  // Risk scoring
+  paymentReliabilityScore Decimal? @map("payment_reliability_score")
+  dunningRiskTier         String?  @map("dunning_risk_tier")
+
+  // Dates
+  firstDunningAt DateTime? @map("first_dunning_at")
+  lastDunningAt  DateTime? @map("last_dunning_at")
+  lastRecoveryAt DateTime? @map("last_recovery_at")
+
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  customer Customer @relation(fields: [orgId, customerId], references: [orgId, id])
+
+  @@id([orgId, customerId])
+  @@map("customer_dunning_history")
 }

@@ -21,6 +21,7 @@ var Module = fx.Options(
 	fx.Provide(NewPspRoutes),
 	fx.Provide(NewPaymentRoutes),
 	fx.Provide(NewSettingsRoutes),
+	fx.Provide(NewDunningRoutes),
 	fx.Provide(NewRoutes),
 )
 
@@ -51,6 +52,7 @@ func NewRoutes(
 	invoiceRoutes InvoiceRoutes,
 	paymentRoutes PaymentRoutes,
 	settingsRoutes SettingsRoutes,
+	dunningRoutes DunningRoutes,
 ) Routes {
 	return Routes{
 		userRoutes,
@@ -70,6 +72,7 @@ func NewRoutes(
 		invoiceRoutes,
 		paymentRoutes,
 		settingsRoutes,
+		dunningRoutes,
 	}
 }
 

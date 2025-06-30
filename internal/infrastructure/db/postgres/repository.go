@@ -7,6 +7,10 @@ import (
 // Module exports dependency
 var RespositoryModules = fx.Options(
 	fx.Provide(fx.Annotate(
+		NewDunningRepository,
+		fx.ParamTags(`name:"primaryDb"`),
+	)),
+	fx.Provide(fx.Annotate(
 		NewDocSequenceRepository,
 		fx.ParamTags(`name:"primaryDb"`),
 	)),

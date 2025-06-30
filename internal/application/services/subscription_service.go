@@ -430,8 +430,6 @@ func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context
 	subscription.CyclesProcessed++
 	subscription.TotalRevenue += subscription.Amount
 	subscription.LastCharge = lastCharge
-	subscription.Retries = 0
-	subscription.NextRetryAt = time.Time{}
 
 	if subscription.Cycles != 0 && subscription.CyclesProcessed >= subscription.Cycles {
 		// this is the last charge for a subscription
@@ -478,6 +476,7 @@ func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context
 	return newSub, nil
 }
 
+// HandleSubscriptionChargeFailure logs the failed payment and updates the subscription status to past_due.
 func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context, input subscriptions.SubscriptionChargeInput) (entities.Subscription, error) {
 	s.logger.Info("Charge failure happened",
 		"orgId", input.Subscription.OrgId,
@@ -491,8 +490,7 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 		subscription.Id,
 		charge.ErrorCode,
 		charge.ErrorReason,
-		charge.Status,
-		subscription.Retries)
+		charge.Status)
 	if subscription.Id == "" {
 		s.logger.Error("Subscription is empty")
 		panic("Subscription is empty")
@@ -528,35 +526,8 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 
 	s.logger.Debug("Created payment for subscription")
 
-	retryPolicy := s.GetRetryPolicy(ctx, subscription.OrgId)
-	s.logger.Debug("Retry policy",
-		"attempts", retryPolicy.RetryAttempts,
-		"interval", retryPolicy.RetryInterval,
-		"qty", retryPolicy.RetryPeriod,
-		"action", retryPolicy.FailureAction,
-	)
-
-	nextRetryDate := retryPolicy.GetNextCharge(subscription)
-	if nextRetryDate.IsZero() {
-		// no more retries left
-		s.logger.Debugf("Subscription [%s] has no more retries left", subscription.Id)
-		if retryPolicy.FailureAction == subscriptions.FailureActionMarkUnpaid {
-			s.logger.Debugf("Marking as unpaid..")
-			subscription.Status = entities.SubscriptionStatusUnpaid
-		}
-
-		if retryPolicy.FailureAction == subscriptions.FailureActionCancel {
-			s.logger.Debugf("Cancelling..")
-			subscription.SetCancelled()
-		}
-	} else {
-		s.logger.Debugf("Subscription [%s] next retry date [%s]", subscription.Id, nextRetryDate)
-		subscription.Status = entities.SubscriptionStatusPastDue
-		subscription.NextRetryAt = nextRetryDate
-		subscription.Retries++
-	}
-
-	s.logger.Infof("[%s][%s] nextCharge=[%s]", subscription.OrgId, subscription.Id, subscription.GetNextChargeDate())
+	// set the subscription status to past_due
+	subscription.Status = entities.SubscriptionStatusPastDue
 	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
 		s.logger.Error("Failed to update subscription", "err", err.Error())
@@ -569,21 +540,9 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 		"charge_result": charge,
 	})
 	// Publish the events
-	_ = s.pubsub.Publish(subscription.OrgId, topic.PaymentCreated, payment)
-
-	switch newSub.Status {
-	case entities.SubscriptionStatusCancelled:
-		_ = s.pubsub.Publish(subscription.OrgId, topic.TopicSubscriptionCancelled, newSub)
-	case entities.SubscriptionStatusUnpaid:
-		_ = s.pubsub.Publish(subscription.OrgId, topic.TopicSubscriptionUnpaid, newSub)
-	case entities.SubscriptionStatusExpired:
-		_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusExpired, newSub)
-	case entities.SubscriptionStatusPastDue:
-		if subscription.Retries == 1 {
-			_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusPastDue, newSub)
-		}
-	}
-
+	_ = s.pubsub.Publish(subscription.OrgId, topic.PaymentFailed, payment)
+	_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusPastDue, newSub)
+	
 	return newSub, nil
 }
 

@@ -73,6 +73,13 @@ Payloop is a subscription billing platform built using Domain-Driven Design (DDD
 #### Workflow Orchestration
 - Complex business processes use Temporal workflows in `internal/infrastructure/workflow/temporal/workflows/`
 - Activities are defined in `internal/infrastructure/workflow/temporal/activities/`
+- Keep Business Logic in Domain Services
+  - Activities should be **thin coordinators** that delegate to domain services
+  - Activities should never include orchastration services (e.g. SubscriptionOrchestrationService), it should 
+  delegate to domain services like SubscriptionService, PaymentService, etc.
+  - Domain services contain the actual business logic and maintain DDD principles
+  - This preserves testability and domain purity
+
 
 #### Testing Structure
 - Unit tests alongside source files (e.g., `service_test.go`)

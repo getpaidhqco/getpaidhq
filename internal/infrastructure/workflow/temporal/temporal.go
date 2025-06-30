@@ -19,6 +19,7 @@ import (
 	"payloop/internal/infrastructure/workflow/temporal/workflows"
 	"payloop/internal/lib"
 	"payloop/internal/lib/apperrors"
+	"time"
 )
 
 type Temporal struct {
@@ -36,6 +37,7 @@ func NewTemporalEngine(
 	logger logger.Logger,
 	env lib.Env,
 	orderActivities activities.OrderActivities,
+	dunningActivities activities.DunningActivities,
 	errorReporter lib.ErrorReporter,
 	webhookActivities activities.OutgoingWebhookActivities,
 	settingRepository repositories.SettingRepository,
@@ -64,9 +66,11 @@ func NewTemporalEngine(
 	w.RegisterWorkflow(workflows.SubscriptionWorkflow)
 	w.RegisterWorkflow(workflows.OutgoingWebhookWorkflow)
 	w.RegisterWorkflow(workflows.PaymentRefunded)
+	w.RegisterWorkflow(workflows.DunningWorkflow)
 
 	w.RegisterActivity(&orderActivities)
 	w.RegisterActivity(&webhookActivities)
+	w.RegisterActivity(&dunningActivities)
 
 	// Start the worker
 	err = w.Start()
@@ -297,6 +301,63 @@ func (t Temporal) SignalSubscriptionWorkflow(ctx context.Context, signal string,
 	err = t.client.SignalWorkflow(ctx, we.ID, we.RunID, signal, payload)
 	if err != nil {
 		t.logger.Error("Failed to signal workflow", "error", slog.String("err", err.Error()))
+		return err
+	}
+	return nil
+}
+
+// StartDunningWorkflow starts a dunning workflow for a failed payment
+func (t Temporal) StartDunningWorkflow(ctx context.Context, input interfaces.StartDunningWorkflowInput) (string, string, error) {
+	t.logger.Info("Starting dunning workflow", "OrgId", input.OrgId, "SubscriptionId", input.SubscriptionId)
+
+	// Start the workflow
+	workflowId := fmt.Sprintf("dunning_%s_%s_%s", input.OrgId, input.SubscriptionId, time.Now().Format("20060102150405"))
+	workflowOptions := client.StartWorkflowOptions{
+		ID:        workflowId,
+		TaskQueue: "events",
+	}
+
+	// Create the workflow input
+	workflowInput := activities.DunningWorkflowInput{
+		OrgId:                input.OrgId,
+		SubscriptionId:       input.SubscriptionId,
+		CustomerId:           input.CustomerId,
+		FailedAmount:         input.FailedAmount,
+		Currency:             input.Currency,
+		InitialFailureReason: input.InitialFailureReason,
+		ParentWorkflowId:     input.ParentWorkflowId,
+		PaymentResult:        input.PaymentResult,
+		Metadata:             input.Metadata,
+	}
+
+	// Start the workflow
+	we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, "DunningWorkflow", workflowInput)
+	if err != nil {
+		t.logger.Error("Failed to start dunning workflow", "err", err.Error())
+		return "", "", err
+	}
+	executionBytes, err := json.Marshal(temporal.Execution{
+		ID:    we.GetID(),
+		RunID: we.GetRunID(),
+	})
+	_, err = t.settingRepository.Create(ctx, entities.Setting{
+		OrgId:    input.OrgId,
+		ParentId: input.SubscriptionId,
+		Id:       "dunning-temporal-workflow",
+		Type:     "workflow.Execution",
+		Value:    string(executionBytes),
+	})
+
+	t.logger.Info("Started dunning workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID())
+	return we.GetID(), we.GetRunID(), nil
+}
+
+// SignalDunningWorkflow signals a dunning workflow
+func (t Temporal) SignalDunningWorkflow(ctx context.Context, workflowId string, signal string, payload interface{}) error {
+	t.logger.Debugf("Signaling dunning workflow [%s][%s]", workflowId, signal)
+	err := t.client.SignalWorkflow(ctx, workflowId, "", signal, payload)
+	if err != nil {
+		t.logger.Error("Failed to signal dunning workflow", "error", slog.String("err", err.Error()))
 		return err
 	}
 	return nil

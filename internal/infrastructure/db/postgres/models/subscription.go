@@ -8,16 +8,16 @@ import (
 )
 
 type Subscription struct {
-	OrgId              string      `json:"org_id"`
-	Id                 string      `json:"id"`
-	PspId              string      `json:"psp_id"`
-	OrderId            string      `json:"order_id"`
-	OrderItemId        string      `json:"order_item_id"`
-	OrderItem          OrderItem   `json:"-"`
-	CustomerId         string      `json:"customer_id"`
-	Customer           Customer    `json:"-"`
-	Status             string      `json:"status"`
-	PaymentMethodId    pgtype.Text `json:"payment_method_id,omitempty"`
+	OrgId           string      `json:"org_id"`
+	Id              string      `json:"id"`
+	PspId           string      `json:"psp_id"`
+	OrderId         string      `json:"order_id"`
+	OrderItemId     string      `json:"order_item_id"`
+	OrderItem       OrderItem   `json:"-"`
+	CustomerId      string      `json:"customer_id"`
+	Customer        Customer    `json:"-"`
+	Status          string      `json:"status"`
+	PaymentMethodId pgtype.Text `json:"payment_method_id,omitempty"`
 
 	// Product, variant and price references
 	ProductId          pgtype.Text `json:"product_id"`
@@ -38,8 +38,9 @@ type Subscription struct {
 	CurrentPeriodStart pgtype.Date `json:"current_period_start"`
 	CurrentPeriodEnd   pgtype.Date `json:"current_period_end"`
 
-	Retries     int         `json:"retries"`
-	NextRetryAt pgtype.Date `json:"next_retry"`
+	// Dunning-related fields
+	DunningActive           bool        `json:"dunning_active"`
+	ActiveDunningCampaignId pgtype.Text `json:"active_dunning_campaign_id,omitempty"`
 
 	Currency        string            `json:"currency"`
 	Amount          int64             `json:"amount"`
@@ -79,8 +80,8 @@ func (s *Subscription) ToEntity() entities.Subscription {
 		RenewsAt:           s.RenewsAt.Time,
 		CurrentPeriodStart: s.CurrentPeriodStart.Time,
 		CurrentPeriodEnd:   s.CurrentPeriodEnd.Time,
-		Retries:            s.Retries,
-		NextRetryAt:        s.NextRetryAt.Time,
+		DunningActive:      s.DunningActive,
+		ActiveDunningCampaignId: s.ActiveDunningCampaignId.String,
 		Currency:           s.Currency,
 		Amount:             s.Amount,
 		Metadata:           s.Metadata,

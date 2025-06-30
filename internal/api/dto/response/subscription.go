@@ -65,8 +65,6 @@ func NewSubscriptionFromEntity(entity entities.Subscription) Subscription {
 		RenewsAt:           entity.RenewsAt,
 		CurrentPeriodStart: entity.CurrentPeriodStart,
 		CurrentPeriodEnd:   entity.CurrentPeriodEnd,
-		Retries:            entity.Retries,
-		NextRetryAt:        entity.NextRetryAt,
 		Currency:           entity.Currency,
 		Amount:             entity.Amount,
 		Metadata:           entity.Metadata,

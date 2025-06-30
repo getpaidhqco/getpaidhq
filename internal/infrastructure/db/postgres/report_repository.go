@@ -51,11 +51,11 @@ func (r ReportRepository) UpsertSubscription(ctx context.Context, entity entitie
                            order_item_id, order_item_name, customer_id, payment_method_id, payment_method_type,
                            start_date,end_date,billing_interval,billing_interval_qty,cycles,
                            billing_anchor,trial_ends_at,cancel_at,ends_at,last_charge,renews_at, 
-                           current_period_start,current_period_end,retries,next_retry,currency,amount,
+                           current_period_start,current_period_end,dunning_active,active_dunning_campaign_id,currency,amount,
                            cycles_processed,total_revenue,cancelled_at,created_at,updated_at)
 			  VALUES (@org_id, @id, @psp_id, @status, @order_id, @order_item_id, @order_item_name, @customer_id, @payment_method_id, @payment_method_type,
                       @start_date, @end_date, @billing_interval, @billing_interval_qty, @cycles, @billing_anchor, @trial_ends_at, @cancel_at, @ends_at, @last_charge, @renews_at,
-                      @current_period_start, @current_period_end, @retries, @next_retry, @currency, @amount, @cycles_processed, @total_revenue, @cancelled_at, NOW(), NOW())
+                      @current_period_start, @current_period_end, @dunning_active, @active_dunning_campaign_id, @currency, @amount, @cycles_processed, @total_revenue, @cancelled_at, NOW(), NOW())
 				ON CONFLICT (org_id, id) DO UPDATE SET
 					psp_id = EXCLUDED.psp_id,
 					status = EXCLUDED.status,
@@ -78,8 +78,8 @@ func (r ReportRepository) UpsertSubscription(ctx context.Context, entity entitie
 					renews_at = EXCLUDED.renews_at,
 					current_period_start = EXCLUDED.current_period_start,
 					current_period_end = EXCLUDED.current_period_end,
-					retries = EXCLUDED.retries,
-					next_retry = EXCLUDED.next_retry,
+					dunning_active = EXCLUDED.dunning_active,
+					active_dunning_campaign_id = EXCLUDED.active_dunning_campaign_id,
 					currency = EXCLUDED.currency,
 					amount = EXCLUDED.amount,
 					cycles_processed = EXCLUDED.cycles_processed,
@@ -112,8 +112,8 @@ func (r ReportRepository) UpsertSubscription(ctx context.Context, entity entitie
 		"renews_at":            pgtype.Date{Time: entity.RenewsAt, Valid: !entity.RenewsAt.IsZero()},
 		"current_period_start": pgtype.Date{Time: entity.CurrentPeriodStart, Valid: !entity.CurrentPeriodStart.IsZero()},
 		"current_period_end":   pgtype.Date{Time: entity.CurrentPeriodEnd, Valid: !entity.CurrentPeriodEnd.IsZero()},
-		"retries":              entity.Retries,
-		"next_retry":           pgtype.Date{Time: entity.NextRetryAt, Valid: !entity.NextRetryAt.IsZero()},
+		"dunning_active":       entity.DunningActive,
+		"active_dunning_campaign_id": pgtype.Text{String: entity.ActiveDunningCampaignId, Valid: entity.ActiveDunningCampaignId != ""},
 		"currency":             entity.Currency,
 		"amount":               entity.Amount,
 		"cycles_processed":     entity.CyclesProcessed,

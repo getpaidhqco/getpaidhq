@@ -1,6 +1,9 @@
 package topic
 
-import "payloop/internal/domain/entities"
+import (
+	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/payments"
+)
 
 type SubscriptionPaymentChargeSuccessEvent struct {
 	OrgId          string            `json:"org_id"`
@@ -9,6 +12,11 @@ type SubscriptionPaymentChargeSuccessEvent struct {
 	PaymentId      string            `json:"payment_id"`
 	Metadata       map[string]string `json:"metadata"`
 	Payment        entities.Payment  `json:"payment"`
+}
+
+type SubscriptionPaymentChargeFailureEvent struct {
+	Subscription entities.Subscription `json:"subscription"`
+	ChargeResult payments.ChargeResult `json:"charge_result"`
 }
 
 func NewSubscriptionPaymentChargeSuccessEvent(sub entities.Subscription, payment entities.Payment) SubscriptionPaymentChargeSuccessEvent {

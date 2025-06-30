@@ -25,6 +25,7 @@ import (
 type OrderActivities struct {
 	orderService           interfaces.OrderWorkflowService
 	subscriptionService    interfaces.SubscriptionService
+	dunningService         interfaces.DunningService
 	subscriptionRepository repositories.SubscriptionRepository
 	settingRepository      repositories.SettingRepository
 	paymentRepository      repositories.PaymentRepository
@@ -37,6 +38,7 @@ func NewOrderActivities(
 	orderService interfaces.OrderWorkflowService,
 	settingRepository repositories.SettingRepository,
 	subscriptionService interfaces.SubscriptionService,
+	dunningService interfaces.DunningService,
 	subscriptionRepository repositories.SubscriptionRepository,
 	pubsub events.PubSub,
 	paymentRepository repositories.PaymentRepository,
@@ -47,6 +49,7 @@ func NewOrderActivities(
 		gatewayFactory:         gatewayFactory,
 		orderService:           orderService,
 		subscriptionService:    subscriptionService,
+		dunningService:         dunningService,
 		subscriptionRepository: subscriptionRepository,
 		paymentRepository:      paymentRepository,
 		settingRepository:      settingRepository,
@@ -228,7 +231,7 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 
 func (a *OrderActivities) HandleChargeResult(ctx context.Context, subscription entities.Subscription, chargeResult payments.ChargeResult) (entities.Subscription, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("HandleChargeResult", "id", subscription.Id)
+	logger.Info("HandleChargeResult", "id", subscription.Id, "status", chargeResult.Status)
 
 	if chargeResult.Status == payments.PaymentStatusSucceeded {
 		return a.subscriptionService.HandleSubscriptionChargeSuccess(ctx, subscriptions.SubscriptionChargeInput{
@@ -236,10 +239,16 @@ func (a *OrderActivities) HandleChargeResult(ctx context.Context, subscription e
 			ChargeResult: chargeResult,
 		})
 	} else {
-		return a.subscriptionService.HandleSubscriptionChargeFailure(ctx, subscriptions.SubscriptionChargeInput{
+		// Handle subscription charge failure
+		updatedSubscription, err := a.subscriptionService.HandleSubscriptionChargeFailure(ctx, subscriptions.SubscriptionChargeInput{
 			Subscription: subscription,
 			ChargeResult: chargeResult,
 		})
+		if err != nil {
+			logger.Error("Failed to handle subscription charge failure", "Error", err.Error())
+			return subscription, err
+		}
+		return updatedSubscription, nil
 	}
 }
 

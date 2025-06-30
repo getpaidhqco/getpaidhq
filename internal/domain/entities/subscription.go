@@ -90,11 +90,11 @@ type Subscription struct {
 	CurrentPeriodStart time.Time `json:"current_period_start"`
 	CurrentPeriodEnd   time.Time `json:"current_period_end"`
 
-	// Retries is the number of times the subscription has been retried for payment in the current billing cycle.
-	Retries int `json:"retries"`
-	// NextRetryAt is the date when the subscription will be retried for payment next.
-	// Only used if the subscription is in PastDue state.
-	NextRetryAt time.Time `json:"next_retry,omitempty,omitzero"`
+	// DunningActive indicates if the subscription is currently in an active dunning process
+	DunningActive bool `json:"dunning_active"`
+
+	// ActiveDunningCampaignId is the ID of the active dunning campaign for this subscription
+	ActiveDunningCampaignId string `json:"active_dunning_campaign_id,omitempty"`
 
 	Currency        string            `json:"currency"`
 	Amount          int64             `json:"amount"`
@@ -177,22 +177,14 @@ func (s *Subscription) IsRunning() bool {
 		s.Status == SubscriptionStatusPastDue
 }
 
-// GetNextChargeDate returns the next charge date for the subscription, which is the earlier of RenewsAt or NextRetryAt,
-// and only if the subscription is in Active or PastDue state.
+// GetNextChargeDate returns the next charge date for the subscription,
+// which is RenewsAt if the subscription is in Active state.
 func (s *Subscription) GetNextChargeDate() time.Time {
-	if s.Status == SubscriptionStatusPastDue {
-		return s.NextRetryAt
-	}
-
 	if s.Status == SubscriptionStatusActive {
 		return s.RenewsAt
 	}
 
-	if s.RenewsAt.Before(s.NextRetryAt) {
-		return s.RenewsAt
-	}
-
-	return s.NextRetryAt
+	return s.RenewsAt
 }
 
 // SetMetadata merges the existing metadata with the specified values.
@@ -383,7 +375,8 @@ func (s *Subscription) SetCancelled() *Subscription {
 	s.Status = SubscriptionStatusCancelled
 	s.CancelledAt = time.Now().UTC()
 	s.RenewsAt = time.Time{}
-	s.NextRetryAt = time.Time{}
+	s.DunningActive = false
+	s.ActiveDunningCampaignId = ""
 	return s
 }
 
@@ -437,9 +430,10 @@ func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 		Status:             SubscriptionStatusPending,
 		BillingInterval:    item.Price.BillingInterval,
 		BillingIntervalQty: item.Price.BillingIntervalQty,
-		Cycles:             item.Price.Cycles,
-		Retries:            0,
-		Currency:           string(item.Price.Currency),
+		Cycles:                 item.Price.Cycles,
+		DunningActive:         false,
+		ActiveDunningCampaignId: "",
+		Currency:               string(item.Price.Currency),
 		Amount:             item.Price.UnitPrice,
 		CyclesProcessed:    0,
 		TotalRevenue:       0,
@@ -481,9 +475,10 @@ func NewFromCreateInput(input CreateSubscriptionInput) Subscription {
 		BillingIntervalQty: input.BillingIntervalQty,
 		Cycles:             0,
 		BillingAnchor:      startDate.Day(),
-		TrialEndsAt:        trialEndsAt,
-		Retries:            0,
-		Currency:           input.Currency,
+		TrialEndsAt:            trialEndsAt,
+		DunningActive:          false,
+		ActiveDunningCampaignId: "",
+		Currency:               input.Currency,
 		Amount:             input.Amount,
 		CyclesProcessed:    0,
 		TotalRevenue:       0,

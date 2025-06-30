@@ -35,4 +35,6 @@ var Module = fx.Options(
 		NewDocumentService,
 		fx.As(new(interfaces.DocumentService)),
 	)),
+	fx.Provide(NewDunningService),
+	fx.Provide(NewDunningOrchestrationService),
 )
