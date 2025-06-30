@@ -47,7 +47,7 @@ func NewDunningOrchestrationService(
 		logger:                 logger,
 	}
 
-	logger.Debugf("[WorkflowService] Subscribing to all topics")
+	logger.Debugf("[DunningOrchestrationService] Subscribing to all topics")
 	_, err := pubsub.Subscribe(topic.SubscriptionPaymentChargeFailed, svc.HandleSubscriptionPastDue)
 	if err != nil {
 		logger.Error("Failed to subscribe to topic", err.Error())

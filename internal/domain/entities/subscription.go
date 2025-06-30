@@ -173,8 +173,7 @@ func (s *Subscription) CalculateProrationDetails(
 // IsRunning checks if the subscription is in an active or trial state.
 func (s *Subscription) IsRunning() bool {
 	return s.Status == SubscriptionStatusActive ||
-		s.Status == SubscriptionStatusTrial ||
-		s.Status == SubscriptionStatusPastDue
+		s.Status == SubscriptionStatusTrial
 }
 
 // GetNextChargeDate returns the next charge date for the subscription,
@@ -419,26 +418,26 @@ func calculateNextDate(interval prices.BillingInterval, qty int, startDate time.
 func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 
 	return Subscription{
-		OrgId:              item.OrgId,
-		Id:                 lib.GenerateId("sub"),
-		OrderId:            item.OrderId,
-		OrderItemId:        item.Id,
-		OrderItem:          item,
-		ProductId:          item.ProductId,
-		VariantId:          item.VariantId,
-		PriceId:            item.Price.Id,
-		Status:             SubscriptionStatusPending,
-		BillingInterval:    item.Price.BillingInterval,
-		BillingIntervalQty: item.Price.BillingIntervalQty,
-		Cycles:                 item.Price.Cycles,
-		DunningActive:         false,
+		OrgId:                   item.OrgId,
+		Id:                      lib.GenerateId("sub"),
+		OrderId:                 item.OrderId,
+		OrderItemId:             item.Id,
+		OrderItem:               item,
+		ProductId:               item.ProductId,
+		VariantId:               item.VariantId,
+		PriceId:                 item.Price.Id,
+		Status:                  SubscriptionStatusPending,
+		BillingInterval:         item.Price.BillingInterval,
+		BillingIntervalQty:      item.Price.BillingIntervalQty,
+		Cycles:                  item.Price.Cycles,
+		DunningActive:           false,
 		ActiveDunningCampaignId: "",
-		Currency:               string(item.Price.Currency),
-		Amount:             item.Price.UnitPrice,
-		CyclesProcessed:    0,
-		TotalRevenue:       0,
-		CreatedAt:          time.Now().UTC(),
-		UpdatedAt:          time.Now().UTC(),
+		Currency:                string(item.Price.Currency),
+		Amount:                  item.Price.UnitPrice,
+		CyclesProcessed:         0,
+		TotalRevenue:            0,
+		CreatedAt:               time.Now().UTC(),
+		UpdatedAt:               time.Now().UTC(),
 	}
 }
 
@@ -467,22 +466,22 @@ func NewFromCreateInput(input CreateSubscriptionInput) Subscription {
 	}
 
 	return Subscription{
-		OrgId:              input.OrgId,
-		Id:                 lib.GenerateId("sub"),
-		Status:             SubscriptionStatusPending,
-		StartDate:          startDate,
-		BillingInterval:    input.BillingInterval,
-		BillingIntervalQty: input.BillingIntervalQty,
-		Cycles:             0,
-		BillingAnchor:      startDate.Day(),
-		TrialEndsAt:            trialEndsAt,
-		DunningActive:          false,
+		OrgId:                   input.OrgId,
+		Id:                      lib.GenerateId("sub"),
+		Status:                  SubscriptionStatusPending,
+		StartDate:               startDate,
+		BillingInterval:         input.BillingInterval,
+		BillingIntervalQty:      input.BillingIntervalQty,
+		Cycles:                  0,
+		BillingAnchor:           startDate.Day(),
+		TrialEndsAt:             trialEndsAt,
+		DunningActive:           false,
 		ActiveDunningCampaignId: "",
-		Currency:               input.Currency,
-		Amount:             input.Amount,
-		CyclesProcessed:    0,
-		TotalRevenue:       0,
-		CreatedAt:          time.Now().UTC(),
-		UpdatedAt:          time.Now().UTC(),
+		Currency:                input.Currency,
+		Amount:                  input.Amount,
+		CyclesProcessed:         0,
+		TotalRevenue:            0,
+		CreatedAt:               time.Now().UTC(),
+		UpdatedAt:               time.Now().UTC(),
 	}
 }

@@ -125,11 +125,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		err = workflow.ExecuteActivity(settingsCtx, a.GetSubscriptionSettings, subscription.OrgId).
 			Get(settingsCtx, &subscriptionSettings)
 		if err != nil {
-			// a system error occurred when attempting to charge the customer
-			// This shouldn't be reached because of the retry policy which will retry forever
-			// The workflow can be stopped using updates
-			// TODO report this error
-			logger.Error("ChargeCustomerForBillingPeriod failed completely, ending workflow", "Error", err.Error())
+			logger.Error("GetSubscriptionSettings failed completely, ending workflow", "Error", err.Error())
 			return subscription, err
 		}
 
@@ -194,7 +190,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		// If the subscription was paused, wait until it is activated again
 		if subscription.Status == entities.SubscriptionStatusPaused {
 			err = workflow.Await(ctx, func() bool {
-				logger.Debug(fmt.Sprintf("[%s][%s] pause clause", subscription.OrgId, subscription.Id))
+				logger.Debug(fmt.Sprintf("Workflow paused until subscription is activated [%s][%s]", subscription.OrgId, subscription.Id))
 				return subscription.IsRunning() ||
 					subscription.Status == entities.SubscriptionStatusCancelled
 			})
@@ -301,8 +297,14 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		// Update the local state with the updated subscription
 		subscription = updateResult
 
-		// check the status of the subscription after the charge and update the workflow state
-		// TODO this is where the dunning flow might happen
+		// If the subscription was paused, wait until it is activated again
+		if subscription.Status == entities.SubscriptionStatusPastDue {
+			err = workflow.Await(ctx, func() bool {
+				logger.Debug(fmt.Sprintf("Workflow paused until subscription is activated [%s][%s][%s]", subscription.OrgId, subscription.Id, subscription.Status))
+				return subscription.IsRunning() ||
+					subscription.Status == entities.SubscriptionStatusCancelled
+			})
+		}
 
 		// the subscription was successfully charged, update the subscription state
 		// and prepare for the next billing period
