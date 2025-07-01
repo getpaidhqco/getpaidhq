@@ -290,12 +290,12 @@ model Price {
 }
 
 model PriceTier {
-  orgId       String
-  priceId     String
+  orgId       String   @map("org_id")
+  priceId     String   @map("price_id")
   tier        Int      // Tier order (1, 2, 3...)
-  fromQty     Int      // Starting quantity (inclusive)
-  toQty       Int?     // Ending quantity (inclusive, null = unlimited)
-  unitPrice   Int      // Price per unit in cents
+  fromQty     Int      @map("from_qty") // Starting quantity (inclusive)
+  toQty       Int?     @map("to_qty") // Ending quantity (inclusive, null = unlimited)
+  unitPrice   Int      @map("unit_price") // Price per unit in cents
   description String?  // Human readable description
 
   createdAt   DateTime @default(now()) @map("created_at")
@@ -473,9 +473,9 @@ model Customer {
 model Cohort {
   orgId     String           @map("org_id")
   id        String           @default(cuid())
-  name      String
-  type      String           @default("signup")
-  metadata  Json?
+  name      String           @map("name")
+  type      String           @default("signup") @map("type")
+  metadata  Json?            @map("metadata")
   createdAt DateTime         @default(now()) @map("created_at")
   updatedAt DateTime         @updatedAt @map("updated_at")
   customers CustomerCohort[]
@@ -506,16 +506,16 @@ model PaymentMethod {
   id    String @default(cuid())
 
   status     PaymentMethodStatus @default(active)
-  psp        String
-  name       String?
+  psp        String              @map("psp")
+  name       String?             @map("name")
   customerId String              @map("customer_id")
   customer   Customer            @relation(name: "pmc", fields: [orgId, customerId], references: [orgId, id], onDelete: Cascade)
 
   billingAddress Json?          @map("billing_address")
-  details        Json?
-  type           String
-  token          String
-  metadata       Json?
+  details        Json?          @map("details")
+  type           String           @map("type")
+  token          String           @map("token")
+  metadata       Json?           @map("metadata")
   expireAt       DateTime?      @map("expire_at")
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
@@ -1127,14 +1127,14 @@ model Document {
   url             String? // Public URL if applicable
 
   // Document type
-  type    String // "pdf", "html", "attachment", "logo"
-  purpose String? // "invoice_pdf", "invoice_html", "company_logo", "attachment"
+  type    String @map("type") // "pdf", "html", "attachment", "logo"
+  purpose String? @map("purpose") // "invoice_pdf", "invoice_html", "company_logo", "attachment"
 
   // Security
   isPublic    Boolean @default(false) @map("is_public")
   accessToken String? @map("access_token")
 
-  metadata  Json?
+  metadata  Json?    @map("metadata")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -1150,15 +1150,15 @@ model Document {
 }
 
 model DocSequence {
-  org_id     String
-  id         String
-  type       String
-  value      Int
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  orgId     String   @map("org_id")
+  id        String
+  type      String   @map("type")
+  value     Int      @map("value")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@id([org_id, id])
-  @@index([org_id, type])
+  @@id([orgId, id])
+  @@index([orgId, type])
   @@map("doc_sequences")
 }
 

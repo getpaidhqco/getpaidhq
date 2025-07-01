@@ -74,8 +74,19 @@ func (s ProductService) CreateProduct(ctx context.Context, orgId string, request
 		}
 
 		for _, p := range v.Prices {
-			_, err := s.priceRepository.Create(ctx,
-				entities.NewPrice(orgId, variant.Id, entities.CreatePriceInput{
+			// Convert request tiers to entity tiers
+			var tiers []entities.CreatePriceTierInput
+			for _, t := range p.Tiers {
+				tiers = append(tiers, entities.CreatePriceTierInput{
+					Tier:        t.Tier,
+					FromQty:     t.FromQty,
+					ToQty:       t.ToQty,
+					UnitPrice:   t.UnitPrice,
+					Description: t.Description,
+				})
+			}
+
+			priceInput := entities.CreatePriceInput{
 					OrgId:              orgId,
 					Label:              p.Label,
 					VariantId:          variant.Id,
@@ -91,8 +102,26 @@ func (s ProductService) CreateProduct(ctx context.Context, orgId string, request
 					TrialInterval:      p.TrialInterval,
 					TrialIntervalQty:   p.TrialIntervalQty,
 					TaxCode:            p.TaxCode,
+					HasUsage:           p.HasUsage,
+					UsageType:          p.UsageType,
+					UnitType:           p.UnitType,
+					AggregationType:    p.AggregationType,
+					PercentageRate:     p.PercentageRate,
+					FixedFee:           p.FixedFee,
+					OverageUnitPrice:   p.OverageUnitPrice,
+					IncludedUsage:      p.IncludedUsage,
+					UsageLimit:         p.UsageLimit,
+					Tiers:              tiers,
 					Metadata:           p.Metadata,
-				}))
+				}
+
+				price, err := entities.NewPrice(orgId, variant.Id, priceInput)
+				if err != nil {
+					s.logger.Error("Failed to validate price", err.Error())
+					return entities.Product{}, lib.NewCustomError(lib.BadRequestError, err.Error(), nil)
+				}
+
+				_, err = s.priceRepository.Create(ctx, price)
 			if err != nil {
 				s.logger.Error("Failed to create price", err.Error())
 				return entities.Product{}, err
@@ -131,7 +160,6 @@ func (s ProductService) FindById(ctx context.Context, orgId string, id string) (
 }
 
 func (s ProductService) CreateProductPrice(ctx context.Context, input entities.CreatePriceInput) (entities.Price, error) {
-
 	if input.BillingInterval == "" {
 		input.BillingInterval = prices.BillingIntervalNone
 	}
@@ -139,37 +167,15 @@ func (s ProductService) CreateProductPrice(ctx context.Context, input entities.C
 		input.TrialInterval = prices.BillingIntervalNone
 	}
 
-	// Create price entity for validation
-	priceForValidation := entities.NewPrice(input.OrgId, input.VariantId, input)
-
-	// Add validation
-	if err := priceForValidation.Validate(); err != nil {
+	// Create and validate price entity
+	price, err := entities.NewPrice(input.OrgId, input.VariantId, input)
+	if err != nil {
+		s.logger.Error("Failed to validate price", err.Error())
 		return entities.Price{}, lib.NewCustomError(lib.BadRequestError, err.Error(), nil)
 	}
 
-	// Save price to repository
-	price, err := s.priceRepository.Create(ctx, entities.Price{
-		OrgId:              input.OrgId,
-		Id:                 lib.GenerateId("price"),
-		Label:              input.Label,
-		VariantId:          input.VariantId,
-		Category:           input.Category,
-		Scheme:             input.Scheme,
-		Cycles:             input.Cycles,
-		Currency:           common.Currency(input.Currency),
-		UnitPrice:          input.UnitPrice,
-		MinPrice:           input.MinPrice,
-		SuggestedPrice:     input.SuggestedPrice,
-		BillingInterval:    input.BillingInterval,
-		BillingIntervalQty: input.BillingIntervalQty,
-		TrialInterval:      input.TrialInterval,
-		TrialIntervalQty:   input.TrialIntervalQty,
-		TaxCode:            input.TaxCode,
-		Metadata:           input.Metadata,
-		CreatedAt:          time.Now(),
-		UpdatedAt:          time.Now(),
-	})
-
+	// Create price in repository
+	price, err = s.priceRepository.Create(ctx, price)
 	if err != nil {
 		s.logger.Error("Failed to create product price", err.Error())
 		return entities.Price{}, err
@@ -347,6 +353,21 @@ func (s ProductService) UpdatePrice(ctx context.Context, orgId string, id string
 	price.Metadata = input.Metadata
 	price.UpdatedAt = time.Now().UTC()
 
+	// Convert input tiers to price tiers
+	var tiers []entities.PriceTier
+	for _, tierInput := range input.Tiers {
+		tiers = append(tiers, entities.NewPriceTier(entities.CreatePriceTierInput{
+			OrgId:       orgId,
+			PriceId:     price.Id,
+			Tier:        tierInput.Tier,
+			FromQty:     tierInput.FromQty,
+			ToQty:       tierInput.ToQty,
+			UnitPrice:   tierInput.UnitPrice,
+			Description: tierInput.Description,
+		}))
+	}
+	price.Tiers = tiers
+
 	// Validate price before updating
 	if err := price.Validate(); err != nil {
 		return entities.Price{}, lib.NewCustomError(lib.BadRequestError, err.Error(), nil)
@@ -356,6 +377,22 @@ func (s ProductService) UpdatePrice(ctx context.Context, orgId string, id string
 	if err != nil {
 		s.logger.Error("Failed to update price", err.Error())
 		return entities.Price{}, err
+	}
+
+	// Update price tiers if any
+	if len(input.Tiers) > 0 {
+		err = s.priceRepository.UpdatePriceTiers(ctx, orgId, price.Id, price.Tiers)
+		if err != nil {
+			s.logger.Error("Failed to update price tiers", err.Error())
+			return entities.Price{}, err
+		}
+	} else {
+		// Delete all tiers if none are provided
+		err = s.priceRepository.DeletePriceTiers(ctx, orgId, price.Id)
+		if err != nil {
+			s.logger.Error("Failed to delete price tiers", err.Error())
+			return entities.Price{}, err
+		}
 	}
 
 	_ = s.pubsub.Publish(orgId, topic.PriceUpdated, price)

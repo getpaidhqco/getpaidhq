@@ -5,9 +5,14 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 Always examine existing files and project structure when generating files. Use the same coding style, dependencies, layout
 , file structure etc. for the DDD project. Follow the Domain-Driven Design (DDD) principles and clean architecture patterns used in this project.
 
-##
+## Docs and Specs
+- documentation is in `docs/`
+- specs are in `specs/`
 
-## Development Commands
+## Development 
+- function calls should return structs, not pointers (as far as possible)
+- reference adjacent files for examples of how to implement features
+- use the existing codebase as a guide for implementing new features
 
 ### Building and Running
 - `go run main.go serve` - Start the API server

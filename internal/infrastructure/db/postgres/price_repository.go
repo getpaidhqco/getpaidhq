@@ -151,7 +151,7 @@ func (r PriceRepository) FindById(ctx context.Context, orgId string, id string) 
 	tiers, err := r.GetPriceTiers(ctx, orgId, id)
 	if err != nil {
 		r.logger.Error(`failed to load price tiers`, slog.String("err", err.Error()))
-		// Continue without tiers if there's an error
+		return entities.Price{}, err
 	}
 
 	entity := price.ToEntity()
@@ -255,8 +255,7 @@ func (r PriceRepository) FindByVariantId(ctx context.Context, orgId string, vari
 		tiers, err := r.GetPriceTiers(ctx, price.OrgId, price.Id)
 		if err != nil {
 			r.logger.Error(`failed to load price tiers`, slog.String("err", err.Error()))
-			// Continue without tiers if there's an error
-			continue
+			return nil, 0, err
 		}
 		prices[i].Tiers = tiers
 	}
