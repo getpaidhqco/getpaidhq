@@ -60,10 +60,11 @@ type Subscription struct {
 	Status          SubscriptionStatus `json:"status"`
 	PaymentMethodId string             `json:"payment_method_id,omitempty"`
 
-	// Product, variant and price references
-	ProductId string `json:"product_id"`
-	VariantId string `json:"variant_id"`
-	PriceId   string `json:"price_id"`
+	// Optional amount and currency for backward compatibility
+	// For simple subscriptions, use these fields
+	// For multi-item subscriptions, these will be null and calculated from items
+	Amount   int64  `json:"amount,omitempty"`
+	Currency string `json:"currency,omitempty"`
 
 	// StartDate is the date when the subscription was activated.
 	// It doesn't include the trial period, if any.
@@ -96,14 +97,15 @@ type Subscription struct {
 	// ActiveDunningCampaignId is the ID of the active dunning campaign for this subscription
 	ActiveDunningCampaignId string `json:"active_dunning_campaign_id,omitempty"`
 
-	Currency        string            `json:"currency"`
-	Amount          int64             `json:"amount"`
 	Metadata        map[string]string `json:"metadata"`
 	CyclesProcessed int               `json:"cycles_processed"`
 	TotalRevenue    int64             `json:"total_revenue"`
 	CancelledAt     time.Time         `json:"cancelled_at,omitempty,omitzero"`
 	CreatedAt       time.Time         `json:"created_at"`
 	UpdatedAt       time.Time         `json:"updated_at"`
+
+	// Subscription items
+	Items []SubscriptionItem `json:"items,omitempty"`
 }
 
 type ProrationDetails struct {
@@ -160,8 +162,11 @@ func (s *Subscription) CalculateProrationDetails(
 			return details
 		}
 
+		// Get the total amount to prorate
+		totalAmount := s.GetTotalAmount()
+
 		// Calculate the credit amount based on the proportion of days remaining
-		creditAmount := int(float64(s.Amount) * float64(daysRemaining) / float64(totalDays))
+		creditAmount := int(float64(totalAmount) * float64(daysRemaining) / float64(totalDays))
 
 		details.CreditAmount = creditAmount
 		details.DaysCredited = daysRemaining
@@ -195,6 +200,81 @@ func (s *Subscription) SetMetadata(meta map[string]string) *Subscription {
 		s.Metadata[key] = value
 	}
 	return s
+}
+
+// AddItem adds a new subscription item to the subscription
+func (s *Subscription) AddItem(item SubscriptionItem) *Subscription {
+	if s.Items == nil {
+		s.Items = []SubscriptionItem{}
+	}
+	s.Items = append(s.Items, item)
+	s.UpdatedAt = time.Now().UTC()
+	return s
+}
+
+// RemoveItem removes a subscription item from the subscription
+func (s *Subscription) RemoveItem(itemId string) *Subscription {
+	if s.Items == nil {
+		return s
+	}
+
+	var newItems []SubscriptionItem
+	for _, item := range s.Items {
+		if item.Id != itemId {
+			newItems = append(newItems, item)
+		}
+	}
+
+	s.Items = newItems
+	s.UpdatedAt = time.Now().UTC()
+	return s
+}
+
+// FindItem finds a subscription item by ID
+func (s *Subscription) FindItem(itemId string) *SubscriptionItem {
+	if s.Items == nil {
+		return nil
+	}
+
+	for i, item := range s.Items {
+		if item.Id == itemId {
+			return &s.Items[i]
+		}
+	}
+
+	return nil
+}
+
+// GetActiveItems returns all active subscription items
+func (s *Subscription) GetActiveItems() []SubscriptionItem {
+	if s.Items == nil {
+		return []SubscriptionItem{}
+	}
+
+	var activeItems []SubscriptionItem
+	for _, item := range s.Items {
+		if item.Status == SubscriptionItemStatusActive {
+			activeItems = append(activeItems, item)
+		}
+	}
+
+	return activeItems
+}
+
+// GetTotalAmount calculates the total fixed amount for all active subscription items
+func (s *Subscription) GetTotalAmount() int64 {
+	if s.Items == nil || len(s.Items) == 0 {
+		return 0
+	}
+
+	var total int64
+	for _, item := range s.GetActiveItems() {
+		if item.Amount > 0 {
+			total += item.Amount * int64(item.Quantity)
+		}
+	}
+
+	return total
 }
 
 // CalculateNextBillingDate calculates and returns the next billing date for a subscription
@@ -416,29 +496,39 @@ func calculateNextDate(interval prices.BillingInterval, qty int, startDate time.
 
 // NewSubscriptionFromItem creates a new Subscription from a payloop-cart Item
 func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
-
-	return Subscription{
+	subscription := Subscription{
 		OrgId:                   item.OrgId,
 		Id:                      lib.GenerateId("sub"),
 		OrderId:                 item.OrderId,
 		OrderItemId:             item.Id,
 		OrderItem:               item,
-		ProductId:               item.ProductId,
-		VariantId:               item.VariantId,
-		PriceId:                 item.Price.Id,
 		Status:                  SubscriptionStatusPending,
 		BillingInterval:         item.Price.BillingInterval,
 		BillingIntervalQty:      item.Price.BillingIntervalQty,
 		Cycles:                  item.Price.Cycles,
 		DunningActive:           false,
 		ActiveDunningCampaignId: "",
-		Currency:                string(item.Price.Currency),
-		Amount:                  item.Price.UnitPrice,
 		CyclesProcessed:         0,
 		TotalRevenue:            0,
 		CreatedAt:               time.Now().UTC(),
 		UpdatedAt:               time.Now().UTC(),
 	}
+
+	// Create a subscription item for backward compatibility
+	subscriptionItem := NewSubscriptionItem(
+		item.OrgId,
+		subscription.Id,
+		item.Price.Id,
+		item.Description,
+		string(item.Price.Currency),
+	)
+	subscriptionItem.ProductId = item.ProductId
+	subscriptionItem.VariantId = item.VariantId
+	subscriptionItem.Amount = item.Price.UnitPrice
+
+	subscription.Items = []SubscriptionItem{subscriptionItem}
+
+	return subscription
 }
 
 // NewSubscriptionFrominput creates a new Subscription from a payloop-cart input
@@ -465,7 +555,7 @@ func NewFromCreateInput(input CreateSubscriptionInput) Subscription {
 		trialEndsAt = startDate
 	}
 
-	return Subscription{
+	subscription := Subscription{
 		OrgId:                   input.OrgId,
 		Id:                      lib.GenerateId("sub"),
 		Status:                  SubscriptionStatusPending,
@@ -477,11 +567,23 @@ func NewFromCreateInput(input CreateSubscriptionInput) Subscription {
 		TrialEndsAt:             trialEndsAt,
 		DunningActive:           false,
 		ActiveDunningCampaignId: "",
-		Currency:                input.Currency,
-		Amount:                  input.Amount,
 		CyclesProcessed:         0,
 		TotalRevenue:            0,
 		CreatedAt:               time.Now().UTC(),
 		UpdatedAt:               time.Now().UTC(),
 	}
+
+	// Create a subscription item for backward compatibility
+	subscriptionItem := NewSubscriptionItem(
+		input.OrgId,
+		subscription.Id,
+		"", // No price ID available from input
+		"Subscription", // Generic name
+		input.Currency,
+	)
+	subscriptionItem.Amount = input.Amount
+
+	subscription.Items = []SubscriptionItem{subscriptionItem}
+
+	return subscription
 }

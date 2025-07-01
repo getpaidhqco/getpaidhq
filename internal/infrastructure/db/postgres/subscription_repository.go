@@ -36,14 +36,13 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 	var subscription models.Subscription
 	var customer models.Customer
 	query := `SELECT s.org_id, s.id, s.psp_id, s.order_id, s.order_item_id, s.customer_id, s.status, s.payment_method_id, 
-       s.product_id, s.variant_id, s.price_id,
-       s.start_date, s.end_date,
+       s.amount, s.currency, s.start_date, s.end_date,
        s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at,
        s.last_charge, 
        s.renews_at,
        s.current_period_start,
        s.current_period_end,
-       s.retries, s.next_retry, s.currency, s.amount, s.metadata, s.cycles_processed,
+       s.dunning_active, s.active_dunning_campaign_id, s.metadata, s.cycles_processed,
        s.total_revenue, s.cancelled_at, s.created_at, s.updated_at,
        c.org_id, c.id, c.first_name, c.last_name, c.email, c.created_at, c.updated_at
    FROM subscriptions s
@@ -62,9 +61,8 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 		&subscription.CustomerId,
 		&subscription.Status,
 		&subscription.PaymentMethodId,
-		&subscription.ProductId,
-		&subscription.VariantId,
-		&subscription.PriceId,
+		&subscription.Amount,
+		&subscription.Currency,
 		&subscription.StartDate,
 		&subscription.EndDate,
 		&subscription.BillingInterval,
@@ -80,8 +78,6 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 		&subscription.CurrentPeriodEnd,
 		&subscription.DunningActive,
 		&subscription.ActiveDunningCampaignId,
-		&subscription.Currency,
-		&subscription.Amount,
 		&subscription.Metadata,
 		&subscription.CyclesProcessed,
 		&subscription.TotalRevenue,
@@ -522,9 +518,6 @@ func entityToNamedArgs(entity entities.Subscription) pgx.NamedArgs {
 		"order_item_id":        entity.OrderItemId,
 		"customer_id":          entity.CustomerId,
 		"status":               entity.Status,
-		"product_id":           pgtype.Text{String: entity.ProductId, Valid: entity.ProductId != ""},
-		"variant_id":           pgtype.Text{String: entity.VariantId, Valid: entity.VariantId != ""},
-		"price_id":             pgtype.Text{String: entity.PriceId, Valid: entity.PriceId != ""},
 		"start_date":           pgtype.Date{Time: entity.StartDate, Valid: !entity.StartDate.IsZero()},
 		"end_date":             pgtype.Date{Time: entity.EndDate, Valid: !entity.EndDate.IsZero()},
 		"billing_interval":     entity.BillingInterval,
@@ -540,11 +533,96 @@ func entityToNamedArgs(entity entities.Subscription) pgx.NamedArgs {
 		"current_period_end":   pgtype.Date{Time: entity.CurrentPeriodEnd, Valid: !entity.CurrentPeriodEnd.IsZero()},
 		"dunning_active":       entity.DunningActive,
 		"active_dunning_campaign_id": pgtype.Text{String: entity.ActiveDunningCampaignId, Valid: entity.ActiveDunningCampaignId != ""},
-		"currency":             entity.Currency,
-		"amount":               entity.Amount,
 		"metadata":             metaJson,
 		"cycles_processed":     entity.CyclesProcessed,
 		"total_revenue":        entity.TotalRevenue,
 		"cancelled_at":         pgtype.Date{Time: entity.CancelledAt, Valid: !entity.CancelledAt.IsZero()},
 	}
+}
+
+// FindWithItems finds a subscription by ID and includes its subscription items
+func (r SubscriptionRepository) FindWithItems(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
+	// First, get the subscription
+	subscription, err := r.FindById(ctx, orgId, id)
+	if err != nil {
+		return entities.Subscription{}, err
+	}
+
+	// Then, get the subscription items
+	tx := r.getTransactionFromContext(ctx)
+	query := `SELECT org_id, id, subscription_id, price_id, product_id, variant_id, 
+              name, description, status, quantity, amount, currency, has_usage, usage_type, aggregation_type, 
+              metadata, created_at, updated_at
+              FROM subscription_items
+              WHERE org_id = @org_id AND subscription_id = @subscription_id
+              ORDER BY created_at ASC`
+
+	rows, err := tx.Query(ctx, query, pgx.NamedArgs{
+		"org_id":          orgId,
+		"subscription_id": id,
+	})
+
+	if err != nil {
+		r.logger.Error(`failed to find SubscriptionItems by subscription_id`, err.Error())
+		return entities.Subscription{}, err
+	}
+	defer rows.Close()
+
+	var items []entities.SubscriptionItem
+	for rows.Next() {
+		var item models.SubscriptionItem
+		err := rows.Scan(
+			&item.OrgId,
+			&item.Id,
+			&item.SubscriptionId,
+			&item.PriceId,
+			&item.ProductId,
+			&item.VariantId,
+			&item.Name,
+			&item.Description,
+			&item.Status,
+			&item.Quantity,
+			&item.Amount,
+			&item.Currency,
+			&item.HasUsage,
+			&item.UsageType,
+			&item.AggregationType,
+			&item.Metadata,
+			&item.CreatedAt,
+			&item.UpdatedAt,
+		)
+		if err != nil {
+			r.logger.Error(`failed to scan SubscriptionItem`, err.Error())
+			return entities.Subscription{}, err
+		}
+		items = append(items, item.ToEntity())
+	}
+
+	if rows.Err() != nil {
+		r.logger.Error(`rows iteration error`, rows.Err().Error())
+		return entities.Subscription{}, rows.Err()
+	}
+
+	subscription.Items = items
+	return subscription, nil
+}
+
+// FindByOrderIdWithItems finds subscriptions by order ID and includes their subscription items
+func (r SubscriptionRepository) FindByOrderIdWithItems(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
+	// First, get the subscriptions
+	subscriptions, err := r.FindByOrderId(ctx, orgId, orderId)
+	if err != nil {
+		return nil, err
+	}
+
+	// Then, for each subscription, get its items
+	for i, subscription := range subscriptions {
+		subWithItems, err := r.FindWithItems(ctx, orgId, subscription.Id)
+		if err != nil {
+			return nil, err
+		}
+		subscriptions[i] = subWithItems
+	}
+
+	return subscriptions, nil
 }

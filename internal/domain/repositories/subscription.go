@@ -16,4 +16,8 @@ type SubscriptionRepository interface {
 	// Plan change methods
 	CreatePlanChange(ctx context.Context, entity entities.SubscriptionPlanChange) (entities.SubscriptionPlanChange, error)
 	FindPlanChangesBySubscriptionId(ctx context.Context, orgId string, subscriptionId string) ([]entities.SubscriptionPlanChange, error)
+
+	// Subscription item methods
+	FindWithItems(ctx context.Context, orgId string, id string) (entities.Subscription, error)
+	FindByOrderIdWithItems(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error)
 }
