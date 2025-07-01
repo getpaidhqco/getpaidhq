@@ -1,51 +1,44 @@
 package mocks
 
 import (
-	"payloop/internal/lib/pubsub"
-
 	"github.com/stretchr/testify/mock"
+	"payloop/internal/application/lib/events"
 )
 
-// MockPubSub provides a reusable mock for pubsub interface
+// MockPubSub is a mock implementation of the PubSub interface
 type MockPubSub struct {
 	mock.Mock
 }
 
-var _ pubsub.PubSub = (*MockPubSub)(nil)
-
-func (m *MockPubSub) Publish(orgId string, topic string, data interface{}) error {
-	args := m.Called(orgId, topic, data)
+// Publish mocks the Publish method
+func (m *MockPubSub) Publish(orgId string, topic string, message interface{}) error {
+	args := m.Called(orgId, topic, message)
 	return args.Error(0)
 }
 
-func (m *MockPubSub) Subscribe(topic string, handler pubsub.MessageHandler) error {
+// Subscribe mocks the Subscribe method
+func (m *MockPubSub) Subscribe(topic string, handler func(topic string, data []byte)) (events.Subscription, error) {
 	args := m.Called(topic, handler)
-	return args.Error(0)
+	return args.Get(0).(events.Subscription), args.Error(1)
 }
 
-func (m *MockPubSub) Close() error {
+// MockSubscription is a mock implementation of the Subscription interface
+type MockSubscription struct {
+	mock.Mock
+}
+
+// Unsubscribe mocks the Unsubscribe method
+func (m *MockSubscription) Unsubscribe() error {
 	args := m.Called()
 	return args.Error(0)
 }
 
-// NewMockPubSub creates a new mock pubsub with common setup
+// NewMockPubSub creates a new mock pubsub
 func NewMockPubSub() *MockPubSub {
-	mockPubSub := &MockPubSub{}
-	
-	// Set up common expectations that most tests need
-	mockPubSub.On("Publish", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	
-	return mockPubSub
+	return &MockPubSub{}
 }
 
-// NewSilentPubSub creates a mock pubsub that ignores all calls
-func NewSilentPubSub() *MockPubSub {
-	mockPubSub := &MockPubSub{}
-	
-	// Set up expectations to ignore all calls
-	mockPubSub.On("Publish", mock.Anything, mock.Anything, mock.Anything).Return(nil).Maybe()
-	mockPubSub.On("Subscribe", mock.Anything, mock.Anything).Return(nil).Maybe()
-	mockPubSub.On("Close").Return(nil).Maybe()
-	
-	return mockPubSub
+// NewMockSubscription creates a new mock subscription
+func NewMockSubscription() *MockSubscription {
+	return &MockSubscription{}
 }

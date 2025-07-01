@@ -3,9 +3,9 @@ package fixtures
 import (
 	"time"
 
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/prices"
-	"payloop/internal/domain/common"
 	"payloop/internal/lib"
 )
 
@@ -17,7 +17,7 @@ type SubscriptionBuilder struct {
 // NewSubscriptionBuilder creates a new subscription builder with sensible defaults
 func NewSubscriptionBuilder() *SubscriptionBuilder {
 	now := time.Now().UTC()
-	
+
 	return &SubscriptionBuilder{
 		subscription: entities.Subscription{
 			OrgId:              "org_test123",
@@ -40,12 +40,12 @@ func NewSubscriptionBuilder() *SubscriptionBuilder {
 			CurrentPeriodStart: now,
 			CurrentPeriodEnd:   now.AddDate(0, 1, 0), // 1 month from now
 			RenewsAt:           now.AddDate(0, 1, 0),
-			Retries:            0,
-			CyclesProcessed:    1,
-			TotalRevenue:       2500,
-			Metadata:           make(map[string]string),
-			CreatedAt:          now,
-			UpdatedAt:          now,
+
+			CyclesProcessed: 1,
+			TotalRevenue:    2500,
+			Metadata:        make(map[string]string),
+			CreatedAt:       now,
+			UpdatedAt:       now,
 		},
 	}
 }
@@ -132,7 +132,7 @@ type CustomerBuilder struct {
 // NewCustomerBuilder creates a new customer builder with sensible defaults
 func NewCustomerBuilder() *CustomerBuilder {
 	now := time.Now().UTC()
-	
+
 	return &CustomerBuilder{
 		customer: entities.Customer{
 			OrgId:     "org_test123",
@@ -186,17 +186,17 @@ type VariantBuilder struct {
 // NewVariantBuilder creates a new variant builder with sensible defaults
 func NewVariantBuilder() *VariantBuilder {
 	now := time.Now().UTC()
-	
+
 	return &VariantBuilder{
 		variant: entities.Variant{
-			OrgId:     "org_test123",
-			Id:        lib.GenerateId("var"),
-			ProductId: "prod_test123",
-			Name:      "Test Variant",
+			OrgId:       "org_test123",
+			Id:          lib.GenerateId("var"),
+			ProductId:   "prod_test123",
+			Name:        "Test Variant",
 			Description: "A test variant",
-			Metadata:  make(map[string]string),
-			CreatedAt: now,
-			UpdatedAt: now,
+			Metadata:    make(map[string]string),
+			CreatedAt:   now,
+			UpdatedAt:   now,
 		},
 	}
 }
@@ -232,7 +232,7 @@ type PriceBuilder struct {
 // NewPriceBuilder creates a new price builder with sensible defaults
 func NewPriceBuilder() *PriceBuilder {
 	now := time.Now().UTC()
-	
+
 	return &PriceBuilder{
 		price: entities.Price{
 			OrgId:              "org_test123",
@@ -297,7 +297,7 @@ type SubscriptionPlanChangeBuilder struct {
 // NewSubscriptionPlanChangeBuilder creates a new plan change builder
 func NewSubscriptionPlanChangeBuilder() *SubscriptionPlanChangeBuilder {
 	now := time.Now().UTC()
-	
+
 	return &SubscriptionPlanChangeBuilder{
 		planChange: entities.SubscriptionPlanChange{
 			Id:              lib.GenerateId("spc"),

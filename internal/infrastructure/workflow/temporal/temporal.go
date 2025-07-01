@@ -212,26 +212,13 @@ func (t Temporal) StartSubscriptionWorkflow(ctx context.Context, subscription en
 		return err
 	}
 	t.logger.Info("Finished workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID())
-	executionBytes, err := json.Marshal(temporal.Execution{
-		ID:    we.GetID(),
-		RunID: we.GetRunID(),
-	})
-	if err != nil {
-		return err
-	}
-	_, err = t.settingRepository.Create(ctx, entities.Setting{
-		OrgId:    subscription.OrgId,
-		ParentId: subscription.Id,
-		Id:       "temporal-workflow",
-		Type:     "workflow.Execution",
-		Value:    string(executionBytes),
-	})
+	_ = t.saveExecution(ctx, we, subscription.OrgId, subscription.Id, WorkflowTypeSubscription)
 
 	return nil
 }
 
 func (t Temporal) UpdateSubscriptionWorkflow(ctx context.Context, updateName string, subscription entities.Subscription) error {
-	we, err := t.getExecution(subscription)
+	we, err := t.getExecution(subscription.OrgId, subscription.Id, WorkflowTypeSubscription)
 	if err != nil {
 		return err
 	}
@@ -270,7 +257,7 @@ func (t Temporal) UpdateSubscriptionWorkflow(ctx context.Context, updateName str
 }
 
 func (t Temporal) CancelSubscriptionWorkflow(ctx context.Context, subscription entities.Subscription) error {
-	we, err := t.getExecution(subscription)
+	we, err := t.getExecution(subscription.OrgId, subscription.Id, WorkflowTypeSubscription)
 	if err != nil {
 		return err
 	}
@@ -291,7 +278,7 @@ func (t Temporal) CancelSubscriptionWorkflow(ctx context.Context, subscription e
 }
 
 func (t Temporal) SignalSubscriptionWorkflow(ctx context.Context, signal string, subscription entities.Subscription, payload interface{}) error {
-	we, err := t.getExecution(subscription)
+	we, err := t.getExecution(subscription.OrgId, subscription.Id, WorkflowTypeSubscription)
 	if err != nil {
 		t.logger.Error("Failed to get subscription workflow", "error", err)
 		return err
@@ -311,7 +298,7 @@ func (t Temporal) StartDunningWorkflow(ctx context.Context, input interfaces.Sta
 	t.logger.Info("Starting dunning workflow", "OrgId", input.OrgId, "SubscriptionId", input.SubscriptionId)
 
 	// Start the workflow
-	workflowId := fmt.Sprintf("dunning_%s_%s_%s", input.OrgId, input.SubscriptionId, time.Now().Format("20060102150405"))
+	workflowId := fmt.Sprintf("dunning_[%s]_[%s]_[%s]", input.OrgId, input.SubscriptionId, time.Now().Format("20060102"))
 	workflowOptions := client.StartWorkflowOptions{
 		ID:        workflowId,
 		TaskQueue: "events",
@@ -336,17 +323,7 @@ func (t Temporal) StartDunningWorkflow(ctx context.Context, input interfaces.Sta
 		t.logger.Error("Failed to start dunning workflow", "err", err.Error())
 		return "", "", err
 	}
-	executionBytes, err := json.Marshal(temporal.Execution{
-		ID:    we.GetID(),
-		RunID: we.GetRunID(),
-	})
-	_, err = t.settingRepository.Create(ctx, entities.Setting{
-		OrgId:    input.OrgId,
-		ParentId: input.SubscriptionId,
-		Id:       "dunning-temporal-workflow",
-		Type:     "workflow.Execution",
-		Value:    string(executionBytes),
-	})
+	_ = t.saveExecution(ctx, we, input.OrgId, input.SubscriptionId, WorkflowTypeDunning)
 
 	t.logger.Info("Started dunning workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID())
 	return we.GetID(), we.GetRunID(), nil
@@ -363,9 +340,28 @@ func (t Temporal) SignalDunningWorkflow(ctx context.Context, workflowId string, 
 	return nil
 }
 
+func (t Temporal) saveExecution(ctx context.Context, wr client.WorkflowRun, orgId string, parentId string, executionType WorkflowType) error {
+	executionBytes, err := json.Marshal(temporal.Execution{
+		ID:    wr.GetID(),
+		RunID: wr.GetRunID(),
+	})
+	if err != nil {
+		t.logger.Error("Failed to marshal execution", "error", err)
+		return err
+	}
+	_, err = t.settingRepository.Create(ctx, entities.Setting{
+		OrgId:    orgId,
+		ParentId: parentId,
+		Id:       fmt.Sprintf("temporal-workflow-%s", executionType),
+		Type:     "workflow.Execution",
+		Value:    string(executionBytes),
+	})
+	return err
+}
+
 // HandleSubscriptionEvent forwards subscription events on to the appropriate workflow
-func (t Temporal) getExecution(subscription entities.Subscription) (temporal.Execution, error) {
-	setting, err := t.settingRepository.FindById(context.TODO(), subscription.OrgId, subscription.Id, "temporal-workflow")
+func (t Temporal) getExecution(orgId string, parentId string, executionType WorkflowType) (temporal.Execution, error) {
+	setting, err := t.settingRepository.FindById(context.TODO(), orgId, parentId, "temporal-workflow-"+string(executionType))
 	if err != nil {
 		t.logger.Error("Failed to get setting", "error", err)
 		return temporal.Execution{}, err
@@ -381,8 +377,7 @@ func (t Temporal) getExecution(subscription entities.Subscription) (temporal.Exe
 	t.logger.Debugf(`Getting the latest runID for workflow [%s]`, we.ID)
 	workflowRun := t.client.GetWorkflow(context.Background(), we.ID, "")
 	we.RunID = workflowRun.GetRunID()
-	t.logger.Debugf(`Found RunID [%s]`, we.RunID)
-
+	t.logger.Debugf(`Found RunID fpr [%s][%s]`, executionType, we.RunID)
 	return we, nil
 }
 
@@ -412,7 +407,7 @@ func (t Temporal) HandleSubscriptionEvent(topic string, data []byte) error {
 
 	switch topic {
 	case "subscription.paused":
-		we, err := t.getExecution(sub)
+		we, err := t.getExecution(sub.OrgId, sub.Id, WorkflowTypeSubscription)
 		if err != nil {
 			return err
 		}

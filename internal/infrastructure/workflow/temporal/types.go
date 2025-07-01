@@ -8,3 +8,10 @@ import (
 type WorkflowPayload struct {
 	engine interfaces.Engine
 }
+
+type WorkflowType string
+
+const (
+	WorkflowTypeSubscription WorkflowType = "subscription"
+	WorkflowTypeDunning      WorkflowType = "dunning"
+)

@@ -189,6 +189,9 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 
 		// If the subscription was paused, wait until it is activated again
 		if subscription.Status == entities.SubscriptionStatusPaused {
+			if cancelReminderWorkflow != nil {
+				cancelReminderWorkflow() // Cancel the reminder workflow if it is still running
+			}
 			err = workflow.Await(ctx, func() bool {
 				logger.Debug(fmt.Sprintf("Workflow paused until subscription is activated [%s][%s]", subscription.OrgId, subscription.Id))
 				return subscription.IsRunning() ||
@@ -198,9 +201,11 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		}
 
 		if subscription.Status == entities.SubscriptionStatusNonRenewing {
+			if cancelReminderWorkflow != nil {
+				cancelReminderWorkflow() // Cancel the reminder workflow if it is still running
+			}
 			err = workflow.Await(ctx, func() bool {
-				logger.Debug("Past due clause", "subscription.Status", subscription.Status)
-
+				logger.Debug("NonRenewing clause", "subscription.Status", subscription.Status)
 				// wait until the subscription is moved out of the non-renewing state.
 				return subscription.Status != entities.SubscriptionStatusNonRenewing
 			})
