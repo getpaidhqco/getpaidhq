@@ -16,21 +16,23 @@ import (
 
 type SubscriptionRepository struct {
 	*PgDatabase
-	logger logger.Logger
+	logger                     logger.Logger
+	subscriptionItemRepository repositories.SubscriptionItemRepository
 }
 
-func NewSubscriptionRepository(primaryDb lib.Database, logger logger.Logger) repositories.SubscriptionRepository {
+func NewSubscriptionRepository(primaryDb lib.Database, logger logger.Logger, subscriptionItemRepository repositories.SubscriptionItemRepository) repositories.SubscriptionRepository {
 	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}
 	return SubscriptionRepository{
-		PgDatabase: pgDatabase,
-		logger:     logger,
+		PgDatabase:                 pgDatabase,
+		logger:                     logger,
+		subscriptionItemRepository: subscriptionItemRepository,
 	}
 }
 
-func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
+func (r SubscriptionRepository) FindByIdWithoutItems(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
 	tx := r.getTransactionFromContext(ctx)
 
 	var subscription models.Subscription
@@ -99,6 +101,12 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 	}
 	subscription.Customer = customer
 	return subscription.ToEntity(), nil
+}
+
+// FindById always loads subscription with items - similar to Invoice/LineItems pattern
+func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
+	// Always load with items
+	return r.findWithItems(ctx, orgId, id)
 }
 
 func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
@@ -215,9 +223,26 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 		return entities.Subscription{}, err
 	}
 
+	// Create subscription items if they are provided
+	if len(entity.Items) > 0 {
+		for i := range entity.Items {
+			// Ensure the item has the correct subscription ID
+			entity.Items[i].SubscriptionId = entity.Id
+			entity.Items[i].OrgId = entity.OrgId
+
+			// Use the subscription item repository to create the item
+			_, err := r.subscriptionItemRepository.Create(ctx, entity.Items[i])
+			if err != nil {
+				r.logger.Error(`failed to insert SubscriptionItem`, err.Error())
+				return entities.Subscription{}, err
+			}
+		}
+	}
+
 	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
+// Update updates an existing subscription. It doesn't update items
 func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subscription) (entities.Subscription, error) {
 	tx := r.getTransactionFromContext(ctx)
 	query := `UPDATE subscriptions
@@ -510,119 +535,52 @@ func (r SubscriptionRepository) FindPlanChangesBySubscriptionId(ctx context.Cont
 func entityToNamedArgs(entity entities.Subscription) pgx.NamedArgs {
 	metaJson, _ := json.Marshal(entity.Metadata)
 	return pgx.NamedArgs{
-		"org_id":               entity.OrgId,
-		"id":                   entity.Id,
-		"payment_method_id":    pgtype.Text{String: entity.PaymentMethodId, Valid: entity.PaymentMethodId != ""},
-		"psp_id":               entity.PspId,
-		"order_id":             entity.OrderId,
-		"order_item_id":        entity.OrderItemId,
-		"customer_id":          entity.CustomerId,
-		"status":               entity.Status,
-		"start_date":           pgtype.Date{Time: entity.StartDate, Valid: !entity.StartDate.IsZero()},
-		"end_date":             pgtype.Date{Time: entity.EndDate, Valid: !entity.EndDate.IsZero()},
-		"billing_interval":     entity.BillingInterval,
-		"billing_interval_qty": entity.BillingIntervalQty,
-		"cycles":               entity.Cycles,
-		"billing_anchor":       entity.BillingAnchor,
-		"trial_ends_at":        pgtype.Date{Time: entity.TrialEndsAt, Valid: !entity.TrialEndsAt.IsZero()},
-		"cancel_at":            pgtype.Date{Time: entity.CancelAt, Valid: !entity.CancelAt.IsZero()},
-		"ends_at":              pgtype.Date{Time: entity.EndsAt, Valid: !entity.EndsAt.IsZero()},
-		"last_charge":          pgtype.Date{Time: entity.LastCharge, Valid: !entity.LastCharge.IsZero()},
-		"renews_at":            pgtype.Date{Time: entity.RenewsAt, Valid: !entity.RenewsAt.IsZero()},
-		"current_period_start": pgtype.Date{Time: entity.CurrentPeriodStart, Valid: !entity.CurrentPeriodStart.IsZero()},
-		"current_period_end":   pgtype.Date{Time: entity.CurrentPeriodEnd, Valid: !entity.CurrentPeriodEnd.IsZero()},
-		"dunning_active":       entity.DunningActive,
+		"org_id":                     entity.OrgId,
+		"id":                         entity.Id,
+		"payment_method_id":          pgtype.Text{String: entity.PaymentMethodId, Valid: entity.PaymentMethodId != ""},
+		"psp_id":                     entity.PspId,
+		"order_id":                   entity.OrderId,
+		"order_item_id":              entity.OrderItemId,
+		"customer_id":                entity.CustomerId,
+		"status":                     entity.Status,
+		"start_date":                 pgtype.Date{Time: entity.StartDate, Valid: !entity.StartDate.IsZero()},
+		"end_date":                   pgtype.Date{Time: entity.EndDate, Valid: !entity.EndDate.IsZero()},
+		"billing_interval":           entity.BillingInterval,
+		"billing_interval_qty":       entity.BillingIntervalQty,
+		"cycles":                     entity.Cycles,
+		"billing_anchor":             entity.BillingAnchor,
+		"trial_ends_at":              pgtype.Date{Time: entity.TrialEndsAt, Valid: !entity.TrialEndsAt.IsZero()},
+		"cancel_at":                  pgtype.Date{Time: entity.CancelAt, Valid: !entity.CancelAt.IsZero()},
+		"ends_at":                    pgtype.Date{Time: entity.EndsAt, Valid: !entity.EndsAt.IsZero()},
+		"last_charge":                pgtype.Date{Time: entity.LastCharge, Valid: !entity.LastCharge.IsZero()},
+		"renews_at":                  pgtype.Date{Time: entity.RenewsAt, Valid: !entity.RenewsAt.IsZero()},
+		"current_period_start":       pgtype.Date{Time: entity.CurrentPeriodStart, Valid: !entity.CurrentPeriodStart.IsZero()},
+		"current_period_end":         pgtype.Date{Time: entity.CurrentPeriodEnd, Valid: !entity.CurrentPeriodEnd.IsZero()},
+		"dunning_active":             entity.DunningActive,
 		"active_dunning_campaign_id": pgtype.Text{String: entity.ActiveDunningCampaignId, Valid: entity.ActiveDunningCampaignId != ""},
-		"metadata":             metaJson,
-		"cycles_processed":     entity.CyclesProcessed,
-		"total_revenue":        entity.TotalRevenue,
-		"cancelled_at":         pgtype.Date{Time: entity.CancelledAt, Valid: !entity.CancelledAt.IsZero()},
+		"metadata":                   metaJson,
+		"cycles_processed":           entity.CyclesProcessed,
+		"total_revenue":              entity.TotalRevenue,
+		"cancelled_at":               pgtype.Date{Time: entity.CancelledAt, Valid: !entity.CancelledAt.IsZero()},
 	}
 }
 
-// FindWithItems finds a subscription by ID and includes its subscription items
-func (r SubscriptionRepository) FindWithItems(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
-	// First, get the subscription
-	subscription, err := r.FindById(ctx, orgId, id)
+// findWithItems finds a subscription by ID and includes its subscription items
+// This is a private method used internally by FindById
+func (r SubscriptionRepository) findWithItems(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
+	// First, get the subscription without items
+	subscription, err := r.FindByIdWithoutItems(ctx, orgId, id)
 	if err != nil {
 		return entities.Subscription{}, err
 	}
 
-	// Then, get the subscription items
-	tx := r.getTransactionFromContext(ctx)
-	query := `SELECT org_id, id, subscription_id, price_id, product_id, variant_id, 
-              name, description, status, quantity, amount, currency, has_usage, usage_type, aggregation_type, 
-              metadata, created_at, updated_at
-              FROM subscription_items
-              WHERE org_id = @org_id AND subscription_id = @subscription_id
-              ORDER BY created_at ASC`
-
-	rows, err := tx.Query(ctx, query, pgx.NamedArgs{
-		"org_id":          orgId,
-		"subscription_id": id,
-	})
-
+	// Then, get the subscription items using the subscription item repository
+	items, err := r.subscriptionItemRepository.FindBySubscriptionId(ctx, orgId, id)
 	if err != nil {
 		r.logger.Error(`failed to find SubscriptionItems by subscription_id`, err.Error())
 		return entities.Subscription{}, err
 	}
-	defer rows.Close()
-
-	var items []entities.SubscriptionItem
-	for rows.Next() {
-		var item models.SubscriptionItem
-		err := rows.Scan(
-			&item.OrgId,
-			&item.Id,
-			&item.SubscriptionId,
-			&item.PriceId,
-			&item.ProductId,
-			&item.VariantId,
-			&item.Name,
-			&item.Description,
-			&item.Status,
-			&item.Quantity,
-			&item.Amount,
-			&item.Currency,
-			&item.HasUsage,
-			&item.UsageType,
-			&item.AggregationType,
-			&item.Metadata,
-			&item.CreatedAt,
-			&item.UpdatedAt,
-		)
-		if err != nil {
-			r.logger.Error(`failed to scan SubscriptionItem`, err.Error())
-			return entities.Subscription{}, err
-		}
-		items = append(items, item.ToEntity())
-	}
-
-	if rows.Err() != nil {
-		r.logger.Error(`rows iteration error`, rows.Err().Error())
-		return entities.Subscription{}, rows.Err()
-	}
 
 	subscription.Items = items
 	return subscription, nil
-}
-
-// FindByOrderIdWithItems finds subscriptions by order ID and includes their subscription items
-func (r SubscriptionRepository) FindByOrderIdWithItems(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
-	// First, get the subscriptions
-	subscriptions, err := r.FindByOrderId(ctx, orgId, orderId)
-	if err != nil {
-		return nil, err
-	}
-
-	// Then, for each subscription, get its items
-	for i, subscription := range subscriptions {
-		subWithItems, err := r.FindWithItems(ctx, orgId, subscription.Id)
-		if err != nil {
-			return nil, err
-		}
-		subscriptions[i] = subWithItems
-	}
-
-	return subscriptions, nil
 }

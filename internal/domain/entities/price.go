@@ -24,9 +24,24 @@ type Price struct {
 	TrialInterval      prices.BillingInterval `json:"trial_interval"`
 	TrialIntervalQty   int                    `json:"trial_interval_qty"`
 	TaxCode            string                 `json:"tax_code"`
-	Metadata           map[string]string      `json:"metadata"`
-	CreatedAt          time.Time              `json:"created_at"`
-	UpdatedAt          time.Time              `json:"updated_at"`
+
+	// Usage-based billing fields
+	HasUsage           bool                    `json:"has_usage"`
+	UsageType          prices.UsageType        `json:"usage_type,omitempty"`
+	UnitType           prices.UnitType         `json:"unit_type,omitempty"`
+	AggregationType    prices.AggregationType  `json:"aggregation_type,omitempty"`
+	PercentageRate     float64                 `json:"percentage_rate,omitempty"`
+	FixedFee           int64                   `json:"fixed_fee,omitempty"`
+	OverageUnitPrice   int64                   `json:"overage_unit_price,omitempty"`
+	IncludedUsage      int64                   `json:"included_usage,omitempty"`
+	UsageLimit         int64                   `json:"usage_limit,omitempty"`
+
+	// Tier configuration
+	Tiers              []PriceTier             `json:"tiers,omitempty"`
+
+	Metadata           map[string]string       `json:"metadata"`
+	CreatedAt          time.Time               `json:"created_at"`
+	UpdatedAt          time.Time               `json:"updated_at"`
 }
 
 // Factory function to create a Price with default values
@@ -56,6 +71,18 @@ func NewPrice(orgId, variantId string, input CreatePriceInput) Price {
 		TrialInterval:      input.TrialInterval,
 		TrialIntervalQty:   input.TrialIntervalQty,
 		TaxCode:            input.TaxCode,
+
+		// Usage-based billing fields
+		HasUsage:           input.HasUsage,
+		UsageType:          prices.UsageType(input.UsageType),
+		UnitType:           prices.UnitType(input.UnitType),
+		AggregationType:    prices.AggregationType(input.AggregationType),
+		PercentageRate:     input.PercentageRate,
+		FixedFee:           input.FixedFee,
+		OverageUnitPrice:   input.OverageUnitPrice,
+		IncludedUsage:      input.IncludedUsage,
+		UsageLimit:         input.UsageLimit,
+
 		Metadata:           input.Metadata,
 		CreatedAt:          time.Now().UTC(),
 		UpdatedAt:          time.Now().UTC(),
@@ -78,5 +105,17 @@ type CreatePriceInput struct {
 	TrialInterval      prices.BillingInterval `json:"trial_interval"`
 	TrialIntervalQty   int                    `json:"trial_interval_qty"`
 	TaxCode            string                 `json:"tax_code"`
+
+	// Usage-based billing fields
+	HasUsage           bool                   `json:"has_usage"`
+	UsageType          string                 `json:"usage_type,omitempty"`
+	UnitType           string                 `json:"unit_type,omitempty"`
+	AggregationType    string                 `json:"aggregation_type,omitempty"`
+	PercentageRate     float64                `json:"percentage_rate,omitempty"`
+	FixedFee           int64                  `json:"fixed_fee,omitempty"`
+	OverageUnitPrice   int64                  `json:"overage_unit_price,omitempty"`
+	IncludedUsage      int64                  `json:"included_usage,omitempty"`
+	UsageLimit         int64                  `json:"usage_limit,omitempty"`
+
 	Metadata           map[string]string      `json:"metadata"`
 }

@@ -7,56 +7,58 @@ import (
 
 // UsageRecord represents a record of usage for a subscription item
 type UsageRecord struct {
-	OrgId              string            `json:"org_id"`
-	Id                 string            `json:"id"`
-	SubscriptionId     string            `json:"subscription_id"`
-	SubscriptionItemId string            `json:"subscription_item_id"`
-	CustomerId         string            `json:"customer_id"`
-	
+	OrgId              string `json:"org_id"`
+	Id                 string `json:"id"`
+	SubscriptionId     string `json:"subscription_id"`
+	SubscriptionItemId string `json:"subscription_item_id"`
+	CustomerId         string `json:"customer_id"`
+
 	// Link to price configuration
-	PriceId            string            `json:"price_id"`
-	
+	PriceId string `json:"price_id"`
+
 	// Usage identification
-	UsageType          string            `json:"usage_type"`
-	
+	UsageType       UsageType       `json:"usage_type"`
+	UnitType        UnitType        `json:"unit_type,omitempty"`
+	AggregationType AggregationType `json:"aggregation_type,omitempty"`
+
 	// Unit-based usage
-	Quantity           float64           `json:"quantity,omitempty"`
-	UnitPrice          int64             `json:"unit_price,omitempty"`
-	
+	Quantity  float64 `json:"quantity,omitempty"`
+	UnitPrice int64   `json:"unit_price,omitempty"`
+
 	// Percentage-based usage
-	TransactionValue   int64             `json:"transaction_value,omitempty"`
-	PercentageRate     float64           `json:"percentage_rate,omitempty"`
-	CalculatedFee      int64             `json:"calculated_fee,omitempty"`
-	
+	TransactionValue int64   `json:"transaction_value,omitempty"`
+	PercentageRate   float64 `json:"percentage_rate,omitempty"`
+	CalculatedFee    int64   `json:"calculated_fee,omitempty"`
+
 	// Hybrid pricing
-	FixedFee           int64             `json:"fixed_fee,omitempty"`
-	
+	FixedFee int64 `json:"fixed_fee,omitempty"`
+
 	// Final billing amount
-	TotalAmount        int64             `json:"total_amount"`
-	
+	TotalAmount int64 `json:"total_amount"`
+
 	// Time tracking
-	UsageDate          time.Time         `json:"usage_date"`
-	BillingPeriod      string            `json:"billing_period"`
-	
+	UsageDate     time.Time `json:"usage_date"`
+	BillingPeriod string    `json:"billing_period"`
+
 	// Processing status
-	Processed          bool              `json:"processed"`
-	ProcessedAt        time.Time         `json:"processed_at,omitempty"`
-	InvoiceId          string            `json:"invoice_id,omitempty"`
-	
+	Processed   bool      `json:"processed"`
+	ProcessedAt time.Time `json:"processed_at,omitempty"`
+	InvoiceId   string    `json:"invoice_id,omitempty"`
+
 	// External references
-	ReferenceId        string            `json:"reference_id,omitempty"`
-	ReferenceType      string            `json:"reference_type,omitempty"`
-	
+	ReferenceId   string `json:"reference_id,omitempty"`
+	ReferenceType string `json:"reference_type,omitempty"`
+
 	// Metadata and tracking
-	Metadata           map[string]string `json:"metadata,omitempty"`
-	CreatedAt          time.Time         `json:"created_at"`
-	UpdatedAt          time.Time         `json:"updated_at"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
+	CreatedAt time.Time         `json:"created_at"`
+	UpdatedAt time.Time         `json:"updated_at"`
 }
 
 // NewUnitUsageRecord creates a new usage record for unit-based usage
 func NewUnitUsageRecord(orgId, subscriptionId, subscriptionItemId, customerId, priceId string, quantity float64, unitPrice int64) UsageRecord {
 	totalAmount := int64(quantity * float64(unitPrice))
-	
+
 	return UsageRecord{
 		OrgId:              orgId,
 		Id:                 lib.GenerateId("ur"),
@@ -64,7 +66,9 @@ func NewUnitUsageRecord(orgId, subscriptionId, subscriptionItemId, customerId, p
 		SubscriptionItemId: subscriptionItemId,
 		CustomerId:         customerId,
 		PriceId:            priceId,
-		UsageType:          "unit",
+		UsageType:          UsageTypeMetered,
+		UnitType:           UnitTypeCount,
+		AggregationType:    AggregationTypeSum,
 		Quantity:           quantity,
 		UnitPrice:          unitPrice,
 		TotalAmount:        totalAmount,
@@ -79,7 +83,7 @@ func NewUnitUsageRecord(orgId, subscriptionId, subscriptionItemId, customerId, p
 // NewPercentageUsageRecord creates a new usage record for percentage-based usage
 func NewPercentageUsageRecord(orgId, subscriptionId, subscriptionItemId, customerId, priceId string, transactionValue int64, percentageRate float64) UsageRecord {
 	calculatedFee := int64(float64(transactionValue) * percentageRate / 100)
-	
+
 	return UsageRecord{
 		OrgId:              orgId,
 		Id:                 lib.GenerateId("ur"),
@@ -87,16 +91,50 @@ func NewPercentageUsageRecord(orgId, subscriptionId, subscriptionItemId, custome
 		SubscriptionItemId: subscriptionItemId,
 		CustomerId:         customerId,
 		PriceId:            priceId,
-		UsageType:          "percentage",
+		UsageType:          UsageTypeMetered,
+		UnitType:           UnitTypeTransactions,
+		AggregationType:    AggregationTypeSum,
 		TransactionValue:   transactionValue,
 		PercentageRate:     percentageRate,
 		CalculatedFee:      calculatedFee,
 		TotalAmount:        calculatedFee,
-		UsageDate:          time.Now().UTC(),
-		BillingPeriod:      formatBillingPeriod(time.Now().UTC()),
-		Processed:          false,
-		CreatedAt:          time.Now().UTC(),
-		UpdatedAt:          time.Now().UTC(),
+
+		UsageDate:     time.Now().UTC(),
+		BillingPeriod: formatBillingPeriod(time.Now().UTC()),
+		Processed:     false,
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
+	}
+}
+
+// NewTransactionUsageRecord creates a new usage record for hybrid pricing (percentage + fixed fee)
+func NewTransactionUsageRecord(orgId, subscriptionId, subscriptionItemId, customerId, priceId string, 
+                              quantity float64, transactionValue int64, percentageRate float64, fixedFee int64) UsageRecord {
+	calculatedFee := int64(float64(transactionValue) * percentageRate / 100)
+	totalFixedFee := int64(quantity * float64(fixedFee))
+
+	return UsageRecord{
+		OrgId:              orgId,
+		Id:                 lib.GenerateId("ur"),
+		SubscriptionId:     subscriptionId,
+		SubscriptionItemId: subscriptionItemId,
+		CustomerId:         customerId,
+		PriceId:            priceId,
+		UsageType:          UsageTypeMetered,
+		UnitType:           UnitTypeTransactions,
+		AggregationType:    AggregationTypeSum,
+		Quantity:           quantity,
+		TransactionValue:   transactionValue,
+		PercentageRate:     percentageRate,
+		CalculatedFee:      calculatedFee,
+		FixedFee:           fixedFee,
+		TotalAmount:        calculatedFee + totalFixedFee,
+
+		UsageDate:     time.Now().UTC(),
+		BillingPeriod: formatBillingPeriod(time.Now().UTC()),
+		Processed:     false,
+		CreatedAt:     time.Now().UTC(),
+		UpdatedAt:     time.Now().UTC(),
 	}
 }
 

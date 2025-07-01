@@ -139,6 +139,15 @@ func (s ProductService) CreateProductPrice(ctx context.Context, input entities.C
 		input.TrialInterval = prices.BillingIntervalNone
 	}
 
+	// Create price entity for validation
+	priceForValidation := entities.NewPrice(input.OrgId, input.VariantId, input)
+
+	// Add validation
+	if err := priceForValidation.Validate(); err != nil {
+		return entities.Price{}, lib.NewCustomError(lib.BadRequestError, err.Error(), nil)
+	}
+
+	// Save price to repository
 	price, err := s.priceRepository.Create(ctx, entities.Price{
 		OrgId:              input.OrgId,
 		Id:                 lib.GenerateId("price"),
@@ -337,6 +346,11 @@ func (s ProductService) UpdatePrice(ctx context.Context, orgId string, id string
 	price.TaxCode = input.TaxCode
 	price.Metadata = input.Metadata
 	price.UpdatedAt = time.Now().UTC()
+
+	// Validate price before updating
+	if err := price.Validate(); err != nil {
+		return entities.Price{}, lib.NewCustomError(lib.BadRequestError, err.Error(), nil)
+	}
 
 	price, err = s.priceRepository.Update(ctx, price)
 	if err != nil {

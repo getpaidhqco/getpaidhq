@@ -23,6 +23,20 @@ type Price struct {
 	TrialInterval      prices.BillingInterval `json:"trial_interval"`
 	TrialIntervalQty   int                    `json:"trial_interval_qty"`
 	TaxCode            string                 `json:"tax_code"`
+
+	// Usage-based billing fields
+	HasUsage           bool                   `json:"has_usage"`
+	UsageType          prices.UsageType       `json:"usage_type,omitempty"`
+	UnitType           prices.UnitType        `json:"unit_type,omitempty"`
+	AggregationType    prices.AggregationType `json:"aggregation_type,omitempty"`
+	PercentageRate     float64                `json:"percentage_rate,omitempty"`
+	FixedFee           int64                  `json:"fixed_fee,omitempty"`
+	IncludedUsage      int64                  `json:"included_usage,omitempty"`
+	UsageLimit         int64                  `json:"usage_limit,omitempty"`
+
+	// Tier configuration
+	Tiers              []PriceTier            `json:"tiers,omitempty"`
+
 	Metadata           map[string]string      `json:"metadata"`
 	CreatedAt          time.Time              `json:"created_at"`
 	UpdatedAt          time.Time              `json:"updated_at"`
@@ -45,6 +59,20 @@ func NewPriceFromEntity(entity entities.Price) Price {
 		TrialInterval:      entity.TrialInterval,
 		TrialIntervalQty:   entity.TrialIntervalQty,
 		TaxCode:            entity.TaxCode,
+
+		// Usage-based billing fields
+		HasUsage:           entity.HasUsage,
+		UsageType:          entity.UsageType,
+		UnitType:           entity.UnitType,
+		AggregationType:    entity.AggregationType,
+		PercentageRate:     entity.PercentageRate,
+		FixedFee:           entity.FixedFee,
+		IncludedUsage:      entity.IncludedUsage,
+		UsageLimit:         entity.UsageLimit,
+
+		// Tier configuration
+		Tiers:              NewPriceTiersFromEntities(entity.Tiers),
+
 		Metadata:           entity.Metadata,
 		CreatedAt:          entity.CreatedAt,
 		UpdatedAt:          entity.UpdatedAt,

@@ -521,11 +521,47 @@ GET /api/v1/subscriptions/sub_456/usage-summary?period=2025-01
 ```
 Customer: Acme Corp
 Subscription:
-├── Base Plan ($99/mo) - Fixed
-├── Premium Support ($29/mo) - Fixed add-on
-├── API Calls - Usage-based (first 10k free, $0.01 per call)
-├── Storage - Usage-based ($5/GB)
-└── Data Transfer - Usage-based ($0.10/GB)
+├── Base Plan ($99/mo) - Fixed (category: subscription)
+├── Premium Support ($29/mo) - Fixed add-on (category: subscription)
+├── API Calls - Hybrid: 10k included, $0.01 overage (category: hybrid)
+├── Storage - Usage-based ($5/GB) (category: usage)
+└── Data Transfer - Usage-based ($0.10/GB) (category: usage)
+```
+
+**Price Configuration Examples:**
+```json
+// Base Plan
+{
+  "category": "subscription",
+  "scheme": "fixed",
+  "unit_price": 9900,
+  "billing_interval": "month",
+  "has_usage": false
+}
+
+// API Calls (Hybrid with overage)
+{
+  "category": "hybrid", 
+  "scheme": "fixed",
+  "unit_price": 0,
+  "has_usage": true,
+  "usage_type": "metered",
+  "unit_type": "count",
+  "aggregation_type": "sum",
+  "included_usage": 10000,
+  "overage_unit_price": 1
+}
+
+// Storage (Pure usage)
+{
+  "category": "usage",
+  "scheme": "fixed", 
+  "unit_price": 500,
+  "has_usage": true,
+  "usage_type": "metered",
+  "unit_type": "gb_hours",
+  "aggregation_type": "average"
+}
 ```
 
 ### 6.2 Marketplace Platform
@@ -533,10 +569,37 @@ Subscription:
 ```
 Customer: Online Store
 Subscription:
-├── Platform Fee ($49/mo) - Fixed
-├── Transaction Processing (2.9% + $0.30) - Percentage + fixed
-├── Premium Analytics ($19/mo) - Fixed add-on
-└── SMS Notifications ($0.02 per SMS) - Usage-based
+├── Platform Fee ($49/mo) - Fixed (category: subscription)
+├── Transaction Processing (2.9% + $0.30) - Percentage + fixed (category: usage)
+├── Premium Analytics ($19/mo) - Fixed add-on (category: subscription)
+└── SMS Notifications ($0.02 per SMS) - Usage-based (category: usage)
+```
+
+**Price Configuration Examples:**
+```json
+// Transaction Processing
+{
+  "category": "usage",
+  "scheme": "fixed",
+  "unit_price": 0,
+  "has_usage": true,
+  "usage_type": "metered",
+  "unit_type": "transactions",
+  "aggregation_type": "sum",
+  "percentage_rate": 2.9,
+  "fixed_fee": 30
+}
+
+// SMS Notifications
+{
+  "category": "usage", 
+  "scheme": "fixed",
+  "unit_price": 2,
+  "has_usage": true,
+  "usage_type": "metered",
+  "unit_type": "count",
+  "aggregation_type": "sum"
+}
 ```
 
 ### 6.3 Telecommunications Bundle
@@ -544,16 +607,279 @@ Subscription:
 ```
 Customer: John Doe
 Subscription:
-├── Voice Plan ($30/mo) - Fixed with 500 min included
-├── Voice Overage ($0.05/min) - Usage-based
-├── Data Plan (10GB included, $10/GB overage) - Hybrid
-├── International Roaming ($5/day when used) - Usage-based
-└── Device Protection ($7/mo) - Fixed add-on
+├── Voice Plan ($30/mo) - Hybrid: 500 min included, $0.05 overage (category: hybrid)
+├── Data Plan ($25/mo) - Hybrid: 10GB included, $10/GB overage (category: hybrid)
+├── International Roaming ($5/day when used) - Usage-based (category: usage)
+└── Device Protection ($7/mo) - Fixed add-on (category: subscription)
+```
+
+**Price Configuration Examples:**
+```json
+// Voice Plan with overage
+{
+  "category": "hybrid",
+  "scheme": "fixed",
+  "unit_price": 3000,
+  "billing_interval": "month",
+  "has_usage": true,
+  "usage_type": "metered", 
+  "unit_type": "minutes",
+  "aggregation_type": "sum",
+  "included_usage": 500,
+  "overage_unit_price": 5
+}
+
+// Data Plan with overage
+{
+  "category": "hybrid",
+  "scheme": "fixed", 
+  "unit_price": 2500,
+  "billing_interval": "month",
+  "has_usage": true,
+  "usage_type": "metered",
+  "unit_type": "gb",
+  "aggregation_type": "sum", 
+  "included_usage": 10,
+  "overage_unit_price": 1000
+}
+
+// International Roaming (per day usage)
+{
+  "category": "usage",
+  "scheme": "fixed",
+  "unit_price": 500,
+  "has_usage": true,
+  "usage_type": "metered",
+  "unit_type": "days",
+  "aggregation_type": "sum"
+}
+```
+
+### 6.4 Freemium with Tiered Pricing
+
+```
+Customer: Startup Inc
+Subscription:
+├── Free Plan ($0/mo) - Hybrid: 1000 API calls included (category: hybrid)
+├── Pro Plan ($29/mo) - Hybrid: 10k calls included, $0.01 overage (category: hybrid)
+└── Enterprise Plan ($99/mo) - Hybrid: 100k calls, $0.005 overage (category: hybrid)
+```
+
+**Price Configuration Examples:**
+```json
+// Free Plan
+{
+  "category": "hybrid",
+  "scheme": "fixed",
+  "unit_price": 0,
+  "billing_interval": "month", 
+  "has_usage": true,
+  "usage_type": "metered",
+  "unit_type": "count",
+  "aggregation_type": "sum",
+  "included_usage": 1000,
+  "usage_limit": 1000
+}
+
+// Pro Plan with overage
+{
+  "category": "hybrid",
+  "scheme": "fixed",
+  "unit_price": 2900,
+  "billing_interval": "month",
+  "has_usage": true,
+  "usage_type": "metered", 
+  "unit_type": "count",
+  "aggregation_type": "sum",
+  "included_usage": 10000,
+  "overage_unit_price": 1
+}
 ```
 
 ---
 
-## 7. Workflow Modifications
+## 7. Overage Pricing Deep Dive
+
+### 7.1 Overage Pricing Overview
+
+Overage pricing allows customers to have a base plan with included usage, and pay additional fees when they exceed the included amount. This is common in telecommunications, SaaS, and cloud services.
+
+**Key Fields for Overage:**
+- `unit_price`: Base plan price (fixed monthly/yearly fee)
+- `included_usage`: Amount of usage included in base plan
+- `overage_unit_price`: Price per unit when usage exceeds included amount
+- `usage_limit`: Optional hard limit to prevent runaway charges
+
+### 7.2 Overage Calculation Logic
+
+```javascript
+function calculateOverageCharges(usage, priceConfig) {
+  const {
+    unitPrice,           // Base plan price (e.g., $29/month)
+    includedUsage,       // Free allowance (e.g., 10,000 API calls)
+    overageUnitPrice,    // Overage rate (e.g., $0.01 per call)
+    usageLimit          // Optional hard limit
+  } = priceConfig;
+  
+  // Check usage limit
+  if (usageLimit && usage.quantity > usageLimit) {
+    throw new Error(`Usage limit exceeded: ${usage.quantity} > ${usageLimit}`);
+  }
+  
+  // Calculate overage
+  const overageQuantity = Math.max(0, usage.quantity - includedUsage);
+  const overageAmount = overageQuantity * overageUnitPrice;
+  
+  return {
+    baseAmount: unitPrice,
+    includedQuantity: Math.min(usage.quantity, includedUsage),
+    overageQuantity: overageQuantity,
+    overageAmount: overageAmount,
+    totalAmount: unitPrice + overageAmount
+  };
+}
+```
+
+### 7.3 Overage Billing Examples
+
+#### Example 1: API Plan with Overage
+```json
+// Price Configuration
+{
+  "category": "hybrid",
+  "unit_price": 2900,        // $29 base plan
+  "included_usage": 10000,   // 10k API calls included
+  "overage_unit_price": 1,   // $0.01 per additional call
+  "usage_type": "metered",
+  "unit_type": "count",
+  "aggregation_type": "sum"
+}
+
+// Customer Usage: 15,000 API calls
+// Calculation:
+// - Base plan: $29.00
+// - Included: 10,000 calls (free)
+// - Overage: 5,000 calls × $0.01 = $50.00
+// - Total: $29.00 + $50.00 = $79.00
+```
+
+#### Example 2: Data Plan with Hard Limit
+```json
+// Price Configuration  
+{
+  "category": "hybrid",
+  "unit_price": 2500,        // $25 base plan
+  "included_usage": 10,      // 10GB included
+  "overage_unit_price": 1000, // $10 per additional GB
+  "usage_limit": 50,         // Hard limit at 50GB
+  "usage_type": "metered",
+  "unit_type": "gb",
+  "aggregation_type": "sum"
+}
+
+// Customer Usage: 35GB
+// Calculation:
+// - Base plan: $25.00
+// - Included: 10GB (free)
+// - Overage: 25GB × $10.00 = $250.00
+// - Total: $25.00 + $250.00 = $275.00
+// - Status: Within limit (35GB < 50GB limit)
+```
+
+#### Example 3: Free Plan with Usage Limit
+```json
+// Price Configuration
+{
+  "category": "hybrid", 
+  "unit_price": 0,           // Free plan
+  "included_usage": 1000,    // 1k API calls included
+  "overage_unit_price": 0,   // No overage allowed
+  "usage_limit": 1000,       // Hard limit enforced
+  "usage_type": "metered",
+  "unit_type": "count", 
+  "aggregation_type": "sum"
+}
+
+// Customer Usage: 1,200 API calls
+// Result: Usage blocked at 1,000 calls (hard limit)
+// Invoice: $0.00 (free plan, but service throttled)
+```
+
+### 7.4 Invoice Line Item Breakdown
+
+For overage billing, invoices should show clear breakdown:
+
+```json
+{
+  "invoice_line_items": [
+    {
+      "subscription_item_id": "si_123",
+      "description": "Pro API Plan - Base",
+      "quantity": 1,
+      "unit_price": 2900,
+      "amount": 2900,
+      "metadata": {
+        "type": "base_plan",
+        "included_usage": 10000
+      }
+    },
+    {
+      "subscription_item_id": "si_123", 
+      "description": "API Calls - Overage",
+      "quantity": 5000,
+      "unit_price": 1,
+      "amount": 5000,
+      "metadata": {
+        "type": "overage",
+        "overage_quantity": 5000,
+        "total_usage": 15000
+      }
+    }
+  ],
+  "subtotal": 7900,
+  "total": 7900
+}
+```
+
+### 7.5 Usage Warnings and Notifications
+
+Implement proactive notifications to prevent bill shock:
+
+```javascript
+// Usage threshold alerts
+const thresholds = [50, 75, 90, 100]; // Percentage of included usage
+
+function checkUsageThresholds(currentUsage, includedUsage, thresholds) {
+  const usagePercentage = (currentUsage / includedUsage) * 100;
+  
+  for (const threshold of thresholds) {
+    if (usagePercentage >= threshold && !alertSent[threshold]) {
+      sendUsageAlert({
+        threshold: threshold,
+        currentUsage: currentUsage,
+        includedUsage: includedUsage,
+        projectedOverage: calculateProjectedOverage(currentUsage, includedUsage)
+      });
+      alertSent[threshold] = true;
+    }
+  }
+}
+```
+
+**Sample Alert Message:**
+```
+⚠️ Usage Alert: You've used 75% of your included API calls
+
+Current usage: 7,500 / 10,000 calls
+Projected overage: $25.00 (if current trend continues)
+Plan: Pro API Plan ($29/month + $0.01 per additional call)
+
+[View Usage Dashboard] [Upgrade Plan]
+```
+
+---
+
+## 8. Workflow Modifications
 
 ### 7.1 SubscriptionWorkflow Changes
 

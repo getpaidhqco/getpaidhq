@@ -182,6 +182,17 @@ func (s ProductController) CreatePrice(c *gin.Context) {
 		TrialInterval:      input.TrialInterval,
 		TrialIntervalQty:   input.TrialIntervalQty,
 		TaxCode:            input.TaxCode,
+
+		// Usage-based billing fields
+		HasUsage:           input.HasUsage,
+		UsageType:          input.UsageType,
+		UnitType:           input.UnitType,
+		AggregationType:    input.AggregationType,
+		PercentageRate:     input.PercentageRate,
+		FixedFee:           input.FixedFee,
+		IncludedUsage:      input.IncludedUsage,
+		UsageLimit:         input.UsageLimit,
+
 		Metadata:           input.Metadata,
 	})
 	if err != nil {
@@ -263,6 +274,17 @@ func (s ProductController) UpdatePrice(c *gin.Context) {
 		TrialInterval:      input.TrialInterval,
 		TrialIntervalQty:   input.TrialIntervalQty,
 		TaxCode:            input.TaxCode,
+
+		// Usage-based billing fields
+		HasUsage:           input.HasUsage,
+		UsageType:          input.UsageType,
+		UnitType:           input.UnitType,
+		AggregationType:    input.AggregationType,
+		PercentageRate:     input.PercentageRate,
+		FixedFee:           input.FixedFee,
+		IncludedUsage:      input.IncludedUsage,
+		UsageLimit:         input.UsageLimit,
+
 		Metadata:           input.Metadata,
 	})
 	if err != nil {

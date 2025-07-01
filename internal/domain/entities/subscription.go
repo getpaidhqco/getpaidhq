@@ -497,21 +497,20 @@ func calculateNextDate(interval prices.BillingInterval, qty int, startDate time.
 // NewSubscriptionFromItem creates a new Subscription from a payloop-cart Item
 func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 	subscription := Subscription{
-		OrgId:                   item.OrgId,
-		Id:                      lib.GenerateId("sub"),
-		OrderId:                 item.OrderId,
-		OrderItemId:             item.Id,
-		OrderItem:               item,
-		Status:                  SubscriptionStatusPending,
-		BillingInterval:         item.Price.BillingInterval,
-		BillingIntervalQty:      item.Price.BillingIntervalQty,
-		Cycles:                  item.Price.Cycles,
-		DunningActive:           false,
-		ActiveDunningCampaignId: "",
-		CyclesProcessed:         0,
-		TotalRevenue:            0,
-		CreatedAt:               time.Now().UTC(),
-		UpdatedAt:               time.Now().UTC(),
+		OrgId:              item.OrgId,
+		Id:                 lib.GenerateId("sub"),
+		OrderId:            item.OrderId,
+		OrderItemId:        item.Id,
+		OrderItem:          item,
+		Status:             SubscriptionStatusPending,
+		BillingInterval:    item.Price.BillingInterval,
+		BillingIntervalQty: item.Price.BillingIntervalQty,
+		Cycles:             item.Price.Cycles,
+		DunningActive:      false,
+		CyclesProcessed:    0,
+		TotalRevenue:       0,
+		CreatedAt:          time.Now().UTC(),
+		UpdatedAt:          time.Now().UTC(),
 	}
 
 	// Create a subscription item for backward compatibility
@@ -524,7 +523,35 @@ func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 	)
 	subscriptionItem.ProductId = item.ProductId
 	subscriptionItem.VariantId = item.VariantId
-	subscriptionItem.Amount = item.Price.UnitPrice
+	subscriptionItem.Description = item.Description
+
+	// Configure pricing based on category
+	switch item.Price.Category {
+	case prices.PriceCategoryUsage:
+		// Pure usage-based billing
+		subscriptionItem.HasUsage = true
+		subscriptionItem.UsageType = UsageType(item.Price.UsageType)
+		subscriptionItem.UnitType = UnitType(item.Price.UnitType)
+		subscriptionItem.AggregationType = AggregationType(item.Price.AggregationType)
+		subscriptionItem.UnitPrice = item.Price.UnitPrice
+		subscriptionItem.PercentageRate = item.Price.PercentageRate
+		subscriptionItem.FixedFee = item.Price.FixedFee
+		subscriptionItem.Amount = 0 // No fixed amount for pure usage
+	case prices.PriceCategoryHybrid:
+		// Hybrid billing (fixed + usage)
+		subscriptionItem.HasUsage = true
+		subscriptionItem.UsageType = UsageType(item.Price.UsageType)
+		subscriptionItem.UnitType = UnitType(item.Price.UnitType)
+		subscriptionItem.AggregationType = AggregationType(item.Price.AggregationType)
+		subscriptionItem.Amount = item.Price.UnitPrice * int64(item.Quantity) // Base fixed amount multiplied by quantity
+		subscriptionItem.UnitPrice = item.Price.OverageUnitPrice // Overage rate
+		subscriptionItem.PercentageRate = item.Price.PercentageRate
+		subscriptionItem.FixedFee = item.Price.FixedFee
+	default:
+		// Traditional subscription billing
+		subscriptionItem.Amount = item.Price.UnitPrice
+		subscriptionItem.HasUsage = false
+	}
 
 	subscription.Items = []SubscriptionItem{subscriptionItem}
 
@@ -577,7 +604,7 @@ func NewFromCreateInput(input CreateSubscriptionInput) Subscription {
 	subscriptionItem := NewSubscriptionItem(
 		input.OrgId,
 		subscription.Id,
-		"", // No price ID available from input
+		"",             // No price ID available from input
 		"Subscription", // Generic name
 		input.Currency,
 	)

@@ -10,29 +10,30 @@ type SubscriptionItemResponse struct {
 	OrgId          string                      `json:"org_id"`
 	Id             string                      `json:"id"`
 	SubscriptionId string                      `json:"subscription_id"`
-	
+
 	// Product/Price reference
 	PriceId        string                      `json:"price_id"`
 	ProductId      string                      `json:"product_id,omitempty"`
 	VariantId      string                      `json:"variant_id,omitempty"`
-	
+
 	// Item details
 	Name           string                      `json:"name"`
 	Description    string                      `json:"description,omitempty"`
 	Status         entities.SubscriptionItemStatus `json:"status"`
-	
+
 	// Quantity for fixed items
 	Quantity       int                         `json:"quantity"`
-	
+
 	// Billing
 	Amount         int64                       `json:"amount,omitempty"`
 	Currency       string                      `json:"currency"`
-	
+
 	// Usage configuration
 	HasUsage       bool                        `json:"has_usage"`
-	UsageType      string                      `json:"usage_type,omitempty"`
-	AggregationType string                     `json:"aggregation_type,omitempty"`
-	
+	UsageType      entities.UsageType          `json:"usage_type,omitempty"`
+	UnitType       entities.UnitType           `json:"unit_type,omitempty"`
+	AggregationType entities.AggregationType   `json:"aggregation_type,omitempty"`
+
 	// Metadata
 	Metadata       map[string]string           `json:"metadata,omitempty"`
 	CreatedAt      time.Time                   `json:"created_at"`
@@ -64,6 +65,7 @@ func FromSubscriptionItem(item entities.SubscriptionItem) SubscriptionItemRespon
 		Currency:       item.Currency,
 		HasUsage:       item.HasUsage,
 		UsageType:      item.UsageType,
+		UnitType:       item.UnitType,
 		AggregationType: item.AggregationType,
 		Metadata:       item.Metadata,
 		CreatedAt:      item.CreatedAt,

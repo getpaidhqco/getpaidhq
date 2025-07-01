@@ -6,50 +6,52 @@ import (
 )
 
 type UsageRecord struct {
-	OrgId              string      `json:"org_id"`
-	Id                 string      `json:"id"`
-	SubscriptionId     string      `json:"subscription_id"`
-	SubscriptionItemId string      `json:"subscription_item_id"`
-	CustomerId         string      `json:"customer_id"`
+	OrgId              string `json:"org_id"`
+	Id                 string `json:"id"`
+	SubscriptionId     string `json:"subscription_id"`
+	SubscriptionItemId string `json:"subscription_item_id"`
+	CustomerId         string `json:"customer_id"`
 
 	// Link to price configuration
-	PriceId            string      `json:"price_id"`
+	PriceId string `json:"price_id"`
 
 	// Usage identification
-	UsageType          string      `json:"usage_type"`
+	UsageType       string `json:"usage_type"`
+	UnitType        string `json:"unit_type"`
+	AggregationType string `json:"aggregation_type"`
 
 	// Unit-based usage
-	Quantity           pgtype.Numeric `json:"quantity"`
-	UnitPrice          pgtype.Int8    `json:"unit_price"`
+	Quantity  pgtype.Numeric `json:"quantity"`
+	UnitPrice pgtype.Int8    `json:"unit_price"`
 
 	// Percentage-based usage
-	TransactionValue   pgtype.Int8    `json:"transaction_value"`
-	PercentageRate     pgtype.Numeric `json:"percentage_rate"`
-	CalculatedFee      pgtype.Int8    `json:"calculated_fee"`
+	TransactionValue pgtype.Int8    `json:"transaction_value"`
+	PercentageRate   pgtype.Numeric `json:"percentage_rate"`
+	CalculatedFee    pgtype.Int8    `json:"calculated_fee"`
 
 	// Hybrid pricing
-	FixedFee           pgtype.Int8    `json:"fixed_fee"`
+	FixedFee pgtype.Int8 `json:"fixed_fee"`
 
 	// Final billing amount
-	TotalAmount        int64          `json:"total_amount"`
+	TotalAmount int64 `json:"total_amount"`
 
 	// Time tracking
-	UsageDate          pgtype.Timestamp `json:"usage_date"`
-	BillingPeriod      string           `json:"billing_period"`
+	UsageDate     pgtype.Timestamp `json:"usage_date"`
+	BillingPeriod string           `json:"billing_period"`
 
 	// Processing status
-	Processed          bool             `json:"processed"`
-	ProcessedAt        pgtype.Timestamp `json:"processed_at"`
-	InvoiceId          pgtype.Text      `json:"invoice_id"`
+	Processed   bool             `json:"processed"`
+	ProcessedAt pgtype.Timestamp `json:"processed_at"`
+	InvoiceId   pgtype.Text      `json:"invoice_id"`
 
 	// External references
-	ReferenceId        pgtype.Text      `json:"reference_id"`
-	ReferenceType      pgtype.Text      `json:"reference_type"`
+	ReferenceId   pgtype.Text `json:"reference_id"`
+	ReferenceType pgtype.Text `json:"reference_type"`
 
 	// Metadata and tracking
-	Metadata           map[string]string `json:"metadata"`
-	CreatedAt          pgtype.Timestamp  `json:"created_at"`
-	UpdatedAt          pgtype.Timestamp  `json:"updated_at"`
+	Metadata  map[string]string `json:"metadata"`
+	CreatedAt pgtype.Timestamp  `json:"created_at"`
+	UpdatedAt pgtype.Timestamp  `json:"updated_at"`
 }
 
 func (u *UsageRecord) ToEntity() entities.UsageRecord {
@@ -76,7 +78,9 @@ func (u *UsageRecord) ToEntity() entities.UsageRecord {
 		SubscriptionItemId: u.SubscriptionItemId,
 		CustomerId:         u.CustomerId,
 		PriceId:            u.PriceId,
-		UsageType:          u.UsageType,
+		UsageType:          entities.UsageType(u.UsageType),
+		UnitType:           entities.UnitType(u.UnitType),
+		AggregationType:    entities.AggregationType(u.AggregationType),
 		Quantity:           quantity,
 		UnitPrice:          u.UnitPrice.Int64,
 		TransactionValue:   u.TransactionValue.Int64,

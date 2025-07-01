@@ -47,6 +47,10 @@ var RespositoryModules = fx.Options(
 		fx.ParamTags(`name:"primaryDb"`),
 	)),
 	fx.Provide(fx.Annotate(
+		NewSubscriptionItemRepository,
+		fx.ParamTags(`name:"primaryDb"`),
+	)),
+	fx.Provide(fx.Annotate(
 		NewSubscriptionRepository,
 		fx.ParamTags(`name:"primaryDb"`),
 	)),

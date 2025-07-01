@@ -108,6 +108,9 @@ model Org {
   MetadataStore        MetadataStore[]
   DunningCampaign      DunningCampaign[]
   DunningConfiguration DunningConfiguration[]
+  SubscriptionItem     SubscriptionItem[]
+  UsageRecord          UsageRecord[]
+  PriceTier            PriceTier[]
 
   @@map("orgs")
 }
@@ -257,20 +260,61 @@ model Price {
 
   taxCode String? @map("tax_code")
 
+  // Usage Configuration (Required for usage-based billing)
+  hasUsage        Boolean @default(false) @map("has_usage")
+  usageType       String? @map("usage_type") // "metered"
+  unitType        String? @map("unit_type") // "count", "transactions", "gb_hours", etc.
+  aggregationType String? @map("aggregation_type") // "sum", "max", "average", "last_during_period"
+
+  // Pricing Models (Required for transaction fees & hybrid models)
+  percentageRate Float? @map("percentage_rate") // 2.9% for payment processing
+  fixedFee       Int?   @map("fixed_fee") // $0.30 per transaction
+  overageUnitPrice Int? @map("overage_unit_price") // For hybrid models with overage pricing
+
+  // Optional: Future features
+  includedUsage Int? @map("included_usage") // Free tier allowance
+  usageLimit    Int? @map("usage_limit") // Hard limits
+
   metadata Json?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org              Org                @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  SubscriptionItem SubscriptionItem[]
+  UsageRecord      UsageRecord[]
+  tiers            PriceTier[]
 
   @@id([orgId, id])
   @@map("prices")
 }
 
+model PriceTier {
+  orgId       String
+  priceId     String
+  tier        Int      // Tier order (1, 2, 3...)
+  fromQty     Int      // Starting quantity (inclusive)
+  toQty       Int?     // Ending quantity (inclusive, null = unlimited)
+  unitPrice   Int      // Price per unit in cents
+  description String?  // Human readable description
+
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  price       Price @relation(fields: [orgId, priceId], references: [orgId, id], onDelete: Cascade)
+  org         Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, priceId, tier])
+  @@index([orgId, priceId])
+  @@map("price_tiers")
+}
+
 enum PriceCategory {
   one_time
   subscription
+  usage
+  hybrid
   free
   variable
 }
@@ -418,6 +462,7 @@ model Customer {
   dunningCommunications DunningCommunication[]
   paymentTokens         PaymentUpdateToken[]
   dunningHistory        CustomerDunningHistory?
+  UsageRecord           UsageRecord[]
 
   @@id([orgId, id], map: "customer_primary_key")
   @@unique([orgId, email])
@@ -507,7 +552,7 @@ model Subscription {
   paymentMethod   PaymentMethod? @relation(fields: [orgId, paymentMethodId], references: [orgId, id])
 
   // Optional amount and currency for backward compatibility
-  amount   Int?    // Optional for multi-item subscriptions
+  amount   Int? // Optional for multi-item subscriptions
   currency String? // Optional for multi-item subscriptions
 
   startDate          DateTime?       @map("start_date")
@@ -531,8 +576,8 @@ model Subscription {
   cancelledAt     DateTime? @map("cancelled_at")
 
   // Dunning-related additions
-  dunningActive           Boolean   @default(false) @map("dunning_active")
-  activeDunningCampaignId String?   @map("active_dunning_campaign_id")
+  dunningActive           Boolean @default(false) @map("dunning_active")
+  activeDunningCampaignId String? @map("active_dunning_campaign_id")
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
@@ -549,49 +594,55 @@ model Subscription {
   planChanges SubscriptionPlanChange[]
 
   // Relation to subscription items
-  items SubscriptionItem[]
+  items       SubscriptionItem[]
+  UsageRecord UsageRecord[]
 
   @@id([orgId, id])
   @@map("subscriptions")
 }
 
 model SubscriptionItem {
-  orgId          String   @map("org_id")
-  id             String   @default(cuid())
-  subscriptionId String   @map("subscription_id")
+  orgId          String @map("org_id")
+  id             String @default(cuid())
+  subscriptionId String @map("subscription_id")
 
   // Product/Price reference
-  priceId        String   @map("price_id")
-  productId      String?  @map("product_id")
-  variantId      String?  @map("variant_id")
+  priceId   String  @map("price_id")
+  productId String? @map("product_id")
+  variantId String? @map("variant_id")
 
   // Item details
-  name           String
-  description    String?
-  status         SubscriptionItemStatus @default(active)
+  name        String
+  description String?
+  status      SubscriptionItemStatus @default(active)
 
   // Quantity for fixed items
-  quantity       Int      @default(1)
+  quantity Int @default(1)
 
   // Billing
-  amount         Int?     // Fixed amount per period (null for pure usage)
-  currency       String
+  amount   Int? // Fixed amount per period (null for pure usage)
+  currency String
+
+  // Pricing configuration
+  percentageRate Float? @map("percentage_rate") // For percentage-based charges
+  fixedFee       Int?   @map("fixed_fee") // Fixed fee per unit
+  unitPrice      Int?   @map("unit_price") // Price per unit
 
   // Usage configuration
-  hasUsage       Boolean  @default(false) @map("has_usage")
-  usageType      String?  @map("usage_type") // "metered", "licensed"
+  hasUsage        Boolean @default(false) @map("has_usage")
+  usageType       String? @map("usage_type") // "metered", "licensed"
   aggregationType String? @map("aggregation_type") // "sum", "max", "last_during_period"
 
   // Metadata
-  metadata       Json?
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relationships
-  subscription   Subscription @relation(fields: [orgId, subscriptionId], references: [orgId, id])
-  price          Price @relation(fields: [orgId, priceId], references: [orgId, id])
-  usageRecords   UsageRecord[]
-  org            Org @relation(fields: [orgId], references: [id])
+  subscription Subscription  @relation(fields: [orgId, subscriptionId], references: [orgId, id])
+  price        Price         @relation(fields: [orgId, priceId], references: [orgId, id])
+  usageRecords UsageRecord[]
+  org          Org           @relation(fields: [orgId], references: [id])
 
   @@id([orgId, id])
   @@index([orgId, subscriptionId])
@@ -607,58 +658,58 @@ enum SubscriptionItemStatus {
 }
 
 model UsageRecord {
-  orgId                String   @map("org_id")
-  id                   String   @default(cuid())
-  subscriptionId       String   @map("subscription_id")
-  subscriptionItemId   String   @map("subscription_item_id") // Link to specific item
-  customerId           String   @map("customer_id")
+  orgId              String @map("org_id")
+  id                 String @default(cuid())
+  subscriptionId     String @map("subscription_id")
+  subscriptionItemId String @map("subscription_item_id") // Link to specific item
+  customerId         String @map("customer_id")
 
   // Link to price configuration
-  priceId              String   @map("price_id")
+  priceId String @map("price_id")
 
   // Usage identification
-  usageType            String   @map("usage_type")
+  usageType String @map("usage_type")
 
   // Unit-based usage
-  quantity             Decimal? @db.Decimal(15, 4)
-  unitPrice            Int?     @map("unit_price")
+  quantity  Decimal? @db.Decimal(15, 4)
+  unitPrice Int?     @map("unit_price")
 
   // Percentage-based usage
-  transactionValue     Int?     @map("transaction_value")
-  percentageRate       Decimal? @map("percentage_rate")
-  calculatedFee        Int?     @map("calculated_fee")
+  transactionValue Int?     @map("transaction_value")
+  percentageRate   Decimal? @map("percentage_rate")
+  calculatedFee    Int?     @map("calculated_fee")
 
   // Hybrid pricing
-  fixedFee             Int?     @map("fixed_fee")
+  fixedFee Int? @map("fixed_fee")
 
   // Final billing amount
-  totalAmount          Int      @map("total_amount")
+  totalAmount Int @map("total_amount")
 
   // Time tracking
-  usageDate            DateTime @map("usage_date")
-  billingPeriod        String   @map("billing_period")
+  usageDate     DateTime @map("usage_date")
+  billingPeriod String   @map("billing_period")
 
   // Processing status
-  processed            Boolean  @default(false)
-  processedAt          DateTime? @map("processed_at")
-  invoiceId            String?  @map("invoice_id")
+  processed   Boolean   @default(false)
+  processedAt DateTime? @map("processed_at")
+  invoiceId   String?   @map("invoice_id")
 
   // External references
-  referenceId          String?  @map("reference_id")
-  referenceType        String?  @map("reference_type")
+  referenceId   String? @map("reference_id")
+  referenceType String? @map("reference_type")
 
   // Metadata and tracking
-  metadata             Json?
-  createdAt            DateTime @default(now()) @map("created_at")
-  updatedAt            DateTime @updatedAt @map("updated_at")
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relationships
-  subscription         Subscription @relation(fields: [orgId, subscriptionId], references: [orgId, id])
-  subscriptionItem     SubscriptionItem @relation(fields: [orgId, subscriptionItemId], references: [orgId, id])
-  customer             Customer @relation(fields: [orgId, customerId], references: [orgId, id])
-  price                Price @relation(fields: [orgId, priceId], references: [orgId, id])
-  org                  Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  invoice              Invoice? @relation(fields: [orgId, invoiceId], references: [orgId, id])
+  subscription     Subscription     @relation(fields: [orgId, subscriptionId], references: [orgId, id])
+  subscriptionItem SubscriptionItem @relation(fields: [orgId, subscriptionItemId], references: [orgId, id])
+  customer         Customer         @relation(fields: [orgId, customerId], references: [orgId, id])
+  price            Price            @relation(fields: [orgId, priceId], references: [orgId, id])
+  org              Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  invoice          Invoice?         @relation(fields: [orgId, invoiceId], references: [orgId, id])
 
   @@id([orgId, id])
   @@index([orgId, subscriptionItemId, billingPeriod])
@@ -902,6 +953,7 @@ model Invoice {
   payments    Payment[]
   history     InvoiceHistory[]
   documents   Document[]
+  UsageRecord UsageRecord[]
 
   @@id([orgId, id])
   @@unique([orgId, sequenceId, docNumber])

@@ -24,6 +24,17 @@ type Price struct {
 	TrialInterval      pgtype.Text       `json:"trial_interval"`
 	TrialIntervalQty   pgtype.Int8       `json:"trial_interval_qty"`
 	TaxCode            pgtype.Text       `json:"tax_code"`
+
+	// Usage-based billing fields
+	HasUsage           pgtype.Bool       `json:"has_usage"`
+	UsageType          pgtype.Text       `json:"usage_type"`
+	UnitType           pgtype.Text       `json:"unit_type"`
+	AggregationType    pgtype.Text       `json:"aggregation_type"`
+	PercentageRate     pgtype.Float8     `json:"percentage_rate"`
+	FixedFee           pgtype.Int8       `json:"fixed_fee"`
+	IncludedUsage      pgtype.Int8       `json:"included_usage"`
+	UsageLimit         pgtype.Int8       `json:"usage_limit"`
+
 	Metadata           map[string]string `json:"metadata"`
 	CreatedAt          pgtype.Date       `json:"created_at"`
 	UpdatedAt          pgtype.Date       `json:"updated_at"`
@@ -47,6 +58,17 @@ func (p *Price) ToEntity() entities.Price {
 		TrialInterval:      prices.BillingInterval(p.TrialInterval.String),
 		TrialIntervalQty:   int(p.TrialIntervalQty.Int64),
 		TaxCode:            p.TaxCode.String,
+
+		// Usage-based billing fields
+		HasUsage:           p.HasUsage.Bool,
+		UsageType:          prices.UsageType(p.UsageType.String),
+		UnitType:           prices.UnitType(p.UnitType.String),
+		AggregationType:    prices.AggregationType(p.AggregationType.String),
+		PercentageRate:     p.PercentageRate.Float64,
+		FixedFee:           p.FixedFee.Int64,
+		IncludedUsage:      p.IncludedUsage.Int64,
+		UsageLimit:         p.UsageLimit.Int64,
+
 		Metadata:           p.Metadata,
 		CreatedAt:          p.CreatedAt.Time,
 		UpdatedAt:          p.UpdatedAt.Time,

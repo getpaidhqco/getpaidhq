@@ -12,41 +12,43 @@ type UsageRecordResponse struct {
 	SubscriptionId     string            `json:"subscription_id"`
 	SubscriptionItemId string            `json:"subscription_item_id"`
 	CustomerId         string            `json:"customer_id"`
-	
+
 	// Link to price configuration
 	PriceId            string            `json:"price_id"`
-	
+
 	// Usage identification
-	UsageType          string            `json:"usage_type"`
-	
+	UsageType          entities.UsageType         `json:"usage_type"`
+	UnitType           entities.UnitType          `json:"unit_type,omitempty"`
+	AggregationType    entities.AggregationType   `json:"aggregation_type,omitempty"`
+
 	// Unit-based usage
 	Quantity           float64           `json:"quantity,omitempty"`
 	UnitPrice          int64             `json:"unit_price,omitempty"`
-	
+
 	// Percentage-based usage
 	TransactionValue   int64             `json:"transaction_value,omitempty"`
 	PercentageRate     float64           `json:"percentage_rate,omitempty"`
 	CalculatedFee      int64             `json:"calculated_fee,omitempty"`
-	
+
 	// Hybrid pricing
 	FixedFee           int64             `json:"fixed_fee,omitempty"`
-	
+
 	// Final billing amount
 	TotalAmount        int64             `json:"total_amount"`
-	
+
 	// Time tracking
 	UsageDate          time.Time         `json:"usage_date"`
 	BillingPeriod      string            `json:"billing_period"`
-	
+
 	// Processing status
 	Processed          bool              `json:"processed"`
 	ProcessedAt        time.Time         `json:"processed_at,omitempty"`
 	InvoiceId          string            `json:"invoice_id,omitempty"`
-	
+
 	// External references
 	ReferenceId        string            `json:"reference_id,omitempty"`
 	ReferenceType      string            `json:"reference_type,omitempty"`
-	
+
 	// Metadata and tracking
 	Metadata           map[string]string `json:"metadata,omitempty"`
 	CreatedAt          time.Time         `json:"created_at"`
@@ -63,13 +65,15 @@ type UsageRecordListResponse struct {
 
 // UsageSummaryResponse represents a response containing a summary of usage
 type UsageSummaryResponse struct {
-	SubscriptionId     string                 `json:"subscription_id"`
-	SubscriptionItemId string                 `json:"subscription_item_id"`
-	BillingPeriod      string                 `json:"billing_period"`
-	UsageType          string                 `json:"usage_type"`
-	TotalQuantity      float64                `json:"total_quantity,omitempty"`
-	TotalAmount        int64                  `json:"total_amount"`
-	Details            map[string]interface{} `json:"details,omitempty"`
+	SubscriptionId     string                      `json:"subscription_id"`
+	SubscriptionItemId string                      `json:"subscription_item_id"`
+	BillingPeriod      string                      `json:"billing_period"`
+	UsageType          entities.UsageType          `json:"usage_type"`
+	UnitType           entities.UnitType           `json:"unit_type,omitempty"`
+	AggregationType    entities.AggregationType    `json:"aggregation_type,omitempty"`
+	TotalQuantity      float64                     `json:"total_quantity,omitempty"`
+	TotalAmount        int64                       `json:"total_amount"`
+	Details            map[string]interface{}      `json:"details,omitempty"`
 }
 
 // FromUsageRecord converts a usage record entity to a response
@@ -82,6 +86,8 @@ func FromUsageRecord(record entities.UsageRecord) UsageRecordResponse {
 		CustomerId:         record.CustomerId,
 		PriceId:            record.PriceId,
 		UsageType:          record.UsageType,
+		UnitType:           record.UnitType,
+		AggregationType:    record.AggregationType,
 		Quantity:           record.Quantity,
 		UnitPrice:          record.UnitPrice,
 		TransactionValue:   record.TransactionValue,

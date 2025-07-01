@@ -21,29 +21,35 @@ type SubscriptionItem struct {
 	Id             string                `json:"id"`
 	SubscriptionId string                `json:"subscription_id"`
 	Subscription   *Subscription         `json:"-"`
-	
+
 	// Product/Price reference
 	PriceId        string                `json:"price_id"`
 	ProductId      string                `json:"product_id,omitempty"`
 	VariantId      string                `json:"variant_id,omitempty"`
-	
+
 	// Item details
 	Name           string                `json:"name"`
 	Description    string                `json:"description,omitempty"`
 	Status         SubscriptionItemStatus `json:"status"`
-	
+
 	// Quantity for fixed items
 	Quantity       int                   `json:"quantity"`
-	
-	// Billing
+
+ // Billing
 	Amount         int64                 `json:"amount,omitempty"`
 	Currency       string                `json:"currency"`
-	
+
+	// Pricing configuration
+	PercentageRate float64               `json:"percentage_rate,omitempty"`   // For percentage-based charges
+	FixedFee       int64                 `json:"fixed_fee,omitempty"`         // Fixed fee per unit
+	UnitPrice      int64                 `json:"unit_price,omitempty"`        // Price per unit
+
 	// Usage configuration
 	HasUsage       bool                  `json:"has_usage"`
-	UsageType      string                `json:"usage_type,omitempty"`
-	AggregationType string               `json:"aggregation_type,omitempty"`
-	
+	UsageType      UsageType             `json:"usage_type,omitempty"`
+	UnitType       UnitType              `json:"unit_type,omitempty"`
+	AggregationType AggregationType      `json:"aggregation_type,omitempty"`
+
 	// Metadata
 	Metadata       map[string]string     `json:"metadata,omitempty"`
 	CreatedAt      time.Time             `json:"created_at"`

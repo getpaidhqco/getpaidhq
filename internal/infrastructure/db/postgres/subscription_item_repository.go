@@ -10,6 +10,7 @@ import (
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/infrastructure/db/postgres/models"
+	"payloop/internal/lib"
 )
 
 type SubscriptionItemRepository struct {
@@ -17,9 +18,13 @@ type SubscriptionItemRepository struct {
 	logger logger.Logger
 }
 
-func NewSubscriptionItemRepository(primaryDb *PgDatabase, logger logger.Logger) repositories.SubscriptionItemRepository {
+func NewSubscriptionItemRepository(primaryDb lib.Database, logger logger.Logger) repositories.SubscriptionItemRepository {
+	pgDatabase, ok := primaryDb.(*PgDatabase)
+	if !ok {
+		panic("database is not of type *db.PgDatabase")
+	}
 	return SubscriptionItemRepository{
-		PgDatabase: primaryDb,
+		PgDatabase: pgDatabase,
 		logger:     logger,
 	}
 }
@@ -93,8 +98,8 @@ func (r SubscriptionItemRepository) Create(ctx context.Context, entity entities.
 		"amount":           pgtype.Int8{Int64: entity.Amount, Valid: entity.Amount != 0},
 		"currency":         entity.Currency,
 		"has_usage":        entity.HasUsage,
-		"usage_type":       pgtype.Text{String: entity.UsageType, Valid: entity.UsageType != ""},
-		"aggregation_type": pgtype.Text{String: entity.AggregationType, Valid: entity.AggregationType != ""},
+		"usage_type":       pgtype.Text{String: string(entity.UsageType), Valid: entity.UsageType != ""},
+		"aggregation_type": pgtype.Text{String: string(entity.AggregationType), Valid: entity.AggregationType != ""},
 		"metadata":         metaJson,
 	})
 
@@ -132,8 +137,8 @@ func (r SubscriptionItemRepository) Update(ctx context.Context, entity entities.
 		"quantity":         entity.Quantity,
 		"amount":           pgtype.Int8{Int64: entity.Amount, Valid: entity.Amount != 0},
 		"has_usage":        entity.HasUsage,
-		"usage_type":       pgtype.Text{String: entity.UsageType, Valid: entity.UsageType != ""},
-		"aggregation_type": pgtype.Text{String: entity.AggregationType, Valid: entity.AggregationType != ""},
+		"usage_type":       pgtype.Text{String: string(entity.UsageType), Valid: entity.UsageType != ""},
+		"aggregation_type": pgtype.Text{String: string(entity.AggregationType), Valid: entity.AggregationType != ""},
 		"metadata":         metaJson,
 	})
 
