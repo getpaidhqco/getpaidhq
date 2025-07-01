@@ -542,7 +542,7 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 	// Publish the events
 	_ = s.pubsub.Publish(subscription.OrgId, topic.PaymentFailed, payment)
 	_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusPastDue, newSub)
-	
+
 	return newSub, nil
 }
 
@@ -578,19 +578,26 @@ func (s SubscriptionService) ChangeSubscriptionPlan(ctx context.Context, input s
 		return nil, nil, lib.NewCustomError(lib.BadRequestError, "subscription is not in a valid state for plan change", nil)
 	}
 
-	// 2. Fetch and validate new variant/price
-	// Note: In a real implementation, you would fetch the variant and price from a repository
-	// For now, we'll assume the variant and price are valid and just use the IDs
+	// Check if subscription has any usage-based items
+	// For now, we only support fixed subscriptions
+	for _, item := range subscription.Items {
+		if item.HasUsage {
+			return nil, nil, lib.NewCustomError(lib.BadRequestError, "changing plans for usage-based subscriptions is not supported yet", nil)
+		}
+	}
 
-	// 3. Ensure product ID matches current subscription (if product ID is already set)
-	// In a real implementation, you would check that the new variant belongs to the same product
-	// For now, we'll assume this validation is done elsewhere
+	// If no items exist, return an error
+	if len(subscription.Items) == 0 {
+		return nil, nil, lib.NewCustomError(lib.BadRequestError, "subscription has no items", nil)
+	}
 
 	// Store the original values for the plan change record
-	fromProductId := subscription.ProductId
-	fromVariantId := subscription.VariantId
-	fromPriceId := subscription.PriceId
-	fromAmount := subscription.Amount
+	// Use the first subscription item for backward compatibility
+	item := subscription.Items[0]
+	fromProductId := item.ProductId
+	fromVariantId := item.VariantId
+	fromPriceId := item.PriceId
+	fromAmount := item.Amount * int64(item.Quantity)
 
 	// 4. Calculate proration (if applicable)
 	var prorationAmount int64 = 0
@@ -608,11 +615,18 @@ func (s SubscriptionService) ChangeSubscriptionPlan(ctx context.Context, input s
 		prorationAmount = int64(prorationDetails.CreditAmount)
 	}
 
-	// 5. Update subscription fields
-	subscription.VariantId = input.NewVariantId
-	subscription.PriceId = input.NewPriceId
-	// In a real implementation, you would update the amount and other fields based on the new price
-	// For now, we'll assume the amount stays the same
+	// 5. Update subscription item fields with the new plan details
+	for i := range subscription.Items {
+		if subscription.Items[i].Id == item.Id {
+			subscription.Items[i].VariantId = input.NewVariantId
+			subscription.Items[i].PriceId = input.NewPriceId
+			subscription.Items[i].UpdatedAt = time.Now().UTC()
+			break
+		}
+	}
+
+	// Update subscription's updated timestamp
+	subscription.UpdatedAt = time.Now().UTC()
 
 	// Update the subscription in the database
 	updatedSubscription, err := s.subscriptionRepository.Update(ctx, subscription)
@@ -621,11 +635,20 @@ func (s SubscriptionService) ChangeSubscriptionPlan(ctx context.Context, input s
 		return nil, nil, err
 	}
 
+	// Get the updated item from the updated subscription
+	var updatedItem entities.SubscriptionItem
+	if len(updatedSubscription.Items) > 0 {
+		updatedItem = updatedSubscription.Items[0]
+	} else {
+		updatedItem = item
+	}
+
 	// 6. Create SubscriptionPlanChange record
+	toAmount := updatedItem.Amount * int64(updatedItem.Quantity)
 	changeType := "switch"
-	if updatedSubscription.Amount > fromAmount {
+	if toAmount > fromAmount {
 		changeType = "upgrade"
-	} else if updatedSubscription.Amount < fromAmount {
+	} else if toAmount < fromAmount {
 		changeType = "downgrade"
 	}
 
@@ -637,10 +660,10 @@ func (s SubscriptionService) ChangeSubscriptionPlan(ctx context.Context, input s
 		FromVariantId:   fromVariantId,
 		FromPriceId:     fromPriceId,
 		FromAmount:      fromAmount,
-		ToProductId:     subscription.ProductId,
-		ToVariantId:     subscription.VariantId,
-		ToPriceId:       subscription.PriceId,
-		ToAmount:        subscription.Amount,
+		ToProductId:     updatedItem.ProductId,
+		ToVariantId:     updatedItem.VariantId,
+		ToPriceId:       updatedItem.PriceId,
+		ToAmount:        toAmount,
 		ChangeType:      changeType,
 		EffectiveDate:   effectiveDate,
 		ProrationMode:   input.ProrationMode,

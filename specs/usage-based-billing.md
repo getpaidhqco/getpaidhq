@@ -34,10 +34,12 @@ This specification extends GetPaidHQ's usage-based billing system to support sub
 
 
 
-## Plan Change Scenarios (1 Item Per Subscription)
-1. Fixed → Fixed (e.g., Basic $29 → Pro $99)
-   Current: Basic Plan - $29/month
-   Change to: Pro Plan - $99/month
+
+
+## Plan Change Scenarios (Single Item Per Subscription)
+### Fixed → Fixed (e.g., Basic $29 → Pro $99)
+Current: Basic Plan - $29/month
+Change to: Pro Plan - $99/month
 
 Process:
 1. Calculate proration credit for unused Basic time
@@ -45,49 +47,48 @@ Process:
 3. Deactivate old subscription item (Basic)
 4. Charge prorated difference
 5. Update subscription.amount to $99
-2. Fixed → Usage-Based (e.g., $29/mo → $0.01 per API call)
+
+## Fixed → Usage-Based (e.g., $29/mo → $0.01 per API call)
    Current: Flat Rate - $29/month
    Change to: Pay per use - $0.01/call
 
-2. Fixed → Usage-Based (e.g., $29/mo → $0.01 per API call)
 Process:
 1. Calculate proration credit for unused fixed time
 2. Create new usage-based subscription item
 3. Deactivate fixed item
 4. Set subscription.amount = NULL (now usage-based)
 5. Apply credit to future usage charges
-3. Usage → Fixed (e.g., Pay-per-use → $99/mo unlimited)
+
+### Usage → Fixed (e.g., Pay-per-use → $99/mo unlimited)
    Current: $0.01 per API call
    Change to: Unlimited - $99/month
 
-3. Usage → Fixed (e.g., Pay-per-use → $99/mo unlimited)
 Process:
 1. Finalize all pending usage for current period
 2. Generate final usage invoice
 3. Create new fixed subscription item
 4. Start fixed billing from next period
 5. Set subscription.amount = 99
-4. Usage → Usage (e.g., Change pricing tiers)
+
+### Usage → Usage (e.g., Change pricing tiers)
    Current: $0.01 per API call
    Change to: $0.005 per API call (volume discount)
 
-4. Usage → Usage (e.g., Change pricing tiers)
 Process:
 1. Close current usage period at old rate
 2. Create new item with new pricing
 3. Future usage billed at new rate
 4. subscription.amount remains NULL
-5. Hybrid → Any (e.g., $29/mo + $0.01/call → something else)
+
+### Hybrid → Any (e.g., $29/mo + $0.01/call → something else)
    Current: Base + Usage
    Change to: New plan
 
-5. Hybrid → Any (e.g., $29/mo + $0.01/call → something else)
 Process:
 1. Prorate fixed portion
 2. Finalize usage portion
 3. Apply credits/charges
 4. Create new item structure
-
 
 Overview
 This specification extends GetPaidHQ to support usage-based billing including percentage-based transaction fees, unit-based usage (API calls, storage), and hybrid models combining fixed subscriptions with variable usage charges. The system maintains backward compatibility while adding sophisticated usage tracking and billing capabilities.
@@ -145,19 +146,19 @@ Overall Architecture
 │ Payment         │
 │ Processing      │
 └─────────────────┘
-Billing Flow by Model Type
-Fixed Subscription Flow
+## Billing Flow by Model Type
+### Fixed Subscription Flow
 Day -1, 23:00 → Generate invoice ($29.00)
 Day -1, 23:30 → Send invoice notification  
 Day  0, 00:00 → Attempt payment charge
 Day  0, 00:15 → Update subscription cycle
-Usage Billing Flow
+### Usage Billing Flow
 Day  0, 00:00 → Billing period ends
 Day  0, 00:30 → Aggregate usage data
 Day  0, 01:00 → Generate invoice ($29.00 + $47.50 usage)
 Day  0, 01:30 → Send invoice notification
 Day  0, 02:00 → Attempt payment charge
-Hybrid Model Flow (Fixed + Usage)
+### Hybrid Model Flow (Fixed + Usage)
 Day  0, 00:00 → Billing period ends (e.g., Jan 31 → Feb 1)
 Day  0, 00:30 → Aggregate January usage (transaction fees)
 Day  0, 01:00 → Generate invoice:
