@@ -1,2 +1,3 @@
 packages:
   - "prisma"
+  - "sdks/typescript"

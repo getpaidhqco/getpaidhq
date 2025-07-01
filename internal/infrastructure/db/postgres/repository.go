@@ -55,6 +55,10 @@ var RespositoryModules = fx.Options(
 		fx.ParamTags(`name:"primaryDb"`),
 	)),
 	fx.Provide(fx.Annotate(
+		NewUsageRecordRepository,
+		fx.ParamTags(`name:"primaryDb"`),
+	)),
+	fx.Provide(fx.Annotate(
 		NewSettingRepository,
 		fx.ParamTags(`name:"primaryDb"`),
 	)),

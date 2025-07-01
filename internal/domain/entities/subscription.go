@@ -26,6 +26,32 @@ type CreateSubscriptionInput struct {
 	Metadata map[string]string `json:"metadata"`
 }
 
+type UpdateSubscriptionInput struct {
+	PaymentMethodId string            `json:"payment_method_id"`
+	Metadata        map[string]string `json:"metadata,omitempty"`
+}
+
+type PauseSubscriptionInput struct {
+	PauseMode string    `json:"pause_mode"`
+	ResumeAt  time.Time `json:"resume_at,omitempty"`
+}
+
+type ResumeSubscriptionInput struct {
+	ProrationMode string `json:"proration_mode"`
+}
+
+type CancelSubscriptionInput struct {
+	CancelMode       string    `json:"cancel_mode"`
+	ProrationMode    string    `json:"proration_mode"`
+	CancellationDate time.Time `json:"cancellation_date,omitempty"`
+}
+
+type ChangePlanInput struct {
+	NewPriceId    string    `json:"new_price_id"`
+	ProrationMode string    `json:"proration_mode"`
+	EffectiveDate time.Time `json:"effective_date,omitempty"`
+}
+
 type SubscriptionStatus string
 
 const (
@@ -165,6 +191,11 @@ func (s *Subscription) CalculateProrationDetails(
 		// Get the total amount to prorate
 		totalAmount := s.GetTotalAmount()
 
+		// If there are no items but the subscription has an Amount field set, use that
+		if totalAmount == 0 && s.Amount > 0 {
+			totalAmount = s.Amount
+		}
+
 		// Calculate the credit amount based on the proportion of days remaining
 		creditAmount := int(float64(totalAmount) * float64(daysRemaining) / float64(totalDays))
 
@@ -295,8 +326,11 @@ func (s *Subscription) CalculateNextBillingDate() time.Time {
 		return s.StartDate
 	}
 
-	//
+	// Use CurrentPeriodEnd as base if set, otherwise use LastCharge
 	base := s.CurrentPeriodEnd
+	if base.IsZero() {
+		base = s.LastCharge
+	}
 
 	switch s.BillingInterval {
 	case "minute":
@@ -543,7 +577,14 @@ func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 		subscriptionItem.UsageType = UsageType(item.Price.UsageType)
 		subscriptionItem.UnitType = UnitType(item.Price.UnitType)
 		subscriptionItem.AggregationType = AggregationType(item.Price.AggregationType)
-		subscriptionItem.Amount = item.Price.UnitPrice * int64(item.Quantity) // Base fixed amount multiplied by quantity
+
+		// Use a quantity of at least 1 for the base amount
+		quantity := item.Quantity
+		if quantity <= 0 {
+			quantity = 1
+		}
+		subscriptionItem.Amount = item.Price.UnitPrice * int64(quantity) // Base fixed amount multiplied by quantity
+
 		subscriptionItem.UnitPrice = item.Price.OverageUnitPrice // Overage rate
 		subscriptionItem.PercentageRate = item.Price.PercentageRate
 		subscriptionItem.FixedFee = item.Price.FixedFee

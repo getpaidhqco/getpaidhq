@@ -37,4 +37,8 @@ var Module = fx.Options(
 	)),
 	fx.Provide(NewDunningService),
 	fx.Provide(NewDunningOrchestrationService),
+	fx.Provide(fx.Annotate(
+		NewUsageRecordingService,
+		fx.As(new(interfaces.UsageRecordingService)),
+	)),
 )

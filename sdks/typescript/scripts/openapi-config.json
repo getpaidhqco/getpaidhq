@@ -1,0 +1,20 @@
+{
+  "packageName": "@getpaidhq/sdk",
+  "packageVersion": "0.1.0",
+  "npmName": "@getpaidhq/sdk",
+  "supportsES6": true,
+  "withInterfaces": true,
+  "useSingleRequestParameter": true,
+  "withNodeImports": true,
+  "modelPropertyNaming": "camelCase",
+  "enumPropertyNaming": "UPPERCASE",
+  "stringEnums": true,
+  "npmRepository": "https://registry.npmjs.org/",
+  "additionalProperties": {
+    "platformVersion": "18.0.0",
+    "withoutRuntimeChecks": true,
+    "withSeparateModelsAndApi": true,
+    "apiPackage": "api",
+    "modelPackage": "models"
+  }
+}

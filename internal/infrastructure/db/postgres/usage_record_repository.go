@@ -10,6 +10,7 @@ import (
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/infrastructure/db/postgres/models"
+	"payloop/internal/lib"
 	"time"
 )
 
@@ -18,9 +19,13 @@ type UsageRecordRepository struct {
 	logger logger.Logger
 }
 
-func NewUsageRecordRepository(primaryDb *PgDatabase, logger logger.Logger) repositories.UsageRecordRepository {
+func NewUsageRecordRepository(primaryDb lib.Database, logger logger.Logger) repositories.UsageRecordRepository {
+	pgDatabase, ok := primaryDb.(*PgDatabase)
+	if !ok {
+		panic("database is not of type *db.PgDatabase")
+	}
 	return UsageRecordRepository{
-		PgDatabase: primaryDb,
+		PgDatabase: pgDatabase,
 		logger:     logger,
 	}
 }

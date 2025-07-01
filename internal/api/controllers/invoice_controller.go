@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"payloop/internal/api"
 	"payloop/internal/api/authn"
+	"payloop/internal/api/dto/mappers"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/api/dto/response"
 	"payloop/internal/application/dto"
@@ -41,19 +42,46 @@ func (c InvoiceController) Create(ctx *gin.Context) {
 		return
 	}
 
-	invoice, err := c.invoiceService.Create(ctx.Request.Context(), authUser.OrgId, dto.CreateInvoiceInput{
-		CustomerId:     input.CustomerId,
-		OrderId:        input.OrderId,
-		SubscriptionId: input.SubscriptionId,
-		Type:           input.Type,
-		InvoiceType:    input.InvoiceType,
-		Currency:       input.Currency,
-		DueAt:          input.DueAt,
-		Notes:          input.Notes,
-		CustomerNotes:  input.CustomerNotes,
-		Metadata:       input.Metadata,
-		LineItems:      request.ToLineItemDTOs(input.LineItems),
-	})
+	// Use mapper to convert API DTO to domain input
+	domainInput := mappers.ToCreateInvoiceInput(input)
+
+	// Convert domain input to application DTO
+	appInput := dto.CreateInvoiceInput{
+		CustomerId:     domainInput.CustomerId,
+		OrderId:        domainInput.OrderId,
+		SubscriptionId: domainInput.SubscriptionId,
+		Type:           domainInput.Type,
+		InvoiceType:    domainInput.InvoiceType,
+		Currency:       domainInput.Currency,
+		DueAt:          domainInput.DueAt,
+		Notes:          domainInput.Notes,
+		CustomerNotes:  domainInput.CustomerNotes,
+		Metadata:       domainInput.Metadata,
+	}
+
+	// Convert line items
+	if len(domainInput.LineItems) > 0 {
+		appInput.LineItems = make([]dto.CreateInvoiceLineItemInput, len(domainInput.LineItems))
+		for i, item := range domainInput.LineItems {
+			appInput.LineItems[i] = dto.CreateInvoiceLineItemInput{
+				ProductId:     item.ProductId,
+				VariantId:     item.VariantId,
+				PriceId:       item.PriceId,
+				Description:   item.Description,
+				Category:      item.Category,
+				Quantity:      item.Quantity,
+				UnitPrice:     item.UnitPrice,
+				DiscountType:  item.DiscountType,
+				DiscountValue: item.DiscountValue,
+				TaxCode:       item.TaxCode,
+				TaxRate:       item.TaxRate,
+				TaxExempt:     item.TaxExempt,
+				Metadata:      item.Metadata,
+			}
+		}
+	}
+
+	invoice, err := c.invoiceService.Create(ctx.Request.Context(), authUser.OrgId, appInput)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -148,7 +176,18 @@ func (c InvoiceController) Update(ctx *gin.Context) {
 		return
 	}
 
-	invoice, err := c.invoiceService.Update(ctx.Request.Context(), authUser.OrgId, invoiceId, input.ToDTO())
+	// Use mapper to convert API DTO to domain input
+	domainInput := mappers.ToUpdateInvoiceInput(input)
+
+	// Convert domain input to application DTO
+	appInput := dto.UpdateInvoiceRequest{
+		Notes:         domainInput.Notes,
+		CustomerNotes: domainInput.CustomerNotes,
+		DueAt:         domainInput.DueAt,
+		Metadata:      domainInput.Metadata,
+	}
+
+	invoice, err := c.invoiceService.Update(ctx.Request.Context(), authUser.OrgId, invoiceId, appInput)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -203,7 +242,16 @@ func (c InvoiceController) List(ctx *gin.Context) {
 	authUser := user.(authn.User)
 	pagination := request.GetPagination(ctx)
 
-	invoices, total, err := c.invoiceService.List(ctx.Request.Context(), authUser.OrgId, pagination.ToDTO())
+	// Convert pagination to application DTO
+	paginationDTO := dto.Pagination{
+		Page:          pagination.Page,
+		Limit:         pagination.Limit,
+		Offset:        pagination.Offset,
+		SortDirection: pagination.SortDirection,
+		SortBy:        pagination.SortBy,
+	}
+
+	invoices, total, err := c.invoiceService.List(ctx.Request.Context(), authUser.OrgId, paginationDTO)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -233,7 +281,16 @@ func (c InvoiceController) ListByCustomer(ctx *gin.Context) {
 	customerId := ctx.Param("id")
 	pagination := request.GetPagination(ctx)
 
-	invoices, total, err := c.invoiceService.FindByCustomerId(ctx.Request.Context(), authUser.OrgId, customerId, pagination.ToDTO())
+	// Convert pagination to application DTO
+	paginationDTO := dto.Pagination{
+		Page:          pagination.Page,
+		Limit:         pagination.Limit,
+		Offset:        pagination.Offset,
+		SortDirection: pagination.SortDirection,
+		SortBy:        pagination.SortBy,
+	}
+
+	invoices, total, err := c.invoiceService.FindByCustomerId(ctx.Request.Context(), authUser.OrgId, customerId, paginationDTO)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -269,7 +326,16 @@ func (c InvoiceController) PerformAction(ctx *gin.Context) {
 		return
 	}
 
-	invoice, err := c.invoiceService.PerformAction(ctx.Request.Context(), authUser.OrgId, invoiceId, input.ToDTO())
+	// Use mapper to convert API DTO to domain input
+	domainInput := mappers.ToInvoiceActionInput(input)
+
+	// Convert domain input to application DTO
+	appInput := dto.InvoiceActionRequest{
+		Action: domainInput.Action,
+		Reason: domainInput.Reason,
+	}
+
+	invoice, err := c.invoiceService.PerformAction(ctx.Request.Context(), authUser.OrgId, invoiceId, appInput)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -331,7 +397,27 @@ func (c InvoiceController) AddLineItem(ctx *gin.Context) {
 		return
 	}
 
-	lineItem, err := c.invoiceService.AddLineItem(ctx.Request.Context(), authUser.OrgId, invoiceId, request.ToLineItemDTO(input))
+	// Use mapper to convert API DTO to domain input
+	domainInput := mappers.ToCreateInvoiceLineItemInput(input)
+
+	// Convert domain input to application DTO
+	appInput := dto.CreateInvoiceLineItemInput{
+		ProductId:     domainInput.ProductId,
+		VariantId:     domainInput.VariantId,
+		PriceId:       domainInput.PriceId,
+		Description:   domainInput.Description,
+		Category:      domainInput.Category,
+		Quantity:      domainInput.Quantity,
+		UnitPrice:     domainInput.UnitPrice,
+		DiscountType:  domainInput.DiscountType,
+		DiscountValue: domainInput.DiscountValue,
+		TaxCode:       domainInput.TaxCode,
+		TaxRate:       domainInput.TaxRate,
+		TaxExempt:     domainInput.TaxExempt,
+		Metadata:      domainInput.Metadata,
+	}
+
+	lineItem, err := c.invoiceService.AddLineItem(ctx.Request.Context(), authUser.OrgId, invoiceId, appInput)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -355,7 +441,24 @@ func (c InvoiceController) UpdateLineItem(ctx *gin.Context) {
 		return
 	}
 
-	lineItem, err := c.invoiceService.UpdateLineItem(ctx.Request.Context(), authUser.OrgId, invoiceId, lineItemId, input.ToDTO())
+	// Use mapper to convert API DTO to domain input
+	domainInput := mappers.ToUpdateInvoiceLineItemInput(input)
+
+	// Convert domain input to application DTO
+	appInput := dto.UpdateInvoiceLineItemRequest{
+		Description:   domainInput.Description,
+		Category:      domainInput.Category,
+		Quantity:      domainInput.Quantity,
+		UnitPrice:     domainInput.UnitPrice,
+		DiscountType:  domainInput.DiscountType,
+		DiscountValue: domainInput.DiscountValue,
+		TaxCode:       domainInput.TaxCode,
+		TaxRate:       domainInput.TaxRate,
+		TaxExempt:     domainInput.TaxExempt,
+		Metadata:      domainInput.Metadata,
+	}
+
+	lineItem, err := c.invoiceService.UpdateLineItem(ctx.Request.Context(), authUser.OrgId, invoiceId, lineItemId, appInput)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
