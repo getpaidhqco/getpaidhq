@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/dto"
 	"payloop/internal/application/interfaces"
@@ -11,9 +12,11 @@ import (
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/payments"
 	"payloop/internal/domain/entities/settings"
 	"payloop/internal/domain/entities/subscriptions"
 	"payloop/internal/domain/factories"
+	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/domain/security"
 	"payloop/internal/lib"
@@ -34,6 +37,7 @@ type SubscriptionService struct {
 	tokenVault             security.TokenVault
 	pubsub                 events.PubSub
 	logger                 logger.Logger
+	billingService         interfaces.BillingService
 }
 
 func NewSubscriptionService(
@@ -49,6 +53,7 @@ func NewSubscriptionService(
 	pubsub events.PubSub,
 	gatewayFactory factories.GatewayFactory,
 	logger logger.Logger,
+	billingService interfaces.BillingService,
 ) interfaces.SubscriptionService {
 
 	_, err := pubsub.Subscribe("subscription.workflow.>", func(topic string, data []byte) {
@@ -72,6 +77,7 @@ func NewSubscriptionService(
 		pubsub:                 pubsub,
 		logger:                 logger,
 		gatewayFactory:         gatewayFactory,
+		billingService:         billingService,
 	}
 }
 
@@ -709,4 +715,143 @@ func (s SubscriptionService) GetOrgSubscriptionSettings(ctx context.Context, org
 	}
 
 	return subscriptionSettings, nil
+}
+
+// ProcessSubscriptionCharge handles the complete subscription charging process
+// including billing calculation, payment processing, and result handling
+func (s SubscriptionService) ProcessSubscriptionCharge(ctx context.Context, subscription entities.Subscription) (payments.ChargeResult, error) {
+	// Get latest subscription data
+	currentSubscription, err := s.subscriptionRepository.FindById(ctx, subscription.OrgId, subscription.Id)
+	if err != nil {
+		return payments.ChargeResult{}, fmt.Errorf("failed to get subscription: %w", err)
+	}
+
+	// Skip charging if subscription is not active
+	if !currentSubscription.IsRunning() {
+		s.logger.Warn("Skipping charge for non-active subscription", "orgId", subscription.OrgId, "subscriptionId", subscription.Id, "status", currentSubscription.Status)
+		return payments.ChargeResult{
+			Status:      payments.PaymentStatusFailed,
+			ErrorReason: "Subscription is not active",
+		}, nil
+	}
+
+	// Calculate billing amount
+	billingCalculation, err := s.billingService.CalculateBillingAmount(ctx, currentSubscription)
+	if err != nil {
+		return payments.ChargeResult{}, fmt.Errorf("failed to calculate billing amount: %w", err)
+	}
+
+	// Skip charging if amount is zero
+	if billingCalculation.TotalAmount <= 0 {
+		return payments.ChargeResult{
+			Status:      payments.PaymentStatusSucceeded,
+			Amount:      0,
+			Currency:    billingCalculation.Currency,
+			ProcessedAt: time.Now(),
+		}, nil
+	}
+
+	// Get payment gateway
+	gateway, err := s.gatewayFactory.NewGateway(ctx, currentSubscription.OrgId, string(currentSubscription.PspId))
+	if err != nil {
+		return payments.ChargeResult{}, fmt.Errorf("failed to get payment gateway: %w", err)
+	}
+
+	// Get customer and payment method
+	customer, err := s.GetSubscriptionCustomer(ctx, currentSubscription)
+	if err != nil {
+		return payments.ChargeResult{}, fmt.Errorf("failed to get customer: %w", err)
+	}
+
+	paymentMethod, err := s.GetSubscriptionPaymentMethod(ctx, currentSubscription)
+	if err != nil {
+		return payments.ChargeResult{}, fmt.Errorf("failed to get payment method: %w", err)
+	}
+
+	decryptedToken, err := paymentMethod.GetToken(ctx)
+	if err != nil {
+		return payments.ChargeResult{}, fmt.Errorf("failed to decrypt payment token: %w", err)
+	}
+
+	// Process payment
+	chargeResult := gateway.ChargePayment(ctx, payment_providers.ChargePaymentCommand{
+		OrgId:          currentSubscription.OrgId,
+		OrderId:        currentSubscription.OrderId,
+		SubscriptionId: currentSubscription.Id,
+		Amount:         billingCalculation.TotalAmount,
+		Currency:       billingCalculation.Currency,
+		PaymentMethod: payment_providers.PaymentMethod{
+			PspId:       paymentMethod.Id,
+			Name:        paymentMethod.Name,
+			Type:        string(paymentMethod.Type),
+			IsRecurring: true,
+			Token:       decryptedToken,
+		},
+		Customer: customer,
+	})
+
+	// Handle gateway errors
+	if chargeResult.Status == payment_providers.GatewayError {
+		s.logger.Error("Gateway error while charging subscription",
+			"orgId", currentSubscription.OrgId,
+			"subscriptionId", currentSubscription.Id,
+			"error", chargeResult.ErrorReason,
+			"psp", string(currentSubscription.PspId),
+		)
+		return payments.ChargeResult{}, errors.New("gateway error: " + chargeResult.ErrorReason)
+	}
+
+	// Convert to domain charge result
+	rawData, _ := json.Marshal(chargeResult.PspResponse)
+
+	var status payments.PaymentStatus
+	var completedAt time.Time
+
+	switch chargeResult.Status {
+	case payment_providers.ChargePaymentStatusSuccess:
+		status = payments.PaymentStatusSucceeded
+		completedAt = time.Now()
+	case payment_providers.ChargePaymentStatusPending:
+		status = payments.PaymentStatusPending
+	case payment_providers.ChargePaymentStatusError:
+		status = payments.PaymentStatusFailed
+	}
+
+	domainChargeResult := payments.ChargeResult{
+		Psp:         chargeResult.Psp,
+		Amount:      chargeResult.AmountCharged,
+		Status:      status,
+		Currency:    currentSubscription.Currency,
+		ErrorReason: chargeResult.ErrorReason,
+		ErrorCode:   chargeResult.ErrorCode,
+		PspId:       chargeResult.PspId,
+		Reference:   chargeResult.Reference,
+		ProcessedAt: completedAt,
+		RawData:     string(rawData),
+	}
+
+	// Handle charge result (success or failure)
+	if domainChargeResult.Status == payments.PaymentStatusSucceeded {
+		_, err = s.HandleSubscriptionChargeSuccess(ctx, subscriptions.SubscriptionChargeInput{
+			Subscription: currentSubscription,
+			ChargeResult: domainChargeResult,
+		})
+	} else {
+		_, err = s.HandleSubscriptionChargeFailure(ctx, subscriptions.SubscriptionChargeInput{
+			Subscription: currentSubscription,
+			ChargeResult: domainChargeResult,
+		})
+	}
+
+	if err != nil {
+		s.logger.Error("Failed to handle charge result",
+			"orgId", currentSubscription.OrgId,
+			"subscriptionId", currentSubscription.Id,
+			"status", domainChargeResult.Status,
+			"error", err.Error(),
+		)
+		return domainChargeResult, fmt.Errorf("failed to handle charge result: %w", err)
+	}
+
+	return domainChargeResult, nil
 }

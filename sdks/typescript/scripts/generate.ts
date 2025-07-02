@@ -1,7 +1,7 @@
-import { execSync } from 'child_process'
-import { readFileSync, writeFileSync, existsSync, mkdirSync } from 'fs'
-import { resolve, dirname } from 'path'
-import { fileURLToPath } from 'url'
+import {execSync} from 'child_process'
+import {existsSync, mkdirSync, writeFileSync} from 'fs'
+import {dirname, resolve} from 'path'
+import {fileURLToPath} from 'url'
 
 // Get the directory name in ES modules
 const __filename = fileURLToPath(import.meta.url)

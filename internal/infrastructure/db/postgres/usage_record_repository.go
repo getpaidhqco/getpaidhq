@@ -622,6 +622,75 @@ func (r UsageRecordRepository) BatchCreate(ctx context.Context, entities []entit
 	return entities, nil
 }
 
+func (r UsageRecordRepository) FindBySubscriptionItem(ctx context.Context, orgId string, subscriptionItemId string, startDate time.Time, endDate time.Time) ([]entities.UsageRecord, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	query := `SELECT org_id, id, subscription_id, subscription_item_id, customer_id, price_id, 
+              usage_type, quantity, unit_price, transaction_value, percentage_rate, calculated_fee, fixed_fee, 
+              total_amount, usage_date, billing_period, processed, processed_at, invoice_id, 
+              reference_id, reference_type, metadata, created_at, updated_at
+              FROM usage_records
+              WHERE org_id = @org_id AND subscription_item_id = @subscription_item_id 
+              AND usage_date >= @start_date AND usage_date <= @end_date
+              ORDER BY usage_date ASC`
+
+	rows, err := tx.Query(ctx, query, pgx.NamedArgs{
+		"org_id":               orgId,
+		"subscription_item_id": subscriptionItemId,
+		"start_date":           startDate,
+		"end_date":             endDate,
+	})
+
+	if err != nil {
+		r.logger.Error(`failed to find UsageRecords by subscription item`, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+
+	var records []entities.UsageRecord
+	for rows.Next() {
+		var record models.UsageRecord
+		err := rows.Scan(
+			&record.OrgId,
+			&record.Id,
+			&record.SubscriptionId,
+			&record.SubscriptionItemId,
+			&record.CustomerId,
+			&record.PriceId,
+			&record.UsageType,
+			&record.Quantity,
+			&record.UnitPrice,
+			&record.TransactionValue,
+			&record.PercentageRate,
+			&record.CalculatedFee,
+			&record.FixedFee,
+			&record.TotalAmount,
+			&record.UsageDate,
+			&record.BillingPeriod,
+			&record.Processed,
+			&record.ProcessedAt,
+			&record.InvoiceId,
+			&record.ReferenceId,
+			&record.ReferenceType,
+			&record.Metadata,
+			&record.CreatedAt,
+			&record.UpdatedAt,
+		)
+		if err != nil {
+			r.logger.Error(`failed to scan UsageRecord`, err.Error())
+			return nil, err
+		}
+		records = append(records, record.ToEntity())
+	}
+
+	if err = rows.Err(); err != nil {
+		r.logger.Error(`error iterating over UsageRecords`, err.Error())
+		return nil, err
+	}
+
+	return records, nil
+}
+
 func (r UsageRecordRepository) GetUsageSummary(ctx context.Context, orgId string, subscriptionItemId string, startDate time.Time, endDate time.Time) (map[string]interface{}, error) {
 	tx := r.getTransactionFromContext(ctx)
 

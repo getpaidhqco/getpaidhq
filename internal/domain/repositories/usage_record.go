@@ -45,6 +45,9 @@ type UsageRecordRepository interface {
 	// BatchCreate creates multiple usage records in a single transaction
 	BatchCreate(ctx context.Context, entities []entities.UsageRecord) ([]entities.UsageRecord, error)
 
-	// GetUsageSummary gets a summary of usage for a subscription item in a billing period
+ // GetUsageSummary gets a summary of usage for a subscription item in a billing period
 	GetUsageSummary(ctx context.Context, orgId string, subscriptionItemId string, startDate time.Time, endDate time.Time) (map[string]interface{}, error)
+
+	// FindBySubscriptionItem finds all usage records for a subscription item within a date range
+	FindBySubscriptionItem(ctx context.Context, orgId string, subscriptionItemId string, startDate time.Time, endDate time.Time) ([]entities.UsageRecord, error)
 }

@@ -2,7 +2,6 @@ package services
 
 import (
 	"go.uber.org/fx"
-	"payloop/internal/application/interfaces"
 )
 
 // Module exports services present
@@ -31,14 +30,10 @@ var Module = fx.Options(
 	fx.Provide(NewMetadataService),
 	fx.Provide(NewPaymentService),
 	fx.Provide(NewSettingsService),
-	fx.Provide(fx.Annotate(
-		NewDocumentService,
-		fx.As(new(interfaces.DocumentService)),
-	)),
+	fx.Provide(NewDocumentService),
 	fx.Provide(NewDunningService),
 	fx.Provide(NewDunningOrchestrationService),
-	fx.Provide(fx.Annotate(
-		NewUsageRecordingService,
-		fx.As(new(interfaces.UsageRecordingService)),
-	)),
+	fx.Provide(NewUsageRecordingService),
+	fx.Provide(NewBillingService),
+	fx.Provide(NewTierCalculationService),
 )

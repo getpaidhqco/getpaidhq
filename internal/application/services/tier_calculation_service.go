@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"errors"
+	"payloop/internal/application/interfaces"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/prices"
 	"payloop/internal/domain/repositories"
@@ -14,7 +15,7 @@ type TierCalculationService struct {
 }
 
 // NewTierCalculationService creates a new TierCalculationService
-func NewTierCalculationService(priceRepository repositories.PriceRepository) *TierCalculationService {
+func NewTierCalculationService(priceRepository repositories.PriceRepository) interfaces.TierCalculationService {
 	return &TierCalculationService{
 		priceRepository: priceRepository,
 	}
@@ -36,20 +37,22 @@ type TierBreakdown struct {
 }
 
 // CalculateTieredAmount calculates the amount for a given quantity and price
-func (s *TierCalculationService) CalculateTieredAmount(ctx context.Context, quantity int, price entities.Price) (*TierCalculationResult, error) {
+func (s *TierCalculationService) CalculateTieredAmount(ctx context.Context, quantity int, price entities.Price) (*interfaces.TierCalculationResult, error) {
 	// Load tiers from database
 	tiers, err := s.priceRepository.GetPriceTiers(ctx, price.OrgId, price.Id)
 	if err != nil {
 		return nil, err
 	}
 
+	var result *TierCalculationResult
+
 	switch price.Scheme {
 	case prices.Tiered, prices.Graduated:
-		return s.calculateCumulativeTiers(quantity, tiers), nil
+		result = s.calculateCumulativeTiers(quantity, tiers)
 	case prices.Volume:
-		return s.calculateVolumeTiers(quantity, tiers), nil
+		result = s.calculateVolumeTiers(quantity, tiers)
 	case prices.Fixed:
-		return &TierCalculationResult{
+		result = &TierCalculationResult{
 			TotalAmount: price.UnitPrice * int64(quantity),
 			Breakdown: []TierBreakdown{{
 				Tier:      1,
@@ -57,10 +60,28 @@ func (s *TierCalculationService) CalculateTieredAmount(ctx context.Context, quan
 				UnitPrice: price.UnitPrice,
 				Amount:    price.UnitPrice * int64(quantity),
 			}},
-		}, nil
+		}
 	default:
 		return nil, errors.New("unsupported pricing scheme")
 	}
+
+	// Convert internal result to interface result
+	interfaceResult := &interfaces.TierCalculationResult{
+		TotalAmount: result.TotalAmount,
+		Breakdown:   make([]interfaces.TierBreakdown, len(result.Breakdown)),
+	}
+
+	for i, breakdown := range result.Breakdown {
+		interfaceResult.Breakdown[i] = interfaces.TierBreakdown{
+			Tier:        breakdown.Tier,
+			Description: breakdown.Description,
+			Quantity:    breakdown.Quantity,
+			UnitPrice:   breakdown.UnitPrice,
+			Amount:      breakdown.Amount,
+		}
+	}
+
+	return interfaceResult, nil
 }
 
 // calculateCumulativeTiers calculates the amount for tiered/graduated pricing
@@ -76,7 +97,7 @@ func (s *TierCalculationService) calculateCumulativeTiers(quantity int, tiers []
 
 		// Calculate tier quantity
 		tierQty := remainingQty
-		if tier.ToQty != nil && remainingQty > (*tier.ToQty - tier.FromQty + 1) {
+		if tier.ToQty != nil && remainingQty > (*tier.ToQty-tier.FromQty+1) {
 			tierQty = *tier.ToQty - tier.FromQty + 1
 		}
 

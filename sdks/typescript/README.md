@@ -49,10 +49,13 @@ async function createSubscription() {
 
 ## Features
 
-- **Modern TypeScript SDK**: Built with TypeScript 5.4+ for excellent type safety and developer experience
-- **Resource-Based API**: Intuitive organization around resources like subscriptions, customers, and invoices
+- **AI-Enhanced SDK**: Goes beyond basic API generation with intelligent developer experience improvements
+- **Modern TypeScript**: Built with TypeScript 5.4+ for excellent type safety and developer experience  
+- **Two-Layer Architecture**: Raw API access + enhanced developer-friendly wrappers
+- **Builder Patterns**: Fluent APIs for complex operations like subscription creation
 - **Automatic Retries**: Built-in exponential backoff for transient errors
-- **Pagination Helpers**: Easy-to-use pagination for listing resources
+- **Async Iterators**: Seamless pagination without manual page handling
+- **Utility Classes**: Currency formatting, webhook verification, usage batching
 - **Comprehensive Error Handling**: Detailed error information with proper typing
 - **Full API Coverage**: Support for all GetPaidHQ API endpoints
 
@@ -164,6 +167,31 @@ const client = new GetPaidHQ({
   retries: 5, // Retry up to 5 times
   debug: process.env.NODE_ENV !== 'production' // Enable debug logging in non-production
 })
+```
+
+## AI Enhancement System
+
+This SDK uses an innovative AI-enhanced development process that creates developer-friendly abstractions on top of OpenAPI generation. See [AI-ENHANCEMENT.md](./AI-ENHANCEMENT.md) for details on:
+
+- How the enhancement system works
+- Available enhanced features (builders, utilities, iterators)
+- Customizing and extending enhancements
+- Development workflow
+
+## Development
+
+```bash
+# Generate basic SDK from OpenAPI spec
+npm run generate
+
+# Add AI-powered enhancements
+npm run enhance
+
+# Full generation (both steps)
+npm run generate:full
+
+# Build the final SDK
+npm run build
 ```
 
 ## Documentation

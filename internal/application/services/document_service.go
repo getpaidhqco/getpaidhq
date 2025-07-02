@@ -18,7 +18,7 @@ type DocumentService struct {
 	s3Storage    *s3.S3Storage
 }
 
-func NewDocumentService(documentRepo repositories.DocumentRepository, s3Storage *s3.S3Storage) *DocumentService {
+func NewDocumentService(documentRepo repositories.DocumentRepository, s3Storage *s3.S3Storage) interfaces.DocumentService {
 	return &DocumentService{
 		documentRepo: documentRepo,
 		s3Storage:    s3Storage,

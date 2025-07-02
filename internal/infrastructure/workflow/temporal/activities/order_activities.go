@@ -3,7 +3,6 @@ package activities
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 	"payloop/internal/application/interfaces"
@@ -136,97 +135,17 @@ func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId strin
 // update the subscription status to reflect the billing period
 func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, currentSub entities.Subscription) (payments.ChargeResult, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("ChargeCustomerForBillingPeriod", "id", currentSub.Id, "Total", currentSub.Amount)
+	logger.Info("ChargeCustomerForBillingPeriod", "orgId", currentSub.OrgId, "subscriptionId", currentSub.Id, "amount", currentSub.Amount)
 
-	subscription, err := a.subscriptionRepository.FindById(ctx, currentSub.OrgId, currentSub.Id)
+	// Thin delegation to subscription service
+	chargeResult, err := a.subscriptionService.ProcessSubscriptionCharge(ctx, currentSub)
 	if err != nil {
-		logger.Error("Failed to find subscription", "error", err.Error())
+		logger.Error("Failed to process subscription charge", "orgId", currentSub.OrgId, "subscriptionId", currentSub.Id, "error", err.Error())
 		return payments.ChargeResult{}, err
 	}
 
-	gw, err := a.gatewayFactory.NewGateway(ctx, subscription.OrgId, string(subscription.PspId))
-	if err != nil {
-		logger.Error("Failed to get gateway", "err", err.Error())
-		return payments.ChargeResult{}, err
-	}
-
-	customer, err := a.subscriptionService.GetSubscriptionCustomer(ctx, subscription)
-	if err != nil {
-		logger.Error("failed to get customer", "error", err.Error())
-		return payments.ChargeResult{}, err
-	}
-
-	securePaymentMethod, err := a.subscriptionService.GetSubscriptionPaymentMethod(ctx, subscription)
-	if err != nil {
-		logger.Error("failed to get secure paymentMethod", "error", err.Error())
-		return payments.ChargeResult{}, err
-	}
-
-	// Get the decrypted token for payment processing
-	decryptedToken, err := securePaymentMethod.GetToken(ctx)
-	if err != nil {
-		logger.Error("failed to decrypt payment token", "error", err.Error())
-		return payments.ChargeResult{}, err
-	}
-
-	chargeResult := gw.ChargePayment(ctx, payment_providers.ChargePaymentCommand{
-		OrgId:          subscription.OrgId,
-		OrderId:        subscription.OrderId,
-		SubscriptionId: subscription.Id,
-		Amount:         subscription.Amount,
-		Currency:       subscription.Currency,
-		PaymentMethod: payment_providers.PaymentMethod{
-			PspId:       securePaymentMethod.Id,
-			Name:        securePaymentMethod.Name,
-			Type:        string(securePaymentMethod.Type),
-			IsRecurring: true,
-			Token:       decryptedToken, // Use decrypted token
-		},
-		Customer: customer,
-	})
-
-	// Gateway errors should be retried by Temporal using the retry policy in the workflow.
-	if chargeResult.Status == payment_providers.GatewayError {
-		logger.Error("Gateway error, returning error so that the charge can be retried", "error", chargeResult.ErrorReason)
-		a.errorReporter.ReportError(ctx, errors.New("gateway error while charging subscription"), map[string]interface{}{
-			"org_id":          subscription.OrgId,
-			"error":           chargeResult.ErrorReason,
-			"psp":             string(subscription.PspId),
-			"subscription_id": subscription.Id,
-		})
-		return payments.ChargeResult{}, temporal.NewApplicationError(chargeResult.ErrorReason, "gateway_error", nil)
-	}
-
-	rawData, err := json.Marshal(chargeResult.PspResponse)
-	if err != nil {
-		logger.Error("failed to marshal charge result", "error", err.Error())
-	}
-
-	var status payments.PaymentStatus
-	var completedAt time.Time
-	switch chargeResult.Status {
-	case payment_providers.ChargePaymentStatusSuccess:
-		status = payments.PaymentStatusSucceeded
-		completedAt = time.Now()
-	case payment_providers.ChargePaymentStatusPending:
-		status = payments.PaymentStatusPending
-	case payment_providers.ChargePaymentStatusError:
-		status = payments.PaymentStatusFailed
-	}
-
-	result := payments.ChargeResult{
-		Psp:         chargeResult.Psp,
-		Amount:      chargeResult.AmountCharged,
-		Status:      status,
-		Currency:    subscription.Currency,
-		ErrorReason: chargeResult.ErrorReason,
-		ErrorCode:   chargeResult.ErrorCode,
-		PspId:       chargeResult.PspId,
-		Reference:   chargeResult.Reference,
-		ProcessedAt: completedAt,
-		RawData:     string(rawData),
-	}
-	return result, nil
+	logger.Info("Subscription charge completed", "orgId", currentSub.OrgId, "subscriptionId", currentSub.Id, "status", chargeResult.Status, "amount", chargeResult.Amount)
+	return chargeResult, nil
 }
 
 func (a *OrderActivities) HandleChargeResult(ctx context.Context, subscription entities.Subscription, chargeResult payments.ChargeResult) (entities.Subscription, error) {
