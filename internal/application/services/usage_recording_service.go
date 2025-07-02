@@ -6,7 +6,7 @@ import (
     "time"
 
     "payloop/internal/api/dto/request"
-    "payloop/internal/api/dto/response"
+    "payloop/internal/application/dto"
     "payloop/internal/application/interfaces"
     "payloop/internal/application/lib/logger"
     "payloop/internal/domain/entities"
@@ -37,39 +37,46 @@ func NewUsageRecordingService(
 func (s *UsageRecordingService) RecordUsage(
     ctx context.Context, 
     orgId string, 
-    req request.RecordUsageRequest,
-) (response.UsageRecordResponse, error) {
+    input dto.RecordUsageInput,
+) (entities.UsageRecord, error) {
     // 1. Validate subscription item exists and belongs to org
-    subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, req.SubscriptionItemId)
+    subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, input.SubscriptionItemId)
     if err != nil {
-        return response.UsageRecordResponse{}, fmt.Errorf("subscription item not found: %w", err)
+        return entities.UsageRecord{}, fmt.Errorf("subscription item not found: %w", err)
     }
 
     // 2. Validate subscription belongs to org
     subscription, err := s.subscriptionRepo.FindById(ctx, orgId, subscriptionItem.SubscriptionId)
     if err != nil {
-        return response.UsageRecordResponse{}, fmt.Errorf("subscription not found: %w", err)
+        return entities.UsageRecord{}, fmt.Errorf("subscription not found: %w", err)
     }
 
     // 3. Validate subscription item has usage enabled
     if !subscriptionItem.HasUsage {
-        return response.UsageRecordResponse{}, fmt.Errorf("subscription item does not support usage recording")
+        return entities.UsageRecord{}, fmt.Errorf("subscription item does not support usage recording")
     }
 
     // 4. Check for duplicate usage record (idempotency)
-    if req.ReferenceId != "" {
+    if input.ReferenceId != "" {
         // Since FindByReferenceId is not in the interface, we'll use Find with pagination
         // In a real implementation, you would add a filter for reference_id
-        pagination := request.Pagination{
-            Limit: 100,
+        pagination := dto.NewPagination(0, 100, "created_at", "desc")
+
+        // Convert application DTO pagination to request pagination for repository
+        repoPagination := request.Pagination{
+            Page:          pagination.Page,
+            Limit:         pagination.Limit,
+            Offset:        pagination.Offset,
+            SortDirection: pagination.SortDirection,
+            SortBy:        pagination.SortBy,
         }
 
-        existingRecords, _, err := s.usageRecordRepo.Find(ctx, orgId, pagination)
+        existingRecords, _, err := s.usageRecordRepo.Find(ctx, orgId, repoPagination)
         if err == nil {
             // Manually filter for the reference ID
             for _, record := range existingRecords {
-                if record.ReferenceId == req.ReferenceId {
-                    return response.FromUsageRecord(record), nil
+                if record.ReferenceId == input.ReferenceId {
+                    return record, nil
                 }
             }
         }
@@ -81,15 +88,26 @@ func (s *UsageRecordingService) RecordUsage(
     switch subscriptionItem.UnitType {
     case entities.UnitTypeTransactions:
         // Transaction-based usage (with value and percentage)
+        var transactionValue int64
+        var percentageRate float64
+
+        if input.TransactionValue != nil {
+            transactionValue = *input.TransactionValue
+        }
+
+        if input.PercentageRate != nil {
+            percentageRate = *input.PercentageRate
+        }
+
         usageRecord = entities.NewTransactionUsageRecord(
             orgId,
             subscription.Id,
-            req.SubscriptionItemId,
+            input.SubscriptionItemId,
             subscription.CustomerId,
             subscriptionItem.PriceId,
-            req.Quantity,
-            req.TransactionValue,
-            req.PercentageRate,
+            input.Quantity,
+            transactionValue,
+            percentageRate,
             subscriptionItem.FixedFee,
         )
     default:
@@ -97,98 +115,96 @@ func (s *UsageRecordingService) RecordUsage(
         usageRecord = entities.NewUnitUsageRecord(
             orgId,
             subscription.Id,
-            req.SubscriptionItemId,
+            input.SubscriptionItemId,
             subscription.CustomerId,
             subscriptionItem.PriceId,
-            req.Quantity,
+            input.Quantity,
             subscriptionItem.UnitPrice,
         )
     }
 
     // 6. Set optional fields
-    if req.ReferenceId != "" {
-        usageRecord.ReferenceId = req.ReferenceId
-        usageRecord.ReferenceType = req.ReferenceType
+    if input.ReferenceId != "" {
+        usageRecord.ReferenceId = input.ReferenceId
+        usageRecord.ReferenceType = input.ReferenceType
     }
 
-    if req.Metadata != nil {
-        usageRecord.SetMetadata(req.Metadata)
+    if input.Metadata != nil {
+        usageRecord.SetMetadata(input.Metadata)
     }
 
     // Set timestamp if provided
-    if !req.Timestamp.IsZero() {
-        usageRecord.UsageDate = req.Timestamp
-        usageRecord.BillingPeriod = formatBillingPeriod(req.Timestamp)
+    if !input.Timestamp.IsZero() {
+        usageRecord.UsageDate = input.Timestamp
+        usageRecord.BillingPeriod = formatBillingPeriod(input.Timestamp)
     }
 
     // 7. Save usage record
     createdRecord, err := s.usageRecordRepo.Create(ctx, usageRecord)
     if err != nil {
         s.logger.Error("Failed to create usage record", "error", err)
-        return response.UsageRecordResponse{}, fmt.Errorf("failed to record usage: %w", err)
+        return entities.UsageRecord{}, fmt.Errorf("failed to record usage: %w", err)
     }
 
     s.logger.Info("Usage recorded successfully",
-        "subscriptionItemId", req.SubscriptionItemId,
-        "quantity", req.Quantity,
+        "subscriptionItemId", input.SubscriptionItemId,
+        "quantity", input.Quantity,
         "usageRecordId", createdRecord.Id)
 
-    return response.FromUsageRecord(createdRecord), nil
+    return createdRecord, nil
 }
 
 func (s *UsageRecordingService) BatchRecordUsage(
     ctx context.Context,
     orgId string,
-    req request.BatchRecordUsageRequest,
-) (response.UsageRecordListResponse, error) {
-    var responses []response.UsageRecordResponse
+    input dto.BatchRecordUsageInput,
+) ([]entities.UsageRecord, error) {
+    var records []entities.UsageRecord
 
     // Process each usage record in the batch
-    for _, usageReq := range req.Records {
-        record, err := s.RecordUsage(ctx, orgId, usageReq)
+    for _, usageInput := range input.Records {
+        record, err := s.RecordUsage(ctx, orgId, usageInput)
         if err != nil {
             // Log error but continue processing other records
             s.logger.Error("Failed to record usage in batch",
-                "subscriptionItemId", usageReq.SubscriptionItemId,
+                "subscriptionItemId", usageInput.SubscriptionItemId,
                 "error", err)
             continue
         }
-        responses = append(responses, record)
+        records = append(records, record)
     }
 
-    return response.UsageRecordListResponse{
-        Items:      responses,
-        TotalCount: len(responses),
-        Page:       1,
-        PageSize:   len(responses),
-    }, nil
+    return records, nil
 }
 
 func (s *UsageRecordingService) ListUsageRecords(
     ctx context.Context,
     orgId string,
-    subscriptionItemId string,
-    limit, offset int,
-) (response.UsageRecordListResponse, error) {
+    input dto.ListUsageRecordsInput,
+) (dto.PaginatedResult[entities.UsageRecord], error) {
     // 1. Validate subscription item belongs to org
-    subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, subscriptionItemId)
+    subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, input.SubscriptionItemId)
     if err != nil {
-        return response.UsageRecordListResponse{}, fmt.Errorf("subscription item not found: %w", err)
+        return dto.PaginatedResult[entities.UsageRecord]{}, fmt.Errorf("subscription item not found: %w", err)
     }
 
     // Verify the subscription exists and belongs to the org
     _, err = s.subscriptionRepo.FindById(ctx, orgId, subscriptionItem.SubscriptionId)
     if err != nil {
-        return response.UsageRecordListResponse{}, fmt.Errorf("subscription not found: %w", err)
+        return dto.PaginatedResult[entities.UsageRecord]{}, fmt.Errorf("subscription not found: %w", err)
     }
 
     // 2. Get usage records with pagination
-    usageRecords, err := s.usageRecordRepo.FindBySubscriptionItemId(ctx, orgId, subscriptionItemId)
+    usageRecords, err := s.usageRecordRepo.FindBySubscriptionItemId(ctx, orgId, input.SubscriptionItemId)
     if err != nil {
-        return response.UsageRecordListResponse{}, err
+        return dto.PaginatedResult[entities.UsageRecord]{}, err
     }
 
     // Apply pagination manually since the repository doesn't support it directly
+    pagination := input.Pagination
+    offset := pagination.Offset
+    limit := pagination.Limit
+
     total := len(usageRecords)
     start := offset
     end := offset + limit
@@ -206,17 +222,15 @@ func (s *UsageRecordingService) ListUsageRecords(
         paginatedRecords = []entities.UsageRecord{}
     }
 
-    // 3. Convert to response DTOs
-    page := 1
-    if limit > 0 {
-        page = (offset / limit) + 1
-    }
+    // 3. Create paginated result
+    hasMore := (pagination.Page+1)*pagination.Limit < total
 
-    return response.UsageRecordListResponse{
-        Items:      convertToResponseDTOs(paginatedRecords),
+    return dto.PaginatedResult[entities.UsageRecord]{
+        Items:      paginatedRecords,
         TotalCount: total,
-        Page:       page,
-        PageSize:   limit,
+        Page:       pagination.Page,
+        PageSize:   pagination.Limit,
+        HasMore:    hasMore,
     }, nil
 }
 
@@ -224,56 +238,56 @@ func (s *UsageRecordingService) GetUsageRecord(
     ctx context.Context,
     orgId string,
     usageRecordId string,
-) (response.UsageRecordResponse, error) {
+) (entities.UsageRecord, error) {
     // 1. Get usage record
     usageRecord, err := s.usageRecordRepo.FindById(ctx, orgId, usageRecordId)
     if err != nil {
-        return response.UsageRecordResponse{}, err
+        return entities.UsageRecord{}, err
     }
 
     // 2. Validate access through subscription
     subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, usageRecord.SubscriptionItemId)
     if err != nil {
-        return response.UsageRecordResponse{}, fmt.Errorf("subscription item not found: %w", err)
+        return entities.UsageRecord{}, fmt.Errorf("subscription item not found: %w", err)
     }
 
     // Verify the subscription exists and belongs to the org
     _, err = s.subscriptionRepo.FindById(ctx, orgId, subscriptionItem.SubscriptionId)
     if err != nil {
-        return response.UsageRecordResponse{}, fmt.Errorf("subscription not found: %w", err)
+        return entities.UsageRecord{}, fmt.Errorf("subscription not found: %w", err)
     }
 
-    return response.FromUsageRecord(usageRecord), nil
+    return usageRecord, nil
 }
 
 func (s *UsageRecordingService) GetUsageSummary(
     ctx context.Context,
     orgId string,
-    req request.GetUsageSummaryRequest,
-) (response.UsageSummaryResponse, error) {
+    input dto.UsageSummaryInput,
+) (dto.UsageSummaryResult, error) {
     // 1. Validate subscription item access
-    subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, req.SubscriptionItemId)
+    subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, input.SubscriptionItemId)
     if err != nil {
-        return response.UsageSummaryResponse{}, fmt.Errorf("subscription item not found: %w", err)
+        return dto.UsageSummaryResult{}, fmt.Errorf("subscription item not found: %w", err)
     }
 
     subscription, err := s.subscriptionRepo.FindById(ctx, orgId, subscriptionItem.SubscriptionId)
     if err != nil {
-        return response.UsageSummaryResponse{}, fmt.Errorf("subscription not found: %w", err)
+        return dto.UsageSummaryResult{}, fmt.Errorf("subscription not found: %w", err)
     }
 
     // 2. Get usage summary from repository
     summaryData, err := s.usageRecordRepo.GetUsageSummary(
-        ctx, orgId, req.SubscriptionItemId, req.StartDate, req.EndDate)
+        ctx, orgId, input.SubscriptionItemId, input.StartDate, input.EndDate)
     if err != nil {
-        return response.UsageSummaryResponse{}, err
+        return dto.UsageSummaryResult{}, err
     }
 
-    // 3. Create response
-    summary := response.UsageSummaryResponse{
+    // 3. Create result
+    summary := dto.UsageSummaryResult{
         SubscriptionId:     subscription.Id,
-        SubscriptionItemId: req.SubscriptionItemId,
-        BillingPeriod:      formatBillingPeriod(req.StartDate),
+        SubscriptionItemId: input.SubscriptionItemId,
+        BillingPeriod:      formatBillingPeriod(input.StartDate),
         UsageType:          subscriptionItem.UsageType,
         UnitType:           subscriptionItem.UnitType,
         AggregationType:    subscriptionItem.AggregationType,
@@ -295,53 +309,46 @@ func (s *UsageRecordingService) GetUsageSummary(
 func (s *UsageRecordingService) GetSubscriptionUsage(
     ctx context.Context,
     orgId string,
-    subscriptionId string,
-    startDate, endDate time.Time,
-) (response.UsageRecordListResponse, error) {
+    input dto.GetSubscriptionUsageInput,
+) ([]entities.UsageRecord, error) {
     // 1. Validate subscription access
-    _, err := s.subscriptionRepo.FindById(ctx, orgId, subscriptionId)
+    _, err := s.subscriptionRepo.FindById(ctx, orgId, input.SubscriptionId)
     if err != nil {
-        return response.UsageRecordListResponse{}, fmt.Errorf("subscription not found: %w", err)
+        return nil, fmt.Errorf("subscription not found: %w", err)
     }
 
     // 2. Get usage records for billing period
-    startPeriod := formatBillingPeriod(startDate)
-    endPeriod := formatBillingPeriod(endDate)
+    startPeriod := formatBillingPeriod(input.StartDate)
+    endPeriod := formatBillingPeriod(input.EndDate)
 
     // Use FindByBillingPeriod for each period in the range
     var allRecords []entities.UsageRecord
 
     // If start and end are in the same period, just do one query
     if startPeriod == endPeriod {
-        records, err := s.usageRecordRepo.FindByBillingPeriod(ctx, orgId, subscriptionId, startPeriod)
+        records, err := s.usageRecordRepo.FindByBillingPeriod(ctx, orgId, input.SubscriptionId, startPeriod)
         if err != nil {
-            return response.UsageRecordListResponse{}, err
+            return nil, err
         }
         allRecords = records
     } else {
         // Otherwise, query each period in the range
         // This is a simplified approach - in a real implementation, you might want to
         // generate all periods between start and end
-        recordsStart, err := s.usageRecordRepo.FindByBillingPeriod(ctx, orgId, subscriptionId, startPeriod)
+        recordsStart, err := s.usageRecordRepo.FindByBillingPeriod(ctx, orgId, input.SubscriptionId, startPeriod)
         if err != nil {
-            return response.UsageRecordListResponse{}, err
+            return nil, err
         }
 
-        recordsEnd, err := s.usageRecordRepo.FindByBillingPeriod(ctx, orgId, subscriptionId, endPeriod)
+        recordsEnd, err := s.usageRecordRepo.FindByBillingPeriod(ctx, orgId, input.SubscriptionId, endPeriod)
         if err != nil {
-            return response.UsageRecordListResponse{}, err
+            return nil, err
         }
 
         allRecords = append(recordsStart, recordsEnd...)
     }
 
-    // 3. Convert to response DTOs
-    return response.UsageRecordListResponse{
-        Items:      convertToResponseDTOs(allRecords),
-        TotalCount: len(allRecords),
-        Page:       1,
-        PageSize:   len(allRecords),
-    }, nil
+    return allRecords, nil
 }
 
 func (s *UsageRecordingService) DeleteUsageRecord(
@@ -381,14 +388,6 @@ func (s *UsageRecordingService) DeleteUsageRecord(
     return nil
 }
 
-// Helper function to convert usage records to response DTOs
-func convertToResponseDTOs(records []entities.UsageRecord) []response.UsageRecordResponse {
-    responses := make([]response.UsageRecordResponse, len(records))
-    for i, record := range records {
-        responses[i] = response.FromUsageRecord(record)
-    }
-    return responses
-}
 
 // formatBillingPeriod formats the billing period as YYYY-MM
 func formatBillingPeriod(date time.Time) string {
