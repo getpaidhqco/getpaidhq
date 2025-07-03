@@ -6,6 +6,7 @@ import (
 	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/api/dto/response"
+	"payloop/internal/api/mappers"
 	app_lib "payloop/internal/application/lib/authz"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/application/services"
@@ -46,7 +47,7 @@ func (s ProductController) Get(c *gin.Context) {
 }
 
 func (s ProductController) Create(c *gin.Context) {
-	var input request.CreateProductRequest
+	var apiInput request.CreateProductRequest
 	user, _ := c.Get("user")
 	authUser := user.(authn.User)
 
@@ -57,13 +58,16 @@ func (s ProductController) Create(c *gin.Context) {
 		return
 	}
 
-	if err := c.ShouldBindJSON(&input); err != nil {
+	if err := c.ShouldBindJSON(&apiInput); err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
-	product, err := s.productService.CreateProduct(c.Request.Context(), authUser.OrgId, input)
+	// Convert API DTO to Application DTO
+	appInput := mappers.ToCreateProductInput(apiInput)
+
+	product, err := s.productService.CreateProduct(c.Request.Context(), authUser.OrgId, appInput)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -102,7 +106,7 @@ func (s ProductController) List(c *gin.Context) {
 }
 
 func (s ProductController) Update(c *gin.Context) {
-	var input request.UpdateProductRequest
+	var apiInput request.UpdateProductRequest
 	user, _ := c.Get("user")
 	authUser := user.(authn.User)
 	orgId := authUser.OrgId
@@ -115,13 +119,16 @@ func (s ProductController) Update(c *gin.Context) {
 		return
 	}
 
-	if err := c.ShouldBindJSON(&input); err != nil {
+	if err := c.ShouldBindJSON(&apiInput); err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
-	product, err := s.productService.UpdateProduct(c.Request.Context(), orgId, id, input)
+	// Convert API DTO to Application DTO
+	appInput := mappers.ToUpdateProductInput(apiInput)
+
+	product, err := s.productService.UpdateProduct(c.Request.Context(), orgId, id, appInput)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -166,6 +173,18 @@ func (s ProductController) CreatePrice(c *gin.Context) {
 		return
 	}
 
+	// Convert request tiers to entity tiers
+	var tiers []entities.CreatePriceTierInput
+	for _, t := range input.Tiers {
+		tiers = append(tiers, entities.CreatePriceTierInput{
+			Tier:        t.Tier,
+			FromQty:     t.FromQty,
+			ToQty:       t.ToQty,
+			UnitPrice:   t.UnitPrice,
+			Description: t.Description,
+		})
+	}
+
 	price, err := s.productService.CreateProductPrice(c.Request.Context(), entities.CreatePriceInput{
 		OrgId:              orgId,
 		VariantId:          input.VariantId,
@@ -190,8 +209,12 @@ func (s ProductController) CreatePrice(c *gin.Context) {
 		AggregationType:    input.AggregationType,
 		PercentageRate:     input.PercentageRate,
 		FixedFee:           input.FixedFee,
+		OverageUnitPrice:   input.OverageUnitPrice,
 		IncludedUsage:      input.IncludedUsage,
 		UsageLimit:         input.UsageLimit,
+
+		// Tier configuration
+		Tiers:              tiers,
 
 		Metadata:           input.Metadata,
 	})
@@ -282,6 +305,7 @@ func (s ProductController) UpdatePrice(c *gin.Context) {
 		AggregationType:    input.AggregationType,
 		PercentageRate:     input.PercentageRate,
 		FixedFee:           input.FixedFee,
+		OverageUnitPrice:   input.OverageUnitPrice,
 		IncludedUsage:      input.IncludedUsage,
 		UsageLimit:         input.UsageLimit,
 

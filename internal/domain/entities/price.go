@@ -188,12 +188,12 @@ func (p Price) validateUsagePricing() error {
 	}
 
 	// For transactions (UnitTypeTransactions): require either PercentageRate or UnitPrice
-	if p.UnitType == prices.UnitTypeTransactions && p.PercentageRate == 0 && p.OverageUnitPrice == 0 {
+	if p.UnitType == prices.UnitTypeTransactions && p.PercentageRate == 0 && p.UnitPrice == 0 {
 		return errors.NewValidationError("pricing", "transaction pricing requires either percentage rate or unit price")
 	}
 
 	// For other types: require UnitPrice or PercentageRate
-	if p.UnitType != prices.UnitTypeTransactions && p.OverageUnitPrice == 0 && p.PercentageRate == 0 {
+	if p.UnitType != prices.UnitTypeTransactions && p.UnitPrice == 0 && p.PercentageRate == 0 {
 		return errors.NewValidationError("pricing", "usage pricing requires either unit price or percentage rate")
 	}
 

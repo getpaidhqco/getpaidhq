@@ -4,6 +4,8 @@
 
 This document provides comprehensive examples of creating different pricing models using GetPaidHQ's pricing API. Each example includes the API request, expected response, and usage scenarios.
 
+> **Note**: As of the latest update, all pricing categories (`one_time`, `subscription`, `usage`, `hybrid`, `free`, `variable`) are now supported in the standalone price creation endpoint. Previously, the `usage` and `hybrid` categories were only available when creating prices through the product creation flow.
+
 ## Base API Endpoints
 
 ```

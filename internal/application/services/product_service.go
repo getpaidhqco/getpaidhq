@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"payloop/internal/api/dto/request"
+	appDto "payloop/internal/application/dto"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
@@ -41,15 +42,15 @@ func NewProductService(
 	}
 }
 
-func (s ProductService) CreateProduct(ctx context.Context, orgId string, request request.CreateProductRequest) (entities.Product, error) {
+func (s ProductService) CreateProduct(ctx context.Context, orgId string, input appDto.CreateProductInput) (entities.Product, error) {
 
 	product, err := s.productRepository.Create(ctx,
 		entities.Product{
 			OrgId:       orgId,
 			Id:          lib.GenerateId("prod"),
-			Name:        request.Name,
-			Description: request.Description,
-			Metadata:    request.Metadata,
+			Name:        input.Name,
+			Description: input.Description,
+			Metadata:    input.Metadata,
 			CreatedAt:   time.Now().UTC(),
 			UpdatedAt:   time.Now().UTC(),
 		})
@@ -58,7 +59,7 @@ func (s ProductService) CreateProduct(ctx context.Context, orgId string, request
 		return entities.Product{}, err
 	}
 
-	for _, v := range request.Variants {
+	for _, v := range input.Variants {
 		variant, err := s.variantRepository.Create(ctx,
 			entities.Variant{
 				OrgId:     orgId,
@@ -74,13 +75,23 @@ func (s ProductService) CreateProduct(ctx context.Context, orgId string, request
 		}
 
 		for _, p := range v.Prices {
-			// Convert request tiers to entity tiers
+			// Convert input tiers to entity tiers
 			var tiers []entities.CreatePriceTierInput
 			for _, t := range p.Tiers {
+				// Convert FromQty from int64 to int
+				fromQty := int(t.FromQty)
+
+				// Convert ToQty from int64 to *int
+				var toQty *int
+				if t.ToQty > 0 {
+					toQtyInt := int(t.ToQty)
+					toQty = &toQtyInt
+				}
+
 				tiers = append(tiers, entities.CreatePriceTierInput{
 					Tier:        t.Tier,
-					FromQty:     t.FromQty,
-					ToQty:       t.ToQty,
+					FromQty:     fromQty,
+					ToQty:       toQty,
 					UnitPrice:   t.UnitPrice,
 					Description: t.Description,
 				})
@@ -185,16 +196,16 @@ func (s ProductService) CreateProductPrice(ctx context.Context, input entities.C
 	return price, nil
 }
 
-func (s ProductService) UpdateProduct(ctx context.Context, orgId string, id string, request request.UpdateProductRequest) (entities.Product, error) {
+func (s ProductService) UpdateProduct(ctx context.Context, orgId string, id string, input appDto.UpdateProductInput) (entities.Product, error) {
 	product, err := s.productRepository.FindById(ctx, orgId, id)
 	if err != nil {
 		s.logger.Error("Failed to find product", err.Error())
 		return entities.Product{}, err
 	}
 
-	product.Name = request.Name
-	product.Description = request.Description
-	product.Metadata = request.Metadata
+	product.Name = input.Name
+	product.Description = input.Description
+	product.Metadata = input.Metadata
 	product.UpdatedAt = time.Now().UTC()
 
 	product, err = s.productRepository.Update(ctx, product)

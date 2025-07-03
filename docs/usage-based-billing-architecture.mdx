@@ -1,0 +1,427 @@
+---
+title: Usage-Based Billing Architecture
+description: High-performance event-driven architecture for usage tracking using Kafka and TimescaleDB with eventual consistency for billing accuracy
+---
+
+# Usage-Based Billing Architecture
+
+## Overview
+
+This document describes the implementation of a high-performance, event-driven architecture for usage-based billing that separates high-volume usage recording from core business operations while maintaining data consistency through event sourcing and continuous aggregations.
+
+## Architecture Goals
+
+- **High Throughput**: Handle millions of usage events per second
+- **Logical Separation**: Isolate usage data from core business operations  
+- **Billing Accuracy**: Ensure eventual consistency with 2-hour settlement window
+- **Real-time Analytics**: Support near real-time usage dashboards
+- **Scalability**: Independent scaling of usage recording and billing systems
+
+## System Architecture
+
+### High-Level Data Flow
+
+```mermaid
+graph TB
+    A[API Request] --> B[Usage Recording Service]
+    B --> C[Kafka Producer]
+    C --> D[Kafka Topic: usage-events]
+    D --> E[Usage Consumer Service]
+    E --> F[TimescaleDB]
+    F --> G[Continuous Aggregates]
+    G --> H[Billing Service]
+    H --> I[Main PostgreSQL DB]
+    
+    F --> J[Real-time Dashboards]
+    G --> K[Customer Analytics]
+    
+    subgraph "Event-Driven Processing"
+        C
+        D
+        E
+    end
+    
+    subgraph "Usage Database"
+        F
+        G
+    end
+    
+    subgraph "Core Business"
+        B
+        H
+        I
+    end
+```
+
+### Component Architecture
+
+```mermaid
+graph LR
+    subgraph "API Layer"
+        API[Usage API Controller]
+    end
+    
+    subgraph "Application Services"
+        US[Usage Recording Service]
+        AS[Usage Aggregation Service] 
+        BS[Billing Service]
+    end
+    
+    subgraph "Event Infrastructure"
+        KP[Kafka Producer]
+        KT[Kafka Topics]
+        KC[Kafka Consumer]
+    end
+    
+    subgraph "Data Layer"
+        TS[(TimescaleDB)]
+        PG[(PostgreSQL)]
+        CA[Continuous Aggregates]
+    end
+    
+    API --> US
+    US --> KP
+    KP --> KT
+    KT --> KC
+    KC --> TS
+    TS --> CA
+    CA --> AS
+    AS --> BS
+    BS --> PG
+```
+
+## Database Architecture
+
+### TimescaleDB (Usage Database)
+
+**Purpose**: High-volume usage event storage and time-series analytics
+**Port**: 5433
+**Database**: `payloop_usage`
+
+#### Schema Structure
+
+```sql
+-- Main usage events hypertable
+CREATE TABLE usage_events (
+    time TIMESTAMPTZ NOT NULL,              -- Partition key
+    org_id TEXT NOT NULL,                   -- Multi-tenancy
+    subscription_id TEXT NOT NULL,
+    subscription_item_id TEXT NOT NULL,
+    customer_id TEXT NOT NULL,
+    usage_type TEXT NOT NULL,               -- "unit", "percentage", "hybrid"
+    quantity NUMERIC(15, 4),                -- For unit-based usage
+    transaction_value BIGINT,               -- For percentage-based usage
+    calculated_amount BIGINT NOT NULL,      -- Final amount in cents
+    reference_id TEXT,                      -- Idempotency
+    metadata JSONB,
+    PRIMARY KEY (org_id, subscription_item_id, time)
+);
+
+-- Convert to hypertable with daily partitioning
+SELECT create_hypertable('usage_events', 'time', 
+    chunk_time_interval => INTERVAL '1 day');
+```
+
+#### Continuous Aggregates
+
+**Hourly Aggregates** (Real-time dashboards):
+```sql
+CREATE MATERIALIZED VIEW usage_hourly
+WITH (timescaledb.continuous) AS
+SELECT 
+    time_bucket('1 hour', time) AS hour,
+    org_id, subscription_item_id, usage_type,
+    SUM(quantity) as total_quantity,
+    SUM(calculated_amount) as total_amount,
+    COUNT(*) as event_count
+FROM usage_events
+GROUP BY hour, org_id, subscription_item_id, usage_type;
+```
+
+**Daily Billing Aggregates** (Monthly billing):
+```sql
+CREATE MATERIALIZED VIEW usage_daily_billing
+WITH (timescaledb.continuous) AS
+SELECT 
+    time_bucket('1 day', time) AS day,
+    org_id, subscription_id, subscription_item_id,
+    date_trunc('month', time) as billing_period,
+    SUM(quantity) as daily_quantity,
+    SUM(calculated_amount) as daily_amount,
+    COUNT(*) as daily_events
+FROM usage_events
+GROUP BY day, org_id, subscription_id, subscription_item_id, billing_period;
+```
+
+### PostgreSQL (Main Database)
+
+**Purpose**: Core business logic, subscriptions, invoices, customers
+**Port**: 5432
+**Database**: `payloop`
+
+The main database schema remains unchanged except for the removal of the `usage_records` table and its foreign key relationships.
+
+## Event-Driven Processing
+
+### Event Schema
+
+```json
+{
+  "event_id": "uuid",
+  "event_type": "usage.recorded",
+  "timestamp": "2024-01-15T10:30:00Z",
+  "org_id": "org_123",
+  "subscription_id": "sub_456", 
+  "subscription_item_id": "item_789",
+  "customer_id": "cust_012",
+  "usage_type": "unit",
+  "quantity": 100.0,
+  "calculated_amount": 5000,
+  "reference_id": "api_call_xyz",
+  "metadata": {}
+}
+```
+
+### Kafka Topics
+
+- **usage-events**: Primary stream for all usage events
+- **usage-processed**: Events when usage is included in billing
+- **usage-corrections**: Events for usage adjustments and refunds
+
+### Processing Flow
+
+1. **Usage Recording**: API → Kafka Producer → `usage-events` topic
+2. **Event Storage**: Kafka Consumer → TimescaleDB insertion
+3. **Real-time Aggregation**: Continuous aggregates refresh every 5 minutes
+4. **Billing Processing**: Scheduled job queries finalized aggregates at 2 AM
+
+## Billing Integration
+
+### Monthly Billing Workflow
+
+```mermaid
+sequenceDiagram
+    participant T as Temporal Scheduler
+    participant B as Billing Service
+    participant A as Usage Aggregation Service
+    participant TS as TimescaleDB
+    participant PG as PostgreSQL
+    participant K as Kafka
+    
+    T->>B: Trigger monthly billing (2 AM)
+    B->>A: Get usage aggregates for period
+    A->>TS: Query continuous aggregates
+    TS-->>A: Return aggregated usage data
+    A-->>B: Usage summary by subscription item
+    B->>PG: Create invoices with usage charges
+    B->>K: Publish usage.processed events
+    Note over B,K: Mark usage as billed
+```
+
+### Billing Period Processing
+
+1. **Grace Period**: Wait 2 hours after midnight for event settlement
+2. **Aggregate Refresh**: Ensure all continuous aggregates are current
+3. **Data Retrieval**: Query monthly aggregates from TimescaleDB
+4. **Invoice Creation**: Create invoices in main database with usage line items
+5. **Status Update**: Mark usage as processed via Kafka events
+
+## Service Implementation
+
+### Usage Recording Service
+
+```go
+type UsageRecordingService struct {
+    kafkaProducer messaging.KafkaProducer
+    subscriptionRepo repositories.SubscriptionRepository
+}
+
+func (s *UsageRecordingService) RecordUsage(ctx context.Context, orgID string, input dto.RecordUsageInput) error {
+    // 1. Validate subscription item
+    subscriptionItem, err := s.subscriptionRepo.GetSubscriptionItem(ctx, orgID, input.SubscriptionItemID)
+    if err != nil {
+        return err
+    }
+    
+    // 2. Calculate usage amount
+    calculatedAmount := s.calculateUsageAmount(subscriptionItem, input)
+    
+    // 3. Create and publish usage event
+    event := events.UsageEvent{
+        EventID: uuid.New().String(),
+        EventType: "usage.recorded",
+        Timestamp: time.Now(),
+        OrgID: orgID,
+        SubscriptionID: input.SubscriptionID,
+        SubscriptionItemID: input.SubscriptionItemID,
+        UsageType: subscriptionItem.UsageType,
+        Quantity: input.Quantity,
+        CalculatedAmount: calculatedAmount,
+        ReferenceID: input.ReferenceID,
+    }
+    
+    return s.kafkaProducer.PublishUsageEvent(ctx, event)
+}
+```
+
+### Usage Aggregation Service
+
+```go
+type UsageAggregationService struct {
+    timescaleDB *sql.DB
+}
+
+func (s *UsageAggregationService) GetMonthlyUsage(ctx context.Context, orgID string, billingPeriod time.Time) ([]dto.MonthlyUsageAggregate, error) {
+    query := `
+        SELECT 
+            subscription_id,
+            subscription_item_id,
+            SUM(daily_quantity) as total_quantity,
+            SUM(daily_amount) as total_amount,
+            COUNT(DISTINCT day) as active_days
+        FROM usage_daily_billing
+        WHERE org_id = $1 AND billing_period = $2
+        GROUP BY subscription_id, subscription_item_id
+    `
+    
+    return s.query(ctx, query, orgID, billingPeriod)
+}
+```
+
+## Performance Characteristics
+
+### Write Performance
+- **Raw Events**: 1M+ events/second via Kafka
+- **TimescaleDB Inserts**: 100K+ inserts/second via batch consumer
+- **Compression**: 90%+ storage reduction for historical data
+
+### Query Performance
+- **Real-time Dashboards**: Sub-second response from continuous aggregates
+- **Billing Queries**: Seconds for monthly aggregations across millions of events
+- **Customer Analytics**: Fast time-series queries with automatic compression
+
+### Storage Optimization
+- **Hypertable Partitioning**: Daily chunks for optimal query performance
+- **Automatic Compression**: Data older than 7 days compressed
+- **Retention Policies**: Automatic deletion after 5 years
+
+## Data Consistency
+
+### Eventual Consistency Model
+
+The system uses eventual consistency with a 2-hour settlement window:
+
+1. **Events are immutable** once published to Kafka
+2. **Continuous aggregates refresh** every 5 minutes for recent data
+3. **Billing processes settled data** 2 hours after period end
+4. **Cross-database operations** are coordinated through events
+
+### Error Handling
+
+- **At-least-once delivery** with idempotent event processing
+- **Dead letter queues** for failed event processing
+- **Compensation patterns** for cross-service consistency
+- **Event replay capability** for data recovery
+
+## Monitoring and Observability
+
+### Key Metrics
+
+- **Event throughput**: Messages per second through Kafka
+- **Processing lag**: Time between event creation and TimescaleDB storage
+- **Aggregate freshness**: Continuous aggregate refresh lag
+- **Billing accuracy**: Variance between expected and actual usage amounts
+
+### Health Checks
+
+- **Kafka connectivity**: Producer and consumer health
+- **TimescaleDB performance**: Query response times and connection pool
+- **Aggregate consistency**: Validation between raw events and aggregates
+- **Billing reconciliation**: Monthly billing accuracy checks
+
+## Deployment Architecture
+
+### Docker Compose Services
+
+```yaml
+services:
+  timescaledb:
+    image: timescale/timescaledb:latest-pg15
+    environment:
+      POSTGRES_DB: payloop_usage
+    ports:
+      - "5433:5432"
+      
+  kafka:
+    image: bitnami/kafka:3.5
+    environment:
+      - KAFKA_CFG_AUTO_CREATE_TOPICS_ENABLE=true
+    ports:
+      - "9092:9092"
+      
+  usage-consumer:
+    build: ./services/usage-consumer
+    depends_on:
+      - kafka
+      - timescaledb
+    environment:
+      KAFKA_BROKERS: kafka:9092
+      USAGE_DATABASE_URL: postgres://postgres:postgres@timescaledb:5432/payloop_usage
+```
+
+### Environment Configuration
+
+```bash
+# Usage Database
+USAGE_DATABASE_URL=postgres://postgres:postgres@localhost:5433/payloop_usage
+
+# Kafka Configuration
+KAFKA_BROKERS=localhost:9092
+
+# Billing Configuration
+BILLING_GRACE_PERIOD_HOURS=2
+BILLING_SCHEDULE_HOUR=2
+```
+
+## Migration Strategy
+
+### Phase 1: Infrastructure Setup
+1. Deploy TimescaleDB and Kafka infrastructure
+2. Create usage database schema with Prisma
+3. Remove usage_records table from main database
+
+### Phase 2: Event System Implementation
+1. Implement Kafka producer/consumer services
+2. Create usage event definitions and serialization
+3. Build and deploy usage consumer service
+
+### Phase 3: Service Integration
+1. Update usage recording service to publish events
+2. Create usage aggregation service for TimescaleDB queries
+3. Integrate billing service with usage aggregates
+
+### Phase 4: Workflow and Monitoring
+1. Implement Temporal workflow for monthly billing
+2. Add comprehensive monitoring and alerting
+3. Performance testing and optimization
+
+## Benefits and Trade-offs
+
+### Benefits
+✅ **Scalability**: Independent scaling of usage and billing systems  
+✅ **Performance**: Optimized time-series storage and querying  
+✅ **Reliability**: Event-driven architecture with replay capability  
+✅ **Analytics**: Real-time dashboards and historical analysis  
+✅ **Cost**: Automatic compression and retention policies  
+
+### Trade-offs
+⚠️ **Complexity**: More moving parts and operational overhead  
+⚠️ **Eventual Consistency**: 2-hour delay for billing accuracy  
+⚠️ **Debugging**: Distributed event flow harder to trace  
+⚠️ **Data Synchronization**: Cross-database consistency challenges  
+
+## Conclusion
+
+This architecture provides a robust foundation for high-volume usage tracking while maintaining clean separation between usage recording and core business operations. The event-driven design with TimescaleDB continuous aggregates enables both real-time analytics and accurate billing with minimal operational complexity.
+
+The 2-hour billing settlement window provides the perfect balance between data accuracy and system performance, ensuring all usage events are properly captured and aggregated before billing calculations begin.

@@ -4,7 +4,7 @@ import "payloop/internal/domain/entities/prices"
 
 type CreatePriceRequest struct {
 	VariantId          string                 `json:"variant_id" binding:"required"`
-	Category           prices.PriceCategory   `json:"category" binding:"required,oneof=one_time subscription free variable"`
+	Category           prices.PriceCategory   `json:"category" binding:"required,oneof=one_time subscription usage hybrid free variable"`
 	Scheme             prices.PriceScheme     `json:"scheme" binding:"required,oneof=fixed tiered volume graduated"`
 	Cycles             int                    `json:"cycles" binding:"omitempty,gt=0"`
 	Label              string                 `json:"label"`
@@ -25,6 +25,7 @@ type CreatePriceRequest struct {
 	AggregationType    string                 `json:"aggregation_type" binding:"omitempty,oneof=sum max average last_during_period"`
 	PercentageRate     float64                `json:"percentage_rate" binding:"omitempty,gte=0"`
 	FixedFee           int64                  `json:"fixed_fee" binding:"omitempty,gte=0"`
+	OverageUnitPrice   int64                  `json:"overage_unit_price" binding:"omitempty,gte=0"`
 	IncludedUsage      int64                  `json:"included_usage" binding:"omitempty,gte=0"`
 	UsageLimit         int64                  `json:"usage_limit" binding:"omitempty,gte=0"`
 
