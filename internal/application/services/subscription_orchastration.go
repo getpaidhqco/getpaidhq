@@ -29,7 +29,7 @@ type SubscriptionOrchestrationService struct {
 	orderItemRepository    repositories.OrderItemRepository
 	workflowService        interfaces.WorkflowService
 	gatewayFactory         factories.GatewayFactory
-	pubsub                 events.PubSub
+	pubsub                 events.NotificationPublisher
 	logger                 logger.Logger
 }
 
@@ -41,7 +41,7 @@ func NewSubscriptionOrchestrationService(
 	customerRepository repositories.CustomerRepository,
 	orderRepository repositories.OrderRepository,
 	paymentRepository repositories.PaymentRepository,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 	gatewayFactory factories.GatewayFactory,
 	logger logger.Logger,
 	subs interfaces.SubscriptionService,

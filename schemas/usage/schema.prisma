@@ -1,155 +1,64 @@
-// This is the Prisma schema file for the usage database (TimescaleDB)
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
 generator client {
   provider = "prisma-client-js"
-  output   = "../../node_modules/@prisma/usage-client"
 }
 
 datasource db {
   provider = "postgresql"
-  url      = env("USAGE_DATABASE_URL")
+  url      = env("GPHQ_USAGE_DATABASE_URL")
 }
 
-/// Usage event represents a single measurable usage occurrence
-/// This table is converted to a TimescaleDB hypertable for time-series optimization
 model UsageEvent {
-  // Time-series primary key - time is the partition key for TimescaleDB
   time               DateTime @db.Timestamptz
-  
-  // Multi-tenancy and business context
   orgId              String   @map("org_id")
   subscriptionId     String   @map("subscription_id")
   subscriptionItemId String   @map("subscription_item_id")
   customerId         String   @map("customer_id")
-  
-  // Usage classification
-  usageType          String   @map("usage_type") // "unit", "percentage", "hybrid"
-  
-  // Usage measurements
-  quantity           Decimal? @db.Decimal(15, 4) // For unit-based usage (API calls, GB, etc.)
-  transactionValue   BigInt?  @map("transaction_value") // For percentage-based usage (transaction amount in cents)
-  calculatedAmount   BigInt   @map("calculated_amount") // Final calculated amount in cents
-  
-  // Idempotency and tracing
-  referenceId        String?  @map("reference_id") // External reference for deduplication
-  referenceType      String?  @map("reference_type") // Type of external reference
-  
-  // Additional context and debugging
-  metadata           Json?    // Flexible metadata storage
-  
-  // Composite primary key optimized for TimescaleDB
-  // orgId and subscriptionItemId provide good partitioning
-  // time provides the time-series ordering
-  @@id([orgId, subscriptionItemId, time])
-  
-  // Indexes for common query patterns
-  @@index([time]) // Time-based queries
-  @@index([orgId, time]) // Organization usage over time
-  @@index([orgId, subscriptionId]) // Subscription-level queries
-  @@index([subscriptionItemId, time]) // Item-specific usage trends
-  @@index([referenceId, referenceType]) // Deduplication lookups
-  @@index([orgId, customerId, time]) // Customer usage analytics
-  @@index([usageType, time]) // Usage type analytics
-  
+  usageType          String   @map("usage_type")
+  quantity           Decimal? @db.Decimal(15, 4)
+  transactionValue   BigInt?  @map("transaction_value")
+  calculatedAmount   BigInt   @map("calculated_amount")
+  referenceId        String?  @map("reference_id")
+  referenceType      String?  @map("reference_type")
+  metadata           Json?
+
+  @@id([time, orgId, subscriptionItemId])
   @@map("usage_events")
 }
 
-/// Processing status for billing integration
-/// This model tracks which usage has been included in billing
-/// Kept lightweight as it's queried frequently during billing cycles
 model UsageProcessingStatus {
-  orgId              String   @map("org_id")
-  subscriptionItemId String   @map("subscription_item_id")
-  billingPeriod      String   @map("billing_period") // Format: "2024-01" for monthly billing
-  
-  // Aggregated values for the billing period
-  totalQuantity      Decimal  @db.Decimal(15, 4) @map("total_quantity")
-  totalAmount        BigInt   @map("total_amount") // Total amount in cents
-  eventCount         Int      @map("event_count") // Number of usage events
-  
-  // Processing state
-  processed          Boolean  @default(false)
-  processedAt        DateTime? @map("processed_at")
-  invoiceId          String?  @map("invoice_id") // Link to invoice when processed
-  
-  // Tracking and debugging
-  firstEventTime     DateTime @map("first_event_time") // Earliest usage in period
-  lastEventTime      DateTime @map("last_event_time") // Latest usage in period
-  lastUpdated        DateTime @default(now()) @updatedAt @map("last_updated")
-  
+  orgId              String    @map("org_id")
+  subscriptionItemId String    @map("subscription_item_id")
+  billingPeriod      String    @map("billing_period") // Format: "2025-07"
+  totalQuantity      Decimal   @default(0) @map("total_quantity") @db.Decimal(15, 4)
+  totalAmount        BigInt    @default(0) @map("total_amount")
+  eventCount         Int       @default(0) @map("event_count")
+  processed          Boolean   @default(false)
+  processedAt        DateTime? @map("processed_at") @db.Timestamptz
+  invoiceId          String?   @map("invoice_id")
+  firstEventTime     DateTime  @map("first_event_time") @db.Timestamptz
+  lastEventTime      DateTime  @map("last_event_time") @db.Timestamptz
+  lastUpdated        DateTime  @default(now()) @map("last_updated") @db.Timestamptz
+
   @@id([orgId, subscriptionItemId, billingPeriod])
-  @@index([orgId, processed, billingPeriod]) // Billing queries
-  @@index([invoiceId]) // Invoice lookups
-  @@index([processedAt]) // Processing time analytics
-  
   @@map("usage_processing_status")
 }
 
-/// Event log for usage processing events
-/// Provides audit trail for billing and debugging
 model UsageEventLog {
   id                 String   @id @default(cuid())
   timestamp          DateTime @default(now()) @db.Timestamptz
-  
-  // Event context
   orgId              String   @map("org_id")
-  eventType          String   @map("event_type") // "recorded", "processed", "corrected", "refunded"
-  
-  // Related entities
+  eventType          String   @map("event_type") // 'recorded', 'processed', 'corrected', 'refunded'
   subscriptionId     String?  @map("subscription_id")
   subscriptionItemId String?  @map("subscription_item_id")
   customerId         String?  @map("customer_id")
   invoiceId          String?  @map("invoice_id")
-  
-  // Event details
-  amount             BigInt?  // Amount involved in the event
+  amount             BigInt?
   quantity           Decimal? @db.Decimal(15, 4)
-  eventCount         Int?     @map("event_count") // Number of events affected
-  
-  // Processing context
+  eventCount         Int?     @map("event_count")
   billingPeriod      String?  @map("billing_period")
   triggeredBy        String?  @map("triggered_by") // User or system identifier
-  reason             String?  // Human-readable reason for the event
-  
-  // Metadata and debugging
+  reason             String?
   metadata           Json?
-  
-  @@index([timestamp]) // Time-based queries
-  @@index([orgId, eventType, timestamp]) // Organization event history
-  @@index([subscriptionItemId, timestamp]) // Item-specific event history
-  @@index([invoiceId]) // Invoice-related events
-  @@index([billingPeriod, eventType]) // Billing period analysis
-  
-  @@map("usage_event_log")
-}
 
-/// Configuration for usage retention and archival policies
-/// Used by TimescaleDB maintenance jobs
-model UsageRetentionPolicy {
-  id                 String   @id @default(cuid())
-  orgId              String   @map("org_id")
-  
-  // Policy configuration
-  retentionPeriod    String   @map("retention_period") // PostgreSQL interval format: "5 years"
-  compressionPeriod  String   @map("compression_period") // When to compress: "7 days"
-  
-  // Scope of the policy
-  usageType          String?  @map("usage_type") // Apply to specific usage types
-  customerId         String?  @map("customer_id") // Customer-specific policies
-  
-  // Policy metadata
-  active             Boolean  @default(true)
-  createdAt          DateTime @default(now()) @map("created_at")
-  createdBy          String   @map("created_by") // User who created the policy
-  
-  // Policy application tracking
-  lastApplied        DateTime? @map("last_applied")
-  nextApplication    DateTime? @map("next_application")
-  
-  @@unique([orgId, usageType, customerId]) // Prevent duplicate policies
-  @@index([orgId, active]) // Active policies lookup
-  @@index([nextApplication]) // Scheduler queries
-  
-  @@map("usage_retention_policies")
+  @@map("usage_event_log")
 }

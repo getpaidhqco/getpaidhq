@@ -127,60 +127,6 @@ func NewServer(
 		return handlers.DeletePriceHandler(ctx, request, productService, authService, logger)
 	})
 
-	// === ORDER TOOLS ===
-	s.AddTool(tools.NewCreateOrderTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return handlers.CreateOrderHandler(ctx, request, orderService, authService, logger)
-	})
-	s.AddTool(tools.NewGetOrderTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return handlers.GetOrderHandler(ctx, request, orderService, authService, logger)
-	})
-	s.AddTool(tools.NewListOrdersTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return handlers.ListOrdersHandler(ctx, request, orderService, authService, logger)
-	})
-	s.AddTool(tools.NewCompleteOrderTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return handlers.CompleteOrderHandler(ctx, request, orderService, authService, logger)
-	})
-	s.AddTool(tools.NewListOrderSubscriptionsTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return handlers.ListOrderSubscriptionsHandler(ctx, request, orderService, authService, logger)
-	})
-
-	// === SUBSCRIPTION TOOLS ===
-	s.AddTool(tools.NewCreateSubscriptionTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return handlers.CreateSubscriptionHandler(ctx, request, subscriptionOrchestrationService, authService, logger)
-	})
-	s.AddTool(tools.NewGetSubscriptionTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return handlers.GetSubscriptionHandler(ctx, request, subscriptionOrchestrationService, authService, logger)
-	})
-	s.AddTool(tools.NewListSubscriptionsTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return handlers.ListSubscriptionsHandler(ctx, request, subscriptionOrchestrationService, authService, logger)
-	})
-	s.AddTool(tools.NewUpdateSubscriptionTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return handlers.UpdateSubscriptionHandler(ctx, request, subscriptionOrchestrationService, authService, logger)
-	})
-	s.AddTool(tools.NewPauseSubscriptionTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return handlers.PauseSubscriptionHandler(ctx, request, subscriptionOrchestrationService, authService, logger)
-	})
-	s.AddTool(tools.NewResumeSubscriptionTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return handlers.ResumeSubscriptionHandler(ctx, request, subscriptionOrchestrationService, authService, logger)
-	})
-	s.AddTool(tools.NewCancelSubscriptionTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return handlers.CancelSubscriptionHandler(ctx, request, subscriptionOrchestrationService, authService, logger)
-	})
-	s.AddTool(tools.NewChangePlanTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return handlers.ChangePlanHandler(ctx, request, subscriptionOrchestrationService, authService, logger)
-	})
-	s.AddTool(tools.NewGetSubscriptionPaymentsTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return handlers.GetSubscriptionPaymentsHandler(ctx, request, subscriptionOrchestrationService, authService, logger)
-	})
-	s.AddTool(tools.NewGetSubscriptionUsageTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return handlers.GetSubscriptionUsageHandler(ctx, request, subscriptionOrchestrationService, authService, logger)
-	})
-
-	// === INVOICE TOOLS ===
-	s.AddTool(tools.NewCreateInvoiceTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
-		return handlers.InvoiceHandler(ctx, request, invoiceService, authService, logger)
-	})
-
 	// Start the SSE server
 	sse := server.NewSSEServer(s,
 		server.WithBaseURL(":"+env.McpSsePort),

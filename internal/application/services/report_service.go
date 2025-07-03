@@ -18,7 +18,7 @@ import (
 type ReportService struct {
 	logger           logger.Logger
 	reportRepository repositories.ReportRepository
-	pubsub           events.PubSub
+	pubsub           events.NotificationPublisher
 	queueClient      events.QueueClient
 	orgRepository    repositories.OrgRepository
 	cdcStream        postgres.CdcStream
@@ -27,7 +27,7 @@ type ReportService struct {
 func NewReportService(
 	logger logger.Logger,
 	reportRepository repositories.ReportRepository,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 	queueClient events.QueueClient,
 	cdcStream postgres.CdcStream,
 	scheduler interfaces.Scheduler,

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
-	pubsub "payloop/internal/application/lib/events"
+	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
 	"time"
@@ -16,7 +16,7 @@ type NatsPubSub struct {
 	logger logger.Logger
 }
 
-func NewNatsPubSub(logger logger.Logger) pubsub.PubSub {
+func NewNatsPubSub(logger logger.Logger) events.NotificationPublisher {
 	opts := &server.Options{
 		Host: "localhost",
 		Port: 4222,
@@ -45,7 +45,7 @@ func NewNatsPubSub(logger logger.Logger) pubsub.PubSub {
 }
 
 func (n NatsPubSub) Publish(orgId, topic string, message interface{}) error {
-	data, _ := json.Marshal(pubsub.Payload{
+	data, _ := json.Marshal(events.Payload{
 		Id:        lib.GenerateId("evt"),
 		OrgId:     orgId,
 		Topic:     topic,
@@ -57,7 +57,7 @@ func (n NatsPubSub) Publish(orgId, topic string, message interface{}) error {
 	return err
 }
 
-func (n NatsPubSub) Subscribe(topic string, handler func(topic string, data []byte)) (pubsub.Subscription, error) {
+func (n NatsPubSub) Subscribe(topic string, handler func(topic string, data []byte)) (events.Subscription, error) {
 	s, err := n.Conn.Subscribe(topic, func(m *nats.Msg) {
 		handler(m.Subject, m.Data)
 	})

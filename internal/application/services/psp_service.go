@@ -15,14 +15,14 @@ import (
 type PspService struct {
 	pspRepository     repositories.PspRepository
 	settingRepository repositories.SettingRepository
-	pubsub            events.PubSub
+	pubsub            events.NotificationPublisher
 	logger            logger.Logger
 }
 
 func NewPspService(pspRepository repositories.PspRepository,
 	settingRepository repositories.SettingRepository,
 	logger logger.Logger,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 ) interfaces.GatewayService {
 	return PspService{
 		pspRepository:     pspRepository,

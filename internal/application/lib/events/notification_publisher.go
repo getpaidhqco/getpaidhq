@@ -2,7 +2,8 @@ package events
 
 import "time"
 
-type PubSub interface {
+// NotificationPublisher is the interface for publishing real-time notifications
+type NotificationPublisher interface {
 	Publish(orgId string, topic string, message interface{}) error
 	Subscribe(topic string, handler func(topic string, data []byte)) (Subscription, error)
 }

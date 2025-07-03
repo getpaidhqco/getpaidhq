@@ -31,6 +31,7 @@ services:
       - 7233:7233
     volumes:
       - ./dynamicconfig:/etc/temporal/config/dynamicconfig
+
   temporal-admin-tools:
     container_name: temporal-admin-tools
     depends_on:
@@ -57,28 +58,6 @@ services:
       - 8080:8080
 
 
-  # TimescaleDB for usage data
-  timescaledb:
-    image: timescale/timescaledb:latest-pg15
-    container_name: payloop-usage-db
-    environment:
-      POSTGRES_DB: payloop_usage
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
-      POSTGRES_INITDB_ARGS: "-E UTF8"
-    ports:
-      - "5433:5432"
-    volumes:
-      - timescale_data:/var/lib/postgresql/data
-      - ./schemas/usage/migrations:/docker-entrypoint-initdb.d
-    networks:
-      - payloop-network
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d payloop_usage"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-
   # Kafka for event streaming
   kafka:
     image: bitnami/kafka:3.5
@@ -103,25 +82,9 @@ services:
       timeout: 10s
       retries: 3
 
-  # Usage consumer service
-  usage-consumer:
-    build: ./services/usage-consumer
-    container_name: payloop-usage-consumer
-    depends_on:
-      kafka:
-        condition: service_healthy
-      timescaledb:
-        condition: service_healthy
-    environment:
-      KAFKA_BROKERS: kafka:9092
-      USAGE_DATABASE_URL: postgres://postgres:postgres@timescaledb:5432/payloop_usage
-      LOG_LEVEL: info
-    networks:
-      - payloop-network
-    restart: unless-stopped
 
 volumes:
-  timescale_data:
+  usage_postgres_data:
   kafka_data:
 
 networks:

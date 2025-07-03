@@ -30,7 +30,7 @@ type Temporal struct {
 	orderActivities activities.OrderActivities
 
 	settingRepository repositories.SettingRepository
-	pubsub            events.PubSub
+	pubsub            events.NotificationPublisher
 }
 
 func NewTemporalEngine(
@@ -41,7 +41,7 @@ func NewTemporalEngine(
 	errorReporter lib.ErrorReporter,
 	webhookActivities activities.OutgoingWebhookActivities,
 	settingRepository repositories.SettingRepository,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 ) interfaces.Engine {
 	// The client is orderActivities heavyweight object that should be created once per process.
 	// Set our Zap logger so that workflows and activities can use it

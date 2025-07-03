@@ -114,6 +114,23 @@ var RespositoryModules = fx.Options(
 		NewDocumentRepository,
 		fx.ParamTags(`name:"primaryDb"`),
 	)),
+	// Usage database repositories
+	fx.Provide(fx.Annotate(
+		NewUsageEventRepository,
+		fx.ParamTags(`name:"usageDb"`),
+	)),
+	fx.Provide(fx.Annotate(
+		NewUsageProcessingStatusRepository,
+		fx.ParamTags(`name:"usageDb"`),
+	)),
+	fx.Provide(fx.Annotate(
+		NewUsageAggregationRepository,
+		fx.ParamTags(`name:"usageDb"`),
+	)),
+	fx.Provide(fx.Annotate(
+		NewUsageEventLogRepository,
+		fx.ParamTags(`name:"usageDb"`),
+	)),
 )
 
 // RepositoryWithTrx is a generic interface for repositories with transaction support

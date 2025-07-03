@@ -27,7 +27,7 @@ type AttemptContext struct {
 type DunningActivities struct {
 	dunningService      interfaces.DunningService
 	subscriptionService interfaces.SubscriptionService
-	pubsub              events.PubSub
+	pubsub              events.NotificationPublisher
 	errorReporter       lib.ErrorReporter
 }
 
@@ -35,7 +35,7 @@ type DunningActivities struct {
 func NewDunningActivities(
 	dunningService interfaces.DunningService,
 	subscriptionService interfaces.SubscriptionService,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 	errorReporter lib.ErrorReporter,
 ) DunningActivities {
 	return DunningActivities{

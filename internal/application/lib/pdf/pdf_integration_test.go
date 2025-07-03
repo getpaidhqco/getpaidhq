@@ -32,7 +32,7 @@ func (m MockLogger) Sync() error { return nil }
 // TestIntegrationPDFGeneratorGenerate tests the Generate method with actual database lookups
 func TestIntegrationPDFGeneratorGenerate(t *testing.T) {
 	// Set up database connection
-	dbURL := os.Getenv("GETPAIDHQ_DATABASE_URL")
+	dbURL := os.Getenv("GPHQ_DATABASE_URL")
 	if dbURL == "" {
 		dbURL = "postgres://postgres:postgres@localhost:5432/payloop"
 	}

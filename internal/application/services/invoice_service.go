@@ -26,7 +26,7 @@ type InvoiceService struct {
 	paymentRepository     repositories.PaymentRepository
 	orderItemRepository   repositories.OrderItemRepository
 	errorReporter         lib.ErrorReporter
-	pubsub                events.PubSub
+	pubsub                events.NotificationPublisher
 	logger                logger.Logger
 	transactionService    interfaces.TransactionService
 	emailProvider         email_providers.Provider
@@ -41,7 +41,7 @@ func NewInvoiceService(
 	paymentRepository repositories.PaymentRepository,
 	orderItemRepository repositories.OrderItemRepository,
 	errorReporter lib.ErrorReporter,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 	logger logger.Logger,
 	transactionService interfaces.TransactionService,
 	emailProvider email_providers.Provider,
@@ -467,15 +467,15 @@ func (s InvoiceService) Update(ctx context.Context, orgId string, id string, req
 			}
 		}
 
- 	// Update the invoice's line items
- 	invoice.LineItems = updatedLineItems
+		// Update the invoice's line items
+		invoice.LineItems = updatedLineItems
 
- 	// Recalculate invoice totals
- 	invoice.RecalculateTotals()
- }
+		// Recalculate invoice totals
+		invoice.RecalculateTotals()
+	}
 
- // Update invoice in database
- updatedInvoice, err := s.invoiceRepository.Update(ctx, invoice)
+	// Update invoice in database
+	updatedInvoice, err := s.invoiceRepository.Update(ctx, invoice)
 	if err != nil {
 		s.logger.Error("Failed to update invoice: ", err)
 		return entities.Invoice{}, lib.NewCustomError(lib.InternalError, "Error updating invoice", err)

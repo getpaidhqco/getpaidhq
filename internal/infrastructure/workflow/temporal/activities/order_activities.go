@@ -28,7 +28,7 @@ type OrderActivities struct {
 	subscriptionRepository repositories.SubscriptionRepository
 	settingRepository      repositories.SettingRepository
 	paymentRepository      repositories.PaymentRepository
-	pubsub                 events.PubSub
+	pubsub                 events.NotificationPublisher
 	gatewayFactory         factories.GatewayFactory
 	errorReporter          lib.ErrorReporter
 }
@@ -39,7 +39,7 @@ func NewOrderActivities(
 	subscriptionService interfaces.SubscriptionService,
 	dunningService interfaces.DunningService,
 	subscriptionRepository repositories.SubscriptionRepository,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 	paymentRepository repositories.PaymentRepository,
 	gatewayFactory factories.GatewayFactory,
 	errorReporter lib.ErrorReporter,

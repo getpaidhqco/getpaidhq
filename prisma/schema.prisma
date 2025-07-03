@@ -10,7 +10,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("GETPAIDHQ_DATABASE_URL")
+  url      = env("GPHQ_DATABASE_URL")
 }
 
 enum OrgStatus {
@@ -109,7 +109,6 @@ model Org {
   DunningCampaign      DunningCampaign[]
   DunningConfiguration DunningConfiguration[]
   SubscriptionItem     SubscriptionItem[]
-  UsageRecord          UsageRecord[]
   PriceTier            PriceTier[]
 
   @@map("orgs")
@@ -282,7 +281,6 @@ model Price {
 
   org              Org                @relation(fields: [orgId], references: [id], onDelete: Cascade)
   SubscriptionItem SubscriptionItem[]
-  UsageRecord      UsageRecord[]
   tiers            PriceTier[]
 
   @@id([orgId, id])
@@ -462,7 +460,6 @@ model Customer {
   dunningCommunications DunningCommunication[]
   paymentTokens         PaymentUpdateToken[]
   dunningHistory        CustomerDunningHistory?
-  UsageRecord           UsageRecord[]
 
   @@id([orgId, id], map: "customer_primary_key")
   @@unique([orgId, email])
@@ -595,7 +592,6 @@ model Subscription {
 
   // Relation to subscription items
   items       SubscriptionItem[]
-  UsageRecord UsageRecord[]
 
   @@id([orgId, id])
   @@map("subscriptions")
@@ -641,7 +637,6 @@ model SubscriptionItem {
   // Relationships
   subscription Subscription  @relation(fields: [orgId, subscriptionId], references: [orgId, id])
   price        Price         @relation(fields: [orgId, priceId], references: [orgId, id])
-  usageRecords UsageRecord[]
   org          Org           @relation(fields: [orgId], references: [id])
 
   @@id([orgId, id])
@@ -657,68 +652,6 @@ enum SubscriptionItemStatus {
   pending
 }
 
-model UsageRecord {
-  orgId              String @map("org_id")
-  id                 String @default(cuid())
-  subscriptionId     String @map("subscription_id")
-  subscriptionItemId String @map("subscription_item_id") // Link to specific item
-  customerId         String @map("customer_id")
-
-  // Link to price configuration
-  priceId String @map("price_id")
-
-  // Usage identification
-  usageType String @map("usage_type")
-
-  // Unit-based usage
-  quantity  Decimal? @db.Decimal(15, 4)
-  unitPrice Int?     @map("unit_price")
-
-  // Percentage-based usage
-  transactionValue Int?     @map("transaction_value")
-  percentageRate   Decimal? @map("percentage_rate")
-  calculatedFee    Int?     @map("calculated_fee")
-
-  // Hybrid pricing
-  fixedFee Int? @map("fixed_fee")
-
-  // Final billing amount
-  totalAmount Int @map("total_amount")
-
-  // Time tracking
-  usageDate     DateTime @map("usage_date")
-  billingPeriod String   @map("billing_period")
-
-  // Processing status
-  processed   Boolean   @default(false)
-  processedAt DateTime? @map("processed_at")
-  invoiceId   String?   @map("invoice_id")
-
-  // External references
-  referenceId   String? @map("reference_id")
-  referenceType String? @map("reference_type")
-
-  // Metadata and tracking
-  metadata  Json?
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
-
-  // Relationships
-  subscription     Subscription     @relation(fields: [orgId, subscriptionId], references: [orgId, id])
-  subscriptionItem SubscriptionItem @relation(fields: [orgId, subscriptionItemId], references: [orgId, id])
-  customer         Customer         @relation(fields: [orgId, customerId], references: [orgId, id])
-  price            Price            @relation(fields: [orgId, priceId], references: [orgId, id])
-  org              Org              @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  invoice          Invoice?         @relation(fields: [orgId, invoiceId], references: [orgId, id])
-
-  @@id([orgId, id])
-  @@index([orgId, subscriptionItemId, billingPeriod])
-  @@index([orgId, subscriptionId, billingPeriod])
-  @@index([orgId, processed, billingPeriod])
-  @@index([orgId, usageType, usageDate])
-  @@index([referenceId, referenceType])
-  @@map("usage_records")
-}
 
 model SubscriptionPlanChange {
   id             String @default(cuid())
@@ -953,7 +886,6 @@ model Invoice {
   payments    Payment[]
   history     InvoiceHistory[]
   documents   Document[]
-  UsageRecord UsageRecord[]
 
   @@id([orgId, id])
   @@unique([orgId, sequenceId, docNumber])

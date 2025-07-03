@@ -35,7 +35,7 @@ type SubscriptionService struct {
 	workflowService        interfaces.WorkflowService
 	gatewayFactory         factories.GatewayFactory
 	tokenVault             security.TokenVault
-	pubsub                 events.PubSub
+	pubsub                 events.NotificationPublisher
 	logger                 logger.Logger
 	billingService         interfaces.BillingService
 }
@@ -50,7 +50,7 @@ func NewSubscriptionService(
 	orderRepository repositories.OrderRepository,
 	paymentRepository repositories.PaymentRepository,
 	tokenVault security.TokenVault,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 	gatewayFactory factories.GatewayFactory,
 	logger logger.Logger,
 	billingService interfaces.BillingService,

@@ -21,7 +21,7 @@ type CustomerService struct {
 	customerRepository      repositories.CustomerRepository
 	paymentMethodRepository repositories.PaymentMethodRepository
 	tokenVault              security.TokenVault
-	pubsub                  events.PubSub
+	notificationPublisher   events.NotificationPublisher
 	logger                  logger.Logger
 }
 
@@ -29,7 +29,7 @@ func NewCustomerService(
 	customerRepository repositories.CustomerRepository,
 	paymentMethodRepository repositories.PaymentMethodRepository,
 	tokenVault security.TokenVault,
-	pubsub events.PubSub,
+	notificationPublisher events.NotificationPublisher,
 	logger logger.Logger,
 	scheduler interfaces.Scheduler,
 ) interfaces.CustomerService {
@@ -37,7 +37,7 @@ func NewCustomerService(
 		customerRepository:      customerRepository,
 		paymentMethodRepository: paymentMethodRepository,
 		tokenVault:              tokenVault,
-		pubsub:                  pubsub,
+		notificationPublisher:   notificationPublisher,
 		logger:                  logger,
 	}
 	// set up the payment method expiry detection
@@ -49,7 +49,7 @@ func NewCustomerService(
 	}
 
 	// subscribe to order events to manage cohorts
-	_, err = pubsub.Subscribe(topic.OrderCompleted, service.HandleOrderEvent)
+	_, err = notificationPublisher.Subscribe(topic.OrderCompleted, service.HandleOrderEvent)
 
 	return service
 }
@@ -83,7 +83,7 @@ func (s CustomerService) Create(ctx context.Context, orgId string, input dto.Cre
 		return entities.Customer{}, err
 	}
 
-	_ = s.pubsub.Publish(orgId, topic.CustomerCreated, newCustomer)
+	_ = s.notificationPublisher.Publish(orgId, topic.CustomerCreated, newCustomer)
 	return newCustomer, nil
 }
 
@@ -123,7 +123,7 @@ func (s CustomerService) Update(ctx context.Context, orgId string, customerId st
 	}
 
 	// Note: Using CustomerCreated topic as CustomerUpdated is not defined
-	_ = s.pubsub.Publish(orgId, topic.CustomerCreated, updatedCustomer)
+	_ = s.notificationPublisher.Publish(orgId, topic.CustomerCreated, updatedCustomer)
 	return updatedCustomer, nil
 }
 
@@ -198,7 +198,7 @@ func (s CustomerService) CreatePaymentMethod(ctx context.Context, orgId string, 
 		}
 	}
 
-	_ = s.pubsub.Publish(orgId, topic.PaymentMethodCreated, newPaymentMethod)
+	_ = s.notificationPublisher.Publish(orgId, topic.PaymentMethodCreated, newPaymentMethod)
 	return newPaymentMethod, nil
 }
 
@@ -245,7 +245,7 @@ func (s CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string, 
 		}
 	}
 
-	_ = s.pubsub.Publish(orgId, topic.PaymentMethodUpdated, updatedPaymentMethod)
+	_ = s.notificationPublisher.Publish(orgId, topic.PaymentMethodUpdated, updatedPaymentMethod)
 	return updatedPaymentMethod, nil
 }
 
@@ -333,7 +333,7 @@ func (s CustomerService) CreateSecurePaymentMethod(ctx context.Context, orgId st
 		}
 	}
 
-	_ = s.pubsub.Publish(orgId, topic.PaymentMethodCreated, savedSecurePaymentMethod.ToEntity())
+	_ = s.notificationPublisher.Publish(orgId, topic.PaymentMethodCreated, savedSecurePaymentMethod.ToEntity())
 	return savedSecurePaymentMethod, nil
 }
 
@@ -381,7 +381,7 @@ func (s CustomerService) UpdateSecurePaymentMethod(ctx context.Context, orgId st
 		}
 	}
 
-	_ = s.pubsub.Publish(orgId, topic.PaymentMethodUpdated, updatedSecurePaymentMethod.ToEntity())
+	_ = s.notificationPublisher.Publish(orgId, topic.PaymentMethodUpdated, updatedSecurePaymentMethod.ToEntity())
 	return updatedSecurePaymentMethod, nil
 }
 
@@ -396,7 +396,7 @@ func (s CustomerService) DetectExpiringPaymentMethods() {
 	for _, paymentMethod := range expiring {
 		// send notification to customer
 		s.logger.Infof("Payment method %s is expiring", paymentMethod.Id)
-		_ = s.pubsub.Publish(paymentMethod.OrgId, topic.PaymentMethodExpired, paymentMethod)
+		_ = s.notificationPublisher.Publish(paymentMethod.OrgId, topic.PaymentMethodExpired, paymentMethod)
 	}
 }
 

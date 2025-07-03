@@ -22,7 +22,7 @@ type DunningOrchestrationService struct {
 	subscriptionService    interfaces.SubscriptionService
 	subscriptionRepository repositories.SubscriptionRepository
 	workflowEngine         interfaces.Engine
-	pubsub                 events.PubSub
+	pubsub                 events.NotificationPublisher
 	errorReporter          lib.ErrorReporter
 	logger                 logger.Logger
 }
@@ -33,7 +33,7 @@ func NewDunningOrchestrationService(
 	subscriptionService interfaces.SubscriptionService,
 	subscriptionRepository repositories.SubscriptionRepository,
 	workflowEngine interfaces.Engine,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 	errorReporter lib.ErrorReporter,
 	logger logger.Logger,
 ) interfaces.DunningOrchestrationService {

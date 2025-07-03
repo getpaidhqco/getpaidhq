@@ -20,7 +20,7 @@ type ProductService struct {
 	variantRepository repositories.VariantRepository
 	priceRepository   repositories.PriceRepository
 	cartRepository    repositories.CartRepository
-	pubsub            events.PubSub
+	pubsub            events.NotificationPublisher
 	logger            logger.Logger
 }
 
@@ -30,7 +30,7 @@ func NewProductService(
 	priceRepository repositories.PriceRepository,
 	cartRepository repositories.CartRepository,
 	logger logger.Logger,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 ) ProductService {
 	return ProductService{
 		productRepository: productRepository,
@@ -98,41 +98,41 @@ func (s ProductService) CreateProduct(ctx context.Context, orgId string, input a
 			}
 
 			priceInput := entities.CreatePriceInput{
-					OrgId:              orgId,
-					Label:              p.Label,
-					VariantId:          variant.Id,
-					Category:           p.Category,
-					Scheme:             p.Scheme,
-					Cycles:             p.Cycles,
-					Currency:           p.Currency,
-					UnitPrice:          p.UnitPrice,
-					MinPrice:           p.MinPrice,
-					SuggestedPrice:     p.SuggestedPrice,
-					BillingInterval:    p.BillingInterval,
-					BillingIntervalQty: p.BillingIntervalQty,
-					TrialInterval:      p.TrialInterval,
-					TrialIntervalQty:   p.TrialIntervalQty,
-					TaxCode:            p.TaxCode,
-					HasUsage:           p.HasUsage,
-					UsageType:          p.UsageType,
-					UnitType:           p.UnitType,
-					AggregationType:    p.AggregationType,
-					PercentageRate:     p.PercentageRate,
-					FixedFee:           p.FixedFee,
-					OverageUnitPrice:   p.OverageUnitPrice,
-					IncludedUsage:      p.IncludedUsage,
-					UsageLimit:         p.UsageLimit,
-					Tiers:              tiers,
-					Metadata:           p.Metadata,
-				}
+				OrgId:              orgId,
+				Label:              p.Label,
+				VariantId:          variant.Id,
+				Category:           p.Category,
+				Scheme:             p.Scheme,
+				Cycles:             p.Cycles,
+				Currency:           p.Currency,
+				UnitPrice:          p.UnitPrice,
+				MinPrice:           p.MinPrice,
+				SuggestedPrice:     p.SuggestedPrice,
+				BillingInterval:    p.BillingInterval,
+				BillingIntervalQty: p.BillingIntervalQty,
+				TrialInterval:      p.TrialInterval,
+				TrialIntervalQty:   p.TrialIntervalQty,
+				TaxCode:            p.TaxCode,
+				HasUsage:           p.HasUsage,
+				UsageType:          p.UsageType,
+				UnitType:           p.UnitType,
+				AggregationType:    p.AggregationType,
+				PercentageRate:     p.PercentageRate,
+				FixedFee:           p.FixedFee,
+				OverageUnitPrice:   p.OverageUnitPrice,
+				IncludedUsage:      p.IncludedUsage,
+				UsageLimit:         p.UsageLimit,
+				Tiers:              tiers,
+				Metadata:           p.Metadata,
+			}
 
-				price, err := entities.NewPrice(orgId, variant.Id, priceInput)
-				if err != nil {
-					s.logger.Error("Failed to validate price", err.Error())
-					return entities.Product{}, lib.NewCustomError(lib.BadRequestError, err.Error(), nil)
-				}
+			price, err := entities.NewPrice(orgId, variant.Id, priceInput)
+			if err != nil {
+				s.logger.Error("Failed to validate price", err.Error())
+				return entities.Product{}, lib.NewCustomError(lib.BadRequestError, err.Error(), nil)
+			}
 
-				_, err = s.priceRepository.Create(ctx, price)
+			_, err = s.priceRepository.Create(ctx, price)
 			if err != nil {
 				s.logger.Error("Failed to create price", err.Error())
 				return entities.Product{}, err

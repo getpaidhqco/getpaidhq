@@ -35,7 +35,7 @@ type OrderService struct {
 	paymentMethodRepository repositories.PaymentMethodRepository
 	paymentRepository       repositories.PaymentRepository
 	gatewayFactory          factories.GatewayFactory
-	pubsub                  events.PubSub
+	pubsub                  events.NotificationPublisher
 	cartFactory             factories.CartFactory
 	tokenVault              security.TokenVault
 	logger                  logger.Logger
@@ -54,7 +54,7 @@ func NewOrderService(
 	paymentMethodRepository repositories.PaymentMethodRepository,
 	gatewayFactory factories.GatewayFactory,
 	cartFactory factories.CartFactory,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 	tokenVault security.TokenVault,
 	logger logger.Logger,
 ) interfaces.OrderService {

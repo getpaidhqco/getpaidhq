@@ -40,9 +40,9 @@ echo "=== Running Integration Tests ==="
 echo
 
 # Set test environment variables
-export GETPAIDHQ_ENV=test
-export GETPAIDHQ_DATABASE_URL="postgresql://payloop:payloop@localhost:5432/payloop_test?schema=public"
-export GETPAIDHQ_REPORTING_DATABASE_URL="postgresql://payloop:payloop@localhost:5433/payloop_reporting_test?schema=public"
+export GPHQ_ENV=test
+export GPHQ_DATABASE_URL="postgresql://payloop:payloop@localhost:5432/payloop_test?schema=public"
+export GPHQ_REPORTING_DATABASE_URL="postgresql://payloop:payloop@localhost:5433/payloop_reporting_test?schema=public"
 
 # Run specific integration test
 go test -v ./internal/testing/integration -run TestRealSubscriptionFlow

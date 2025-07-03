@@ -27,7 +27,7 @@ type DunningService struct {
 	paymentRepository      repositories.PaymentRepository
 	subscriptionService    interfaces.SubscriptionService
 	gatewayFactory         factories.GatewayFactory
-	pubsub                 events.PubSub
+	pubsub                 events.NotificationPublisher
 	logger                 logger.Logger
 }
 
@@ -39,7 +39,7 @@ func NewDunningService(
 	paymentRepository repositories.PaymentRepository,
 	subscriptionService interfaces.SubscriptionService,
 	gatewayFactory factories.GatewayFactory,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 	logger logger.Logger,
 ) interfaces.DunningService {
 	return &DunningService{

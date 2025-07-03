@@ -2,13 +2,13 @@
 
 ## Overview
 
-This specification outlines the implementation of a Kafka + TimescaleDB architecture for usage-based billing that separates high-volume usage recording from core business operations while maintaining data consistency through event sourcing and continuous aggregations.
+This specification outlines the implementation of a Kafka + PostgreSQL architecture for usage-based billing that separates high-volume usage recording from core business operations while maintaining data consistency through event sourcing and time-series optimized PostgreSQL features.
 
 ## Architecture Goals
 
-1. **High Throughput**: Handle millions of usage events per second
+1. **Future-Proof Scalability**: Built to handle growth from MVP (few transactions/day) to high volume
 2. **Logical Separation**: Isolate usage data from core business operations
-3. **Billing Accuracy**: Ensure eventual consistency with 2-hour settlement window
+3. **Billing Accuracy**: Ensure eventual consistency with 30-minute settlement window
 4. **Real-time Analytics**: Support near real-time usage dashboards
 5. **Scalability**: Independent scaling of usage recording and billing systems
 
@@ -18,34 +18,34 @@ This specification outlines the implementation of a Kafka + TimescaleDB architec
 
 ```
 ┌─────────────┐     ┌─────────┐     ┌──────────────┐     ┌─────────────┐
-│   API       │────▶│  Kafka  │────▶│ TimescaleDB  │────▶│   Main DB   │
-│   (Usage)   │     │ (Events)│     │(Aggregates)  │     │  (Billing)  │
+│   API       │────▶│  Kafka  │────▶│  Usage DB    │────▶│   Main DB   │
+│   (Usage)   │     │ (Events)│     │(PostgreSQL)  │     │  (Billing)  │
 └─────────────┘     └─────────┘     └──────────────┘     └─────────────┘
                                             │                     ▲
                                             └─────────────────────┘
-                                              2AM Billing Process
+                                           2:30AM Billing Process
 ```
 
 ### Data Flow
 
-1. **Usage Recording**: API → Kafka → TimescaleDB (Real-time)
-2. **Analytics**: TimescaleDB Continuous Aggregates (5-minute refresh)
-3. **Billing**: Scheduled job at 2 AM queries finalized aggregates
-4. **Customer Dashboards**: Query continuous aggregates for near real-time data
+1. **Usage Recording**: API → Kafka → PostgreSQL Usage DB (Real-time)
+2. **Analytics**: PostgreSQL Materialized Views (5-minute refresh)
+3. **Billing**: Scheduled job at 2:30 AM queries finalized aggregates
+4. **Customer Dashboards**: Query materialized views for near real-time data
 
 ## Database Architecture
 
-### TimescaleDB (Usage Database)
+### PostgreSQL Usage Database
 
-**Purpose**: High-volume usage event storage and time-series analytics
-**Port**: 5433
-**Database**: `gphq_usage`
+**Purpose**: High-volume usage event storage and time-series analytics with partitioning
+**Port**: 5433 (or separate RDS instance)
+**Database**: `payloop_usage`
 
-### PostgreSQL (Main Database)
+### PostgreSQL Main Database
 
 **Purpose**: Core business logic, subscriptions, invoices, customers
 **Port**: 5432  
-**Database**: `gphq`
+**Database**: `payloop`
 
 ### Kafka
 
@@ -86,12 +86,7 @@ model UsageEvent {
   referenceType      String?  @map("reference_type")
   metadata           Json?
   
-  @@id([orgId, subscriptionItemId, time])
-  @@index([time])
-  @@index([orgId, subscriptionId])
-  @@index([orgId, time])
-  @@index([subscriptionItemId, time])
-  @@index([referenceId, referenceType])
+  @@id([time, orgId, subscriptionItemId])
   @@map("usage_events")
 }
 ```
@@ -111,69 +106,37 @@ Remove the following:
    - Line 644: `usageRecords UsageRecord[]` from SubscriptionItem model
    - Line 956: `UsageRecord UsageRecord[]` from Invoice model
 
-### 2. TimescaleDB Setup
+### 2. PostgreSQL Usage Database Setup
 
-#### A. Create TimescaleDB Initialization Script
+#### A. Create PostgreSQL Usage Database Schema
 
-**File**: `schemas/usage/migrations/001_initialize_timescaledb.sql`
+**Note**: The usage_events table will be created by Prisma migrations as a partitioned table. Time-based partitioning setup is handled by a separate script.
 
-```sql
--- Enable TimescaleDB extension
-CREATE EXTENSION IF NOT EXISTS timescaledb;
+**Partition Setup Script**: `scripts/setup-usage-partitions.sql`
 
--- Create usage_events table
-CREATE TABLE usage_events (
-    time TIMESTAMPTZ NOT NULL,
-    org_id TEXT NOT NULL,
-    subscription_id TEXT NOT NULL,
-    subscription_item_id TEXT NOT NULL,
-    customer_id TEXT NOT NULL,
-    usage_type TEXT NOT NULL,
-    quantity NUMERIC(15, 4),
-    transaction_value BIGINT,
-    calculated_amount BIGINT NOT NULL,
-    reference_id TEXT,
-    reference_type TEXT,
-    metadata JSONB,
-    PRIMARY KEY (org_id, subscription_item_id, time)
-);
+This script:
+- Creates monthly partitions starting from July 2025
+- Sets up automated partition management functions
+- Configures partition cleanup and maintenance
+- Provides monitoring and verification tools
 
--- Convert to hypertable (time-series optimization)
-SELECT create_hypertable('usage_events', 'time', 
-    chunk_time_interval => INTERVAL '1 day',
-    create_default_indexes => FALSE
-);
+**Key Features**:
+- **Monthly Partitioning**: Each month gets its own partition (e.g., `usage_events_2025_07`)
+- **Automatic Creation**: New partitions created 6 months in advance
+- **Automatic Cleanup**: Old partitions (>5 years) automatically dropped
+- **Optimized Indexes**: Each partition gets performance-optimized indexes
+- **Monitoring**: Built-in functions to monitor partition health and size
 
--- Create indexes
-CREATE INDEX idx_usage_events_time ON usage_events (time DESC);
-CREATE INDEX idx_usage_events_org_time ON usage_events (org_id, time DESC);
-CREATE INDEX idx_usage_events_subscription ON usage_events (org_id, subscription_id);
-CREATE INDEX idx_usage_events_subscription_item ON usage_events (subscription_item_id, time DESC);
-CREATE INDEX idx_usage_events_reference ON usage_events (reference_id, reference_type) WHERE reference_id IS NOT NULL;
+#### B. Create Materialized Views for Aggregations
 
--- Add compression policy (compress data older than 7 days)
-ALTER TABLE usage_events SET (
-    timescaledb.compress,
-    timescaledb.compress_segmentby = 'org_id, subscription_id',
-    timescaledb.compress_orderby = 'time DESC'
-);
-
-SELECT add_compression_policy('usage_events', INTERVAL '7 days');
-
--- Add retention policy (delete data older than 5 years)
-SELECT add_retention_policy('usage_events', INTERVAL '5 years');
-```
-
-#### B. Create Continuous Aggregates
-
-**File**: `schemas/usage/migrations/002_continuous_aggregates.sql`
+**File**: `scripts/create-materialized-views.sql`
 
 ```sql
 -- Hourly usage aggregates for real-time dashboards
-CREATE MATERIALIZED VIEW usage_hourly
-WITH (timescaledb.continuous) AS
+-- Using standard PostgreSQL materialized views for efficient querying
+CREATE MATERIALIZED VIEW usage_hourly AS
 SELECT 
-    time_bucket('1 hour', time) AS hour,
+    date_trunc('hour', time) AS hour,
     org_id,
     subscription_id,
     subscription_item_id,
@@ -185,11 +148,14 @@ SELECT
 FROM usage_events
 GROUP BY hour, org_id, subscription_id, subscription_item_id, usage_type;
 
+-- Create index on the materialized view for fast queries
+CREATE UNIQUE INDEX idx_usage_hourly_unique ON usage_hourly (hour, org_id, subscription_item_id, usage_type);
+CREATE INDEX idx_usage_hourly_org_time ON usage_hourly (org_id, hour DESC);
+
 -- Daily usage aggregates for billing
-CREATE MATERIALIZED VIEW usage_daily_billing
-WITH (timescaledb.continuous) AS
+CREATE MATERIALIZED VIEW usage_daily_billing AS
 SELECT 
-    time_bucket('1 day', time) AS day,
+    date_trunc('day', time) AS day,
     org_id,
     subscription_id,
     subscription_item_id,
@@ -203,11 +169,14 @@ SELECT
 FROM usage_events
 GROUP BY day, org_id, subscription_id, subscription_item_id, usage_type, billing_period;
 
+-- Create index on daily billing view
+CREATE UNIQUE INDEX idx_usage_daily_billing_unique ON usage_daily_billing (day, org_id, subscription_item_id, usage_type);
+CREATE INDEX idx_usage_daily_billing_org_period ON usage_daily_billing (org_id, billing_period, subscription_item_id);
+
 -- Monthly summary for analytics
-CREATE MATERIALIZED VIEW usage_monthly_summary
-WITH (timescaledb.continuous) AS
+CREATE MATERIALIZED VIEW usage_monthly_summary AS
 SELECT 
-    time_bucket('1 month', time) AS month,
+    date_trunc('month', time) AS month,
     org_id,
     subscription_id,
     subscription_item_id,
@@ -221,35 +190,76 @@ SELECT
 FROM usage_events
 GROUP BY month, org_id, subscription_id, subscription_item_id, usage_type;
 
--- Add refresh policies
-SELECT add_continuous_aggregate_policy('usage_hourly',
-    start_offset => INTERVAL '3 hours',
-    end_offset => INTERVAL '5 minutes',
-    schedule_interval => INTERVAL '5 minutes');
+-- Create index on monthly summary
+CREATE UNIQUE INDEX idx_usage_monthly_summary_unique ON usage_monthly_summary (month, org_id, subscription_item_id, usage_type);
+CREATE INDEX idx_usage_monthly_summary_org ON usage_monthly_summary (org_id, month DESC);
 
-SELECT add_continuous_aggregate_policy('usage_daily_billing',
-    start_offset => INTERVAL '3 days',
-    end_offset => INTERVAL '1 hour',
-    schedule_interval => INTERVAL '1 hour');
+-- Function to refresh materialized views (called by scheduler)
+CREATE OR REPLACE FUNCTION refresh_usage_aggregates()
+RETURNS void AS $$
+BEGIN
+    -- Refresh materialized views concurrently (non-blocking)
+    REFRESH MATERIALIZED VIEW CONCURRENTLY usage_hourly;
+    REFRESH MATERIALIZED VIEW CONCURRENTLY usage_daily_billing;
+    REFRESH MATERIALIZED VIEW CONCURRENTLY usage_monthly_summary;
+    
+    -- Log the refresh
+    INSERT INTO usage_event_log (
+        org_id,
+        event_type,
+        triggered_by,
+        reason,
+        metadata
+    ) VALUES (
+        'system',
+        'materialized_views_refreshed',
+        'scheduler',
+        'Materialized views refreshed for real-time analytics',
+        jsonb_build_object('refresh_time', NOW())
+    );
+END;
+$$ LANGUAGE plpgsql;
 
-SELECT add_continuous_aggregate_policy('usage_monthly_summary',
-    start_offset => INTERVAL '3 months',
-    end_offset => INTERVAL '1 day',
-    schedule_interval => INTERVAL '1 day');
-
--- Add compression for continuous aggregates
-ALTER MATERIALIZED VIEW usage_hourly SET (
-    timescaledb.compress,
-    timescaledb.compress_segmentby = 'org_id, subscription_id'
-);
-
-ALTER MATERIALIZED VIEW usage_daily_billing SET (
-    timescaledb.compress,
-    timescaledb.compress_segmentby = 'org_id, subscription_id'
-);
-
-SELECT add_compression_policy('usage_hourly', INTERVAL '30 days');
-SELECT add_compression_policy('usage_daily_billing', INTERVAL '90 days');
+-- Function to get billing summary from materialized views
+CREATE OR REPLACE FUNCTION get_monthly_billing_summary(
+    p_org_id TEXT,
+    p_billing_period DATE
+)
+RETURNS TABLE (
+    subscription_id TEXT,
+    subscription_item_id TEXT,
+    usage_type TEXT,
+    total_quantity NUMERIC,
+    total_amount BIGINT,
+    daily_events BIGINT,
+    active_days BIGINT,
+    first_usage TIMESTAMPTZ,
+    last_usage TIMESTAMPTZ
+) AS $$
+BEGIN
+    RETURN QUERY
+    SELECT 
+        udb.subscription_id,
+        udb.subscription_item_id,
+        udb.usage_type,
+        SUM(udb.daily_quantity) as total_quantity,
+        SUM(udb.daily_amount) as total_amount,
+        SUM(udb.daily_events) as daily_events,
+        COUNT(DISTINCT udb.day) as active_days,
+        MIN(udb.first_event_time) as first_usage,
+        MAX(udb.last_event_time) as last_usage
+    FROM usage_daily_billing udb
+    WHERE udb.org_id = p_org_id
+      AND udb.billing_period = p_billing_period
+    GROUP BY 
+        udb.subscription_id, 
+        udb.subscription_item_id, 
+        udb.usage_type
+    ORDER BY 
+        udb.subscription_id, 
+        udb.subscription_item_id;
+END;
+$$ LANGUAGE plpgsql;
 ```
 
 ### 3. Infrastructure Setup
@@ -261,19 +271,19 @@ SELECT add_compression_policy('usage_daily_billing', INTERVAL '90 days');
 Add the following services:
 
 ```yaml
-  # TimescaleDB for usage data
-  timescaledb:
-    image: timescale/timescaledb:latest-pg15
-    container_name: gphq-usage-db
+  # PostgreSQL for usage data  
+  usage-postgres:
+    image: postgres:15-alpine
+    container_name: payloop-usage-db
     environment:
-      POSTGRES_DB: gphq_usage
+      POSTGRES_DB: payloop_usage
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
       POSTGRES_INITDB_ARGS: "-E UTF8"
     ports:
       - "5433:5432"
     volumes:
-      - timescale_data:/var/lib/postgresql/data
+      - usage_postgres_data:/var/lib/postgresql/data
       - ./schemas/usage/migrations:/docker-entrypoint-initdb.d
     networks:
       - payloop-network
@@ -309,7 +319,7 @@ Add the following services:
 
 
 volumes:
-  timescale_data:
+  usage_postgres_data:
   kafka_data:
 ```
 
@@ -466,7 +476,7 @@ import (
 )
 
 type UsageAggregationService struct {
-    timescaleDB *sql.DB
+    usageDB *sql.DB
 }
 
 // GetMonthlyUsage retrieves aggregated usage for billing period
@@ -489,7 +499,7 @@ func (s *UsageAggregationService) GetMonthlyUsage(ctx context.Context, orgID str
         ORDER BY subscription_id, subscription_item_id
     `
     
-    rows, err := s.timescaleDB.QueryContext(ctx, query, orgID, billingPeriod)
+    rows, err := s.usageDB.QueryContext(ctx, query, orgID, billingPeriod)
     if err != nil {
         return nil, err
     }
@@ -533,7 +543,7 @@ func (s *UsageAggregationService) GetRealtimeUsage(ctx context.Context, orgID, s
     `
     
     var summary dto.UsageSummary
-    err := s.timescaleDB.QueryRowContext(ctx, query, orgID, subscriptionItemID, since).Scan(
+    err := s.usageDB.QueryRowContext(ctx, query, orgID, subscriptionItemID, since).Scan(
         &summary.Quantity,
         &summary.Amount,
         &summary.Events,
@@ -550,7 +560,7 @@ func (s *UsageAggregationService) GetRealtimeUsage(ctx context.Context, orgID, s
 
 **File**: `internal/application/services/billing_service.go`
 
-Update the billing service to use TimescaleDB aggregates:
+Update the billing service to use PostgreSQL aggregates:
 
 ```go
 // Add usage aggregation dependency
@@ -568,7 +578,7 @@ func (s *BillingService) ProcessMonthlyBilling(ctx context.Context, orgID string
         return err
     }
 
-    // 2. Get usage aggregates from TimescaleDB
+    // 2. Get usage aggregates from PostgreSQL Usage DB
     usageAggregates, err := s.usageAggregation.GetMonthlyUsage(ctx, orgID, billingPeriod)
     if err != nil {
         return err
@@ -636,89 +646,6 @@ func (s *BillingService) createInvoiceWithUsage(ctx context.Context, subscriptio
 }
 ```
 
-#### B. Simple Scheduled Billing
-
-**File**: `internal/application/services/billing_scheduler.go`
-
-```go
-package services
-
-import (
-    "context"
-    "fmt"
-    "time"
-    
-    "github.com/robfig/cron/v3"
-    "payloop/internal/application/dto"
-)
-
-type BillingScheduler struct {
-    billingService        BillingService
-    usageAggregationSvc   UsageAggregationService
-    orgRepository         repositories.OrgRepository
-    cron                  *cron.Cron
-}
-
-func NewBillingScheduler(
-    billingService BillingService,
-    usageAggregationSvc UsageAggregationService,
-    orgRepository repositories.OrgRepository,
-) *BillingScheduler {
-    return &BillingScheduler{
-        billingService:      billingService,
-        usageAggregationSvc: usageAggregationSvc,
-        orgRepository:      orgRepository,
-        cron:               cron.New(),
-    }
-}
-
-func (s *BillingScheduler) Start() {
-    // Schedule monthly billing on 1st of each month at 2:30 AM
-    // 30-minute settlement window after midnight
-    s.cron.AddFunc("30 2 1 * *", func() {
-        s.processMonthlyBilling()
-    })
-    s.cron.Start()
-}
-
-func (s *BillingScheduler) processMonthlyBilling() {
-    ctx := context.Background()
-    
-    // Get previous month's billing period
-    now := time.Now()
-    billingPeriod := time.Date(now.Year(), now.Month()-1, 1, 0, 0, 0, 0, now.Location())
-    
-    // Get all active organizations
-    orgs, err := s.orgRepository.GetActiveOrganizations(ctx)
-    if err != nil {
-        log.Printf("Failed to get organizations for billing: %v", err)
-        return
-    }
-    
-    // Process billing for each organization
-    for _, org := range orgs {
-        if err := s.processBillingForOrg(ctx, org.ID, billingPeriod); err != nil {
-            log.Printf("Failed to process billing for org %s: %v", org.ID, err)
-            continue
-        }
-    }
-}
-
-func (s *BillingScheduler) processBillingForOrg(ctx context.Context, orgID string, billingPeriod time.Time) error {
-    // Get usage aggregates from TimescaleDB
-    usageAggregates, err := s.usageAggregationSvc.GetMonthlyUsage(ctx, orgID, billingPeriod)
-    if err != nil {
-        return fmt.Errorf("failed to get usage aggregates: %w", err)
-    }
-    
-    // Process billing with usage data
-    return s.billingService.ProcessMonthlyBilling(ctx, orgID, billingPeriod, usageAggregates)
-}
-
-func (s *BillingScheduler) Stop() {
-    s.cron.Stop()
-}
-```
 
 ### 7. Kafka Consumer Integration
 
@@ -870,7 +797,7 @@ func (s *UsageRecordingService) processUsageEvent(ctx context.Context, msg kafka
         Metadata:           event.Metadata,
     }
     
-    // Insert into TimescaleDB
+    // Insert into PostgreSQL Usage DB
     if err := s.usageEventRepo.Create(ctx, usageEvent); err != nil {
         return fmt.Errorf("failed to insert usage event: %w", err)
     }
@@ -898,7 +825,7 @@ func (s *UsageRecordingService) calculateUsageAmount(item entities.SubscriptionI
 }
 ```
 
-### 8. TimescaleDB Repository Implementation
+### 8. PostgreSQL Usage Repository Implementation
 
 #### A. Usage Event Repository Interface
 
@@ -956,7 +883,7 @@ type UsageAggregationRepository interface {
     // Get monthly usage aggregates for billing
     GetMonthlyUsage(ctx context.Context, orgID string, billingPeriod time.Time) ([]entities.MonthlyUsageAggregate, error)
     
-    // Get real-time usage summary from continuous aggregates
+    // Get real-time usage summary from materialized views
     GetRealtimeUsage(ctx context.Context, orgID, subscriptionItemID string, 
         since time.Time) (entities.UsageSummary, error)
     
@@ -968,17 +895,17 @@ type UsageAggregationRepository interface {
     GetUsageTypeAnalytics(ctx context.Context, orgID string, 
         startTime, endTime time.Time) ([]entities.UsageTypeAnalytics, error)
     
-    // Refresh continuous aggregates manually (for billing consistency)
+    // Refresh materialized views manually (for billing consistency)
     RefreshAggregates(ctx context.Context) error
 }
 ```
 
-#### B. TimescaleDB Repository Implementation
+#### B. PostgreSQL Usage Repository Implementation
 
-**File**: `internal/infrastructure/db/timescale/usage_event_repository.go`
+**File**: `internal/infrastructure/db/postgres/usage_event_repository.go`
 
 ```go
-package timescale
+package postgres
 
 import (
     "context"
@@ -994,18 +921,18 @@ import (
 )
 
 type UsageEventRepository struct {
-    *TimescaleDatabase
+    *PgDatabase
     logger logger.Logger
 }
 
 func NewUsageEventRepository(usageDb lib.Database, logger logger.Logger) repositories.UsageEventRepository {
-    timescaleDB, ok := usageDb.(*TimescaleDatabase)
+    pgDatabase, ok := usageDb.(*PgDatabase)
     if !ok {
-        panic("database is not of type *TimescaleDatabase")
+        panic("database is not of type *PgDatabase")
     }
     return &UsageEventRepository{
-        TimescaleDatabase: timescaleDB,
-        logger:            logger,
+        PgDatabase: pgDatabase,
+        logger:     logger,
     }
 }
 
@@ -1264,104 +1191,78 @@ func (r *UsageEventRepository) Delete(ctx context.Context, orgID, subscriptionIt
 }
 ```
 
-#### C. TimescaleDB Database Connection
+#### C. Usage Aggregation Service
 
-**File**: `internal/infrastructure/db/timescale/database.go`
+**File**: `internal/application/services/usage_aggregation_service.go`
 
 ```go
-package timescale
+package services
 
 import (
     "context"
-    "github.com/jackc/pgx/v5"
-    "github.com/jackc/pgx/v5/pgxpool"
-    "log"
-    "payloop/internal/application/lib/logger"
-    "payloop/internal/lib"
+    "fmt"
+    "time"
+    
+    "payloop/internal/application/dto"
+    "payloop/internal/domain/repositories"
 )
 
-type TimescaleDatabase struct {
-    *pgxpool.Pool
-    pgx.Tx
-    logger logger.Logger
+type UsageAggregationService struct {
+    usageDB repositories.UsageAggregationRepository
+    logger  logger.Logger
 }
 
-func (r TimescaleDatabase) getTransactionFromContext(ctx context.Context) QueryRower {
-    var p QueryRower = r.Pool
-    tx := ctx.Value(lib.DBTransaction)
-    if tx != nil {
-        p = tx.(QueryRower)
+func NewUsageAggregationService(
+    usageDB repositories.UsageAggregationRepository,
+    logger logger.Logger,
+) *UsageAggregationService {
+    return &UsageAggregationService{
+        usageDB: usageDB,
+        logger:  logger,
     }
-    return p
 }
 
-func NewTimescaleDatabase(url string, logger logger.Logger) lib.Database {
-    logger.Info("Connecting to TimescaleDB", "url", url)
-
-    dbConfig, err := pgxpool.ParseConfig(url)
+// GetMonthlyUsage retrieves aggregated usage for billing period from materialized views
+func (s *UsageAggregationService) GetMonthlyUsage(ctx context.Context, orgID string, billingPeriod time.Time) ([]dto.MonthlyUsageAggregate, error) {
+    s.logger.Debug("Getting monthly usage aggregates", "org_id", orgID, "period", billingPeriod)
+    
+    aggregates, err := s.usageDB.GetMonthlyUsage(ctx, orgID, billingPeriod)
     if err != nil {
-        log.Fatalf("could not parse TimescaleDB config %v", err)
-        return nil
+        return nil, fmt.Errorf("failed to get monthly usage: %w", err)
     }
     
-    pool, err := pgxpool.NewWithConfig(context.TODO(), dbConfig)
+    s.logger.Info("Retrieved monthly usage aggregates", 
+        "org_id", orgID, 
+        "period", billingPeriod,
+        "aggregate_count", len(aggregates))
+    
+    return aggregates, nil
+}
+
+// GetRealtimeUsage retrieves near real-time usage from materialized views
+func (s *UsageAggregationService) GetRealtimeUsage(ctx context.Context, orgID, subscriptionItemID string, since time.Time) (dto.UsageSummary, error) {
+    summary, err := s.usageDB.GetRealtimeUsage(ctx, orgID, subscriptionItemID, since)
     if err != nil {
-        log.Fatalf("could not connect to TimescaleDB %v", err)
-        return nil
+        return dto.UsageSummary{}, fmt.Errorf("failed to get realtime usage: %w", err)
     }
+    
+    return summary, nil
+}
 
-    return &TimescaleDatabase{
-        Pool:   pool,
-        Tx:     nil,
-        logger: logger,
+// RefreshMaterializedViews manually refreshes all materialized views
+func (s *UsageAggregationService) RefreshMaterializedViews(ctx context.Context) error {
+    s.logger.Info("Refreshing materialized views for usage analytics")
+    
+    if err := s.usageDB.RefreshAggregates(ctx); err != nil {
+        return fmt.Errorf("failed to refresh aggregates: %w", err)
     }
-}
-
-func (d *TimescaleDatabase) Ping(ctx context.Context) error {
-    return d.Pool.Ping(ctx)
-}
-
-func (d *TimescaleDatabase) Close() {
-    d.logger.Info("Closing TimescaleDB connection")
-    d.Pool.Close()
-}
-
-func (d *TimescaleDatabase) Begin(ctx context.Context) (lib.Committer, error) {
-    tx, err := d.Pool.Begin(ctx)
-    if err != nil {
-        return nil, err
-    }
-    return TimescaleCommitter{
-        Tx: tx,
-    }, nil
-}
-
-type TimescaleCommitter struct {
-    pgx.Tx
-}
-
-func (c TimescaleCommitter) Commit(ctx context.Context) error {
-    return c.Tx.Commit(ctx)
-}
-
-func (c TimescaleCommitter) Rollback(ctx context.Context) error {
-    return c.Tx.Rollback(ctx)
-}
-
-func (c TimescaleCommitter) GetClient() interface{} {
-    return c.Tx
-}
-
-// QueryRower interface for supporting both Pool and Tx queries
-type QueryRower interface {
-    Query(ctx context.Context, sql string, args ...interface{}) (pgx.Rows, error)
-    QueryRow(ctx context.Context, sql string, args ...interface{}) pgx.Row
-    Exec(ctx context.Context, sql string, args ...interface{}) (pgx.CommandTag, error)
-    SendBatch(ctx context.Context, b *pgx.Batch) pgx.BatchResults
+    
+    s.logger.Info("Successfully refreshed materialized views")
+    return nil
 }
 ```
 
-### 9. Environment Configuration
+### 9. Environment Configuration and Setup
 
 #### A. Environment Variables
 
@@ -1374,12 +1275,12 @@ USAGE_DATABASE_URL=postgres://postgres:postgres@localhost:5433/payloop_usage
 # Kafka
 KAFKA_BROKERS=localhost:9092
 
-# Billing Configuration  
-BILLING_GRACE_PERIOD_MINUTES=30
-BILLING_SCHEDULE_HOUR=2
+# Usage Configuration
+USAGE_PARTITION_RETENTION_MONTHS=60  # 5 years
+USAGE_MATERIALIZED_VIEW_REFRESH_INTERVAL=5  # minutes
 ```
 
-#### B. Database Scripts
+#### B. Database Setup Scripts
 
 **File**: `scripts/setup-usage-db.sh`
 
@@ -1387,17 +1288,54 @@ BILLING_SCHEDULE_HOUR=2
 #!/bin/bash
 set -e
 
-echo "Setting up usage database..."
+echo "Setting up PostgreSQL usage database with time-based partitioning..."
 
-# Generate Prisma client for usage database
-echo "Generating Prisma client for usage database..."
+# Step 1: Generate Prisma client for usage database
+echo "1. Generating Prisma client for usage database..."
 pnpm dlx prisma generate --schema=schemas/usage/schema.prisma
 
-# Push schema to usage database
-echo "Pushing schema to TimescaleDB..."
+# Step 2: Push schema to usage database (creates base tables)
+echo "2. Pushing schema to PostgreSQL Usage DB..."
 pnpm dlx prisma db push --schema=schemas/usage/schema.prisma
 
-echo "Usage database setup completed!"
+# Step 3: Set up time-based partitioning (July 2025 onwards)
+echo "3. Setting up time-based partitioning..."
+psql $USAGE_DATABASE_URL -f scripts/setup-usage-partitions.sql
+
+# Step 4: Create materialized views for analytics
+echo "4. Creating materialized views..."
+psql $USAGE_DATABASE_URL -f scripts/create-materialized-views.sql
+
+# Step 5: Verify setup
+echo "5. Verifying partition setup..."
+psql $USAGE_DATABASE_URL -c "SELECT * FROM get_partition_info('usage_events');"
+
+echo "\n✅ Usage database setup completed!"
+echo "📊 Partitions created: July 2025 - January 2026"
+echo "📈 Materialized views ready for analytics"
+echo "🔄 Automated maintenance configured"
+```
+
+#### C. Manual Operations
+
+**Check Partition Status:**
+```sql
+SELECT * FROM get_partition_info('usage_events');
+```
+
+**Manual Partition Maintenance:**
+```sql
+SELECT maintain_usage_partitions();
+```
+
+**Refresh Materialized Views:**
+```sql
+SELECT refresh_usage_aggregates();
+```
+
+**Monitor Performance:**
+```sql
+SELECT * FROM get_materialized_view_stats();
 ```
 
 ### 9. Testing Strategy
@@ -1419,7 +1357,7 @@ import (
 )
 
 func TestUsageRecordingIntegration(t *testing.T) {
-    // Setup test environment with TimescaleDB and Kafka
+    // Setup test environment with PostgreSQL Usage DB and Kafka
     ctx := context.Background()
     
     t.Run("Record and Aggregate Usage", func(t *testing.T) {
@@ -1453,10 +1391,10 @@ func TestUsageRecordingIntegration(t *testing.T) {
 
 Implement metrics for:
 - Kafka message throughput
-- TimescaleDB query performance
-- Billing processing duration
+- PostgreSQL query performance
+- Usage event processing duration
 - Usage event lag time
-- Continuous aggregate refresh duration
+- Materialized view refresh duration
 
 #### B. Health Checks
 
@@ -1471,7 +1409,7 @@ import (
     "time"
 )
 
-func CheckTimescaleDBHealth(ctx context.Context, db *sql.DB) error {
+func CheckUsageDBHealth(ctx context.Context, db *sql.DB) error {
     ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
     defer cancel()
     
@@ -1488,15 +1426,16 @@ func CheckKafkaHealth(ctx context.Context, brokers []string) error {
 ## Implementation Order
 
 1. **Phase 1: Infrastructure Setup**
-   - Update docker-compose.yml with TimescaleDB and Kafka
-   - Create TimescaleDB migrations and continuous aggregates
-   - Create usage Prisma schema
+   - Update docker-compose.yml with PostgreSQL Usage DB and Kafka
+   - Create usage Prisma schema and run `prisma db push`
+   - Run partition setup script: `scripts/setup-usage-partitions.sql`
+   - Create materialized views: `scripts/create-materialized-views.sql`
    - Remove UsageRecord from main schema
 
 2. **Phase 2: Repository and Domain Layer**
-   - Implement TimescaleDB database connection
+   - Implement PostgreSQL Usage DB connection
    - Create usage event repository interfaces
-   - Implement TimescaleDB repository implementations
+   - Implement PostgreSQL repository implementations
    - Create usage domain entities
 
 3. **Phase 3: Event System and Service Integration** 
@@ -1506,32 +1445,53 @@ func CheckKafkaHealth(ctx context.Context, brokers []string) error {
    - Add Kafka consumer goroutine to usage service
    - Create usage aggregation service
 
-4. **Phase 4: Billing Integration**
-   - Create simple billing scheduler (no Temporal)
-   - Update billing service to use TimescaleDB aggregates
-   - Implement 30-minute settlement window
+4. **Phase 4: Usage Data Access**
+   - Implement usage aggregation service interfaces for external access
+   - Create materialized views for efficient data retrieval
+   - Set up automated materialized view refresh schedule (external scheduling required for RDS)
 
 5. **Phase 5: Testing & Deployment**
-   - Integration tests with TimescaleDB and Kafka
+   - Integration tests with PostgreSQL Usage DB and Kafka
    - API testing for usage recording
-   - Billing accuracy testing
+   - Usage aggregation accuracy testing
    - Production deployment and monitoring
+
+## PostgreSQL Time-Based Partitioning Implementation
+
+### Partition Strategy (July 2025 onwards)
+
+**Monthly Range Partitioning:**
+- `usage_events_2025_07` (July 1, 2025 - August 1, 2025)
+- `usage_events_2025_08` (August 1, 2025 - September 1, 2025)
+- `usage_events_2025_09` (September 1, 2025 - October 1, 2025)
+- `usage_events_2025_10` (October 1, 2025 - November 1, 2025)
+- `usage_events_2025_11` (November 1, 2025 - December 1, 2025)
+- `usage_events_2025_12` (December 1, 2025 - January 1, 2026)
+- `usage_events_2026_01` (January 1, 2026 - February 1, 2026)
+
+**Automated Management:**
+- **Future Partitions**: Created 6 months in advance
+- **Cleanup**: Partitions older than 5 years automatically dropped
+- **Maintenance**: Application-level scheduler or AWS Lambda (pg_cron not available on RDS)
+- **Monitoring**: Built-in functions for partition health checks
+
+**Performance Optimizations:**
+- **Partition Pruning**: Queries automatically scan only relevant partitions
+- **Parallel Processing**: Different partitions processed simultaneously
+- **Optimized Indexes**: Each partition gets its own performance-tuned indexes
+- **Materialized Views**: 5 views for efficient real-time analytics
+
 
 ## Success Criteria
 
 - ✅ Handle current MVP volume (few transactions/day) with room for growth
-- ✅ Real-time usage dashboards (< 5 minute latency via continuous aggregates)
-- ✅ Accurate billing with 30-minute settlement window
+- ✅ Real-time usage dashboards (< 5 minute latency via materialized views)
+- ✅ Accurate usage aggregation with data consistency guarantees
 - ✅ Zero data loss during processing (Kafka reliability)
-- ✅ Automatic data compression and retention (TimescaleDB policies)
+- ✅ Automatic data compression and retention (PostgreSQL partitioning)
 - ✅ Event-driven architecture ready for future scaling
 - ✅ Clean separation of usage data from core business operations
 - ✅ Simple deployment and monitoring for MVP
+- ✅ **Time-based partitioning starting July 2025 with auto-management**
+- ✅ **Zero TimescaleDB dependencies - pure PostgreSQL solution**
 
-## Risks and Mitigations
-
-1. **Event Ordering**: Use partition keys to ensure ordering
-2. **Data Loss**: Implement at-least-once delivery with idempotency
-3. **Schema Evolution**: Version events and maintain backward compatibility
-4. **Cross-Database Consistency**: Use eventual consistency with compensation patterns
-5. **Performance**: Monitor and optimize continuous aggregate refresh intervals
