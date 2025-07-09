@@ -37,39 +37,6 @@ func GenerateEventId() string {
 	return lib.GenerateId("evt")
 }
 
-// UsageRecordedEvent represents a usage recording event
-type UsageRecordedEvent struct {
-	BaseEvent
-	SubscriptionId     string               `json:"subscription_id"`
-	SubscriptionItemId string               `json:"subscription_item_id"`
-	CustomerId         string               `json:"customer_id"`
-	UsageRecord        entities.UsageRecord `json:"usage_record"`
-	MetricName         string               `json:"metric_name"`
-	Quantity           float64              `json:"quantity"`
-	UnitPrice          int64                `json:"unit_price,omitempty"`
-	BillingPeriod      string               `json:"billing_period"`
-}
-
-// UsageBatchRecordedEvent represents a batch of usage records
-type UsageBatchRecordedEvent struct {
-	BaseEvent
-	BatchId          string                 `json:"batch_id"`
-	Records          []entities.UsageRecord `json:"records"`
-	BatchSize        int                    `json:"batch_size"`
-	TotalQuantity    float64                `json:"total_quantity"`
-	ProcessingTimeMs int64                  `json:"processing_time_ms"`
-}
-
-// UsageAggregatedEvent represents an aggregated usage event
-type UsageAggregatedEvent struct {
-	BaseEvent
-	SubscriptionId     string    `json:"subscription_id"`
-	MetricName         string    `json:"metric_name"`
-	TotalUsage         int64     `json:"total_usage"`
-	BillingPeriodStart time.Time `json:"billing_period_start"`
-	BillingPeriodEnd   time.Time `json:"billing_period_end"`
-}
-
 // BillingEvent represents a billing-related event
 type BillingEvent struct {
 	BaseEvent
@@ -188,24 +155,6 @@ type DunningEvent struct {
 	CampaignStatus    string     `json:"campaign_status"`
 	CommunicationType string     `json:"communication_type,omitempty"`
 	RecoveryAmount    int64      `json:"recovery_amount,omitempty"`
-}
-
-// Event Factory Functions
-// These functions make it easy for services to create properly structured events
-
-// NewUsageRecordedEvent creates a new usage recorded event
-func NewUsageRecordedEvent(orgId string, usageRecord entities.UsageRecord) UsageRecordedEvent {
-	return UsageRecordedEvent{
-		BaseEvent:          NewBaseEvent(orgId, UsageRecorded, usageRecord.Id, "usage_record"),
-		SubscriptionId:     usageRecord.SubscriptionId,
-		SubscriptionItemId: usageRecord.SubscriptionItemId,
-		CustomerId:         usageRecord.CustomerId,
-		UsageRecord:        usageRecord,
-		MetricName:         string(usageRecord.UsageType),
-		Quantity:           usageRecord.Quantity,
-		UnitPrice:          usageRecord.UnitPrice,
-		BillingPeriod:      usageRecord.BillingPeriod,
-	}
 }
 
 // NewPaymentEvent creates a new payment event

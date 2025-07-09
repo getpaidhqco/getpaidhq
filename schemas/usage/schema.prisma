@@ -7,21 +7,30 @@ datasource db {
   url      = env("GPHQ_USAGE_DATABASE_URL")
 }
 
+// The raw usage events that are received from the usage API.
+// Enriched with business context from the CloudEvent subject.
 model UsageEvent {
-  time               DateTime @db.Timestamptz
-  orgId              String   @map("org_id")
-  subscriptionId     String   @map("subscription_id")
-  subscriptionItemId String   @map("subscription_item_id")
-  customerId         String   @map("customer_id")
-  usageType          String   @map("usage_type")
-  quantity           Decimal? @db.Decimal(15, 4)
-  transactionValue   BigInt?  @map("transaction_value")
-  calculatedAmount   BigInt   @map("calculated_amount")
-  referenceId        String?  @map("reference_id")
-  referenceType      String?  @map("reference_type")
-  metadata           Json?
+  orgId String @map("org_id")
+  id    String // CloudEvent id field
 
-  @@id([time, orgId, subscriptionItemId])
+  // Business context (enriched from CloudEvent subject)
+  subscriptionId     String @map("subscription_id")
+  subscriptionItemId String @map("subscription_item_id")
+  meterId            String @map("meter_id")
+
+  // CloudEvents v1.0 fields
+  specVersion String   @map("spec_version")
+  type        String   @map("type")
+  eventId     String   @map("event_id") // CloudEvent id field
+  time        DateTime @map("time") @db.Timestamptz
+  source      String   @map("source")
+  subject     String   @map("subject")
+  data        Json     @map("data")
+
+  // Audit
+  receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz
+
+  @@id([orgId, id])
   @@map("usage_events")
 }
 

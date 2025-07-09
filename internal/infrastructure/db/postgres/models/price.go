@@ -27,11 +27,10 @@ type Price struct {
 
 	// Usage-based billing fields
 	HasUsage           pgtype.Bool       `json:"has_usage"`
-	UsageType          pgtype.Text       `json:"usage_type"`
-	UnitType           pgtype.Text       `json:"unit_type"`
-	AggregationType    pgtype.Text       `json:"aggregation_type"`
+	MeterId            pgtype.Text       `json:"meter_id"`
 	PercentageRate     pgtype.Float8     `json:"percentage_rate"`
 	FixedFee           pgtype.Int8       `json:"fixed_fee"`
+	OverageUnitPrice   pgtype.Int8       `json:"overage_unit_price"`
 	IncludedUsage      pgtype.Int8       `json:"included_usage"`
 	UsageLimit         pgtype.Int8       `json:"usage_limit"`
 
@@ -61,11 +60,10 @@ func (p *Price) ToEntity() entities.Price {
 
 		// Usage-based billing fields
 		HasUsage:           p.HasUsage.Bool,
-		UsageType:          prices.UsageType(p.UsageType.String),
-		UnitType:           prices.UnitType(p.UnitType.String),
-		AggregationType:    prices.AggregationType(p.AggregationType.String),
+		MeterId:            p.MeterId.String,
 		PercentageRate:     p.PercentageRate.Float64,
 		FixedFee:           p.FixedFee.Int64,
+		OverageUnitPrice:   p.OverageUnitPrice.Int64,
 		IncludedUsage:      p.IncludedUsage.Int64,
 		UsageLimit:         p.UsageLimit.Int64,
 

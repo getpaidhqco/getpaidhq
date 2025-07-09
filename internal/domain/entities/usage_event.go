@@ -4,27 +4,68 @@ import (
 	"time"
 )
 
-// UsageEvent represents a single usage event in the system
+// UsageEvent represents a raw usage event based on CloudEvents v1.0 specification
 type UsageEvent struct {
-	// Time when the usage event occurred
-	Time time.Time
+	OrgId string `json:"org_id"`
+	Id    string `json:"id"` // CloudEvent id field
 
-	// Organization and subscription context
-	OrgID              string
-	SubscriptionID     string
-	SubscriptionItemID string
-	CustomerID         string
+	// Business context (enriched from CloudEvent subject)
+	SubscriptionId     string `json:"subscription_id"`
+	SubscriptionItemId string `json:"subscription_item_id"`
+	MeterId            string `json:"meter_id"`
 
-	// Usage data
-	UsageType        string
-	Quantity         *float64 // Pointer to allow nil for percentage-based pricing
-	TransactionValue *int64   // Pointer to allow nil for unit-based pricing
-	CalculatedAmount int64    // Final calculated amount in cents
+	// CloudEvents v1.0 fields
+	SpecVersion string                 `json:"spec_version"`
+	Type        string                 `json:"type"`
+	EventId     string                 `json:"event_id"` // CloudEvent id field
+	Time        time.Time              `json:"time"`
+	Source      string                 `json:"source"`
+	Subject     string                 `json:"subject"`
+	Data        map[string]interface{} `json:"data"`
+	Metadata    map[string]string      `json:"metadata"`
+	// Audit
+	ReceivedAt time.Time `json:"received_at"`
+}
 
-	// References for idempotency and tracking
-	ReferenceID   *string
-	ReferenceType *string
-	Metadata      map[string]interface{}
+// CalculatedUsageRecord represents a calculated usage record after processing
+type CalculatedUsageRecord struct {
+	Id                 string `json:"id"`
+	OrgId              string `json:"org_id"`
+	SubscriptionId     string `json:"subscription_id"`
+	SubscriptionItemId string `json:"subscription_item_id"`
+	CustomerId         string `json:"customer_id"`
+	MeterId            string `json:"meter_id"`
+
+	// Raw event data that was processed
+	EventName       string                 `json:"event_name"`
+	EventData       map[string]interface{} `json:"event_data"`
+	OriginalEventId string                 `json:"original_event_id"`
+
+	// Extracted value based on meter configuration
+	ExtractedValue  float64 `json:"extracted_value"`
+	AggregationType string  `json:"aggregation_type"`
+
+	// Calculated outputs
+	UnitPrice      int64   `json:"unit_price,omitempty"`
+	PercentageRate float64 `json:"percentage_rate,omitempty"`
+	FixedFee       int64   `json:"fixed_fee,omitempty"`
+	TotalAmount    int64   `json:"total_amount"`
+
+	// Reference tracking
+	ReferenceId string `json:"reference_id,omitempty"`
+
+	// Timing
+	UsageDate     time.Time `json:"usage_date"`
+	BillingPeriod string    `json:"billing_period"`
+
+	// Processing
+	Processed   bool       `json:"processed"`
+	ProcessedAt *time.Time `json:"processed_at,omitempty"`
+	InvoiceId   string     `json:"invoice_id,omitempty"`
+
+	// Audit
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 // UsageProcessingStatus tracks the processing status of usage events for a billing period
@@ -64,9 +105,9 @@ type UsageEventLog struct {
 	InvoiceID          *string
 
 	// Data
-	Amount       *int64
-	Quantity     *float64
-	EventCount   *int
+	Amount        *int64
+	Quantity      *float64
+	EventCount    *int
 	BillingPeriod *string
 
 	// Metadata

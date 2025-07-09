@@ -17,15 +17,16 @@ func (u UsageRecordingRoutes) Setup() {
 	u.logger.Info("Setting up usage recording routes")
 	api := u.handler.Gin.Group("/api")
 	{
-		// Usage recording endpoints
+		// CloudEvents usage endpoint (new standard)
+		api.POST("/usage-events", u.usageRecordingController.RecordUsage)
+
+		// Legacy usage recording endpoints
 		api.POST("/usage-records", u.usageRecordingController.RecordUsage)
-		api.POST("/usage-records/batch", u.usageRecordingController.BatchRecordUsage)
 		api.GET("/usage-records", u.usageRecordingController.ListUsageRecords)
-		api.GET("/usage-records/:id", u.usageRecordingController.GetUsageRecord)
-		api.DELETE("/usage-records/:id", u.usageRecordingController.DeleteUsageRecord)
+  api.GET("/usage-records/:id", u.usageRecordingController.GetUsageEvent)
+  api.DELETE("/usage-records/:id", u.usageRecordingController.DeleteUsageEvent)
 
 		// Usage summary endpoints
-		api.GET("/subscription-items/:id/usage-summary", u.usageRecordingController.GetUsageSummary)
 		api.GET("/subscriptions/:id/usage", u.usageRecordingController.GetSubscriptionUsage)
 	}
 }

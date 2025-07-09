@@ -22,4 +22,5 @@ var Module = fx.Options(
 	fx.Provide(NewSettingsController),
 	fx.Provide(NewDunningController),
 	fx.Provide(NewUsageRecordingController),
+	fx.Provide(NewMeterController),
 )

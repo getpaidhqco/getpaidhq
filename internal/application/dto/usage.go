@@ -7,14 +7,14 @@ import (
 
 // RecordUsageInput represents input for recording usage
 type RecordUsageInput struct {
-	SubscriptionItemId string            `json:"subscription_item_id"`
-	Quantity           float64           `json:"quantity"`
-	TransactionValue   *int64            `json:"transaction_value,omitempty"`
-	PercentageRate     *float64          `json:"percentage_rate,omitempty"`
-	ReferenceId        string            `json:"reference_id,omitempty"`
-	ReferenceType      string            `json:"reference_type,omitempty"`
-	Timestamp          time.Time         `json:"timestamp"`
-	Metadata           map[string]string `json:"metadata,omitempty"`
+	OrgId       string                 `json:"org_id"`      // Organization ID
+	SpecVersion string                 `json:"specversion"` // Always "1.0"
+	Type        string                 `json:"type"`        // Meter type/id
+	Id          string                 `json:"id"`          // Unique event identifier
+	Time        time.Time              `json:"time"`        // Event timestamp (RFC3339)
+	Source      string                 `json:"source"`      // Service/app that generated the event
+	Subject     string                 `json:"subject"`     // subscriptionItemId (entity being metered)
+	Data        map[string]interface{} `json:"data"`        // Flexible event payload
 }
 
 // BatchRecordUsageInput represents input for batch recording usage
@@ -53,4 +53,14 @@ type GetSubscriptionUsageInput struct {
 	SubscriptionId string    `json:"subscription_id"`
 	StartDate      time.Time `json:"start_date"`
 	EndDate        time.Time `json:"end_date"`
+}
+
+// UsageRecordingResponse represents the immediate response after recording usage
+type UsageRecordingResponse struct {
+	EventId            string    `json:"event_id"`          // Internal event ID
+	OriginalEventId    string    `json:"original_event_id"` // Original CloudEvent ID
+	SubscriptionItemId string    `json:"subscription_item_id"`
+	Type               string    `json:"type"`   // CloudEvent type
+	Status             string    `json:"status"` // "recorded", "processing", "calculated"
+	RecordedAt         time.Time `json:"recorded_at"`
 }

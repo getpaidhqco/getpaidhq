@@ -26,7 +26,7 @@ func NewKafkaPublisher(config Config, logger logger.Logger) (events.DurableEvent
 	producer, err := sarama.NewSyncProducer(config.Brokers, saramaConfig)
 	if err != nil {
 		logger.Error("Failed to create Kafka producer", "error", err)
-		panic(err)
+		return nil, fmt.Errorf("failed to create Kafka producer: %w", err)
 	}
 
 	return &KafkaPublisher{
@@ -61,8 +61,28 @@ func (k *KafkaPublisher) Close() error {
 	return nil
 }
 
+// reconnectProducer attempts to reconnect to Kafka by creating a new producer
+func (k *KafkaPublisher) reconnectProducer() error {
+	// Close the existing producer if it exists
+	if k.producer != nil {
+		_ = k.producer.Close()
+	}
+
+	// Create a new producer
+	saramaConfig := NewSaramaConfig(k.config)
+	producer, err := sarama.NewSyncProducer(k.config.Brokers, saramaConfig)
+	if err != nil {
+		k.logger.Error("Failed to reconnect to Kafka", "error", err)
+		return fmt.Errorf("failed to reconnect to Kafka: %w", err)
+	}
+
+	k.producer = producer
+	k.logger.Info("Successfully reconnected to Kafka")
+	return nil
+}
+
 // PublishUsageEvent publishes a usage event to Kafka
-func (k *KafkaPublisher) PublishUsageEvent(ctx context.Context, event events.UsageRecordedEvent) error {
+func (k *KafkaPublisher) PublishUsageEvent(ctx context.Context, event events.RawUsageRecordedEvent) error {
 	return k.publishEvent(ctx, events.TopicUsageEvents, event.OrgId, event)
 }
 
@@ -112,13 +132,13 @@ func (k *KafkaPublisher) PublishDunningEvent(ctx context.Context, event events.D
 }
 
 // PublishUsageBatch publishes a batch of usage events to Kafka
-func (k *KafkaPublisher) PublishUsageBatch(ctx context.Context, usageEvents []events.UsageRecordedEvent) error {
+func (k *KafkaPublisher) PublishUsageBatch(ctx context.Context, usageEvents []events.RawUsageRecordedEvent) error {
 	if len(usageEvents) == 0 {
 		return nil
 	}
 
 	// Group events by orgId
-	eventsByOrg := make(map[string][]events.UsageRecordedEvent)
+	eventsByOrg := make(map[string][]events.RawUsageRecordedEvent)
 	for _, event := range usageEvents {
 		eventsByOrg[event.OrgId] = append(eventsByOrg[event.OrgId], event)
 	}
@@ -193,7 +213,25 @@ func (k *KafkaPublisher) publishEvent(ctx context.Context, topic, orgId string, 
 	partition, offset, err := k.producer.SendMessage(msg)
 	if err != nil {
 		k.logger.Error("Failed to publish event to Kafka", "error", err, "topic", topic)
-		return fmt.Errorf("failed to publish event to Kafka: %w", err)
+
+		// Attempt to reconnect if the producer is closed or connection is lost
+		if err == sarama.ErrClosedClient || err == sarama.ErrOutOfBrokers || err == sarama.ErrNotConnected {
+			k.logger.Info("Attempting to reconnect to Kafka", "brokers", k.config.Brokers)
+
+			// Reconnect to Kafka
+			if reconnectErr := k.reconnectProducer(); reconnectErr != nil {
+				return fmt.Errorf("failed to publish event to Kafka and reconnection failed: %w", err)
+			}
+
+			// Retry sending the message
+			partition, offset, err = k.producer.SendMessage(msg)
+			if err != nil {
+				k.logger.Error("Failed to publish event to Kafka after reconnection", "error", err)
+				return fmt.Errorf("failed to publish event to Kafka after reconnection: %w", err)
+			}
+		} else {
+			return fmt.Errorf("failed to publish event to Kafka: %w", err)
+		}
 	}
 
 	k.logger.Debug("Published event to Kafka", "topic", topic, "partition", partition, "offset", offset)
@@ -236,7 +274,25 @@ func (k *KafkaPublisher) publishBatch(ctx context.Context, topic, orgId string, 
 	partition, offset, err := k.producer.SendMessage(msg)
 	if err != nil {
 		k.logger.Error("Failed to publish batch to Kafka", "error", err, "topic", topic)
-		return fmt.Errorf("failed to publish batch to Kafka: %w", err)
+
+		// Attempt to reconnect if the producer is closed or connection is lost
+		if err == sarama.ErrClosedClient || err == sarama.ErrOutOfBrokers || err == sarama.ErrNotConnected {
+			k.logger.Info("Attempting to reconnect to Kafka", "brokers", k.config.Brokers)
+
+			// Reconnect to Kafka
+			if reconnectErr := k.reconnectProducer(); reconnectErr != nil {
+				return fmt.Errorf("failed to publish batch to Kafka and reconnection failed: %w", err)
+			}
+
+			// Retry sending the message
+			partition, offset, err = k.producer.SendMessage(msg)
+			if err != nil {
+				k.logger.Error("Failed to publish batch to Kafka after reconnection", "error", err)
+				return fmt.Errorf("failed to publish batch to Kafka after reconnection: %w", err)
+			}
+		} else {
+			return fmt.Errorf("failed to publish batch to Kafka: %w", err)
+		}
 	}
 
 	k.logger.Debug("Published batch to Kafka", "topic", topic, "partition", partition, "offset", offset)

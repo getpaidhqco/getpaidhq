@@ -236,6 +236,9 @@ func (s *SubscriptionService) ProcessCharge(ctx context.Context, subscriptionId 
 - **Subscription Charging**: Usage aggregation → Invoice generation → Payment processing
 - **Dunning Process**: Payment failure → Retry schedule → Communication → Resolution
 
+## Repository Patterns
+- always use named parameters for queries
+
 ## Database Patterns
 
 ### Migration Strategy

@@ -110,6 +110,7 @@ model Org {
   DunningConfiguration DunningConfiguration[]
   SubscriptionItem     SubscriptionItem[]
   PriceTier            PriceTier[]
+  Meter                Meter[]
 
   @@map("orgs")
 }
@@ -232,6 +233,45 @@ model Variant {
   @@map("variants")
 }
 
+// Meter defines how to measure usage
+model Meter {
+  orgId       String  @map("org_id")
+  id          String
+  slug        String
+  name        String
+  description String?
+
+  // Event configuration
+  eventName   String @map("event_name")
+  eventFilter Json?  @map("event_filter")
+
+  // Aggregation configuration
+  aggregationType String  @map("aggregation_type")
+  valueProperty   String? @map("value_property")
+
+  // Display configuration
+  unitType    String @map("unit_type")
+  displayName String @map("display_name")
+
+  // Window configuration
+  windowSize    String? @map("window_size")
+  resetInterval String? @map("reset_interval")
+
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  Org              Org                @relation(fields: [orgId], references: [id])
+  Price            Price[]
+  SubscriptionItem SubscriptionItem[]
+
+  @@id([orgId, id])
+  @@unique([orgId, slug])
+  @@index([orgId, eventName])
+  @@map("meters")
+}
+
 model Price {
   orgId String @map("org_id")
   id    String @default(cuid())
@@ -259,6 +299,10 @@ model Price {
 
   taxCode String? @map("tax_code")
 
+  // Meter reference (NEW)
+  meterId String? @map("meter_id")
+  Meter   Meter?  @relation(fields: [orgId, meterId], references: [orgId, id])
+
   // Usage Configuration (Required for usage-based billing)
   hasUsage        Boolean @default(false) @map("has_usage")
   usageType       String? @map("usage_type") // "metered"
@@ -266,9 +310,9 @@ model Price {
   aggregationType String? @map("aggregation_type") // "sum", "max", "average", "last_during_period"
 
   // Pricing Models (Required for transaction fees & hybrid models)
-  percentageRate Float? @map("percentage_rate") // 2.9% for payment processing
-  fixedFee       Int?   @map("fixed_fee") // $0.30 per transaction
-  overageUnitPrice Int? @map("overage_unit_price") // For hybrid models with overage pricing
+  percentageRate   Float? @map("percentage_rate") // 2.9% for payment processing
+  fixedFee         Int?   @map("fixed_fee") // $0.30 per transaction
+  overageUnitPrice Int?   @map("overage_unit_price") // For hybrid models with overage pricing
 
   // Optional: Future features
   includedUsage Int? @map("included_usage") // Free tier allowance
@@ -288,20 +332,20 @@ model Price {
 }
 
 model PriceTier {
-  orgId       String   @map("org_id")
-  priceId     String   @map("price_id")
-  tier        Int      // Tier order (1, 2, 3...)
-  fromQty     Int      @map("from_qty") // Starting quantity (inclusive)
-  toQty       Int?     @map("to_qty") // Ending quantity (inclusive, null = unlimited)
-  unitPrice   Int      @map("unit_price") // Price per unit in cents
-  description String?  // Human readable description
+  orgId       String  @map("org_id")
+  priceId     String  @map("price_id")
+  tier        Int // Tier order (1, 2, 3...)
+  fromQty     Int     @map("from_qty") // Starting quantity (inclusive)
+  toQty       Int?    @map("to_qty") // Ending quantity (inclusive, null = unlimited)
+  unitPrice   Int     @map("unit_price") // Price per unit in cents
+  description String? // Human readable description
 
-  createdAt   DateTime @default(now()) @map("created_at")
-  updatedAt   DateTime @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relationships
-  price       Price @relation(fields: [orgId, priceId], references: [orgId, id], onDelete: Cascade)
-  org         Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  price Price @relation(fields: [orgId, priceId], references: [orgId, id], onDelete: Cascade)
+  org   Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@id([orgId, priceId, tier])
   @@index([orgId, priceId])
@@ -510,9 +554,9 @@ model PaymentMethod {
 
   billingAddress Json?          @map("billing_address")
   details        Json?          @map("details")
-  type           String           @map("type")
-  token          String           @map("token")
-  metadata       Json?           @map("metadata")
+  type           String         @map("type")
+  token          String         @map("token")
+  metadata       Json?          @map("metadata")
   expireAt       DateTime?      @map("expire_at")
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
@@ -591,7 +635,7 @@ model Subscription {
   planChanges SubscriptionPlanChange[]
 
   // Relation to subscription items
-  items       SubscriptionItem[]
+  items SubscriptionItem[]
 
   @@id([orgId, id])
   @@map("subscriptions")
@@ -607,6 +651,10 @@ model SubscriptionItem {
   productId String? @map("product_id")
   variantId String? @map("variant_id")
 
+  // Meter reference (NEW)
+  meterId String? @map("meter_id")
+  Meter   Meter?  @relation(fields: [orgId, meterId], references: [orgId, id])
+
   // Item details
   name        String
   description String?
@@ -619,10 +667,16 @@ model SubscriptionItem {
   amount   Int? // Fixed amount per period (null for pure usage)
   currency String
 
-  // Pricing configuration
-  percentageRate Float? @map("percentage_rate") // For percentage-based charges
-  fixedFee       Int?   @map("fixed_fee") // Fixed fee per unit
-  unitPrice      Int?   @map("unit_price") // Price per unit
+  // Pricing configuration (COPIED from Price at creation time for grandfathering)
+  percentageRate   Float? @map("percentage_rate") // For percentage-based charges
+  fixedFee         Int?   @map("fixed_fee") // Fixed fee per unit
+  unitPrice        Int?   @map("unit_price") // Price per unit
+  overageUnitPrice Int?   @map("overage_unit_price") // For hybrid models with overage pricing
+  includedUsage    Int?   @map("included_usage") // Free tier allowance
+  usageLimit       Int?   @map("usage_limit") // Hard limits
+
+  // Price snapshot for comparison/audit (NEW)
+  priceSnapshot Json? @map("price_snapshot")
 
   // Usage configuration
   hasUsage        Boolean @default(false) @map("has_usage")
@@ -635,9 +689,9 @@ model SubscriptionItem {
   updatedAt DateTime @updatedAt @map("updated_at")
 
   // Relationships
-  subscription Subscription  @relation(fields: [orgId, subscriptionId], references: [orgId, id])
-  price        Price         @relation(fields: [orgId, priceId], references: [orgId, id])
-  org          Org           @relation(fields: [orgId], references: [id])
+  subscription Subscription @relation(fields: [orgId, subscriptionId], references: [orgId, id])
+  price        Price        @relation(fields: [orgId, priceId], references: [orgId, id])
+  org          Org          @relation(fields: [orgId], references: [id])
 
   @@id([orgId, id])
   @@index([orgId, subscriptionId])
@@ -651,7 +705,6 @@ enum SubscriptionItemStatus {
   cancelled
   pending
 }
-
 
 model SubscriptionPlanChange {
   id             String @default(cuid())
@@ -1059,7 +1112,7 @@ model Document {
   url             String? // Public URL if applicable
 
   // Document type
-  type    String @map("type") // "pdf", "html", "attachment", "logo"
+  type    String  @map("type") // "pdf", "html", "attachment", "logo"
   purpose String? @map("purpose") // "invoice_pdf", "invoice_html", "company_logo", "attachment"
 
   // Security

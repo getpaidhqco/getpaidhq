@@ -2,7 +2,7 @@
 
 ## Overview
 
-This specification outlines the implementation of a Kafka + PostgreSQL architecture for usage-based billing that separates high-volume usage recording from core business operations while maintaining data consistency through event sourcing and time-series optimized PostgreSQL features.
+This specification outlines the implementation of an event-driven PostgreSQL architecture for usage-based billing that separates high-volume usage recording from core business operations while maintaining data consistency through event sourcing and time-series optimized PostgreSQL features.
 
 ## Architecture Goals
 
@@ -17,18 +17,18 @@ This specification outlines the implementation of a Kafka + PostgreSQL architect
 ### Core Components
 
 ```
-┌─────────────┐     ┌─────────┐     ┌──────────────┐     ┌─────────────┐
-│   API       │────▶│  Kafka  │────▶│  Usage DB    │────▶│   Main DB   │
-│   (Usage)   │     │ (Events)│     │(PostgreSQL)  │     │  (Billing)  │
-└─────────────┘     └─────────┘     └──────────────┘     └─────────────┘
-                                            │                     ▲
-                                            └─────────────────────┘
-                                           2:30AM Billing Process
+┌─────────────┐     ┌─────────────┐     ┌──────────────┐     ┌─────────────┐
+│   API       │────▶│   Event     │────▶│  Usage DB    │────▶│   Main DB   │
+│   (Usage)   │     │  Publisher  │     │(PostgreSQL)  │     │  (Billing)  │
+└─────────────┘     └─────────────┘     └──────────────┘     └─────────────┘
+                                              │                     ▲
+                                              └─────────────────────┘
+                                             2:30AM Billing Process
 ```
 
 ### Data Flow
 
-1. **Usage Recording**: API → Kafka → PostgreSQL Usage DB (Real-time)
+1. **Usage Recording**: API → Event Publisher → PostgreSQL Usage DB (Real-time)
 2. **Analytics**: PostgreSQL Materialized Views (5-minute refresh)
 3. **Billing**: Scheduled job at 2:30 AM queries finalized aggregates
 4. **Customer Dashboards**: Query materialized views for near real-time data
@@ -47,10 +47,11 @@ This specification outlines the implementation of a Kafka + PostgreSQL architect
 **Port**: 5432  
 **Database**: `payloop`
 
-### Kafka
+### Event Publisher
 
 **Purpose**: Event streaming and decoupling
-**Port**: 9092
+**Interface**: `DurableEventPublisher`
+**Implementation**: Can be Kafka, NATS, or any other event streaming system
 **Topics**: `usage-events`, `usage-processed`
 
 ## Implementation Tasks
@@ -401,8 +402,8 @@ import (
 )
 
 type UsageRecordingService struct {
-    kafkaProducer     messaging.KafkaProducer
-    subscriptionRepo  repositories.SubscriptionRepository
+    eventPublisher   events.DurableEventPublisher
+    subscriptionRepo repositories.SubscriptionRepository
 }
 
 func (s *UsageRecordingService) RecordUsage(ctx context.Context, orgID string, input dto.RecordUsageInput) error {
@@ -441,8 +442,8 @@ func (s *UsageRecordingService) RecordUsage(ctx context.Context, orgID string, i
         Metadata:           input.Metadata,
     }
     
-    // 4. Publish to Kafka
-    return s.kafkaProducer.PublishUsageEvent(ctx, event)
+    // 4. Publish to event stream
+    return s.eventPublisher.PublishUsageEvent(ctx, event)
 }
 
 func (s *UsageRecordingService) calculateUsageAmount(item entities.SubscriptionItem, input dto.RecordUsageInput) (int64, error) {
@@ -567,7 +568,7 @@ Update the billing service to use PostgreSQL aggregates:
 type BillingService struct {
     // ... existing fields
     usageAggregation *UsageAggregationService
-    kafkaProducer    messaging.KafkaProducer
+    eventPublisher    messaging.KafkaProducer
 }
 
 // ProcessMonthlyBilling integrates with usage aggregates
@@ -673,7 +674,7 @@ import (
 )
 
 type UsageRecordingService struct {
-    kafkaProducer        messaging.KafkaProducer
+    eventPublisher        messaging.KafkaProducer
     kafkaConsumer        messaging.KafkaConsumer
     subscriptionRepo     repositories.SubscriptionRepository
     usageEventRepo       repositories.UsageEventRepository
@@ -683,7 +684,7 @@ type UsageRecordingService struct {
 }
 
 func NewUsageRecordingService(
-    kafkaProducer messaging.KafkaProducer,
+    eventPublisher messaging.KafkaProducer,
     kafkaConsumer messaging.KafkaConsumer,
     subscriptionRepo repositories.SubscriptionRepository,
     usageEventRepo repositories.UsageEventRepository,
@@ -691,7 +692,7 @@ func NewUsageRecordingService(
     logger logger.Logger,
 ) *UsageRecordingService {
     return &UsageRecordingService{
-        kafkaProducer:       kafkaProducer,
+        eventPublisher:       eventPublisher,
         kafkaConsumer:       kafkaConsumer,
         subscriptionRepo:    subscriptionRepo,
         usageEventRepo:      usageEventRepo,
@@ -746,8 +747,8 @@ func (s *UsageRecordingService) RecordUsage(ctx context.Context, orgID string, i
         Metadata:           input.Metadata,
     }
     
-    // 4. Publish to Kafka
-    return s.kafkaProducer.PublishUsageEvent(ctx, event)
+    // 4. Publish to event stream
+    return s.eventPublisher.PublishUsageEvent(ctx, event)
 }
 
 func (s *UsageRecordingService) consumeUsageEvents(ctx context.Context) {

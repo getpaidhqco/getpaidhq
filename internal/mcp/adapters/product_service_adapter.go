@@ -106,9 +106,7 @@ func (a *ProductServiceAdapter) CreateProductPrice(ctx context.Context, input dt
 		TrialIntervalQty:   input.TrialIntervalQty,
 		TaxCode:            input.TaxCode,
 		HasUsage:           input.HasUsage,
-		UsageType:          input.UsageType,
-		UnitType:           input.UnitType,
-		AggregationType:    input.AggregationType,
+		MeterId:            input.MeterId,
 		PercentageRate:     input.PercentageRate,
 		FixedFee:           input.FixedFee,
 		OverageUnitPrice:   input.OverageUnitPrice,
@@ -116,7 +114,7 @@ func (a *ProductServiceAdapter) CreateProductPrice(ctx context.Context, input dt
 		UsageLimit:         input.UsageLimit,
 		Metadata:           input.Metadata,
 	}
-	
+
 	// Convert tiers
 	var tiers []entities.CreatePriceTierInput
 	for _, tier := range input.Tiers {
@@ -126,7 +124,7 @@ func (a *ProductServiceAdapter) CreateProductPrice(ctx context.Context, input dt
 			toQtyInt := int(tier.ToQty)
 			toQty = &toQtyInt
 		}
-		
+
 		tiers = append(tiers, entities.CreatePriceTierInput{
 			Tier:        tier.Tier,
 			FromQty:     fromQty,
@@ -136,7 +134,7 @@ func (a *ProductServiceAdapter) CreateProductPrice(ctx context.Context, input dt
 		})
 	}
 	entitiesInput.Tiers = tiers
-	
+
 	return a.productService.CreateProductPrice(ctx, entitiesInput)
 }
 
@@ -159,9 +157,7 @@ func (a *ProductServiceAdapter) UpdatePrice(ctx context.Context, orgId string, p
 		TrialIntervalQty:   input.TrialIntervalQty,
 		TaxCode:            input.TaxCode,
 		HasUsage:           input.HasUsage,
-		UsageType:          input.UsageType,
-		UnitType:           input.UnitType,
-		AggregationType:    input.AggregationType,
+		MeterId:            input.MeterId,
 		PercentageRate:     input.PercentageRate,
 		FixedFee:           input.FixedFee,
 		OverageUnitPrice:   input.OverageUnitPrice,
@@ -169,7 +165,7 @@ func (a *ProductServiceAdapter) UpdatePrice(ctx context.Context, orgId string, p
 		UsageLimit:         input.UsageLimit,
 		Metadata:           input.Metadata,
 	}
-	
+
 	// Convert tiers
 	var tiers []entities.CreatePriceTierInput
 	for _, tier := range input.Tiers {
@@ -179,7 +175,7 @@ func (a *ProductServiceAdapter) UpdatePrice(ctx context.Context, orgId string, p
 			toQtyInt := int(tier.ToQty)
 			toQty = &toQtyInt
 		}
-		
+
 		tiers = append(tiers, entities.CreatePriceTierInput{
 			Tier:        tier.Tier,
 			FromQty:     fromQty,
@@ -189,7 +185,7 @@ func (a *ProductServiceAdapter) UpdatePrice(ctx context.Context, orgId string, p
 		})
 	}
 	entitiesInput.Tiers = tiers
-	
+
 	return a.productService.UpdatePrice(ctx, orgId, priceId, entitiesInput)
 }
 

@@ -1,395 +1,304 @@
 package services
 
 import (
-    "context"
-    "fmt"
-    "time"
+	"context"
+	"fmt"
+	"time"
 
-    "payloop/internal/api/dto/request"
-    "payloop/internal/application/dto"
-    "payloop/internal/application/interfaces"
-    "payloop/internal/application/lib/logger"
-    "payloop/internal/domain/entities"
-    "payloop/internal/domain/repositories"
+	"payloop/internal/application/dto"
+	"payloop/internal/application/interfaces"
+	"payloop/internal/application/lib/events"
+	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/entities"
+	"payloop/internal/domain/repositories"
+	"payloop/internal/lib"
 )
 
 type UsageRecordingService struct {
-    usageRecordRepo      repositories.UsageRecordRepository
-    subscriptionRepo     repositories.SubscriptionRepository
-    subscriptionItemRepo repositories.SubscriptionItemRepository
-    logger               logger.Logger
+	usageEventRepo       repositories.UsageEventRepository
+	subscriptionRepo     repositories.SubscriptionRepository
+	subscriptionItemRepo repositories.SubscriptionItemRepository
+	meterRepo            repositories.MeterRepository
+	durablePublisher     events.DurableEventPublisher
+	logger               logger.Logger
 }
 
 func NewUsageRecordingService(
-    usageRecordRepo repositories.UsageRecordRepository,
-    subscriptionRepo repositories.SubscriptionRepository, 
-    subscriptionItemRepo repositories.SubscriptionItemRepository,
-    logger logger.Logger,
+	usageEventRepo repositories.UsageEventRepository,
+	subscriptionRepo repositories.SubscriptionRepository,
+	subscriptionItemRepo repositories.SubscriptionItemRepository,
+	meterRepo repositories.MeterRepository,
+	durablePublisher events.DurableEventPublisher,
+	logger logger.Logger,
 ) interfaces.UsageRecordingService {
-    return &UsageRecordingService{
-        usageRecordRepo:      usageRecordRepo,
-        subscriptionRepo:     subscriptionRepo,
-        subscriptionItemRepo: subscriptionItemRepo,
-        logger:               logger,
-    }
+	return &UsageRecordingService{
+		usageEventRepo:       usageEventRepo,
+		subscriptionRepo:     subscriptionRepo,
+		subscriptionItemRepo: subscriptionItemRepo,
+		meterRepo:            meterRepo,
+		durablePublisher:     durablePublisher,
+		logger:               logger,
+	}
 }
 
+// RecordUsage records usage events in CloudEvents format
 func (s *UsageRecordingService) RecordUsage(
-    ctx context.Context, 
-    orgId string, 
-    input dto.RecordUsageInput,
-) (entities.UsageRecord, error) {
-    // 1. Validate subscription item exists and belongs to org
-    subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, input.SubscriptionItemId)
-    if err != nil {
-        return entities.UsageRecord{}, fmt.Errorf("subscription item not found: %w", err)
-    }
+	ctx context.Context,
+	input dto.RecordUsageInput,
+) (dto.UsageRecordingResponse, error) {
 
-    // 2. Validate subscription belongs to org
-    subscription, err := s.subscriptionRepo.FindById(ctx, orgId, subscriptionItem.SubscriptionId)
-    if err != nil {
-        return entities.UsageRecord{}, fmt.Errorf("subscription not found: %w", err)
-    }
+	if input.Subject == "" {
+		return dto.UsageRecordingResponse{}, fmt.Errorf("The subject is required")
+	}
 
-    // 3. Validate subscription item has usage enabled
-    if !subscriptionItem.HasUsage {
-        return entities.UsageRecord{}, fmt.Errorf("subscription item does not support usage recording")
-    }
+	// 2. Resolve subject to subscription item
+	subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, input.OrgId, input.Subject)
+	if err != nil {
+		return dto.UsageRecordingResponse{}, fmt.Errorf("subscription item not found: %w", err)
+	}
 
-    // 4. Check for duplicate usage record (idempotency)
-    if input.ReferenceId != "" {
-        // Since FindByReferenceId is not in the interface, we'll use Find with pagination
-        // In a real implementation, you would add a filter for reference_id
-        pagination := dto.NewPagination(0, 100, "created_at", "desc")
+	// Validate subscription item has usage enabled and meter configured
+	if !subscriptionItem.HasUsage {
+		return dto.UsageRecordingResponse{}, fmt.Errorf("subscription item does not support usage recording")
+	}
 
-        // Convert application DTO pagination to request pagination for repository
-        repoPagination := request.Pagination{
-            Page:          pagination.Page,
-            Limit:         pagination.Limit,
-            Offset:        pagination.Offset,
-            SortDirection: pagination.SortDirection,
-            SortBy:        pagination.SortBy,
-        }
+	if subscriptionItem.MeterId == "" {
+		return dto.UsageRecordingResponse{}, fmt.Errorf("subscription item does not have a meter configured")
+	}
 
-        existingRecords, _, err := s.usageRecordRepo.Find(ctx, orgId, repoPagination)
-        if err == nil {
-            // Manually filter for the reference ID
-            for _, record := range existingRecords {
-                if record.ReferenceId == input.ReferenceId {
-                    return record, nil
-                }
-            }
-        }
-    }
+	// 5. Validate meter exists and event type matches meter configuration
+	meter, err := s.meterRepo.FindById(ctx, input.OrgId, subscriptionItem.MeterId)
+	if err != nil {
+		return dto.UsageRecordingResponse{}, fmt.Errorf("meter not found: %w", err)
+	}
 
-    // 5. Create appropriate usage record based on subscription item type
-    var usageRecord entities.UsageRecord
+	// Match CloudEvent type to meter (can be meter ID or event name)
+	if input.Type != meter.Id && input.Type != meter.EventName {
+		return dto.UsageRecordingResponse{}, fmt.Errorf("CloudEvent type %s does not match meter %s", input.Type, meter.Id)
+	}
 
-    switch subscriptionItem.UnitType {
-    case entities.UnitTypeTransactions:
-        // Transaction-based usage (with value and percentage)
-        var transactionValue int64
-        var percentageRate float64
+	// 6. Set timestamp if not provided
+	timestamp := input.Time
+	if timestamp.IsZero() {
+		timestamp = time.Now().UTC()
+		input.Time = timestamp
+	}
 
-        if input.TransactionValue != nil {
-            transactionValue = *input.TransactionValue
-        }
+	// 7. Create enriched raw usage event
+	eventId := lib.GenerateId("ue")
 
-        if input.PercentageRate != nil {
-            percentageRate = *input.PercentageRate
-        }
+	baseEvent := events.NewBaseEvent(
+		input.OrgId,
+		events.RawUsageRecorded,
+		eventId,
+		"raw_usage",
+	)
 
-        usageRecord = entities.NewTransactionUsageRecord(
-            orgId,
-            subscription.Id,
-            input.SubscriptionItemId,
-            subscription.CustomerId,
-            subscriptionItem.PriceId,
-            input.Quantity,
-            transactionValue,
-            percentageRate,
-            subscriptionItem.FixedFee,
-        )
-    default:
-        // Unit-based usage (quantity only)
-        usageRecord = entities.NewUnitUsageRecord(
-            orgId,
-            subscription.Id,
-            input.SubscriptionItemId,
-            subscription.CustomerId,
-            subscriptionItem.PriceId,
-            input.Quantity,
-            subscriptionItem.UnitPrice,
-        )
-    }
+	rawUsageEvent := events.RawUsageRecordedEvent{
+		BaseEvent:          baseEvent,
+		Data:               input,
+		OrgId:              input.OrgId,
+		SubscriptionId:     subscriptionItem.SubscriptionId,
+		SubscriptionItemId: subscriptionItem.Id,
+		MeterId:            subscriptionItem.MeterId,
+		ReceivedAt:         time.Now().UTC(),
+	}
 
-    // 6. Set optional fields
-    if input.ReferenceId != "" {
-        usageRecord.ReferenceId = input.ReferenceId
-        usageRecord.ReferenceType = input.ReferenceType
-    }
+	// 8. Publish raw usage event for storage
+	err = s.durablePublisher.PublishUsageEvent(ctx, rawUsageEvent)
+	if err != nil {
+		s.logger.Error("Failed to publish raw usage event", "error", err)
+		return dto.UsageRecordingResponse{}, fmt.Errorf("failed to record usage: %w", err)
+	}
 
-    if input.Metadata != nil {
-        usageRecord.SetMetadata(input.Metadata)
-    }
+	s.logger.Info("Raw usage event published successfully",
+		"subscriptionItemId", subscriptionItem.Id,
+		"cloudEventType", input.Type,
+		"cloudEventId", input.Id,
+		"eventId", eventId)
 
-    // Set timestamp if provided
-    if !input.Timestamp.IsZero() {
-        usageRecord.UsageDate = input.Timestamp
-        usageRecord.BillingPeriod = formatBillingPeriod(input.Timestamp)
-    }
-
-    // 7. Save usage record
-    createdRecord, err := s.usageRecordRepo.Create(ctx, usageRecord)
-    if err != nil {
-        s.logger.Error("Failed to create usage record", "error", err)
-        return entities.UsageRecord{}, fmt.Errorf("failed to record usage: %w", err)
-    }
-
-    s.logger.Info("Usage recorded successfully",
-        "subscriptionItemId", input.SubscriptionItemId,
-        "quantity", input.Quantity,
-        "usageRecordId", createdRecord.Id)
-
-    return createdRecord, nil
-}
-
-func (s *UsageRecordingService) BatchRecordUsage(
-    ctx context.Context,
-    orgId string,
-    input dto.BatchRecordUsageInput,
-) ([]entities.UsageRecord, error) {
-    var records []entities.UsageRecord
-
-    // Process each usage record in the batch
-    for _, usageInput := range input.Records {
-        record, err := s.RecordUsage(ctx, orgId, usageInput)
-        if err != nil {
-            // Log error but continue processing other records
-            s.logger.Error("Failed to record usage in batch",
-                "subscriptionItemId", usageInput.SubscriptionItemId,
-                "error", err)
-            continue
-        }
-        records = append(records, record)
-    }
-
-    return records, nil
+	// 9. Return response immediately (no calculations performed)
+	return dto.UsageRecordingResponse{
+		EventId:            eventId,
+		OriginalEventId:    input.Id,
+		SubscriptionItemId: subscriptionItem.Id,
+		Type:               input.Type,
+		Status:             "recorded",
+		RecordedAt:         timestamp,
+	}, nil
 }
 
 func (s *UsageRecordingService) ListUsageRecords(
-    ctx context.Context,
-    orgId string,
-    input dto.ListUsageRecordsInput,
-) (dto.PaginatedResult[entities.UsageRecord], error) {
-    // 1. Validate subscription item belongs to org
-    subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, input.SubscriptionItemId)
-    if err != nil {
-        return dto.PaginatedResult[entities.UsageRecord]{}, fmt.Errorf("subscription item not found: %w", err)
-    }
+	ctx context.Context,
+	orgId string,
+	input dto.ListUsageRecordsInput,
+) (dto.PaginatedResult[entities.UsageEvent], error) {
+	// 1. Validate subscription item belongs to org
+	subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, input.SubscriptionItemId)
+	if err != nil {
+		return dto.PaginatedResult[entities.UsageEvent]{}, fmt.Errorf("subscription item not found: %w", err)
+	}
 
-    // Verify the subscription exists and belongs to the org
-    _, err = s.subscriptionRepo.FindById(ctx, orgId, subscriptionItem.SubscriptionId)
-    if err != nil {
-        return dto.PaginatedResult[entities.UsageRecord]{}, fmt.Errorf("subscription not found: %w", err)
-    }
+	// Verify the subscription exists and belongs to the org
+	_, err = s.subscriptionRepo.FindById(ctx, orgId, subscriptionItem.SubscriptionId)
+	if err != nil {
+		return dto.PaginatedResult[entities.UsageEvent]{}, fmt.Errorf("subscription not found: %w", err)
+	}
 
-    // 2. Get usage records with pagination
-    usageRecords, err := s.usageRecordRepo.FindBySubscriptionItemId(ctx, orgId, input.SubscriptionItemId)
-    if err != nil {
-        return dto.PaginatedResult[entities.UsageRecord]{}, err
-    }
+	// 2. Get usage events with pagination
+	// Define time range - for now, get all events (could be refined with start/end time parameters)
+	startTime := time.Time{} // Zero time for "beginning of time"
+	endTime := time.Now().UTC().Add(time.Hour * 24) // Tomorrow, to include all events up to now
 
-    // Apply pagination manually since the repository doesn't support it directly
-    pagination := input.Pagination
-    offset := pagination.Offset
-    limit := pagination.Limit
+	usageEvents, err := s.usageEventRepo.FindBySubscriptionItem(ctx, orgId, input.SubscriptionItemId, startTime, endTime)
+	if err != nil {
+		return dto.PaginatedResult[entities.UsageEvent]{}, err
+	}
 
-    total := len(usageRecords)
-    start := offset
-    end := offset + limit
-    if start >= total {
-        start = total
-    }
-    if end > total {
-        end = total
-    }
+	// Apply pagination manually since the repository doesn't support it directly
+	pagination := input.Pagination
+	offset := pagination.Offset
+	limit := pagination.Limit
 
-    paginatedRecords := usageRecords
-    if start < end {
-        paginatedRecords = usageRecords[start:end]
-    } else {
-        paginatedRecords = []entities.UsageRecord{}
-    }
+	total := len(usageEvents)
+	start := offset
+	end := offset + limit
+	if start >= total {
+		start = total
+	}
+	if end > total {
+		end = total
+	}
 
-    // 3. Create paginated result
-    hasMore := (pagination.Page+1)*pagination.Limit < total
+	paginatedEvents := usageEvents
+	if start < end {
+		paginatedEvents = usageEvents[start:end]
+	} else {
+		paginatedEvents = []entities.UsageEvent{}
+	}
 
-    return dto.PaginatedResult[entities.UsageRecord]{
-        Items:      paginatedRecords,
-        TotalCount: total,
-        Page:       pagination.Page,
-        PageSize:   pagination.Limit,
-        HasMore:    hasMore,
-    }, nil
+	// 3. Create paginated result
+	hasMore := (pagination.Page+1)*pagination.Limit < total
+
+	return dto.PaginatedResult[entities.UsageEvent]{
+		Items:      paginatedEvents,
+		TotalCount: total,
+		Page:       pagination.Page,
+		PageSize:   pagination.Limit,
+		HasMore:    hasMore,
+	}, nil
 }
 
-func (s *UsageRecordingService) GetUsageRecord(
-    ctx context.Context,
-    orgId string,
-    usageRecordId string,
-) (entities.UsageRecord, error) {
-    // 1. Get usage record
-    usageRecord, err := s.usageRecordRepo.FindById(ctx, orgId, usageRecordId)
-    if err != nil {
-        return entities.UsageRecord{}, err
-    }
+func (s *UsageRecordingService) GetUsageEvent(
+	ctx context.Context,
+	orgId string,
+	eventId string,
+) (entities.UsageEvent, error) {
+	// For UsageEvent, we need to find by ID and time, but we don't have time
+	// We'll need to modify this to work with the available methods
 
-    // 2. Validate access through subscription
-    subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, usageRecord.SubscriptionItemId)
-    if err != nil {
-        return entities.UsageRecord{}, fmt.Errorf("subscription item not found: %w", err)
-    }
+	// First, try to find by reference ID (which might be the event ID)
+	usageEvent, err := s.usageEventRepo.FindByReferenceID(ctx, eventId, "")
+	if err != nil {
+		// If not found by reference ID, we can't proceed without more information
+		return entities.UsageEvent{}, fmt.Errorf("usage event not found: %w", err)
+	}
 
-    // Verify the subscription exists and belongs to the org
-    _, err = s.subscriptionRepo.FindById(ctx, orgId, subscriptionItem.SubscriptionId)
-    if err != nil {
-        return entities.UsageRecord{}, fmt.Errorf("subscription not found: %w", err)
-    }
+	// 2. Validate access through subscription
+	subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, usageEvent.SubscriptionItemId)
+	if err != nil {
+		return entities.UsageEvent{}, fmt.Errorf("subscription item not found: %w", err)
+	}
 
-    return usageRecord, nil
-}
+	// Verify the subscription exists and belongs to the org
+	_, err = s.subscriptionRepo.FindById(ctx, orgId, subscriptionItem.SubscriptionId)
+	if err != nil {
+		return entities.UsageEvent{}, fmt.Errorf("subscription not found: %w", err)
+	}
 
-func (s *UsageRecordingService) GetUsageSummary(
-    ctx context.Context,
-    orgId string,
-    input dto.UsageSummaryInput,
-) (dto.UsageSummaryResult, error) {
-    // 1. Validate subscription item access
-    subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, input.SubscriptionItemId)
-    if err != nil {
-        return dto.UsageSummaryResult{}, fmt.Errorf("subscription item not found: %w", err)
-    }
-
-    subscription, err := s.subscriptionRepo.FindById(ctx, orgId, subscriptionItem.SubscriptionId)
-    if err != nil {
-        return dto.UsageSummaryResult{}, fmt.Errorf("subscription not found: %w", err)
-    }
-
-    // 2. Get usage summary from repository
-    summaryData, err := s.usageRecordRepo.GetUsageSummary(
-        ctx, orgId, input.SubscriptionItemId, input.StartDate, input.EndDate)
-    if err != nil {
-        return dto.UsageSummaryResult{}, err
-    }
-
-    // 3. Create result
-    summary := dto.UsageSummaryResult{
-        SubscriptionId:     subscription.Id,
-        SubscriptionItemId: input.SubscriptionItemId,
-        BillingPeriod:      formatBillingPeriod(input.StartDate),
-        UsageType:          subscriptionItem.UsageType,
-        UnitType:           subscriptionItem.UnitType,
-        AggregationType:    subscriptionItem.AggregationType,
-        Details:            summaryData,
-    }
-
-    // Extract total quantity and amount if available
-    if totalQuantity, ok := summaryData["total_quantity"].(float64); ok {
-        summary.TotalQuantity = totalQuantity
-    }
-
-    if totalAmount, ok := summaryData["total_amount"].(int64); ok {
-        summary.TotalAmount = totalAmount
-    }
-
-    return summary, nil
+	return usageEvent, nil
 }
 
 func (s *UsageRecordingService) GetSubscriptionUsage(
-    ctx context.Context,
-    orgId string,
-    input dto.GetSubscriptionUsageInput,
-) ([]entities.UsageRecord, error) {
-    // 1. Validate subscription access
-    _, err := s.subscriptionRepo.FindById(ctx, orgId, input.SubscriptionId)
-    if err != nil {
-        return nil, fmt.Errorf("subscription not found: %w", err)
-    }
+	ctx context.Context,
+	orgId string,
+	input dto.GetSubscriptionUsageInput,
+) ([]entities.UsageEvent, error) {
+	// 1. Validate subscription access
+	_, err := s.subscriptionRepo.FindById(ctx, orgId, input.SubscriptionId)
+	if err != nil {
+		return nil, fmt.Errorf("subscription not found: %w", err)
+	}
 
-    // 2. Get usage records for billing period
-    startPeriod := formatBillingPeriod(input.StartDate)
-    endPeriod := formatBillingPeriod(input.EndDate)
+	// 2. Get usage events for the date range
+	// For UsageEvent, we need to query by time range directly
 
-    // Use FindByBillingPeriod for each period in the range
-    var allRecords []entities.UsageRecord
+	// Get all subscription items for this subscription
+	subscriptionItems, err := s.subscriptionItemRepo.FindBySubscriptionId(ctx, orgId, input.SubscriptionId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find subscription items: %w", err)
+	}
 
-    // If start and end are in the same period, just do one query
-    if startPeriod == endPeriod {
-        records, err := s.usageRecordRepo.FindByBillingPeriod(ctx, orgId, input.SubscriptionId, startPeriod)
-        if err != nil {
-            return nil, err
-        }
-        allRecords = records
-    } else {
-        // Otherwise, query each period in the range
-        // This is a simplified approach - in a real implementation, you might want to
-        // generate all periods between start and end
-        recordsStart, err := s.usageRecordRepo.FindByBillingPeriod(ctx, orgId, input.SubscriptionId, startPeriod)
-        if err != nil {
-            return nil, err
-        }
+	var allEvents []entities.UsageEvent
 
-        recordsEnd, err := s.usageRecordRepo.FindByBillingPeriod(ctx, orgId, input.SubscriptionId, endPeriod)
-        if err != nil {
-            return nil, err
-        }
+	// For each subscription item, get its usage events
+	for _, item := range subscriptionItems {
+		// Skip items without usage or meter
+		if !item.HasUsage || item.MeterId == "" {
+			continue
+		}
 
-        allRecords = append(recordsStart, recordsEnd...)
-    }
+		// Get usage events for this subscription item
+		events, err := s.usageEventRepo.FindBySubscriptionItem(
+			ctx, orgId, item.Id, input.StartDate, input.EndDate)
+		if err != nil {
+			s.logger.Warn("Failed to get usage events for subscription item",
+				"subscriptionItemId", item.Id, "error", err)
+			continue
+		}
 
-    return allRecords, nil
+		allEvents = append(allEvents, events...)
+	}
+
+	return allEvents, nil
 }
 
-func (s *UsageRecordingService) DeleteUsageRecord(
-    ctx context.Context,
-    orgId string,
-    usageRecordId string,
+func (s *UsageRecordingService) DeleteUsageEvent(
+	ctx context.Context,
+	orgId string,
+	eventId string,
+	eventTime time.Time,
 ) error {
-    // 1. Validate access (same as GetUsageRecord)
-    usageRecord, err := s.usageRecordRepo.FindById(ctx, orgId, usageRecordId)
-    if err != nil {
-        return err
-    }
+	// For UsageEvent, we need to find by ID and time
+	// First, try to find by reference ID (which might be the event ID)
+	usageEvent, err := s.usageEventRepo.FindByReferenceID(ctx, eventId, "")
+	if err != nil {
+		// If not found by reference ID, we can't proceed without more information
+		return fmt.Errorf("usage event not found: %w", err)
+	}
 
-    subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, usageRecord.SubscriptionItemId)
-    if err != nil {
-        return fmt.Errorf("subscription item not found: %w", err)
-    }
+	subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, usageEvent.SubscriptionItemId)
+	if err != nil {
+		return fmt.Errorf("subscription item not found: %w", err)
+	}
 
-    // Verify the subscription exists and belongs to the org
-    _, err = s.subscriptionRepo.FindById(ctx, orgId, subscriptionItem.SubscriptionId)
-    if err != nil {
-        return fmt.Errorf("subscription not found: %w", err)
-    }
+	// Verify the subscription exists and belongs to the org
+	_, err = s.subscriptionRepo.FindById(ctx, orgId, subscriptionItem.SubscriptionId)
+	if err != nil {
+		return fmt.Errorf("subscription not found: %w", err)
+	}
 
-    // 2. Check if usage record is already processed
-    if usageRecord.Processed {
-        return fmt.Errorf("cannot delete processed usage record")
-    }
+	// 3. Delete usage event
+	err = s.usageEventRepo.Delete(ctx, orgId, usageEvent.SubscriptionItemId, eventTime)
+	if err != nil {
+		return fmt.Errorf("failed to delete usage event: %w", err)
+	}
 
-    // 3. Delete usage record
-    err = s.usageRecordRepo.Delete(ctx, orgId, usageRecordId)
-    if err != nil {
-        return fmt.Errorf("failed to delete usage record: %w", err)
-    }
-
-    s.logger.Info("Usage record deleted", "usageRecordId", usageRecordId)
-    return nil
+	s.logger.Info("Usage event deleted", "eventId", eventId)
+	return nil
 }
-
 
 // formatBillingPeriod formats the billing period as YYYY-MM
 func formatBillingPeriod(date time.Time) string {
-    return date.Format("2006-01")
+	return date.Format("2006-01")
 }

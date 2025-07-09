@@ -1,6 +1,7 @@
 package entities
 
 import (
+	"encoding/json"
 	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities/prices"
 	"payloop/internal/lib"
@@ -559,24 +560,29 @@ func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 	subscriptionItem.VariantId = item.VariantId
 	subscriptionItem.Description = item.Description
 
+	// Set meter reference if available
+	subscriptionItem.MeterId = item.Price.MeterId
+
+	// Create price snapshot for comparison/audit
+	if priceSnapshot, err := json.Marshal(item.Price); err == nil {
+		subscriptionItem.PriceSnapshot = priceSnapshot
+	}
+
 	// Configure pricing based on category
 	switch item.Price.Category {
 	case prices.PriceCategoryUsage:
 		// Pure usage-based billing
 		subscriptionItem.HasUsage = true
-		subscriptionItem.UsageType = UsageType(item.Price.UsageType)
-		subscriptionItem.UnitType = UnitType(item.Price.UnitType)
-		subscriptionItem.AggregationType = AggregationType(item.Price.AggregationType)
 		subscriptionItem.UnitPrice = item.Price.UnitPrice
 		subscriptionItem.PercentageRate = item.Price.PercentageRate
 		subscriptionItem.FixedFee = item.Price.FixedFee
+		subscriptionItem.OverageUnitPrice = item.Price.OverageUnitPrice
+		subscriptionItem.IncludedUsage = item.Price.IncludedUsage
+		subscriptionItem.UsageLimit = item.Price.UsageLimit
 		subscriptionItem.Amount = 0 // No fixed amount for pure usage
 	case prices.PriceCategoryHybrid:
 		// Hybrid billing (fixed + usage)
 		subscriptionItem.HasUsage = true
-		subscriptionItem.UsageType = UsageType(item.Price.UsageType)
-		subscriptionItem.UnitType = UnitType(item.Price.UnitType)
-		subscriptionItem.AggregationType = AggregationType(item.Price.AggregationType)
 
 		// Use a quantity of at least 1 for the base amount
 		quantity := item.Quantity
@@ -585,9 +591,12 @@ func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 		}
 		subscriptionItem.Amount = item.Price.UnitPrice * int64(quantity) // Base fixed amount multiplied by quantity
 
-		subscriptionItem.UnitPrice = item.Price.OverageUnitPrice // Overage rate
+		subscriptionItem.UnitPrice = item.Price.UnitPrice
+		subscriptionItem.OverageUnitPrice = item.Price.OverageUnitPrice // Overage rate
 		subscriptionItem.PercentageRate = item.Price.PercentageRate
 		subscriptionItem.FixedFee = item.Price.FixedFee
+		subscriptionItem.IncludedUsage = item.Price.IncludedUsage
+		subscriptionItem.UsageLimit = item.Price.UsageLimit
 	default:
 		// Traditional subscription billing
 		subscriptionItem.Amount = item.Price.UnitPrice

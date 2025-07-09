@@ -27,22 +27,22 @@ type Price struct {
 	TaxCode            string                 `json:"tax_code"`
 
 	// Usage-based billing fields
-	HasUsage           bool                    `json:"has_usage"`
-	UsageType          prices.UsageType        `json:"usage_type,omitempty"`
-	UnitType           prices.UnitType         `json:"unit_type,omitempty"`
-	AggregationType    prices.AggregationType  `json:"aggregation_type,omitempty"`
-	PercentageRate     float64                 `json:"percentage_rate,omitempty"`
-	FixedFee           int64                   `json:"fixed_fee,omitempty"`
-	OverageUnitPrice   int64                   `json:"overage_unit_price,omitempty"`
-	IncludedUsage      int64                   `json:"included_usage,omitempty"`
-	UsageLimit         int64                   `json:"usage_limit,omitempty"`
+	HasUsage bool `json:"has_usage"`
+	// Meter reference
+	MeterId string `json:"meter_id,omitempty"`
+	// Pricing configuration
+	PercentageRate   float64 `json:"percentage_rate,omitempty"`
+	FixedFee         int64   `json:"fixed_fee,omitempty"`
+	OverageUnitPrice int64   `json:"overage_unit_price,omitempty"`
+	IncludedUsage    int64   `json:"included_usage,omitempty"`
+	UsageLimit       int64   `json:"usage_limit,omitempty"`
 
 	// Tier configuration
-	Tiers              []PriceTier             `json:"tiers,omitempty"`
+	Tiers []PriceTier `json:"tiers,omitempty"`
 
-	Metadata           map[string]string       `json:"metadata"`
-	CreatedAt          time.Time               `json:"created_at"`
-	UpdatedAt          time.Time               `json:"updated_at"`
+	Metadata  map[string]string `json:"metadata"`
+	CreatedAt time.Time         `json:"created_at"`
+	UpdatedAt time.Time         `json:"updated_at"`
 }
 
 // Factory function to create a Price with default values and validation
@@ -127,8 +127,8 @@ func NewPrice(orgId, variantId string, input CreatePriceInput) (Price, error) {
 // Validate performs validation on the Price entity based on its category
 func (p Price) Validate() error {
 	// Validate percentage-based pricing
-	if p.PercentageRate > 0 && p.UnitType != prices.UnitTypeTransactions && p.UnitType != "cents" && p.UnitType != "dollars" {
-		return errors.NewValidationError("percentageRate", "percentage rate only valid for transaction-based units")
+	if p.PercentageRate > 0 {
+		// Percentage rate is valid for all meter types
 	}
 
 	// Validate price category
@@ -176,24 +176,13 @@ func (p Price) validateUsagePricing() error {
 		return errors.NewValidationError("hasUsage", "usage pricing requires hasUsage to be true")
 	}
 
-	// Require UsageType, UnitType, and AggregationType
-	if p.UsageType == "" {
-		return errors.NewValidationError("usageType", "usage type is required for usage-based pricing")
-	}
-	if p.UnitType == "" {
-		return errors.NewValidationError("unitType", "unit type is required for usage-based pricing")
-	}
-	if p.AggregationType == "" {
-		return errors.NewValidationError("aggregationType", "aggregation type is required for usage-based pricing")
+	// Require MeterId
+	if p.MeterId == "" {
+		return errors.NewValidationError("meterId", "meter ID is required for usage-based pricing")
 	}
 
-	// For transactions (UnitTypeTransactions): require either PercentageRate or UnitPrice
-	if p.UnitType == prices.UnitTypeTransactions && p.PercentageRate == 0 && p.UnitPrice == 0 {
-		return errors.NewValidationError("pricing", "transaction pricing requires either percentage rate or unit price")
-	}
-
-	// For other types: require UnitPrice or PercentageRate
-	if p.UnitType != prices.UnitTypeTransactions && p.UnitPrice == 0 && p.PercentageRate == 0 {
+	// Require UnitPrice or PercentageRate
+	if p.UnitPrice == 0 && p.PercentageRate == 0 {
 		return errors.NewValidationError("pricing", "usage pricing requires either unit price or percentage rate")
 	}
 
@@ -222,15 +211,9 @@ func (p Price) validateHybridPricing() error {
 		return errors.NewValidationError("pricing", "hybrid pricing requires either overage unit price or percentage rate")
 	}
 
-	// Require usage configuration fields
-	if p.UsageType == "" {
-		return errors.NewValidationError("usageType", "usage type is required for hybrid pricing")
-	}
-	if p.UnitType == "" {
-		return errors.NewValidationError("unitType", "unit type is required for hybrid pricing")
-	}
-	if p.AggregationType == "" {
-		return errors.NewValidationError("aggregationType", "aggregation type is required for hybrid pricing")
+	// Require MeterId
+	if p.MeterId == "" {
+		return errors.NewValidationError("meterId", "meter ID is required for hybrid pricing")
 	}
 
 	// Validate tiers if scheme is tiered/volume
@@ -317,9 +300,11 @@ func (p Price) validateTiers() error {
 // configureUsageBilling configures usage fields based on input
 func (p *Price) configureUsageBilling(input CreatePriceInput) error {
 	p.HasUsage = true
-	p.UsageType = prices.UsageType(input.UsageType)
-	p.UnitType = prices.UnitType(input.UnitType)
-	p.AggregationType = prices.AggregationType(input.AggregationType)
+
+	// Set meter reference
+	p.MeterId = input.MeterId
+
+	// Set pricing configuration
 	p.PercentageRate = input.PercentageRate
 	p.FixedFee = input.FixedFee
 	p.OverageUnitPrice = input.OverageUnitPrice
@@ -327,8 +312,8 @@ func (p *Price) configureUsageBilling(input CreatePriceInput) error {
 	p.UsageLimit = input.UsageLimit
 
 	// Validate usage configuration
-	if p.UsageType == "" || p.UnitType == "" || p.AggregationType == "" {
-		return errors.ErrInvalidUsageConfiguration
+	if p.MeterId == "" {
+		return errors.NewValidationError("meterId", "meter ID is required for usage-based pricing")
 	}
 
 	return nil
@@ -337,9 +322,9 @@ func (p *Price) configureUsageBilling(input CreatePriceInput) error {
 // clearUsageFields clears all usage-related fields when HasUsage is false
 func (p *Price) clearUsageFields() {
 	p.HasUsage = false
-	p.UsageType = ""
-	p.UnitType = ""
-	p.AggregationType = ""
+	// Clear meter reference
+	p.MeterId = ""
+	// Clear pricing configuration
 	p.PercentageRate = 0
 	p.FixedFee = 0
 	p.OverageUnitPrice = 0
@@ -365,18 +350,18 @@ type CreatePriceInput struct {
 	TaxCode            string                 `json:"tax_code"`
 
 	// Usage-based billing fields
-	HasUsage           bool                   `json:"has_usage"`
-	UsageType          string                 `json:"usage_type,omitempty"`
-	UnitType           string                 `json:"unit_type,omitempty"`
-	AggregationType    string                 `json:"aggregation_type,omitempty"`
-	PercentageRate     float64                `json:"percentage_rate,omitempty"`
-	FixedFee           int64                  `json:"fixed_fee,omitempty"`
-	OverageUnitPrice   int64                  `json:"overage_unit_price,omitempty"`
-	IncludedUsage      int64                  `json:"included_usage,omitempty"`
-	UsageLimit         int64                  `json:"usage_limit,omitempty"`
+	HasUsage bool `json:"has_usage"`
+	// Meter reference
+	MeterId string `json:"meter_id,omitempty"`
+	// Pricing configuration
+	PercentageRate   float64 `json:"percentage_rate,omitempty"`
+	FixedFee         int64   `json:"fixed_fee,omitempty"`
+	OverageUnitPrice int64   `json:"overage_unit_price,omitempty"`
+	IncludedUsage    int64   `json:"included_usage,omitempty"`
+	UsageLimit       int64   `json:"usage_limit,omitempty"`
 
 	// Tier configuration
-	Tiers              []CreatePriceTierInput `json:"tiers,omitempty"`
+	Tiers []CreatePriceTierInput `json:"tiers,omitempty"`
 
-	Metadata           map[string]string      `json:"metadata"`
+	Metadata map[string]string `json:"metadata"`
 }

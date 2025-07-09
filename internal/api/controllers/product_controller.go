@@ -204,9 +204,7 @@ func (s ProductController) CreatePrice(c *gin.Context) {
 
 		// Usage-based billing fields
 		HasUsage:           input.HasUsage,
-		UsageType:          input.UsageType,
-		UnitType:           input.UnitType,
-		AggregationType:    input.AggregationType,
+		MeterId:            input.MeterId,
 		PercentageRate:     input.PercentageRate,
 		FixedFee:           input.FixedFee,
 		OverageUnitPrice:   input.OverageUnitPrice,
@@ -300,9 +298,7 @@ func (s ProductController) UpdatePrice(c *gin.Context) {
 
 		// Usage-based billing fields
 		HasUsage:           input.HasUsage,
-		UsageType:          input.UsageType,
-		UnitType:           input.UnitType,
-		AggregationType:    input.AggregationType,
+		MeterId:            input.MeterId,
 		PercentageRate:     input.PercentageRate,
 		FixedFee:           input.FixedFee,
 		OverageUnitPrice:   input.OverageUnitPrice,

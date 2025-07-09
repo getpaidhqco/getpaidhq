@@ -36,4 +36,6 @@ var Module = fx.Options(
 	fx.Provide(NewUsageRecordingService),
 	fx.Provide(NewBillingService),
 	fx.Provide(NewTierCalculationService),
+	fx.Provide(NewMeterService),
+	fx.Provide(NewEventConsumerManager),
 )

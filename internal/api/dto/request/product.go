@@ -55,9 +55,7 @@ type CreateProductPriceRequest struct {
 
 	// Usage-based billing fields
 	HasUsage           bool                   `json:"has_usage"`
-	UsageType          string                 `json:"usage_type" binding:"required_if=HasUsage true,omitempty,oneof=metered licensed"`
-	UnitType           string                 `json:"unit_type" binding:"required_if=HasUsage true,omitempty"`
-	AggregationType    string                 `json:"aggregation_type" binding:"required_if=HasUsage true,omitempty,oneof=sum max average last_during_period"`
+	MeterId            string                 `json:"meter_id" binding:"required_if=HasUsage true,omitempty"`
 	PercentageRate     float64                `json:"percentage_rate" binding:"omitempty,gte=0"`
 	FixedFee           int64                  `json:"fixed_fee" binding:"omitempty,gte=0"`
 	OverageUnitPrice   int64                  `json:"overage_unit_price" binding:"omitempty,gte=0"`

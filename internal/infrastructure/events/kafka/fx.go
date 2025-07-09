@@ -6,9 +6,10 @@ import (
 	"payloop/internal/application/lib/logger"
 )
 
-// Module exports Kafka publisher dependency
+// Module exports Kafka publisher and consumer dependencies
 var Module = fx.Options(
 	fx.Provide(NewKafkaPublisherWithDefaultConfig),
+	fx.Provide(NewConsumerService),
 )
 
 // NewKafkaPublisherWithDefaultConfig creates a new Kafka publisher with default configuration

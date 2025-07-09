@@ -1,6 +1,7 @@
 package entities
 
 import (
+	"encoding/json"
 	"payloop/internal/lib"
 	"time"
 )
@@ -27,6 +28,9 @@ type SubscriptionItem struct {
 	ProductId      string                `json:"product_id,omitempty"`
 	VariantId      string                `json:"variant_id,omitempty"`
 
+	// Meter reference
+	MeterId        string                `json:"meter_id,omitempty"`
+
 	// Item details
 	Name           string                `json:"name"`
 	Description    string                `json:"description,omitempty"`
@@ -39,16 +43,17 @@ type SubscriptionItem struct {
 	Amount         int64                 `json:"amount,omitempty"`
 	Currency       string                `json:"currency"`
 
-	// Pricing configuration
+	// Pricing configuration (COPIED from Price at creation time for grandfathering)
+	HasUsage       bool                  `json:"has_usage"`
 	PercentageRate float64               `json:"percentage_rate,omitempty"`   // For percentage-based charges
 	FixedFee       int64                 `json:"fixed_fee,omitempty"`         // Fixed fee per unit
 	UnitPrice      int64                 `json:"unit_price,omitempty"`        // Price per unit
+	OverageUnitPrice int64               `json:"overage_unit_price,omitempty"` // For hybrid models with overage pricing
+	IncludedUsage  int64                 `json:"included_usage,omitempty"`    // Free tier allowance
+	UsageLimit     int64                 `json:"usage_limit,omitempty"`       // Hard limits
 
-	// Usage configuration
-	HasUsage       bool                  `json:"has_usage"`
-	UsageType      UsageType             `json:"usage_type,omitempty"`
-	UnitType       UnitType              `json:"unit_type,omitempty"`
-	AggregationType AggregationType      `json:"aggregation_type,omitempty"`
+	// Price snapshot for comparison/audit
+	PriceSnapshot  json.RawMessage       `json:"price_snapshot,omitempty"`
 
 	// Metadata
 	Metadata       map[string]string     `json:"metadata,omitempty"`

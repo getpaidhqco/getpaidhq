@@ -15,13 +15,13 @@ SELECT
     org_id,
     subscription_id,
     subscription_item_id,
-    usage_type,
-    SUM(quantity) as total_quantity,
-    SUM(calculated_amount) as total_amount,
+    data->>'usage_type' as usage_type,
+    SUM(CAST(data->>'quantity' AS DECIMAL)) as total_quantity,
+    SUM(CAST(data->>'amount' AS BIGINT)) as total_amount,
     COUNT(*) as event_count,
     MAX(time) as last_event_time
 FROM usage_events
-GROUP BY hour, org_id, subscription_id, subscription_item_id, usage_type;
+GROUP BY hour, org_id, subscription_id, subscription_item_id, data->>'usage_type';
 
 -- Create indexes on the materialized view for fast queries
 CREATE UNIQUE INDEX idx_usage_hourly_unique ON usage_hourly (hour, org_id, subscription_item_id, usage_type);
@@ -39,15 +39,15 @@ SELECT
     org_id,
     subscription_id,
     subscription_item_id,
-    usage_type,
+    data->>'usage_type' as usage_type,
     date_trunc('month', time) as billing_period,
-    SUM(quantity) as daily_quantity,
-    SUM(calculated_amount) as daily_amount,
+    SUM(CAST(data->>'quantity' AS DECIMAL)) as daily_quantity,
+    SUM(CAST(data->>'amount' AS BIGINT)) as daily_amount,
     COUNT(*) as daily_events,
     MIN(time) as first_event_time,
     MAX(time) as last_event_time
 FROM usage_events
-GROUP BY day, org_id, subscription_id, subscription_item_id, usage_type, billing_period;
+GROUP BY day, org_id, subscription_id, subscription_item_id, data->>'usage_type', billing_period;
 
 -- Create indexes on daily billing view
 CREATE UNIQUE INDEX idx_usage_daily_billing_unique ON usage_daily_billing (day, org_id, subscription_item_id, usage_type);
@@ -65,15 +65,15 @@ SELECT
     org_id,
     subscription_id,
     subscription_item_id,
-    usage_type,
-    SUM(quantity) as monthly_quantity,
-    SUM(calculated_amount) as monthly_amount,
-    AVG(quantity) as avg_quantity,
-    MAX(quantity) as max_quantity,
+    data->>'usage_type' as usage_type,
+    SUM(CAST(data->>'quantity' AS DECIMAL)) as monthly_quantity,
+    SUM(CAST(data->>'amount' AS BIGINT)) as monthly_amount,
+    AVG(CAST(data->>'quantity' AS DECIMAL)) as avg_quantity,
+    MAX(CAST(data->>'quantity' AS DECIMAL)) as max_quantity,
     COUNT(DISTINCT DATE(time)) as active_days,
     COUNT(*) as total_events
 FROM usage_events
-GROUP BY month, org_id, subscription_id, subscription_item_id, usage_type;
+GROUP BY month, org_id, subscription_id, subscription_item_id, data->>'usage_type';
 
 -- Create indexes on monthly summary
 CREATE UNIQUE INDEX idx_usage_monthly_summary_unique ON usage_monthly_summary (month, org_id, subscription_item_id, usage_type);
@@ -89,15 +89,15 @@ CREATE MATERIALIZED VIEW usage_customer_summary AS
 SELECT 
     date_trunc('day', time) AS day,
     org_id,
-    customer_id,
+    data->>'customer_id' as customer_id,
     subscription_id,
-    usage_type,
-    SUM(quantity) as daily_quantity,
-    SUM(calculated_amount) as daily_amount,
+    data->>'usage_type' as usage_type,
+    SUM(CAST(data->>'quantity' AS DECIMAL)) as daily_quantity,
+    SUM(CAST(data->>'amount' AS BIGINT)) as daily_amount,
     COUNT(*) as daily_events,
     COUNT(DISTINCT subscription_item_id) as active_items
 FROM usage_events
-GROUP BY day, org_id, customer_id, subscription_id, usage_type;
+GROUP BY day, org_id, data->>'customer_id', subscription_id, data->>'usage_type';
 
 -- Create indexes on customer summary
 CREATE UNIQUE INDEX idx_usage_customer_summary_unique ON usage_customer_summary (day, org_id, customer_id, subscription_id, usage_type);
@@ -113,16 +113,16 @@ CREATE MATERIALIZED VIEW usage_type_analytics AS
 SELECT 
     date_trunc('day', time) AS day,
     org_id,
-    usage_type,
-    COUNT(DISTINCT customer_id) as unique_customers,
+    data->>'usage_type' as usage_type,
+    COUNT(DISTINCT data->>'customer_id') as unique_customers,
     COUNT(DISTINCT subscription_id) as unique_subscriptions,
     COUNT(DISTINCT subscription_item_id) as unique_items,
-    SUM(quantity) as total_quantity,
-    SUM(calculated_amount) as total_amount,
-    AVG(quantity) as avg_quantity,
+    SUM(CAST(data->>'quantity' AS DECIMAL)) as total_quantity,
+    SUM(CAST(data->>'amount' AS BIGINT)) as total_amount,
+    AVG(CAST(data->>'quantity' AS DECIMAL)) as avg_quantity,
     COUNT(*) as total_events
 FROM usage_events
-GROUP BY day, org_id, usage_type;
+GROUP BY day, org_id, data->>'usage_type';
 
 -- Create indexes on usage type analytics
 CREATE UNIQUE INDEX idx_usage_type_analytics_unique ON usage_type_analytics (day, org_id, usage_type);
@@ -142,16 +142,16 @@ DECLARE
     refresh_result jsonb;
 BEGIN
     start_time := clock_timestamp();
-    
+
     -- Refresh materialized views concurrently (non-blocking)
     REFRESH MATERIALIZED VIEW CONCURRENTLY usage_hourly;
     REFRESH MATERIALIZED VIEW CONCURRENTLY usage_daily_billing;
     REFRESH MATERIALIZED VIEW CONCURRENTLY usage_monthly_summary;
     REFRESH MATERIALIZED VIEW CONCURRENTLY usage_customer_summary;
     REFRESH MATERIALIZED VIEW CONCURRENTLY usage_type_analytics;
-    
+
     end_time := clock_timestamp();
-    
+
     -- Build result object
     refresh_result := jsonb_build_object(
         'start_time', start_time,
@@ -165,7 +165,7 @@ BEGIN
             'usage_type_analytics'
         ]
     );
-    
+
     -- Log the refresh
     INSERT INTO usage_event_log (
         org_id,
@@ -180,7 +180,7 @@ BEGIN
         'Materialized views refreshed for real-time analytics',
         refresh_result
     );
-    
+
     RETURN refresh_result;
 END;
 $$ LANGUAGE plpgsql;
@@ -298,14 +298,14 @@ BEGIN
     IF EXISTS (SELECT 1 FROM pg_available_extensions WHERE name = 'pg_cron') THEN
         -- Enable pg_cron if not already enabled
         CREATE EXTENSION IF NOT EXISTS pg_cron;
-        
+
         -- Schedule refresh every 5 minutes
         SELECT cron.schedule(
             'usage-materialized-view-refresh',
             '*/5 * * * *',
             'SELECT refresh_usage_aggregates();'
         ) INTO job_result;
-        
+
         RETURN 'Scheduled pg_cron job for materialized view refresh: ' || job_result;
     ELSE
         RETURN 'pg_cron extension not available (e.g., AWS RDS). Use alternative scheduling:'||

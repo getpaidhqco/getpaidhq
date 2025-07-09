@@ -15,6 +15,9 @@ type SubscriptionItem struct {
 	ProductId      pgtype.Text `json:"product_id"`
 	VariantId      pgtype.Text `json:"variant_id"`
 
+	// Meter reference
+	MeterId        pgtype.Text `json:"meter_id"`
+
 	// Item details
 	Name           string      `json:"name"`
 	Description    pgtype.Text `json:"description"`
@@ -28,15 +31,18 @@ type SubscriptionItem struct {
 	Currency       string      `json:"currency"`
 
 	// Pricing configuration
-	PercentageRate pgtype.Float8 `json:"percentage_rate"`
-	FixedFee       pgtype.Int8   `json:"fixed_fee"`
-	UnitPrice      pgtype.Int8   `json:"unit_price"`
+	PercentageRate    pgtype.Float8 `json:"percentage_rate"`
+	FixedFee          pgtype.Int8   `json:"fixed_fee"`
+	UnitPrice         pgtype.Int8   `json:"unit_price"`
+	OverageUnitPrice  pgtype.Int8   `json:"overage_unit_price"`
+	IncludedUsage     pgtype.Int8   `json:"included_usage"`
+	UsageLimit        pgtype.Int8   `json:"usage_limit"`
+
+	// Price snapshot for comparison/audit
+	PriceSnapshot     []byte        `json:"price_snapshot"`
 
 	// Usage configuration
 	HasUsage       bool        `json:"has_usage"`
-	UsageType      pgtype.Text `json:"usage_type"`
-	UnitType       pgtype.Text `json:"unit_type"`
-	AggregationType pgtype.Text `json:"aggregation_type"`
 
 	// Metadata
 	Metadata       map[string]string `json:"metadata"`
@@ -52,6 +58,7 @@ func (s *SubscriptionItem) ToEntity() entities.SubscriptionItem {
 		PriceId:        s.PriceId,
 		ProductId:      s.ProductId.String,
 		VariantId:      s.VariantId.String,
+		MeterId:        s.MeterId.String,
 		Name:           s.Name,
 		Description:    s.Description.String,
 		Status:         entities.SubscriptionItemStatus(s.Status),
@@ -61,10 +68,11 @@ func (s *SubscriptionItem) ToEntity() entities.SubscriptionItem {
 		PercentageRate: s.PercentageRate.Float64,
 		FixedFee:       s.FixedFee.Int64,
 		UnitPrice:      s.UnitPrice.Int64,
+		OverageUnitPrice: s.OverageUnitPrice.Int64,
+		IncludedUsage:  s.IncludedUsage.Int64,
+		UsageLimit:     s.UsageLimit.Int64,
+		PriceSnapshot:  s.PriceSnapshot,
 		HasUsage:       s.HasUsage,
-		UsageType:      entities.UsageType(s.UsageType.String),
-		UnitType:       entities.UnitType(s.UnitType.String),
-		AggregationType: entities.AggregationType(s.AggregationType.String),
 		Metadata:       s.Metadata,
 		CreatedAt:      s.CreatedAt.Time,
 		UpdatedAt:      s.UpdatedAt.Time,

@@ -33,8 +33,10 @@ func (r SubscriptionItemRepository) FindById(ctx context.Context, orgId string, 
 	tx := r.getTransactionFromContext(ctx)
 
 	var item models.SubscriptionItem
-	query := `SELECT org_id, id, subscription_id, price_id, product_id, variant_id, 
-              name, description, status, quantity, amount, currency, has_usage, usage_type, aggregation_type, 
+	query := `SELECT org_id, id, subscription_id, price_id, product_id, variant_id, meter_id,
+              name, description, status, quantity, amount, currency, 
+              percentage_rate, fixed_fee, unit_price, overage_unit_price, included_usage, usage_limit,
+              has_usage, price_snapshot,
               metadata, created_at, updated_at
               FROM subscription_items
               WHERE org_id = @org_id AND id = @id`
@@ -49,15 +51,21 @@ func (r SubscriptionItemRepository) FindById(ctx context.Context, orgId string, 
 		&item.PriceId,
 		&item.ProductId,
 		&item.VariantId,
+		&item.MeterId,
 		&item.Name,
 		&item.Description,
 		&item.Status,
 		&item.Quantity,
 		&item.Amount,
 		&item.Currency,
+		&item.PercentageRate,
+		&item.FixedFee,
+		&item.UnitPrice,
+		&item.OverageUnitPrice,
+		&item.IncludedUsage,
+		&item.UsageLimit,
 		&item.HasUsage,
-		&item.UsageType,
-		&item.AggregationType,
+		&item.PriceSnapshot,
 		&item.Metadata,
 		&item.CreatedAt,
 		&item.UpdatedAt,
@@ -75,32 +83,44 @@ func (r SubscriptionItemRepository) Create(ctx context.Context, entity entities.
 	tx := r.getTransactionFromContext(ctx)
 
 	metaJson, _ := json.Marshal(entity.Metadata)
+	priceSnapshotJson := entity.PriceSnapshot
+
 	query := `INSERT INTO subscription_items (
-              org_id, id, subscription_id, price_id, product_id, variant_id, 
-              name, description, status, quantity, amount, currency, has_usage, usage_type, aggregation_type, 
+              org_id, id, subscription_id, price_id, product_id, variant_id, meter_id,
+              name, description, status, quantity, amount, currency, 
+              percentage_rate, fixed_fee, unit_price, overage_unit_price, included_usage, usage_limit,
+              has_usage, price_snapshot,
               metadata, created_at, updated_at)
               VALUES (
-              @org_id, @id, @subscription_id, @price_id, @product_id, @variant_id, 
-              @name, @description, @status, @quantity, @amount, @currency, @has_usage, @usage_type, @aggregation_type, 
+              @org_id, @id, @subscription_id, @price_id, @product_id, @variant_id, @meter_id,
+              @name, @description, @status, @quantity, @amount, @currency, 
+              @percentage_rate, @fixed_fee, @unit_price, @overage_unit_price, @included_usage, @usage_limit,
+              @has_usage, @price_snapshot,
               @metadata, NOW(), NOW())`
 
 	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
-		"org_id":           entity.OrgId,
-		"id":               entity.Id,
-		"subscription_id":  entity.SubscriptionId,
-		"price_id":         entity.PriceId,
-		"product_id":       pgtype.Text{String: entity.ProductId, Valid: entity.ProductId != ""},
-		"variant_id":       pgtype.Text{String: entity.VariantId, Valid: entity.VariantId != ""},
-		"name":             entity.Name,
-		"description":      pgtype.Text{String: entity.Description, Valid: entity.Description != ""},
-		"status":           entity.Status,
-		"quantity":         entity.Quantity,
-		"amount":           pgtype.Int8{Int64: entity.Amount, Valid: entity.Amount != 0},
-		"currency":         entity.Currency,
-		"has_usage":        entity.HasUsage,
-		"usage_type":       pgtype.Text{String: string(entity.UsageType), Valid: entity.UsageType != ""},
-		"aggregation_type": pgtype.Text{String: string(entity.AggregationType), Valid: entity.AggregationType != ""},
-		"metadata":         metaJson,
+		"org_id":            entity.OrgId,
+		"id":                entity.Id,
+		"subscription_id":   entity.SubscriptionId,
+		"price_id":          entity.PriceId,
+		"product_id":        pgtype.Text{String: entity.ProductId, Valid: entity.ProductId != ""},
+		"variant_id":        pgtype.Text{String: entity.VariantId, Valid: entity.VariantId != ""},
+		"meter_id":          pgtype.Text{String: entity.MeterId, Valid: entity.MeterId != ""},
+		"name":              entity.Name,
+		"description":       pgtype.Text{String: entity.Description, Valid: entity.Description != ""},
+		"status":            entity.Status,
+		"quantity":          entity.Quantity,
+		"amount":            pgtype.Int8{Int64: entity.Amount, Valid: entity.Amount != 0},
+		"currency":          entity.Currency,
+		"percentage_rate":   pgtype.Float8{Float64: entity.PercentageRate, Valid: entity.PercentageRate != 0},
+		"fixed_fee":         pgtype.Int8{Int64: entity.FixedFee, Valid: entity.FixedFee != 0},
+		"unit_price":        pgtype.Int8{Int64: entity.UnitPrice, Valid: entity.UnitPrice != 0},
+		"overage_unit_price": pgtype.Int8{Int64: entity.OverageUnitPrice, Valid: entity.OverageUnitPrice != 0},
+		"included_usage":    pgtype.Int8{Int64: entity.IncludedUsage, Valid: entity.IncludedUsage != 0},
+		"usage_limit":       pgtype.Int8{Int64: entity.UsageLimit, Valid: entity.UsageLimit != 0},
+		"has_usage":         entity.HasUsage,
+		"price_snapshot":    priceSnapshotJson,
+		"metadata":          metaJson,
 	})
 
 	if err != nil {
@@ -115,31 +135,45 @@ func (r SubscriptionItemRepository) Update(ctx context.Context, entity entities.
 	tx := r.getTransactionFromContext(ctx)
 
 	metaJson, _ := json.Marshal(entity.Metadata)
+	priceSnapshotJson := entity.PriceSnapshot
+
 	query := `UPDATE subscription_items SET
               name = @name,
               description = @description,
               status = @status,
               quantity = @quantity,
               amount = @amount,
+              meter_id = @meter_id,
+              percentage_rate = @percentage_rate,
+              fixed_fee = @fixed_fee,
+              unit_price = @unit_price,
+              overage_unit_price = @overage_unit_price,
+              included_usage = @included_usage,
+              usage_limit = @usage_limit,
               has_usage = @has_usage,
-              usage_type = @usage_type,
-              aggregation_type = @aggregation_type,
+              price_snapshot = @price_snapshot,
               metadata = @metadata,
               updated_at = NOW()
               WHERE org_id = @org_id AND id = @id`
 
 	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
-		"org_id":           entity.OrgId,
-		"id":               entity.Id,
-		"name":             entity.Name,
-		"description":      pgtype.Text{String: entity.Description, Valid: entity.Description != ""},
-		"status":           entity.Status,
-		"quantity":         entity.Quantity,
-		"amount":           pgtype.Int8{Int64: entity.Amount, Valid: entity.Amount != 0},
-		"has_usage":        entity.HasUsage,
-		"usage_type":       pgtype.Text{String: string(entity.UsageType), Valid: entity.UsageType != ""},
-		"aggregation_type": pgtype.Text{String: string(entity.AggregationType), Valid: entity.AggregationType != ""},
-		"metadata":         metaJson,
+		"org_id":            entity.OrgId,
+		"id":                entity.Id,
+		"name":              entity.Name,
+		"description":       pgtype.Text{String: entity.Description, Valid: entity.Description != ""},
+		"status":            entity.Status,
+		"quantity":          entity.Quantity,
+		"amount":            pgtype.Int8{Int64: entity.Amount, Valid: entity.Amount != 0},
+		"meter_id":          pgtype.Text{String: entity.MeterId, Valid: entity.MeterId != ""},
+		"percentage_rate":   pgtype.Float8{Float64: entity.PercentageRate, Valid: entity.PercentageRate != 0},
+		"fixed_fee":         pgtype.Int8{Int64: entity.FixedFee, Valid: entity.FixedFee != 0},
+		"unit_price":        pgtype.Int8{Int64: entity.UnitPrice, Valid: entity.UnitPrice != 0},
+		"overage_unit_price": pgtype.Int8{Int64: entity.OverageUnitPrice, Valid: entity.OverageUnitPrice != 0},
+		"included_usage":    pgtype.Int8{Int64: entity.IncludedUsage, Valid: entity.IncludedUsage != 0},
+		"usage_limit":       pgtype.Int8{Int64: entity.UsageLimit, Valid: entity.UsageLimit != 0},
+		"has_usage":         entity.HasUsage,
+		"price_snapshot":    priceSnapshotJson,
+		"metadata":          metaJson,
 	})
 
 	if err != nil {
@@ -153,8 +187,10 @@ func (r SubscriptionItemRepository) Update(ctx context.Context, entity entities.
 func (r SubscriptionItemRepository) FindBySubscriptionId(ctx context.Context, orgId string, subscriptionId string) ([]entities.SubscriptionItem, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	query := `SELECT org_id, id, subscription_id, price_id, product_id, variant_id, 
-              name, description, status, quantity, amount, currency, has_usage, usage_type, aggregation_type, 
+	query := `SELECT org_id, id, subscription_id, price_id, product_id, variant_id, meter_id,
+              name, description, status, quantity, amount, currency, 
+              percentage_rate, fixed_fee, unit_price, overage_unit_price, included_usage, usage_limit,
+              has_usage, price_snapshot,
               metadata, created_at, updated_at
               FROM subscription_items
               WHERE org_id = @org_id AND subscription_id = @subscription_id
@@ -181,15 +217,21 @@ func (r SubscriptionItemRepository) FindBySubscriptionId(ctx context.Context, or
 			&item.PriceId,
 			&item.ProductId,
 			&item.VariantId,
+			&item.MeterId,
 			&item.Name,
 			&item.Description,
 			&item.Status,
 			&item.Quantity,
 			&item.Amount,
 			&item.Currency,
+			&item.PercentageRate,
+			&item.FixedFee,
+			&item.UnitPrice,
+			&item.OverageUnitPrice,
+			&item.IncludedUsage,
+			&item.UsageLimit,
 			&item.HasUsage,
-			&item.UsageType,
-			&item.AggregationType,
+			&item.PriceSnapshot,
 			&item.Metadata,
 			&item.CreatedAt,
 			&item.UpdatedAt,
@@ -212,8 +254,8 @@ func (r SubscriptionItemRepository) FindBySubscriptionId(ctx context.Context, or
 func (r SubscriptionItemRepository) Find(ctx context.Context, orgId string, p request.Pagination) ([]entities.SubscriptionItem, int, error) {
 	tx := r.getTransactionFromContext(ctx)
 
-	query := `SELECT org_id, id, subscription_id, price_id, product_id, variant_id, 
-              name, description, status, quantity, amount, currency, has_usage, usage_type, aggregation_type, 
+	query := `SELECT org_id, id, subscription_id, price_id, product_id, variant_id, meter_id,
+              name, description, status, quantity, amount, currency, has_usage,
               metadata, created_at, updated_at, count(*) OVER()
               FROM subscription_items
               WHERE org_id = @org_id
@@ -243,6 +285,7 @@ func (r SubscriptionItemRepository) Find(ctx context.Context, orgId string, p re
 			&item.PriceId,
 			&item.ProductId,
 			&item.VariantId,
+			&item.MeterId,
 			&item.Name,
 			&item.Description,
 			&item.Status,
@@ -250,8 +293,6 @@ func (r SubscriptionItemRepository) Find(ctx context.Context, orgId string, p re
 			&item.Amount,
 			&item.Currency,
 			&item.HasUsage,
-			&item.UsageType,
-			&item.AggregationType,
 			&item.Metadata,
 			&item.CreatedAt,
 			&item.UpdatedAt,

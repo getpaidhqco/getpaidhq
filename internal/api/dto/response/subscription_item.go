@@ -28,11 +28,10 @@ type SubscriptionItemResponse struct {
 	Amount         int64                       `json:"amount,omitempty"`
 	Currency       string                      `json:"currency"`
 
-	// Usage configuration
+ // Usage configuration
 	HasUsage       bool                        `json:"has_usage"`
-	UsageType      entities.UsageType          `json:"usage_type,omitempty"`
-	UnitType       entities.UnitType           `json:"unit_type,omitempty"`
-	AggregationType entities.AggregationType   `json:"aggregation_type,omitempty"`
+	// MeterId is added to reference the meter that defines usage measurement
+	MeterId        string                      `json:"meter_id,omitempty"`
 
 	// Metadata
 	Metadata       map[string]string           `json:"metadata,omitempty"`
@@ -64,9 +63,7 @@ func FromSubscriptionItem(item entities.SubscriptionItem) SubscriptionItemRespon
 		Amount:         item.Amount,
 		Currency:       item.Currency,
 		HasUsage:       item.HasUsage,
-		UsageType:      item.UsageType,
-		UnitType:       item.UnitType,
-		AggregationType: item.AggregationType,
+		MeterId:        item.MeterId,
 		Metadata:       item.Metadata,
 		CreatedAt:      item.CreatedAt,
 		UpdatedAt:      item.UpdatedAt,

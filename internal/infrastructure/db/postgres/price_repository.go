@@ -38,12 +38,12 @@ func (r PriceRepository) Create(ctx context.Context, entity entities.Price) (ent
 	query := `INSERT INTO prices (org_id, id, label, variant_id, category, scheme, cycles, currency, 
                     unit_price, min_price, suggested_price, billing_interval, billing_interval_qty, 
                     trial_interval, trial_interval_qty, tax_code, 
-                    has_usage, usage_type, unit_type, aggregation_type, percentage_rate, fixed_fee, included_usage, usage_limit,
+                    has_usage, meter_id, percentage_rate, fixed_fee, overage_unit_price, included_usage, usage_limit,
                     metadata, created_at, updated_at)
         VALUES (@org_id, @id, @label, @variant_id, @category, @scheme, @cycles, @currency, 
                 @unit_price, @min_price, @suggested_price, @billing_interval, @billing_interval_qty, 
                 @trial_interval, @trial_interval_qty, @tax_code, 
-                @has_usage, @usage_type, @unit_type, @aggregation_type, @percentage_rate, @fixed_fee, @included_usage, @usage_limit,
+                @has_usage, @meter_id, @percentage_rate, @fixed_fee, @overage_unit_price, @included_usage, @usage_limit,
                 @metadata, NOW(), NOW())
        `
 
@@ -71,14 +71,13 @@ func (r PriceRepository) Create(ctx context.Context, entity entities.Price) (ent
 		"tax_code":             pgtype.Text{String: entity.TaxCode, Valid: entity.TaxCode != ""},
 
 		// Usage-based billing fields
-		"has_usage":        entity.HasUsage,
-		"usage_type":       pgtype.Text{String: string(entity.UsageType), Valid: string(entity.UsageType) != ""},
-		"unit_type":        pgtype.Text{String: string(entity.UnitType), Valid: string(entity.UnitType) != ""},
-		"aggregation_type": pgtype.Text{String: string(entity.AggregationType), Valid: string(entity.AggregationType) != ""},
-		"percentage_rate":  entity.PercentageRate,
-		"fixed_fee":        entity.FixedFee,
-		"included_usage":   entity.IncludedUsage,
-		"usage_limit":      entity.UsageLimit,
+		"has_usage":          entity.HasUsage,
+		"meter_id":           pgtype.Text{String: entity.MeterId, Valid: entity.MeterId != ""},
+		"percentage_rate":    entity.PercentageRate,
+		"fixed_fee":          entity.FixedFee,
+		"overage_unit_price": entity.OverageUnitPrice,
+		"included_usage":     entity.IncludedUsage,
+		"usage_limit":        entity.UsageLimit,
 
 		"metadata": metadata,
 	})
@@ -106,7 +105,7 @@ func (r PriceRepository) FindById(ctx context.Context, orgId string, id string) 
 	err := tx.QueryRow(ctx, `SELECT org_id,id,variant_id,label,billing_interval,billing_interval_qty,
        category,scheme,cycles,currency,unit_price,min_price,suggested_price,
        trial_interval,trial_interval_qty,tax_code,
-       has_usage,usage_type,unit_type,aggregation_type,percentage_rate,fixed_fee,included_usage,usage_limit,
+       has_usage,meter_id,percentage_rate,fixed_fee,overage_unit_price,included_usage,usage_limit,
        metadata,created_at,updated_at
 							FROM prices WHERE org_id=@org_id AND id=@id`,
 		pgx.NamedArgs{
@@ -130,11 +129,10 @@ func (r PriceRepository) FindById(ctx context.Context, orgId string, id string) 
 		&price.TrialIntervalQty,
 		&price.TaxCode,
 		&price.HasUsage,
-		&price.UsageType,
-		&price.UnitType,
-		&price.AggregationType,
+		&price.MeterId,
 		&price.PercentageRate,
 		&price.FixedFee,
+		&price.OverageUnitPrice,
 		&price.IncludedUsage,
 		&price.UsageLimit,
 		&price.Metadata,
@@ -166,7 +164,7 @@ func (r PriceRepository) FindByVariantId(ctx context.Context, orgId string, vari
 	var count int
 	query := `SELECT org_id, id, variant_id, label, category, scheme, cycles, currency, unit_price, min_price, 
                      suggested_price, billing_interval, billing_interval_qty, trial_interval, trial_interval_qty,
-                     tax_code, has_usage, usage_type, unit_type, aggregation_type, percentage_rate, fixed_fee, included_usage, usage_limit,
+                     tax_code, has_usage, meter_id, percentage_rate, fixed_fee, overage_unit_price, included_usage, usage_limit,
                      metadata, created_at, updated_at, count(*) OVER()
               FROM prices 
               WHERE org_id = @org_id AND variant_id = @variant_id
@@ -226,11 +224,10 @@ func (r PriceRepository) FindByVariantId(ctx context.Context, orgId string, vari
 			&price.TrialIntervalQty,
 			&price.TaxCode,
 			&price.HasUsage,
-			&price.UsageType,
-			&price.UnitType,
-			&price.AggregationType,
+			&price.MeterId,
 			&price.PercentageRate,
 			&price.FixedFee,
+			&price.OverageUnitPrice,
 			&price.IncludedUsage,
 			&price.UsageLimit,
 			&price.Metadata,
@@ -277,8 +274,8 @@ func (r PriceRepository) Update(ctx context.Context, entity entities.Price) (ent
 	    billing_interval = @billing_interval, billing_interval_qty = @billing_interval_qty, 
 	    trial_interval = @trial_interval, trial_interval_qty = @trial_interval_qty, 
 	    tax_code = @tax_code, 
-	    has_usage = @has_usage, usage_type = @usage_type, unit_type = @unit_type, aggregation_type = @aggregation_type,
-	    percentage_rate = @percentage_rate, fixed_fee = @fixed_fee, included_usage = @included_usage, usage_limit = @usage_limit,
+	    has_usage = @has_usage, meter_id = @meter_id,
+	    percentage_rate = @percentage_rate, fixed_fee = @fixed_fee, overage_unit_price = @overage_unit_price, included_usage = @included_usage, usage_limit = @usage_limit,
 	    metadata = @metadata, updated_at = now()
 	WHERE org_id = @org_id AND id = @id`,
 		pgx.NamedArgs{
@@ -297,14 +294,13 @@ func (r PriceRepository) Update(ctx context.Context, entity entities.Price) (ent
 			"tax_code":             entity.TaxCode,
 
 			// Usage-based billing fields
-			"has_usage":        entity.HasUsage,
-			"usage_type":       pgtype.Text{String: string(entity.UsageType), Valid: string(entity.UsageType) != ""},
-			"unit_type":        pgtype.Text{String: string(entity.UnitType), Valid: string(entity.UnitType) != ""},
-			"aggregation_type": pgtype.Text{String: string(entity.AggregationType), Valid: string(entity.AggregationType) != ""},
-			"percentage_rate":  entity.PercentageRate,
-			"fixed_fee":        entity.FixedFee,
-			"included_usage":   entity.IncludedUsage,
-			"usage_limit":      entity.UsageLimit,
+			"has_usage":          entity.HasUsage,
+			"meter_id":           pgtype.Text{String: entity.MeterId, Valid: entity.MeterId != ""},
+			"percentage_rate":    entity.PercentageRate,
+			"fixed_fee":          entity.FixedFee,
+			"overage_unit_price": entity.OverageUnitPrice,
+			"included_usage":     entity.IncludedUsage,
+			"usage_limit":        entity.UsageLimit,
 
 			"metadata": metadata,
 			"org_id":   entity.OrgId,

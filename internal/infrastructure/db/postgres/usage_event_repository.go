@@ -10,6 +10,7 @@ import (
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
+	"payloop/internal/infrastructure/db/postgres/models"
 	"payloop/internal/lib"
 )
 
@@ -32,34 +33,47 @@ func NewUsageEventRepository(usageDb lib.Database, logger logger.Logger) reposit
 func (r *UsageEventRepository) Create(ctx context.Context, event entities.UsageEvent) error {
 	tx := r.getTransactionFromContext(ctx)
 
-	metadataJSON, err := json.Marshal(event.Metadata)
+	// Convert entity to model
+	model := models.UsageEventFromEntity(event)
+
+	// Marshal JSON fields
+	dataJSON, err := json.Marshal(model.Data)
 	if err != nil {
-		return fmt.Errorf("failed to marshal metadata: %w", err)
+		return fmt.Errorf("failed to marshal data: %w", err)
 	}
 
 	query := `
 		INSERT INTO usage_events (
-			time, org_id, subscription_id, subscription_item_id, customer_id,
-			usage_type, quantity, transaction_value, calculated_amount,
-			reference_id, reference_type, metadata
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		ON CONFLICT (time, org_id, subscription_item_id) DO NOTHING
+			org_id, id, 
+			subscription_id, subscription_item_id, meter_id,
+			spec_version, type, event_id, time, source, subject, data,
+			received_at
+		) VALUES (
+			@org_id, @id, 
+			@subscription_id, @subscription_item_id, @meter_id,
+			@spec_version, @type, @event_id, @time, @source, @subject, @data,
+			@received_at
+		)
+		ON CONFLICT (org_id, id) DO NOTHING
 	`
 
-	_, err = tx.Exec(ctx, query,
-		event.Time,
-		event.OrgID,
-		event.SubscriptionID,
-		event.SubscriptionItemID,
-		event.CustomerID,
-		event.UsageType,
-		event.Quantity,
-		event.TransactionValue,
-		event.CalculatedAmount,
-		event.ReferenceID,
-		event.ReferenceType,
-		metadataJSON,
-	)
+	args := pgx.NamedArgs{
+		"org_id":               model.OrgId,
+		"id":                   model.Id,
+		"subscription_id":      model.SubscriptionId,
+		"subscription_item_id": model.SubscriptionItemId,
+		"meter_id":             model.MeterId,
+		"spec_version":         model.SpecVersion,
+		"type":                 model.Type,
+		"event_id":             model.EventId,
+		"time":                 model.Time,
+		"source":               model.Source,
+		"subject":              model.Subject,
+		"data":                 dataJSON,
+		"received_at":          model.ReceivedAt,
+	}
+
+	_, err = tx.Exec(ctx, query, args)
 
 	if err != nil {
 		return fmt.Errorf("failed to insert usage event: %w", err)
@@ -77,33 +91,46 @@ func (r *UsageEventRepository) BatchCreate(ctx context.Context, events []entitie
 
 	query := `
 		INSERT INTO usage_events (
-			time, org_id, subscription_id, subscription_item_id, customer_id,
-			usage_type, quantity, transaction_value, calculated_amount,
-			reference_id, reference_type, metadata
-		) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-		ON CONFLICT (time, org_id, subscription_item_id) DO NOTHING
+			org_id, id, 
+			subscription_id, subscription_item_id, meter_id,
+			spec_version, type, event_id, time, source, subject, data,
+			received_at
+		) VALUES (
+			@org_id, @id, 
+			@subscription_id, @subscription_item_id, @meter_id,
+			@spec_version, @type, @event_id, @time, @source, @subject, @data,
+			@received_at
+		)
+		ON CONFLICT (org_id, id) DO NOTHING
 	`
 
 	for i, event := range events {
-		metadataJSON, err := json.Marshal(event.Metadata)
+		// Convert entity to model
+		model := models.UsageEventFromEntity(event)
+
+		// Marshal JSON fields
+		dataJSON, err := json.Marshal(model.Data)
 		if err != nil {
-			return fmt.Errorf("failed to marshal metadata for event %d: %w", i, err)
+			return fmt.Errorf("failed to marshal data for event %d: %w", i, err)
 		}
 
-		_, err = tx.Exec(ctx, query,
-			event.Time,
-			event.OrgID,
-			event.SubscriptionID,
-			event.SubscriptionItemID,
-			event.CustomerID,
-			event.UsageType,
-			event.Quantity,
-			event.TransactionValue,
-			event.CalculatedAmount,
-			event.ReferenceID,
-			event.ReferenceType,
-			metadataJSON,
-		)
+		args := pgx.NamedArgs{
+			"org_id":               model.OrgId,
+			"id":                   model.Id,
+			"subscription_id":      model.SubscriptionId,
+			"subscription_item_id": model.SubscriptionItemId,
+			"meter_id":             model.MeterId,
+			"spec_version":         model.SpecVersion,
+			"type":                 model.Type,
+			"event_id":             model.EventId,
+			"time":                 model.Time,
+			"source":               model.Source,
+			"subject":              model.Subject,
+			"data":                 dataJSON,
+			"received_at":          model.ReceivedAt,
+		}
+
+		_, err = tx.Exec(ctx, query, args)
 
 		if err != nil {
 			return fmt.Errorf("failed to insert batch event %d: %w", i, err)
@@ -116,30 +143,42 @@ func (r *UsageEventRepository) BatchCreate(ctx context.Context, events []entitie
 func (r *UsageEventRepository) FindByID(ctx context.Context, orgID, subscriptionItemID string, eventTime time.Time) (entities.UsageEvent, error) {
 	tx := r.getTransactionFromContext(ctx)
 
+	// Note: The repository interface expects to find by orgID, subscriptionItemID, and time
+	// but the schema has a primary key of [orgId, id]. We'll query by the available fields.
 	query := `
-		SELECT time, org_id, subscription_id, subscription_item_id, customer_id,
-			   usage_type, quantity, transaction_value, calculated_amount,
-			   reference_id, reference_type, metadata
+		SELECT 
+			org_id, id, 
+			subscription_id, subscription_item_id, meter_id,
+			spec_version, type, event_id, time, source, subject, data,
+			received_at
 		FROM usage_events
-		WHERE org_id = $1 AND subscription_item_id = $2 AND time = $3
+		WHERE org_id = @org_id AND subscription_item_id = @subscription_item_id AND time = @time
+		LIMIT 1
 	`
 
-	var event entities.UsageEvent
-	var metadataJSON []byte
+	args := pgx.NamedArgs{
+		"org_id":               orgID,
+		"subscription_item_id": subscriptionItemID,
+		"time":                 eventTime,
+	}
 
-	err := tx.QueryRow(ctx, query, orgID, subscriptionItemID, eventTime).Scan(
-		&event.Time,
-		&event.OrgID,
-		&event.SubscriptionID,
-		&event.SubscriptionItemID,
-		&event.CustomerID,
-		&event.UsageType,
-		&event.Quantity,
-		&event.TransactionValue,
-		&event.CalculatedAmount,
-		&event.ReferenceID,
-		&event.ReferenceType,
-		&metadataJSON,
+	var model models.UsageEvent
+	var dataJSON []byte
+
+	err := tx.QueryRow(ctx, query, args).Scan(
+		&model.OrgId,
+		&model.Id,
+		&model.SubscriptionId,
+		&model.SubscriptionItemId,
+		&model.MeterId,
+		&model.SpecVersion,
+		&model.Type,
+		&model.EventId,
+		&model.Time,
+		&model.Source,
+		&model.Subject,
+		&dataJSON,
+		&model.ReceivedAt,
 	)
 
 	if err != nil {
@@ -149,29 +188,39 @@ func (r *UsageEventRepository) FindByID(ctx context.Context, orgID, subscription
 		return entities.UsageEvent{}, fmt.Errorf("failed to find usage event: %w", err)
 	}
 
-	if len(metadataJSON) > 0 {
-		if err := json.Unmarshal(metadataJSON, &event.Metadata); err != nil {
-			r.logger.Warn("Failed to unmarshal metadata", "error", err)
+	// Parse JSON fields
+	if len(dataJSON) > 0 {
+		if err := json.Unmarshal(dataJSON, &model.Data); err != nil {
+			r.logger.Warn("Failed to unmarshal data", "error", err)
 		}
 	}
 
-	return event, nil
+	return model.ToEntity(), nil
 }
 
 func (r *UsageEventRepository) FindBySubscriptionItem(ctx context.Context, orgID, subscriptionItemID string, startTime, endTime time.Time) ([]entities.UsageEvent, error) {
 	tx := r.getTransactionFromContext(ctx)
 
 	query := `
-		SELECT time, org_id, subscription_id, subscription_item_id, customer_id,
-			   usage_type, quantity, transaction_value, calculated_amount,
-			   reference_id, reference_type, metadata
+		SELECT 
+			org_id, id, 
+			subscription_id, subscription_item_id, meter_id,
+			spec_version, type, event_id, time, source, subject, data,
+			received_at
 		FROM usage_events
-		WHERE org_id = $1 AND subscription_item_id = $2
-		  AND time >= $3 AND time < $4
+		WHERE org_id = @org_id AND subscription_item_id = @subscription_item_id
+		  AND time >= @start_time AND time < @end_time
 		ORDER BY time DESC
 	`
 
-	rows, err := tx.Query(ctx, query, orgID, subscriptionItemID, startTime, endTime)
+	args := pgx.NamedArgs{
+		"org_id":               orgID,
+		"subscription_item_id": subscriptionItemID,
+		"start_time":           startTime,
+		"end_time":             endTime,
+	}
+
+	rows, err := tx.Query(ctx, query, args)
 	if err != nil {
 		return nil, fmt.Errorf("failed to query usage events: %w", err)
 	}
@@ -179,34 +228,36 @@ func (r *UsageEventRepository) FindBySubscriptionItem(ctx context.Context, orgID
 
 	var events []entities.UsageEvent
 	for rows.Next() {
-		var event entities.UsageEvent
-		var metadataJSON []byte
+		var model models.UsageEvent
+		var dataJSON []byte
 
 		err := rows.Scan(
-			&event.Time,
-			&event.OrgID,
-			&event.SubscriptionID,
-			&event.SubscriptionItemID,
-			&event.CustomerID,
-			&event.UsageType,
-			&event.Quantity,
-			&event.TransactionValue,
-			&event.CalculatedAmount,
-			&event.ReferenceID,
-			&event.ReferenceType,
-			&metadataJSON,
+			&model.OrgId,
+			&model.Id,
+			&model.SubscriptionId,
+			&model.SubscriptionItemId,
+			&model.MeterId,
+			&model.SpecVersion,
+			&model.Type,
+			&model.EventId,
+			&model.Time,
+			&model.Source,
+			&model.Subject,
+			&dataJSON,
+			&model.ReceivedAt,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("failed to scan usage event: %w", err)
 		}
 
-		if len(metadataJSON) > 0 {
-			if err := json.Unmarshal(metadataJSON, &event.Metadata); err != nil {
-				r.logger.Warn("Failed to unmarshal metadata", "error", err)
+		// Parse JSON fields
+		if len(dataJSON) > 0 {
+			if err := json.Unmarshal(dataJSON, &model.Data); err != nil {
+				r.logger.Warn("Failed to unmarshal data", "error", err)
 			}
 		}
 
-		events = append(events, event)
+		events = append(events, model.ToEntity())
 	}
 
 	return events, nil
@@ -215,31 +266,39 @@ func (r *UsageEventRepository) FindBySubscriptionItem(ctx context.Context, orgID
 func (r *UsageEventRepository) FindByReferenceID(ctx context.Context, referenceID, referenceType string) (entities.UsageEvent, error) {
 	tx := r.getTransactionFromContext(ctx)
 
+	// In the new schema, we'll use event_id field to match the referenceID
 	query := `
-		SELECT time, org_id, subscription_id, subscription_item_id, customer_id,
-			   usage_type, quantity, transaction_value, calculated_amount,
-			   reference_id, reference_type, metadata
+		SELECT 
+			org_id, id, 
+			subscription_id, subscription_item_id, meter_id,
+			spec_version, type, event_id, time, source, subject, data,
+			received_at
 		FROM usage_events
-		WHERE reference_id = $1 AND reference_type = $2
+		WHERE event_id = @reference_id
 		LIMIT 1
 	`
 
-	var event entities.UsageEvent
-	var metadataJSON []byte
+	args := pgx.NamedArgs{
+		"reference_id": referenceID,
+	}
 
-	err := tx.QueryRow(ctx, query, referenceID, referenceType).Scan(
-		&event.Time,
-		&event.OrgID,
-		&event.SubscriptionID,
-		&event.SubscriptionItemID,
-		&event.CustomerID,
-		&event.UsageType,
-		&event.Quantity,
-		&event.TransactionValue,
-		&event.CalculatedAmount,
-		&event.ReferenceID,
-		&event.ReferenceType,
-		&metadataJSON,
+	var model models.UsageEvent
+	var dataJSON []byte
+
+	err := tx.QueryRow(ctx, query, args).Scan(
+		&model.OrgId,
+		&model.Id,
+		&model.SubscriptionId,
+		&model.SubscriptionItemId,
+		&model.MeterId,
+		&model.SpecVersion,
+		&model.Type,
+		&model.EventId,
+		&model.Time,
+		&model.Source,
+		&model.Subject,
+		&dataJSON,
+		&model.ReceivedAt,
 	)
 
 	if err != nil {
@@ -249,24 +308,33 @@ func (r *UsageEventRepository) FindByReferenceID(ctx context.Context, referenceI
 		return entities.UsageEvent{}, fmt.Errorf("failed to find usage event by reference: %w", err)
 	}
 
-	if len(metadataJSON) > 0 {
-		if err := json.Unmarshal(metadataJSON, &event.Metadata); err != nil {
-			r.logger.Warn("Failed to unmarshal metadata", "error", err)
+	// Parse JSON fields
+	if len(dataJSON) > 0 {
+		if err := json.Unmarshal(dataJSON, &model.Data); err != nil {
+			r.logger.Warn("Failed to unmarshal data", "error", err)
 		}
 	}
 
-	return event, nil
+	return model.ToEntity(), nil
 }
 
 func (r *UsageEventRepository) Delete(ctx context.Context, orgID, subscriptionItemID string, eventTime time.Time) error {
 	tx := r.getTransactionFromContext(ctx)
 
+	// Note: The repository interface expects to delete by orgID, subscriptionItemID, and time
+	// but the schema has a primary key of [orgId, id]. We'll delete by the available fields.
 	query := `
 		DELETE FROM usage_events
-		WHERE org_id = $1 AND subscription_item_id = $2 AND time = $3
+		WHERE org_id = @org_id AND subscription_item_id = @subscription_item_id AND time = @time
 	`
 
-	result, err := tx.Exec(ctx, query, orgID, subscriptionItemID, eventTime)
+	args := pgx.NamedArgs{
+		"org_id":               orgID,
+		"subscription_item_id": subscriptionItemID,
+		"time":                 eventTime,
+	}
+
+	result, err := tx.Exec(ctx, query, args)
 	if err != nil {
 		return fmt.Errorf("failed to delete usage event: %w", err)
 	}
@@ -276,4 +344,80 @@ func (r *UsageEventRepository) Delete(ctx context.Context, orgID, subscriptionIt
 	}
 
 	return nil
+}
+
+// AggregateUsageBySubscriptionItem aggregates usage for a subscription item based on the specified aggregation type
+func (r *UsageEventRepository) AggregateUsageBySubscriptionItem(ctx context.Context, orgID, subscriptionItemID string, 
+	startTime, endTime time.Time, aggregationType entities.AggregationType) (float64, error) {
+
+	tx := r.getTransactionFromContext(ctx)
+
+	var query string
+
+	// Build query based on aggregation type
+	switch aggregationType {
+	case entities.AggregationTypeSum:
+		query = `
+			SELECT COALESCE(SUM(CAST(data->>'quantity' AS FLOAT)), 0)
+			FROM usage_events
+			WHERE org_id = @org_id 
+			  AND subscription_item_id = @subscription_item_id
+			  AND time >= @start_time 
+			  AND time < @end_time
+		`
+	case entities.AggregationTypeMax:
+		query = `
+			SELECT COALESCE(MAX(CAST(data->>'quantity' AS FLOAT)), 0)
+			FROM usage_events
+			WHERE org_id = @org_id 
+			  AND subscription_item_id = @subscription_item_id
+			  AND time >= @start_time 
+			  AND time < @end_time
+		`
+	case entities.AggregationTypeAverage:
+		query = `
+			SELECT COALESCE(AVG(CAST(data->>'quantity' AS FLOAT)), 0)
+			FROM usage_events
+			WHERE org_id = @org_id 
+			  AND subscription_item_id = @subscription_item_id
+			  AND time >= @start_time 
+			  AND time < @end_time
+		`
+	case entities.AggregationTypeLastDuringPeriod:
+		query = `
+			SELECT COALESCE(CAST(data->>'quantity' AS FLOAT), 0)
+			FROM usage_events
+			WHERE org_id = @org_id 
+			  AND subscription_item_id = @subscription_item_id
+			  AND time >= @start_time 
+			  AND time < @end_time
+			ORDER BY time DESC
+			LIMIT 1
+		`
+	default:
+		// Default to sum
+		query = `
+			SELECT COALESCE(SUM(CAST(data->>'quantity' AS FLOAT)), 0)
+			FROM usage_events
+			WHERE org_id = @org_id 
+			  AND subscription_item_id = @subscription_item_id
+			  AND time >= @start_time 
+			  AND time < @end_time
+		`
+	}
+
+	args := pgx.NamedArgs{
+		"org_id":               orgID,
+		"subscription_item_id": subscriptionItemID,
+		"start_time":           startTime,
+		"end_time":             endTime,
+	}
+
+	var result float64
+	err := tx.QueryRow(ctx, query, args).Scan(&result)
+	if err != nil {
+		return 0, fmt.Errorf("failed to aggregate usage: %w", err)
+	}
+
+	return result, nil
 }

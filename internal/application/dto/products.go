@@ -38,9 +38,7 @@ type CreateProductPriceInput struct {
 
 	// Usage-based billing fields
 	HasUsage           bool                   `json:"has_usage"`
-	UsageType          string                 `json:"usage_type"`
-	UnitType           string                 `json:"unit_type"`
-	AggregationType    string                 `json:"aggregation_type"`
+	MeterId            string                 `json:"meter_id"`
 	PercentageRate     float64                `json:"percentage_rate"`
 	FixedFee           int64                  `json:"fixed_fee"`
 	OverageUnitPrice   int64                  `json:"overage_unit_price"`
@@ -111,9 +109,7 @@ type CreatePriceInput struct {
 
 	// Usage-based billing fields
 	HasUsage           bool                   `json:"has_usage" jsonschema:"description=Whether this price includes usage-based billing"`
-	UsageType          string                 `json:"usage_type" jsonschema:"description=Type of usage (api_calls, data_transfer, etc.)"`
-	UnitType           string                 `json:"unit_type" jsonschema:"description=Unit of measurement (requests, GB, etc.)"`
-	AggregationType    string                 `json:"aggregation_type" jsonschema:"enum=sum,enum=max,enum=last_during_period,description=How to aggregate usage records"`
+	MeterId            string                 `json:"meter_id" jsonschema:"description=ID of the meter to use for usage tracking"`
 	PercentageRate     float64                `json:"percentage_rate" jsonschema:"description=Percentage rate for transaction fees"`
 	FixedFee           int64                  `json:"fixed_fee" jsonschema:"description=Fixed fee per transaction in smallest currency unit"`
 	OverageUnitPrice   int64                  `json:"overage_unit_price" jsonschema:"description=Price per unit over included usage"`
@@ -145,9 +141,7 @@ type UpdatePriceInput struct {
 
 	// Usage-based billing fields
 	HasUsage           bool                   `json:"has_usage" jsonschema:"description=Whether this price includes usage-based billing"`
-	UsageType          string                 `json:"usage_type" jsonschema:"description=Type of usage (api_calls, data_transfer, etc.)"`
-	UnitType           string                 `json:"unit_type" jsonschema:"description=Unit of measurement (requests, GB, etc.)"`
-	AggregationType    string                 `json:"aggregation_type" jsonschema:"enum=sum,enum=max,enum=last_during_period,description=How to aggregate usage records"`
+	MeterId            string                 `json:"meter_id" jsonschema:"description=ID of the meter to use for usage tracking"`
 	PercentageRate     float64                `json:"percentage_rate" jsonschema:"description=Percentage rate for transaction fees"`
 	FixedFee           int64                  `json:"fixed_fee" jsonschema:"description=Fixed fee per transaction in smallest currency unit"`
 	OverageUnitPrice   int64                  `json:"overage_unit_price" jsonschema:"description=Price per unit over included usage"`

@@ -114,9 +114,7 @@ func (s ProductService) CreateProduct(ctx context.Context, orgId string, input a
 				TrialIntervalQty:   p.TrialIntervalQty,
 				TaxCode:            p.TaxCode,
 				HasUsage:           p.HasUsage,
-				UsageType:          p.UsageType,
-				UnitType:           p.UnitType,
-				AggregationType:    p.AggregationType,
+				MeterId:            p.MeterId,
 				PercentageRate:     p.PercentageRate,
 				FixedFee:           p.FixedFee,
 				OverageUnitPrice:   p.OverageUnitPrice,
@@ -361,6 +359,13 @@ func (s ProductService) UpdatePrice(ctx context.Context, orgId string, id string
 	price.TrialInterval = input.TrialInterval
 	price.TrialIntervalQty = input.TrialIntervalQty
 	price.TaxCode = input.TaxCode
+	price.HasUsage = input.HasUsage
+	price.MeterId = input.MeterId
+	price.PercentageRate = input.PercentageRate
+	price.FixedFee = input.FixedFee
+	price.OverageUnitPrice = input.OverageUnitPrice
+	price.IncludedUsage = input.IncludedUsage
+	price.UsageLimit = input.UsageLimit
 	price.Metadata = input.Metadata
 	price.UpdatedAt = time.Now().UTC()
 

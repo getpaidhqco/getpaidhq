@@ -26,11 +26,10 @@ type Price struct {
 
 	// Usage-based billing fields
 	HasUsage           bool                   `json:"has_usage"`
-	UsageType          prices.UsageType       `json:"usage_type,omitempty"`
-	UnitType           prices.UnitType        `json:"unit_type,omitempty"`
-	AggregationType    prices.AggregationType `json:"aggregation_type,omitempty"`
+	MeterId            string                 `json:"meter_id,omitempty"`
 	PercentageRate     float64                `json:"percentage_rate,omitempty"`
 	FixedFee           int64                  `json:"fixed_fee,omitempty"`
+	OverageUnitPrice   int64                  `json:"overage_unit_price,omitempty"`
 	IncludedUsage      int64                  `json:"included_usage,omitempty"`
 	UsageLimit         int64                  `json:"usage_limit,omitempty"`
 
@@ -62,11 +61,10 @@ func NewPriceFromEntity(entity entities.Price) Price {
 
 		// Usage-based billing fields
 		HasUsage:           entity.HasUsage,
-		UsageType:          entity.UsageType,
-		UnitType:           entity.UnitType,
-		AggregationType:    entity.AggregationType,
+		MeterId:            entity.MeterId,
 		PercentageRate:     entity.PercentageRate,
 		FixedFee:           entity.FixedFee,
+		OverageUnitPrice:   entity.OverageUnitPrice,
 		IncludedUsage:      entity.IncludedUsage,
 		UsageLimit:         entity.UsageLimit,
 

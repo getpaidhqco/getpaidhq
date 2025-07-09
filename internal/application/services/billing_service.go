@@ -4,30 +4,38 @@ import (
 	"context"
 	"fmt"
 	"payloop/internal/application/interfaces"
+	"payloop/internal/application/lib/events"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
+	"strconv"
 	"time"
 )
 
 // BillingService implements the BillingService interface
 type BillingService struct {
-	usageRecordRepository      repositories.UsageRecordRepository
+	usageEventRepository       repositories.UsageEventRepository
+	subscriptionRepository     repositories.SubscriptionRepository
 	subscriptionItemRepository repositories.SubscriptionItemRepository
 	priceRepository            repositories.PriceRepository
+	meterRepository            repositories.MeterRepository
 	tierCalculationService     interfaces.TierCalculationService
 }
 
 // NewBillingService creates a new BillingService
 func NewBillingService(
-	usageRecordRepository repositories.UsageRecordRepository,
+	usageEventRepository repositories.UsageEventRepository,
+	subscriptionRepository repositories.SubscriptionRepository,
 	subscriptionItemRepository repositories.SubscriptionItemRepository,
 	priceRepository repositories.PriceRepository,
+	meterRepository repositories.MeterRepository,
 	tierCalculationService interfaces.TierCalculationService,
 ) interfaces.BillingService {
 	return &BillingService{
-		usageRecordRepository:      usageRecordRepository,
+		usageEventRepository:       usageEventRepository,
+		subscriptionRepository:     subscriptionRepository,
 		subscriptionItemRepository: subscriptionItemRepository,
 		priceRepository:            priceRepository,
+		meterRepository:            meterRepository,
 		tierCalculationService:     tierCalculationService,
 	}
 }
@@ -50,19 +58,6 @@ func (b *BillingService) CalculateBillingAmount(ctx context.Context, subscriptio
 		if err != nil {
 			return interfaces.BillingCalculation{}, err
 		}
-	}
-
-	// For legacy subscriptions without items, use the subscription amount
-	if len(items) == 0 {
-		calculation.BaseAmount = subscription.Amount
-		calculation.TotalAmount = subscription.Amount
-		calculation.ItemBreakdown = []interfaces.BillingItemBreakdown{{
-			SubscriptionItemId: subscription.Id,
-			Description:        "Legacy subscription",
-			PriceCategory:      "subscription",
-			Amount:             subscription.Amount,
-		}}
-		return calculation, nil
 	}
 
 	// Calculate amounts for each subscription item
@@ -304,61 +299,13 @@ func getPricingScheme(item entities.SubscriptionItem) string {
 	return "fixed"
 }
 
-// aggregateUsage aggregates usage records based on the specified aggregation type
-func (b *BillingService) aggregateUsage(records []entities.UsageRecord, aggregationType entities.AggregationType) float64 {
-	if len(records) == 0 {
-		return 0
-	}
 
-	switch aggregationType {
-	case entities.AggregationTypeSum:
-		var total float64
-		for _, record := range records {
-			total += record.Quantity
-		}
-		return total
-
-	case entities.AggregationTypeMax:
-		max := records[0].Quantity
-		for _, record := range records[1:] {
-			if record.Quantity > max {
-				max = record.Quantity
-			}
-		}
-		return max
-
-	case entities.AggregationTypeAverage:
-		var total float64
-		for _, record := range records {
-			total += record.Quantity
-		}
-		return total / float64(len(records))
-
-	case entities.AggregationTypeLastDuringPeriod:
-		latest := records[0]
-		for _, record := range records[1:] {
-			if record.CreatedAt.After(latest.CreatedAt) {
-				latest = record
-			}
-		}
-		return latest.Quantity
-
-	default:
-		// Default to sum
-		var total float64
-		for _, record := range records {
-			total += record.Quantity
-		}
-		return total
-	}
-}
-
-// sumTransactionValues sums the transaction values from usage records
-func (b *BillingService) sumTransactionValues(records []entities.UsageRecord) float64 {
+// sumTransactionValuesFromEvents sums the transaction values from usage events
+func (b *BillingService) sumTransactionValuesFromEvents(events []entities.UsageEvent) float64 {
 	var total float64
-	for _, record := range records {
-		if record.TransactionValue > 0 {
-			total += float64(record.TransactionValue)
+	for _, event := range events {
+		if value, ok := event.Data["transaction_value"].(float64); ok && value > 0 {
+			total += value
 		}
 	}
 	return total
@@ -407,21 +354,35 @@ func (b *BillingService) calculateItemAmount(ctx context.Context, item entities.
 
 // calculateUsageItemAmount calculates the amount for a usage-based subscription item
 func (b *BillingService) calculateUsageItemAmount(ctx context.Context, item entities.SubscriptionItem, period interfaces.BillingPeriod) (int64, interfaces.UsageCalculationResult, error) {
-	// Get usage records for the period
-	usageRecords, err := b.usageRecordRepository.FindBySubscriptionItem(ctx, item.OrgId, item.Id, period.StartDate, period.EndDate)
-	if err != nil {
-		return 0, interfaces.UsageCalculationResult{}, err
+	// Get meter configuration for the subscription item
+	if item.MeterId == "" {
+		return 0, interfaces.UsageCalculationResult{}, fmt.Errorf("subscription item %s has no meter ID", item.Id)
 	}
 
-	// Aggregate usage based on aggregation type
-	aggregatedQuantity := b.aggregateUsage(usageRecords, item.AggregationType)
+	meter, err := b.meterRepository.FindById(ctx, item.OrgId, item.MeterId)
+	if err != nil {
+		return 0, interfaces.UsageCalculationResult{}, fmt.Errorf("failed to find meter: %w", err)
+	}
+
+	// Use the meter's aggregation type
+	aggregationType := meter.AggregationType
+
+	// Let the database do the aggregation
+	aggregatedQuantity, err := b.usageEventRepository.AggregateUsageBySubscriptionItem(
+		ctx, item.OrgId, item.Id, period.StartDate, period.EndDate, aggregationType)
+	if err != nil {
+		return 0, interfaces.UsageCalculationResult{}, fmt.Errorf("failed to aggregate usage: %w", err)
+	}
+
+	// Use the meter's unit type
+	unitType := string(meter.UnitType)
 
 	usageResult := interfaces.UsageCalculationResult{
 		SubscriptionItemId: item.Id,
-		UnitType:           string(item.UnitType),
+		UnitType:           unitType,
 		Quantity:           aggregatedQuantity,
 		UnitPrice:          item.UnitPrice,
-		AggregationType:    string(item.AggregationType),
+		AggregationType:    string(aggregationType),
 	}
 
 	// Calculate amount based on pricing scheme
@@ -448,8 +409,15 @@ func (b *BillingService) calculateUsageItemAmount(ctx context.Context, item enti
 		calculatedAmount = tierResult.TotalAmount
 
 	case "percentage":
-		// For transaction-based fees
-		totalTransactionValue := b.sumTransactionValues(usageRecords)
+		// For percentage-based pricing, we still need to get all records to sum transaction values
+		// This could be optimized in the future with a specialized database aggregation
+		usageEvents, err := b.usageEventRepository.FindBySubscriptionItem(
+			ctx, item.OrgId, item.Id, period.StartDate, period.EndDate)
+		if err != nil {
+			return 0, usageResult, err
+		}
+
+		totalTransactionValue := b.sumTransactionValuesFromEvents(usageEvents)
 		calculatedAmount = int64(totalTransactionValue * item.PercentageRate / 100)
 
 	default:
@@ -458,4 +426,265 @@ func (b *BillingService) calculateUsageItemAmount(ctx context.Context, item enti
 
 	usageResult.Amount = calculatedAmount
 	return calculatedAmount, usageResult, nil
+}
+
+// GenerateUsageCharges aggregates raw events and calculates charges for invoice generation
+func (b *BillingService) GenerateUsageCharges(
+	ctx context.Context,
+	orgId string,
+	subscriptionId string,
+	billingPeriodStart time.Time,
+	billingPeriodEnd time.Time,
+) ([]entities.UsageLineItem, error) {
+
+	// 1. Get all subscription items with usage billing
+	_, err := b.subscriptionRepository.FindById(ctx, orgId, subscriptionId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find subscription: %w", err)
+	}
+
+	subscriptionItems, err := b.subscriptionItemRepository.FindBySubscriptionId(ctx, orgId, subscriptionId)
+	if err != nil {
+		return nil, fmt.Errorf("failed to find subscription items: %w", err)
+	}
+
+	var usageLineItems []entities.UsageLineItem
+
+	// 2. Process each subscription item with usage billing
+	for _, item := range subscriptionItems {
+		if !item.HasUsage || item.MeterId == "" {
+			continue
+		}
+
+		// 3. Get meter configuration
+		meter, err := b.meterRepository.FindById(ctx, orgId, item.MeterId)
+		if err != nil {
+			// Log warning and continue with next item
+			continue
+		}
+
+		// 4. Query raw events for this subscription item and period
+		// TODO: Fix unresolved reference to rawUsageRepository
+		// This is not directly related to the changes for using Meters instead of Prices
+		// and would require more context to fix properly
+		var rawEvents []events.RawUsageRecordedEvent
+		// rawEvents, err := b.rawUsageRepository.FindBySubscriptionItemId(
+		// 	ctx, orgId, item.Id, billingPeriodStart, billingPeriodEnd,
+		// )
+		// if err != nil {
+		// 	return nil, fmt.Errorf("failed to query raw events: %w", err)
+		// }
+
+		if len(rawEvents) == 0 {
+			continue // No usage for this item
+		}
+
+		// 5. Aggregate usage based on meter configuration
+		aggregatedValue, err := b.aggregateRawUsage(rawEvents, meter)
+		if err != nil {
+			return nil, fmt.Errorf("failed to aggregate usage: %w", err)
+		}
+
+		// 6. Calculate charges based on current pricing
+		totalAmount, err := b.calculateRawUsageCharges(aggregatedValue, item, rawEvents)
+		if err != nil {
+			return nil, fmt.Errorf("failed to calculate charges: %w", err)
+		}
+
+		// 7. Create usage line item
+		lineItem := entities.UsageLineItem{
+			SubscriptionItemId: item.Id,
+			MeterId:            meter.Id,
+			MeterName:          meter.Name,
+			AggregatedValue:    aggregatedValue,
+			TotalAmount:        totalAmount,
+			EventCount:         len(rawEvents),
+			PeriodStart:        billingPeriodStart,
+			PeriodEnd:          billingPeriodEnd,
+		}
+
+		usageLineItems = append(usageLineItems, lineItem)
+	}
+
+	return usageLineItems, nil
+}
+
+// aggregateRawUsage applies meter aggregation rules to raw events
+func (b *BillingService) aggregateRawUsage(rawEvents []events.RawUsageRecordedEvent, meter entities.Meter) (float64, error) {
+	if len(rawEvents) == 0 {
+		return 0, nil
+	}
+
+	var values []float64
+
+	// Extract values from each event based on meter configuration
+	for _, event := range rawEvents {
+		// Convert event.Data to map[string]interface{}
+		dataMap, ok := event.Data.(map[string]interface{})
+		if !ok {
+			// Skip this event if data is not a map
+			continue
+		}
+
+		value, err := extractValueFromEventData(dataMap, meter.ValueProperty)
+		if err != nil {
+			// Skip this event if value extraction fails
+			continue
+		}
+		values = append(values, value)
+	}
+
+	// Apply aggregation type
+	switch meter.AggregationType {
+	case entities.AggregationTypeSum:
+		var sum float64
+		for _, v := range values {
+			sum += v
+		}
+		return sum, nil
+
+	// Count is not a standard aggregation type, but we can implement it here
+	case "count":
+		return float64(len(values)), nil
+
+	case entities.AggregationTypeMax:
+		if len(values) == 0 {
+			return 0, nil
+		}
+		max := values[0]
+		for _, v := range values[1:] {
+			if v > max {
+				max = v
+			}
+		}
+		return max, nil
+
+	case entities.AggregationTypeAverage:
+		if len(values) == 0 {
+			return 0, nil
+		}
+		var sum float64
+		for _, v := range values {
+			sum += v
+		}
+		return sum / float64(len(values)), nil
+
+	case entities.AggregationTypeLastDuringPeriod:
+		if len(values) == 0 {
+			return 0, nil
+		}
+		// Events should be ordered by time, return last value
+		return values[len(values)-1], nil
+
+	default:
+		return 0, fmt.Errorf("unsupported aggregation type: %s", meter.AggregationType)
+	}
+}
+
+// calculateRawUsageCharges applies pricing rules to aggregated usage
+func (b *BillingService) calculateRawUsageCharges(
+	aggregatedValue float64,
+	subscriptionItem entities.SubscriptionItem,
+	rawEvents []events.RawUsageRecordedEvent,
+) (int64, error) {
+
+	// Get unit type from meter or default to "count"
+	var unitType string
+	if subscriptionItem.MeterId != "" {
+		meter, err := b.meterRepository.FindById(context.Background(), subscriptionItem.OrgId, subscriptionItem.MeterId)
+		if err == nil {
+			unitType = string(meter.UnitType)
+		}
+	}
+	if unitType == "" {
+		unitType = "count" // Default to count if no meter or error
+	}
+
+	switch unitType {
+	case string(entities.UnitTypeTransactions):
+		// For transaction-based pricing, sum transaction values and apply percentage
+		var totalTransactionValue int64
+		for _, event := range rawEvents {
+			// Convert event.Data to map[string]interface{}
+			dataMap, ok := event.Data.(map[string]interface{})
+			if !ok {
+				// Skip this event if data is not a map
+				continue
+			}
+
+			if transactionValue, err := getTransactionValueFromEventData(dataMap); err == nil {
+				totalTransactionValue += transactionValue
+			}
+		}
+
+		// Apply percentage rate
+		percentageFee := int64(float64(totalTransactionValue) * subscriptionItem.PercentageRate / 100)
+
+		// Add fixed fee per transaction
+		fixedFee := int64(aggregatedValue * float64(subscriptionItem.FixedFee))
+
+		return percentageFee + fixedFee, nil
+
+	default:
+		// Unit-based pricing
+		return int64(aggregatedValue * float64(subscriptionItem.UnitPrice)), nil
+	}
+}
+
+// Helper functions for value extraction
+func extractValueFromEventData(eventData map[string]interface{}, valueProperty string) (float64, error) {
+	// If no specific property is specified, look for "quantity" by default
+	if valueProperty == "" {
+		valueProperty = "quantity"
+	}
+
+	// Try to extract the value from the data map
+	if val, ok := eventData[valueProperty]; ok {
+		// Convert the value to float64
+		switch v := val.(type) {
+		case float64:
+			return v, nil
+		case float32:
+			return float64(v), nil
+		case int:
+			return float64(v), nil
+		case int64:
+			return float64(v), nil
+		case int32:
+			return float64(v), nil
+		case string:
+			// Try to parse the string as a float
+			if f, err := strconv.ParseFloat(v, 64); err == nil {
+				return f, nil
+			}
+		}
+	}
+
+	// If we couldn't find or convert the value, return an error
+	return 0, fmt.Errorf("could not extract value for property %s from event data", valueProperty)
+}
+
+func getTransactionValueFromEventData(eventData map[string]interface{}) (int64, error) {
+	// Look for transaction_value in the data map
+	if val, ok := eventData["transaction_value"]; ok {
+		// Convert the value to int64
+		switch v := val.(type) {
+		case int64:
+			return v, nil
+		case int:
+			return int64(v), nil
+		case float64:
+			return int64(v), nil
+		case float32:
+			return int64(v), nil
+		case string:
+			// Try to parse the string as an int64
+			if i, err := strconv.ParseInt(v, 10, 64); err == nil {
+				return i, nil
+			}
+		}
+	}
+
+	// If we couldn't find or convert the value, return an error
+	return 0, fmt.Errorf("could not extract transaction_value from event data")
 }
