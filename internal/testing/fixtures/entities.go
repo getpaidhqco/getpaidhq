@@ -17,36 +17,48 @@ type SubscriptionBuilder struct {
 // NewSubscriptionBuilder creates a new subscription builder with sensible defaults
 func NewSubscriptionBuilder() *SubscriptionBuilder {
 	now := time.Now().UTC()
-	
+
+	subscription := entities.Subscription{
+		OrgId:              "org_test123",
+		Id:                 lib.GenerateId("sub"),
+		Status:             entities.SubscriptionStatusActive,
+		OrderId:            "order_test123",
+		OrderItemId:        "item_test123",
+		CustomerId:         "cust_test123",
+		PaymentMethodId:    "pm_test123",
+		StartDate:          now,
+		BillingInterval:    prices.BillingIntervalMonth,
+		BillingIntervalQty: 1,
+		Cycles:             0, // 0 = unlimited
+		BillingAnchor:      now.Day(),
+		Currency:           "USD",
+		Amount:             2500, // $25.00
+		CurrentPeriodStart: now,
+		CurrentPeriodEnd:   now.AddDate(0, 1, 0), // 1 month from now
+		RenewsAt:           now.AddDate(0, 1, 0),
+		CyclesProcessed:    1,
+		TotalRevenue:       2500,
+		Metadata:           make(map[string]string),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
+
+	// Create a default subscription item
+	subscriptionItem := entities.NewSubscriptionItem(
+		subscription.OrgId,
+		subscription.Id,
+		"price_test123",
+		"Test Subscription",
+		"USD",
+	)
+	subscriptionItem.ProductId = "prod_test123"
+	subscriptionItem.VariantId = "var_test123"
+	subscriptionItem.Amount = 2500
+
+	subscription.Items = []entities.SubscriptionItem{subscriptionItem}
+
 	return &SubscriptionBuilder{
-		subscription: entities.Subscription{
-			OrgId:              "org_test123",
-			Id:                 lib.GenerateId("sub"),
-			ProductId:          "prod_test123",
-			VariantId:          "var_test123",
-			PriceId:            "price_test123",
-			Status:             entities.SubscriptionStatusActive,
-			OrderId:            "order_test123",
-			OrderItemId:        "item_test123",
-			CustomerId:         "cust_test123",
-			PaymentMethodId:    "pm_test123",
-			StartDate:          now,
-			BillingInterval:    prices.BillingIntervalMonth,
-			BillingIntervalQty: 1,
-			Cycles:             0, // 0 = unlimited
-			BillingAnchor:      now.Day(),
-			Currency:           "USD",
-			Amount:             2500, // $25.00
-			CurrentPeriodStart: now,
-			CurrentPeriodEnd:   now.AddDate(0, 1, 0), // 1 month from now
-			RenewsAt:           now.AddDate(0, 1, 0),
-			Retries:            0,
-			CyclesProcessed:    1,
-			TotalRevenue:       2500,
-			Metadata:           make(map[string]string),
-			CreatedAt:          now,
-			UpdatedAt:          now,
-		},
+		subscription: subscription,
 	}
 }
 
@@ -74,11 +86,28 @@ func (b *SubscriptionBuilder) WithCustomerId(customerId string) *SubscriptionBui
 	return b
 }
 
-// WithProductVariantPrice sets the product, variant, and price IDs
+// WithProductVariantPrice sets the product, variant, and price IDs on the first subscription item
 func (b *SubscriptionBuilder) WithProductVariantPrice(productId, variantId, priceId string) *SubscriptionBuilder {
-	b.subscription.ProductId = productId
-	b.subscription.VariantId = variantId
-	b.subscription.PriceId = priceId
+	if len(b.subscription.Items) == 0 {
+		// Create a subscription item if none exists
+		subscriptionItem := entities.NewSubscriptionItem(
+			b.subscription.OrgId,
+			b.subscription.Id,
+			priceId,
+			"Test Subscription",
+			b.subscription.Currency,
+		)
+		subscriptionItem.ProductId = productId
+		subscriptionItem.VariantId = variantId
+		subscriptionItem.Amount = b.subscription.Amount
+
+		b.subscription.Items = []entities.SubscriptionItem{subscriptionItem}
+	} else {
+		// Update the first subscription item
+		b.subscription.Items[0].ProductId = productId
+		b.subscription.Items[0].VariantId = variantId
+		b.subscription.Items[0].PriceId = priceId
+	}
 	return b
 }
 
@@ -132,7 +161,7 @@ type CustomerBuilder struct {
 // NewCustomerBuilder creates a new customer builder with sensible defaults
 func NewCustomerBuilder() *CustomerBuilder {
 	now := time.Now().UTC()
-	
+
 	return &CustomerBuilder{
 		customer: entities.Customer{
 			OrgId:     "org_test123",
@@ -186,7 +215,7 @@ type VariantBuilder struct {
 // NewVariantBuilder creates a new variant builder with sensible defaults
 func NewVariantBuilder() *VariantBuilder {
 	now := time.Now().UTC()
-	
+
 	return &VariantBuilder{
 		variant: entities.Variant{
 			OrgId:     "org_test123",
@@ -232,7 +261,7 @@ type PriceBuilder struct {
 // NewPriceBuilder creates a new price builder with sensible defaults
 func NewPriceBuilder() *PriceBuilder {
 	now := time.Now().UTC()
-	
+
 	return &PriceBuilder{
 		price: entities.Price{
 			OrgId:              "org_test123",
@@ -297,7 +326,7 @@ type SubscriptionPlanChangeBuilder struct {
 // NewSubscriptionPlanChangeBuilder creates a new plan change builder
 func NewSubscriptionPlanChangeBuilder() *SubscriptionPlanChangeBuilder {
 	now := time.Now().UTC()
-	
+
 	return &SubscriptionPlanChangeBuilder{
 		planChange: entities.SubscriptionPlanChange{
 			Id:              lib.GenerateId("spc"),

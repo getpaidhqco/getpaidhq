@@ -542,6 +542,8 @@ func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 		BillingIntervalQty: item.Price.BillingIntervalQty,
 		Cycles:             item.Price.Cycles,
 		DunningActive:      false,
+		Currency:           string(item.Price.Currency),
+		Amount:             0,
 		CyclesProcessed:    0,
 		TotalRevenue:       0,
 		CreatedAt:          time.Now().UTC(),

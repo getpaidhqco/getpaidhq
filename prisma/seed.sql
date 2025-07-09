@@ -22,3 +22,5 @@ VALUES ('mollie', 'Paystack', 'Paystack' , 'Paystack',true,NOW(), NOW()),
        ('mollie', 'CheckoutDotCom', 'CheckoutDotCom' , 'CheckoutDotCom',true,NOW(), NOW())
 ON CONFLICT DO NOTHING;
 
+INSERT INTO cohorts (org_id, id, name, type, metadata, created_at, updated_at) VALUES ('mollie', 'signup_date', 'Signup Date', 'signup_date', null, '2025-04-09 08:47:31.000', '2025-04-09 08:47:37.000');
+

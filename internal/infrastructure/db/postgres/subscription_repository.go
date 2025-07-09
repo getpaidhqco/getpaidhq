@@ -37,7 +37,8 @@ func (r SubscriptionRepository) FindByIdWithoutItems(ctx context.Context, orgId 
 
 	var subscription models.Subscription
 	var customer models.Customer
-	query := `SELECT s.org_id, s.id, s.psp_id, s.order_id, s.order_item_id, s.customer_id, s.status, s.payment_method_id, 
+	query := `SELECT s.org_id, s.id, s.psp_id, s.order_id, s.order_item_id, s.customer_id, s.status, 
+       s.payment_method_id, 
        s.amount, s.currency, s.start_date, s.end_date,
        s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at,
        s.last_charge, 
@@ -96,7 +97,7 @@ func (r SubscriptionRepository) FindByIdWithoutItems(ctx context.Context, orgId 
 		&customer.UpdatedAt,
 	)
 	if err != nil {
-		r.logger.Error(`failed to find Subscription by id`, err.Error())
+		r.logger.Error(`failed to find Subscription by id`, "err", err.Error())
 		return entities.Subscription{}, err
 	}
 	subscription.Customer = customer
@@ -113,7 +114,7 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 	tx := r.getTransactionFromContext(ctx)
 	var subscriptions = make([]entities.Subscription, 0)
 	query := `SELECT s.org_id, s.id, s.psp_id, s.order_id, s.order_item_id, s.customer_id, 
-       s.status, s.payment_method_id, s.product_id, s.variant_id, s.price_id, s.start_date, s.end_date, 
+       s.status, s.payment_method_id, s.start_date, s.end_date, 
        s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at, 
        s.last_charge, s.renews_at, 
        s.current_period_start,
@@ -146,9 +147,6 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 			&subscription.CustomerId,
 			&subscription.Status,
 			&subscription.PaymentMethodId,
-			&subscription.ProductId,
-			&subscription.VariantId,
-			&subscription.PriceId,
 			&subscription.StartDate,
 			&subscription.EndDate,
 			&subscription.BillingInterval,
@@ -201,17 +199,15 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 	tx := r.getTransactionFromContext(ctx)
 
 	query := `INSERT INTO subscriptions (org_id, id, psp_id, payment_method_id, order_id, order_item_id, customer_id, status, 
-                           product_id, variant_id, price_id,
                            start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, 
                            trial_ends_at, cancel_at, ends_at, last_charge, renews_at, 
-                           current_period_start, current_period_end, retries, next_retry, 
+                           current_period_start, current_period_end, 
                            currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, 
                            created_at, updated_at) 
 			  VALUES (@org_id, @id, @psp_id, @payment_method_id, @order_id, @order_item_id, @customer_id, @status, 
-			          @product_id, @variant_id, @price_id,
 			          @start_date, @end_date, @billing_interval, @billing_interval_qty, @cycles, @billing_anchor, 
 			          @trial_ends_at, @cancel_at, @ends_at, @last_charge, @renews_at, 
-			          @current_period_start, @current_period_end, @retries, @next_retry, 
+			          @current_period_start, @current_period_end, 
 			          @currency, @amount, @metadata, @cycles_processed, @total_revenue, @cancelled_at,
 			          NOW(), NOW())
 `
@@ -248,9 +244,6 @@ func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subs
 	query := `UPDATE subscriptions
 			  SET status=@status, 
 			      payment_method_id=@payment_method_id, 
-			      product_id=@product_id,
-			      variant_id=@variant_id,
-			      price_id=@price_id,
 			      start_date=@start_date, end_date=@end_date, 
 			      billing_interval=@billing_interval,
 			      billing_interval_qty=@billing_interval_qty, 
@@ -263,8 +256,6 @@ func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subs
 			      renews_at=@renews_at, 
 			      current_period_start=@current_period_start, 
 			      current_period_end=@current_period_end, 
-			      retries=@retries, 
-			      next_retry=@next_retry, 
 			      currency=@currency, 
 			      amount=@amount, 
 			      metadata=@metadata, 
@@ -292,7 +283,7 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
 	var subscriptions = make([]entities.Subscription, 0)
 	var count int
 	query := `SELECT s.org_id, s.id, s.order_id, s.order_item_id, s.customer_id, s.status, s.payment_method_id, 
-       s.product_id, s.variant_id, s.price_id, s.start_date, s.end_date,
+       s.start_date, s.end_date,
        s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at,
        s.last_charge, s.renews_at, s.dunning_active, s.active_dunning_campaign_id, s.currency, s.amount, s.metadata, s.cycles_processed,
        s.total_revenue, s.cancelled_at, s.created_at, s.updated_at,
@@ -353,9 +344,6 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
 			&subscription.CustomerId,
 			&subscription.Status,
 			&subscription.PaymentMethodId,
-			&subscription.ProductId,
-			&subscription.VariantId,
-			&subscription.PriceId,
 			&subscription.StartDate,
 			&subscription.EndDate,
 			&subscription.BillingInterval,
@@ -543,6 +531,8 @@ func entityToNamedArgs(entity entities.Subscription) pgx.NamedArgs {
 		"order_item_id":              entity.OrderItemId,
 		"customer_id":                entity.CustomerId,
 		"status":                     entity.Status,
+		"amount":                     pgtype.Int8{Int64: entity.Amount, Valid: entity.Amount >= 0},
+		"currency":                   entity.Currency,
 		"start_date":                 pgtype.Date{Time: entity.StartDate, Valid: !entity.StartDate.IsZero()},
 		"end_date":                   pgtype.Date{Time: entity.EndDate, Valid: !entity.EndDate.IsZero()},
 		"billing_interval":           entity.BillingInterval,
@@ -562,6 +552,8 @@ func entityToNamedArgs(entity entities.Subscription) pgx.NamedArgs {
 		"cycles_processed":           entity.CyclesProcessed,
 		"total_revenue":              entity.TotalRevenue,
 		"cancelled_at":               pgtype.Date{Time: entity.CancelledAt, Valid: !entity.CancelledAt.IsZero()},
+		"created_at":                 pgtype.Date{Time: entity.CreatedAt, Valid: !entity.CreatedAt.IsZero()},
+		"updated_at":                 pgtype.Date{Time: entity.UpdatedAt, Valid: !entity.UpdatedAt.IsZero()},
 	}
 }
 

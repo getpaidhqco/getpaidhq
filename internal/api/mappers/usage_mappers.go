@@ -7,55 +7,31 @@ import (
 	"payloop/internal/api/dto/response"
 	"payloop/internal/application/dto"
 	"payloop/internal/domain/entities"
-	"payloop/internal/lib"
 )
 
 // ToRecordUsageInput converts API request to application input
 func ToRecordUsageInput(req request.RecordUsageRequest) dto.RecordUsageInput {
-	// Create data map for CloudEvents format
-	data := make(map[string]interface{})
+	timestamp := req.Time
+	id := req.Id
+	eventType := req.Type
+	source := req.Source
 
-	// Add basic fields to data
-	data["quantity"] = req.Quantity
-
-	// Only add non-zero values
-	if req.TransactionValue != 0 {
-		data["transaction_value"] = req.TransactionValue
-	}
-
-	if req.PercentageRate != 0 {
-		data["percentage_rate"] = req.PercentageRate
-	}
-
-	if req.ReferenceId != "" {
-		data["reference_id"] = req.ReferenceId
-	}
-
-	if req.ReferenceType != "" {
-		data["reference_type"] = req.ReferenceType
-	}
-
-	// Add metadata if present
-	if req.Metadata != nil && len(req.Metadata) > 0 {
-		data["metadata"] = req.Metadata
-	}
-
-	// Use current time if timestamp is zero
-	timestamp := req.Timestamp
-	if timestamp.IsZero() {
-		timestamp = time.Now().UTC()
+	// Set default specversion if not provided
+	specVersion := req.SpecVersion
+	if specVersion == "" {
+		specVersion = "1.0"
 	}
 
 	// Create CloudEvents format input
 	return dto.RecordUsageInput{
-		OrgId:       req.OrgId,
-		SpecVersion: "1.0",
-		Type:        "usage.recorded", // Default type, should be overridden by controller if needed
-		Id:          lib.GenerateId("evt"),
+		// OrgId is set by the controller
+		SpecVersion: specVersion,
+		Type:        eventType,
+		Id:          id,
 		Time:        timestamp,
-		Source:      "api",
-		Subject:     req.SubscriptionItemId,
-		Data:        data,
+		Source:      source,
+		Subject:     req.Subject, // subscriptionItemId
+		Data:        req.Data,    // Flexible event payload
 	}
 }
 

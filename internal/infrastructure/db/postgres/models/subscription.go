@@ -19,10 +19,7 @@ type Subscription struct {
 	Status          string      `json:"status"`
 	PaymentMethodId pgtype.Text `json:"payment_method_id,omitempty"`
 
-	// Product, variant and price references
-	ProductId          pgtype.Text `json:"product_id"`
-	VariantId          pgtype.Text `json:"variant_id"`
-	PriceId            pgtype.Text `json:"price_id"`
+	// Subscription details
 	StartDate          pgtype.Date `json:"start_date"`
 	EndDate            pgtype.Date `json:"end_date"`
 	BillingInterval    string      `json:"billing_interval"`
@@ -43,7 +40,7 @@ type Subscription struct {
 	ActiveDunningCampaignId pgtype.Text `json:"active_dunning_campaign_id,omitempty"`
 
 	Currency        string            `json:"currency"`
-	Amount          int64             `json:"amount"`
+	Amount          pgtype.Int8       `json:"amount"`
 	Metadata        map[string]string `json:"metadata"`
 	CyclesProcessed int               `json:"cycles_processed"`
 	TotalRevenue    int64             `json:"total_revenue"`
@@ -64,7 +61,7 @@ func (s *Subscription) ToEntity() entities.Subscription {
 		Customer:                s.Customer.ToEntity(),
 		Status:                  entities.SubscriptionStatus(s.Status),
 		PaymentMethodId:         s.PaymentMethodId.String,
-		Amount:                  s.Amount,
+		Amount:                  s.Amount.Int64,
 		Currency:                s.Currency,
 		StartDate:               s.StartDate.Time,
 		EndDate:                 s.EndDate.Time,

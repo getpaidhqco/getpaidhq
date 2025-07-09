@@ -75,7 +75,7 @@ func (r MeterRepository) Create(ctx context.Context, meter entities.Meter) (enti
 	_, err = tx.Exec(ctx, query, args)
 
 	if err != nil {
-		r.logger.Error("failed to create meter", err.Error())
+		r.logger.Error("failed to create meter", "err", err.Error())
 		return entities.Meter{}, err
 	}
 

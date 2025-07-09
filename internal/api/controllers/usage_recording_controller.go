@@ -41,11 +41,9 @@ func (u UsageRecordingController) RecordUsage(c *gin.Context) {
 		return
 	}
 
-	// Set orgId in the request
-	req.OrgId = orgId
-
 	// Convert API DTO to application DTO
 	appInput := mappers.ToRecordUsageInput(req)
+	appInput.OrgId = orgId
 
 	record, err := u.usageRecordingService.RecordUsage(c.Request.Context(), appInput)
 	if err != nil {

@@ -224,8 +224,12 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 			return orders.CreateOrderResponse{}, err
 		}
 
-		if orderItem.Price.Category == prices.PriceCategorySubscription {
+		if orderItem.Price.Category == prices.PriceCategorySubscription ||
+			orderItem.Price.Category == prices.PriceCategoryUsage ||
+			orderItem.Price.Category == prices.PriceCategoryHybrid {
+			s.logger.Debugf("Creating subscription for order item %s", orderItem.Id)
 			subscription := entities.NewSubscriptionFromOrderItem(orderItem)
+			subscription.BillingAnchor = time.Now().Day()
 			subscription.CustomerId = customerEntity.Id
 			subscription.PspId = input.PspId
 			subscription.PaymentMethodId = input.PaymentMethodId

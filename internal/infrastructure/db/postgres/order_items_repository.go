@@ -3,7 +3,7 @@ package postgres
 import (
 	"context"
 	"encoding/json"
-	_ "github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgtype"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
@@ -37,19 +37,21 @@ func (r OrderItemRepository) FindById(ctx context.Context, orgId string, id stri
 
 	query := `SELECT oi.org_id, oi.id, oi.order_id, oi.price_id, oi.description, 
        oi.quantity, oi.metadata, oi.created_at, oi.updated_at,
-			  
-       p.org_id, p.id, p.variant_id, p.category, p.scheme,
-       p.label, p.currency, p.unit_price,p.cycles, 
-        p.billing_interval, p.billing_interval_qty,
-        p.trial_interval, p.trial_interval_qty, 
-        p.min_price, p.suggested_price,
-        p.tax_code, p.metadata, p.created_at, p.updated_at
-    
-			  FROM order_items oi
-			  JOIN prices p ON oi.price_id = p.id
-			  WHERE oi.org_id = $1 AND oi.id = $2`
 
-	err := tx.QueryRow(ctx, query, orgId, id).Scan(
+       p.org_id, p.id, p.variant_id, p.category, p.scheme,
+       p.label, p.currency, p.unit_price, p.cycles, 
+       p.billing_interval, p.billing_interval_qty,
+       p.trial_interval, p.trial_interval_qty, 
+       p.min_price, p.suggested_price,
+       p.tax_code, p.has_usage, p.meter_id, p.percentage_rate,
+       p.fixed_fee, p.overage_unit_price, p.included_usage, p.usage_limit,
+       p.metadata, p.created_at, p.updated_at
+
+       FROM order_items oi
+       JOIN prices p ON oi.price_id = p.id
+       WHERE oi.org_id = @org_id AND oi.id = @id`
+
+	err := tx.QueryRow(ctx, query, pgx.NamedArgs{"org_id": orgId, "id": id}).Scan(
 		&orderItem.OrgId,
 		&orderItem.Id,
 		&orderItem.OrderId,
@@ -76,6 +78,13 @@ func (r OrderItemRepository) FindById(ctx context.Context, orgId string, id stri
 		&price.MinPrice,
 		&price.SuggestedPrice,
 		&price.TaxCode,
+		&price.HasUsage,
+		&price.MeterId,
+		&price.PercentageRate,
+		&price.FixedFee,
+		&price.OverageUnitPrice,
+		&price.IncludedUsage,
+		&price.UsageLimit,
 		&price.Metadata,
 		&price.CreatedAt,
 		&price.UpdatedAt,
@@ -100,28 +109,29 @@ func (r OrderItemRepository) Create(ctx context.Context, orderItem entities.Orde
                          price_id, description, 
                          quantity, sub_total, tax_total, total, discount_total,  
                          metadata, created_at, updated_at)
-				  VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, NOW(), NOW()) `
+				  VALUES (@org_id, @id, @order_id, @product_id, @variant_id, @price_id, @description, 
+				          @quantity, @sub_total, @tax_total, @total, @discount_total, @metadata, NOW(), NOW()) `
 
 	metadata, err := json.Marshal(orderItem.Metadata)
 	if err != nil {
 		return entities.OrderItem{}, err
 	}
 
-	_, err = tx.Exec(ctx, query,
-		orderItem.OrgId,
-		orderItem.Id,
-		orderItem.OrderId,
-		orderItem.ProductId,
-		pgtype.Text{String: orderItem.VariantId, Valid: orderItem.VariantId != ""},
-		orderItem.PriceId,
-		orderItem.Description,
-		orderItem.Quantity,
-		orderItem.Subtotal,
-		orderItem.TaxTotal,
-		orderItem.Total,
-		orderItem.DiscountTotal,
-		metadata,
-	)
+	_, err = tx.Exec(ctx, query, pgx.NamedArgs{
+		"org_id":         orderItem.OrgId,
+		"id":             orderItem.Id,
+		"order_id":       orderItem.OrderId,
+		"product_id":     orderItem.ProductId,
+		"variant_id":     pgtype.Text{String: orderItem.VariantId, Valid: orderItem.VariantId != ""},
+		"price_id":       orderItem.PriceId,
+		"description":    orderItem.Description,
+		"quantity":       orderItem.Quantity,
+		"sub_total":      orderItem.Subtotal,
+		"tax_total":      orderItem.TaxTotal,
+		"total":          orderItem.Total,
+		"discount_total": orderItem.DiscountTotal,
+		"metadata":       metadata,
+	})
 	if err != nil {
 		return entities.OrderItem{}, err
 	}
@@ -142,21 +152,32 @@ func (r OrderItemRepository) FindByOrderId(ctx context.Context, orgId string, or
 			  	  	 p.variant_id,
 			  		 p.category,
 			  		 p.scheme,
-			  		 p.label,			  		
+			  		 p.label,
+                     p.cycles,
 			  		 p.trial_interval, 
 			  		 p.trial_interval_qty, 
 			  		 p.billing_interval, 
 			  		 p.billing_interval_qty, 
 			  		 p.currency, 
-			  		 p.unit_price, 
+			  		 p.unit_price,
+                     p.min_price,
+                     p.suggested_price,
 			  		 p.tax_code,
+                     p.has_usage,
+                     p.meter_id,
+                     p.percentage_rate,
+                     p.fixed_fee,
+                     p.overage_unit_price,
+                     p.included_usage,
+                     p.usage_limit,
+                     p.metadata,
 			  		 p.created_at,
 			  		 p.updated_at
 			  FROM order_items oi
 			  JOIN prices p ON oi.org_id = p.org_id AND oi.price_id = p.id
-			  WHERE oi.org_id = $1 AND oi.order_id = $2`
+			  WHERE oi.org_id = @org_id AND oi.order_id = @order_id`
 
-	rows, err := tx.Query(ctx, query, orgId, orderId)
+	rows, err := tx.Query(ctx, query, pgx.NamedArgs{"org_id": orgId, "order_id": orderId})
 	if err != nil {
 		return nil, err
 	}
@@ -190,13 +211,24 @@ func (r OrderItemRepository) FindByOrderId(ctx context.Context, orgId string, or
 			&price.Category,
 			&price.Scheme,
 			&price.Label,
+            &price.Cycles,
 			&price.TrialInterval,
 			&price.TrialIntervalQty,
 			&price.BillingInterval,
 			&price.BillingIntervalQty,
 			&price.Currency,
 			&price.UnitPrice,
+            &price.MinPrice,
+            &price.SuggestedPrice,
 			&price.TaxCode,
+            &price.HasUsage,
+            &price.MeterId,
+            &price.PercentageRate,
+            &price.FixedFee,
+            &price.OverageUnitPrice,
+            &price.IncludedUsage,
+            &price.UsageLimit,
+            &price.Metadata,
 			&price.CreatedAt,
 			&price.UpdatedAt,
 		)
@@ -225,8 +257,8 @@ func (r OrderItemRepository) Update(ctx context.Context, orderItem entities.Orde
 	tx := r.getTransactionFromContext(ctx)
 
 	query := `UPDATE order_items
-			  SET price_id = $1, description = $2, quantity = $3, metadata = $4, updated_at = $5
-			  WHERE org_id = $6 AND id = $7
+			  SET price_id = @price_id, description = @description, quantity = @quantity, metadata = @metadata, updated_at = @updated_at
+			  WHERE org_id = @org_id AND id = @id
 			  RETURNING org_id, id, order_id, price_id, description, quantity, metadata, created_at, updated_at`
 
 	metadata, err := json.Marshal(orderItem.Metadata)
@@ -234,14 +266,15 @@ func (r OrderItemRepository) Update(ctx context.Context, orderItem entities.Orde
 		return entities.OrderItem{}, err
 	}
 
-	err = tx.QueryRow(ctx, query,
-		orderItem.Description,
-		orderItem.Quantity,
-		metadata,
-		orderItem.UpdatedAt,
-		orderItem.OrgId,
-		orderItem.Id,
-	).Scan(
+	err = tx.QueryRow(ctx, query, pgx.NamedArgs{
+		"price_id":    orderItem.PriceId,
+		"description": orderItem.Description,
+		"quantity":    orderItem.Quantity,
+		"metadata":    metadata,
+		"updated_at":  orderItem.UpdatedAt,
+		"org_id":      orderItem.OrgId,
+		"id":          orderItem.Id,
+	}).Scan(
 		&orderItem.OrgId,
 		&orderItem.Id,
 		&orderItem.OrderId,

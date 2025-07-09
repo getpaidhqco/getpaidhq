@@ -54,7 +54,7 @@ func (s *UsageRecordingService) RecordUsage(
 	// 2. Resolve subject to subscription item
 	subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, input.OrgId, input.Subject)
 	if err != nil {
-		return dto.UsageRecordingResponse{}, fmt.Errorf("subscription item not found: %w", err)
+		return dto.UsageRecordingResponse{}, lib.NewCustomError(lib.NotFoundError, "Item not found", err)
 	}
 
 	// Validate subscription item has usage enabled and meter configured
@@ -96,7 +96,7 @@ func (s *UsageRecordingService) RecordUsage(
 
 	rawUsageEvent := events.RawUsageRecordedEvent{
 		BaseEvent:          baseEvent,
-		Data:               input,
+		Data:               input.Data,
 		OrgId:              input.OrgId,
 		SubscriptionId:     subscriptionItem.SubscriptionId,
 		SubscriptionItemId: subscriptionItem.Id,
@@ -147,7 +147,7 @@ func (s *UsageRecordingService) ListUsageRecords(
 
 	// 2. Get usage events with pagination
 	// Define time range - for now, get all events (could be refined with start/end time parameters)
-	startTime := time.Time{} // Zero time for "beginning of time"
+	startTime := time.Time{}                        // Zero time for "beginning of time"
 	endTime := time.Now().UTC().Add(time.Hour * 24) // Tomorrow, to include all events up to now
 
 	usageEvents, err := s.usageEventRepo.FindBySubscriptionItem(ctx, orgId, input.SubscriptionItemId, startTime, endTime)

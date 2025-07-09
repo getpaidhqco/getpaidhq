@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/IBM/sarama"
 	"payloop/internal/application/interfaces"
@@ -33,6 +34,7 @@ type usageEventHandler struct {
 	consumer *UsageEventConsumer
 	ctx      context.Context
 	ready    chan bool
+	once     sync.Once
 }
 
 // NewUsageEventConsumer creates a new usage event consumer
@@ -67,6 +69,14 @@ func (c *UsageEventConsumer) Start(ctx context.Context) error {
 	config.Consumer.Offsets.Initial = sarama.OffsetNewest
 	config.Consumer.Return.Errors = true
 
+	// Set session timeout and heartbeat interval to ensure proper group membership
+	config.Consumer.Group.Session.Timeout = 20 * time.Second
+	config.Consumer.Group.Heartbeat.Interval = 6 * time.Second
+
+	// Enable auto commit to ensure offsets are committed regularly
+	config.Consumer.Offsets.AutoCommit.Enable = true
+	config.Consumer.Offsets.AutoCommit.Interval = 5 * time.Second
+
 	// Create consumer group
 	consumer, err := sarama.NewConsumerGroup(c.brokers, c.groupID, config)
 	if err != nil {
@@ -89,12 +99,18 @@ func (c *UsageEventConsumer) Start(ctx context.Context) error {
 		consumer: c,
 		ctx:      ctx,
 		ready:    c.ready,
+		once:     sync.Once{},
 	}
 
 	// Start consuming
 	c.wg.Add(1)
 	go func() {
 		defer c.wg.Done()
+
+		// Backoff for reconnection attempts
+		backoff := time.Second
+		maxBackoff := 30 * time.Second
+
 		for {
 			// Check if context was cancelled
 			if ctx.Err() != nil {
@@ -103,14 +119,39 @@ func (c *UsageEventConsumer) Start(ctx context.Context) error {
 			}
 
 			// Consume from topic
+			c.logger.Info("Joining consumer group", "group", c.groupID, "topic", c.topic)
 			if err := consumer.Consume(ctx, []string{c.topic}, handler); err != nil {
-				c.logger.Error("Error from consumer", "error", err)
+				if ctx.Err() != nil {
+					// Context was cancelled, exit gracefully
+					return
+				}
+
+				c.logger.Error("Error from consumer", "error", err, "backoff", backoff.String())
+
+				// Wait before reconnecting with exponential backoff
+				select {
+				case <-time.After(backoff):
+					// Double the backoff for next attempt, up to the maximum
+					backoff *= 2
+					if backoff > maxBackoff {
+						backoff = maxBackoff
+					}
+				case <-ctx.Done():
+					return
+				}
+
+				continue
 			}
+
+			// Reset backoff on successful connection
+			backoff = time.Second
 
 			// Check if context was cancelled
 			if ctx.Err() != nil {
 				return
 			}
+
+			c.logger.Info("Consumer group session ended, rejoining")
 
 			// Mark the consumer as ready
 			select {
@@ -150,33 +191,86 @@ func (c *UsageEventConsumer) Stop() error {
 }
 
 // Setup is run at the beginning of a new session, before ConsumeClaim
-func (h *usageEventHandler) Setup(sarama.ConsumerGroupSession) error {
-	// Mark the consumer as ready
-	close(h.ready)
+func (h *usageEventHandler) Setup(session sarama.ConsumerGroupSession) error {
+	h.consumer.logger.Info("Consumer group session setup",
+		"member_id", session.MemberID(),
+		"generation_id", session.GenerationID())
+
+	// Mark the consumer as ready - use sync.Once to ensure channel is only closed once
+	h.once.Do(func() {
+		close(h.ready)
+	})
 	return nil
 }
 
 // Cleanup is run at the end of a session, once all ConsumeClaim goroutines have exited
-func (h *usageEventHandler) Cleanup(sarama.ConsumerGroupSession) error {
+func (h *usageEventHandler) Cleanup(session sarama.ConsumerGroupSession) error {
+	h.consumer.logger.Info("Consumer group session cleanup",
+		"member_id", session.MemberID(),
+		"generation_id", session.GenerationID())
+
+	// Create a new ready channel for the next session
+	h.consumer.ready = make(chan bool)
+	h.ready = h.consumer.ready
+	h.once = sync.Once{}
+
 	return nil
 }
 
 // ConsumeClaim must start a consumer loop of ConsumerGroupClaim's Messages()
 func (h *usageEventHandler) ConsumeClaim(session sarama.ConsumerGroupSession, claim sarama.ConsumerGroupClaim) error {
+	h.consumer.logger.Info("Starting to consume from partition",
+		"topic", claim.Topic(),
+		"partition", claim.Partition(),
+		"initial_offset", claim.InitialOffset(),
+		"member_id", session.MemberID())
+
+	// Use a separate context for message processing to ensure we can cancel it if needed
+	ctx, cancel := context.WithCancel(h.ctx)
+	defer cancel()
+
+	// Watch for context cancellation
+	go func() {
+		<-h.ctx.Done()
+		cancel()
+	}()
+
 	for message := range claim.Messages() {
-		if h.ctx.Err() != nil {
+		// Check if context was cancelled
+		if ctx.Err() != nil {
+			h.consumer.logger.Info("Context cancelled, stopping message consumption")
 			return nil
 		}
 
+		h.consumer.logger.Debug("Received message",
+			"topic", message.Topic,
+			"partition", message.Partition,
+			"offset", message.Offset)
+
 		// Process the message
-		if err := h.processMessage(h.ctx, message); err != nil {
-			h.consumer.logger.Error("Error processing message", "error", err)
+		if err := h.processMessage(ctx, message); err != nil {
+			h.consumer.logger.Error("Error processing message",
+				"error", err,
+				"topic", message.Topic,
+				"partition", message.Partition,
+				"offset", message.Offset)
 			// Continue processing other messages even if one fails
 		}
 
 		// Mark the message as processed
 		session.MarkMessage(message, "")
+
+		// Commit offsets regularly to avoid issues with rebalancing
+		if message.Offset%1000 == 0 {
+			session.Commit()
+		}
 	}
+
+	h.consumer.logger.Info("Finished consuming from partition",
+		"topic", claim.Topic(),
+		"partition", claim.Partition(),
+		"member_id", session.MemberID())
+
 	return nil
 }
 
@@ -212,8 +306,8 @@ func (h *usageEventHandler) processMessage(ctx context.Context, msg *sarama.Cons
 		return fmt.Errorf("failed to store usage event: %w", err)
 	}
 
-	h.consumer.logger.Info("Successfully processed usage event", 
-		"event_id", event.EventId, 
+	h.consumer.logger.Info("Successfully processed usage event",
+		"event_id", event.EventId,
 		"subscription_item_id", event.SubscriptionItemId)
 
 	return nil
