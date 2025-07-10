@@ -19,6 +19,7 @@ type UsageRecordingService struct {
 	subscriptionRepo     repositories.SubscriptionRepository
 	subscriptionItemRepo repositories.SubscriptionItemRepository
 	meterRepo            repositories.MeterRepository
+	billingService       interfaces.BillingService
 	durablePublisher     events.DurableEventPublisher
 	logger               logger.Logger
 }
@@ -28,6 +29,7 @@ func NewUsageRecordingService(
 	subscriptionRepo repositories.SubscriptionRepository,
 	subscriptionItemRepo repositories.SubscriptionItemRepository,
 	meterRepo repositories.MeterRepository,
+	billingService interfaces.BillingService,
 	durablePublisher events.DurableEventPublisher,
 	logger logger.Logger,
 ) interfaces.UsageRecordingService {
@@ -36,6 +38,7 @@ func NewUsageRecordingService(
 		subscriptionRepo:     subscriptionRepo,
 		subscriptionItemRepo: subscriptionItemRepo,
 		meterRepo:            meterRepo,
+		billingService:       billingService,
 		durablePublisher:     durablePublisher,
 		logger:               logger,
 	}
@@ -89,9 +92,8 @@ func (s *UsageRecordingService) RecordUsage(
 
 	baseEvent := events.NewBaseEvent(
 		input.OrgId,
-		events.RawUsageRecorded,
-		eventId,
-		"raw_usage",
+		input.Type,
+		input.Id,
 	)
 
 	rawUsageEvent := events.RawUsageRecordedEvent{
@@ -301,4 +303,56 @@ func (s *UsageRecordingService) DeleteUsageEvent(
 // formatBillingPeriod formats the billing period as YYYY-MM
 func formatBillingPeriod(date time.Time) string {
 	return date.Format("2006-01")
+}
+
+// GetUsageEstimate calculates the current usage estimate for a subscription
+func (s *UsageRecordingService) GetUsageEstimate(
+	ctx context.Context,
+	orgId string,
+	input dto.GetUsageEstimateInput,
+) (dto.UsageEstimateResult, error) {
+	// 1. Validate subscription access
+	subscription, err := s.subscriptionRepo.FindById(ctx, orgId, input.SubscriptionId)
+	if err != nil {
+		return dto.UsageEstimateResult{}, fmt.Errorf("subscription not found: %w", err)
+	}
+
+	// 2. Call billing service to calculate the billing amount
+	billingCalculation, err := s.billingService.CalculateBillingAmount(ctx, subscription)
+	if err != nil {
+		return dto.UsageEstimateResult{}, fmt.Errorf("failed to calculate billing amount: %w", err)
+	}
+
+	// 3. Convert billing calculation to usage estimate result
+	result := dto.UsageEstimateResult{
+		SubscriptionId: subscription.Id,
+		BaseAmount:     billingCalculation.BaseAmount,
+		UsageAmount:    billingCalculation.UsageAmount,
+		TotalAmount:    billingCalculation.TotalAmount,
+		Currency:       billingCalculation.Currency,
+	}
+
+	// 4. Convert usage breakdown
+	for _, usageItem := range billingCalculation.UsageBreakdown {
+		result.UsageBreakdown = append(result.UsageBreakdown, dto.UsageBreakdownItem{
+			SubscriptionItemId: usageItem.SubscriptionItemId,
+			UnitType:           usageItem.UnitType,
+			Quantity:           usageItem.Quantity,
+			UnitPrice:          usageItem.UnitPrice,
+			Amount:             usageItem.Amount,
+			AggregationType:    usageItem.AggregationType,
+		})
+	}
+
+	// 5. Convert item breakdown
+	for _, itemBreakdown := range billingCalculation.ItemBreakdown {
+		result.ItemBreakdown = append(result.ItemBreakdown, dto.SubscriptionItemCost{
+			SubscriptionItemId: itemBreakdown.SubscriptionItemId,
+			Description:        itemBreakdown.Description,
+			PriceCategory:      itemBreakdown.PriceCategory,
+			Amount:             itemBreakdown.Amount,
+		})
+	}
+
+	return result, nil
 }

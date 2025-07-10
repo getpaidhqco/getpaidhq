@@ -23,4 +23,7 @@ type UsageRecordingService interface {
 
 	// Delete usage event (for corrections)
 	DeleteUsageEvent(ctx context.Context, orgId string, eventId string, eventTime time.Time) error
+
+	// Get usage estimate for a subscription
+	GetUsageEstimate(ctx context.Context, orgId string, input dto.GetUsageEstimateInput) (dto.UsageEstimateResult, error)
 }

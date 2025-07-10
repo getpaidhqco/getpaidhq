@@ -17,8 +17,8 @@ type MeterService interface {
 	// Get gets a meter by ID
 	Get(ctx context.Context, orgId, meterId string) (entities.Meter, error)
 
-	// GetBySlug gets a meter by slug
-	GetBySlug(ctx context.Context, orgId, slug string) (entities.Meter, error)
+	// GetByEventName gets a meter by event name
+	GetByEventName(ctx context.Context, orgId, eventName string) (entities.Meter, error)
 
 	// List lists all meters for an organization with pagination
 	List(ctx context.Context, orgId string, pagination dto.Pagination) (dto.PaginatedResult[entities.Meter], error)

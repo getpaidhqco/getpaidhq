@@ -47,18 +47,17 @@ func (r MeterRepository) Create(ctx context.Context, meter entities.Meter) (enti
 	}
 
 	query := `INSERT INTO meters (
-		org_id, id, slug, name, description, event_name, event_filter, 
+		org_id, id, name, description, event_name, event_filter, 
 		aggregation_type, value_property, unit_type, display_name, 
 		window_size, reset_interval, metadata, created_at, updated_at)
 		VALUES (
-		@org_id, @id, @slug, @name, @description, @event_name, @event_filter, 
+		@org_id, @id, @name, @description, @event_name, @event_filter, 
 		@aggregation_type, @value_property, @unit_type, @display_name, 
 		@window_size, @reset_interval, @metadata, NOW(), NOW())`
 
 	args := pgx.NamedArgs{
 		"org_id":           meter.OrgId,
 		"id":               meter.Id,
-		"slug":             meter.Slug,
 		"name":             meter.Name,
 		"description":      meter.Description,
 		"event_name":       meter.EventName,
@@ -144,7 +143,7 @@ func (r MeterRepository) FindById(ctx context.Context, orgId, meterId string) (e
 	tx := r.getTransactionFromContext(ctx)
 
 	query := `SELECT 
-		org_id, id, slug, name, description, event_name, event_filter, 
+		org_id, id, name, description, event_name, event_filter, 
 		aggregation_type, value_property, unit_type, display_name, 
 		window_size, reset_interval, metadata, created_at, updated_at
 		FROM meters
@@ -161,7 +160,6 @@ func (r MeterRepository) FindById(ctx context.Context, orgId, meterId string) (e
 	err := tx.QueryRow(ctx, query, args).Scan(
 		&model.OrgId,
 		&model.Id,
-		&model.Slug,
 		&model.Name,
 		&model.Description,
 		&model.EventName,
@@ -203,74 +201,11 @@ func (r MeterRepository) FindById(ctx context.Context, orgId, meterId string) (e
 	return model.ToEntity(), nil
 }
 
-func (r MeterRepository) FindBySlug(ctx context.Context, orgId, slug string) (entities.Meter, error) {
-	tx := r.getTransactionFromContext(ctx)
-
-	query := `SELECT 
-		org_id, id, slug, name, description, event_name, event_filter, 
-		aggregation_type, value_property, unit_type, display_name, 
-		window_size, reset_interval, metadata, created_at, updated_at
-		FROM meters
-		WHERE org_id = @org_id AND slug = @slug`
-
-	var model models.Meter
-	var eventFilterJson, metadataJson []byte
-
-	args := pgx.NamedArgs{
-		"org_id": orgId,
-		"slug":   slug,
-	}
-
-	err := tx.QueryRow(ctx, query, args).Scan(
-		&model.OrgId,
-		&model.Id,
-		&model.Slug,
-		&model.Name,
-		&model.Description,
-		&model.EventName,
-		&eventFilterJson,
-		&model.AggregationType,
-		&model.ValueProperty,
-		&model.UnitType,
-		&model.DisplayName,
-		&model.WindowSize,
-		&model.ResetInterval,
-		&metadataJson,
-		&model.CreatedAt,
-		&model.UpdatedAt,
-	)
-
-	if err != nil {
-		if err == pgx.ErrNoRows {
-			return entities.Meter{}, fmt.Errorf("meter not found")
-		}
-		r.logger.Error("failed to find meter by slug", err.Error())
-		return entities.Meter{}, err
-	}
-
-	// Parse JSON fields
-	if len(eventFilterJson) > 0 {
-		if err := json.Unmarshal(eventFilterJson, &model.EventFilter); err != nil {
-			r.logger.Error("failed to unmarshal event filter", err.Error())
-			return entities.Meter{}, err
-		}
-	}
-
-	if len(metadataJson) > 0 {
-		if err := json.Unmarshal(metadataJson, &model.Metadata); err != nil {
-			r.logger.Error("failed to unmarshal metadata", err.Error())
-			return entities.Meter{}, err
-		}
-	}
-
-	return model.ToEntity(), nil
-}
-
 func (r MeterRepository) FindByEventName(ctx context.Context, orgId, eventName string) ([]entities.Meter, error) {
 	tx := r.getTransactionFromContext(ctx)
 
 	query := `SELECT 
-		org_id, id, slug, name, description, event_name, event_filter, 
+		org_id, id, name, description, event_name, event_filter, 
 		aggregation_type, value_property, unit_type, display_name, 
 		window_size, reset_interval, metadata, created_at, updated_at
 		FROM meters
@@ -296,7 +231,6 @@ func (r MeterRepository) FindByEventName(ctx context.Context, orgId, eventName s
 		err := rows.Scan(
 			&model.OrgId,
 			&model.Id,
-			&model.Slug,
 			&model.Name,
 			&model.Description,
 			&model.EventName,
@@ -360,7 +294,7 @@ func (r MeterRepository) List(ctx context.Context, orgId string, pagination dto.
 
 	// Query for paginated results
 	query := `SELECT 
-		org_id, id, slug, name, description, event_name, event_filter, 
+		org_id, id, name, description, event_name, event_filter, 
 		aggregation_type, value_property, unit_type, display_name, 
 		window_size, reset_interval, metadata, created_at, updated_at
 		FROM meters
@@ -389,7 +323,6 @@ func (r MeterRepository) List(ctx context.Context, orgId string, pagination dto.
 		err := rows.Scan(
 			&model.OrgId,
 			&model.Id,
-			&model.Slug,
 			&model.Name,
 			&model.Description,
 			&model.EventName,

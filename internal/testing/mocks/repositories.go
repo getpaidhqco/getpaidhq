@@ -2,11 +2,9 @@ package mocks
 
 import (
 	"context"
-	"payloop/internal/domain/entities"
-	"payloop/internal/domain/entities/subscriptions"
-	"payloop/internal/lib/request"
-
 	"github.com/stretchr/testify/mock"
+	"payloop/internal/api/dto/request"
+	"payloop/internal/domain/entities"
 )
 
 // MockSubscriptionRepository provides a reusable mock for subscription repository

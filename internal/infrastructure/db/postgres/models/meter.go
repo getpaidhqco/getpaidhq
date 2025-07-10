@@ -8,7 +8,6 @@ import (
 type Meter struct {
 	OrgId           string                 `json:"org_id"`
 	Id              string                 `json:"id"`
-	Slug            string                 `json:"slug"`
 	Name            string                 `json:"name"`
 	Description     pgtype.Text            `json:"description"`
 
@@ -37,7 +36,6 @@ func (m *Meter) ToEntity() entities.Meter {
 	return entities.Meter{
 		OrgId:           m.OrgId,
 		Id:              m.Id,
-		Slug:            m.Slug,
 		Name:            m.Name,
 		Description:     m.Description.String,
 		EventName:       m.EventName,
@@ -58,7 +56,6 @@ func MeterFromEntity(entity entities.Meter) Meter {
 	return Meter{
 		OrgId:           entity.OrgId,
 		Id:              entity.Id,
-		Slug:            entity.Slug,
 		Name:            entity.Name,
 		Description:     pgtype.Text{String: entity.Description, Valid: entity.Description != ""},
 		EventName:       entity.EventName,

@@ -122,8 +122,8 @@ model Gateway {
   pspId  String  @map("psp_id")
   active Boolean @default(false)
 
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@id([orgId, id])
   @@map("gateways")
@@ -136,8 +136,8 @@ model Setting {
   valueType String @map("value_type")
   value     Json
 
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -237,7 +237,6 @@ model Variant {
 model Meter {
   orgId       String  @map("org_id")
   id          String
-  slug        String
   name        String
   description String?
 
@@ -267,8 +266,7 @@ model Meter {
   SubscriptionItem SubscriptionItem[]
 
   @@id([orgId, id])
-  @@unique([orgId, slug])
-  @@index([orgId, eventName])
+  @@unique([orgId, eventName])
   @@map("meters")
 }
 
@@ -817,19 +815,19 @@ enum RefundStatus {
 }
 
 model Refund {
-  orgId         String       @map("org_id")
-  id            String       @default(cuid())
-  psp_refund_id String?      @map("psp_refund_id")
-  paymentId     String       @map("payment_id")
-  payment       Payment      @relation(fields: [orgId, paymentId], references: [orgId, id], onDelete: Cascade)
-  amount        Int
-  currency      String
-  reason        String?
-  status        RefundStatus @default(pending)
-  refunded_at   DateTime     @map("refunded_at")
-  completedAt   DateTime?    @map("completed_at")
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
+  orgId       String       @map("org_id")
+  id          String       @default(cuid())
+  pspRefundId String?      @map("psp_refund_id")
+  paymentId   String       @map("payment_id")
+  payment     Payment      @relation(fields: [orgId, paymentId], references: [orgId, id], onDelete: Cascade)
+  amount      Int
+  currency    String
+  reason      String?
+  status      RefundStatus @default(pending)
+  refundedAt  DateTime     @map("refunded_at")
+  completedAt DateTime?    @map("completed_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
 
   @@id([orgId, id])
   @@map("refunds")

@@ -8,6 +8,7 @@ import (
 	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/api/mappers"
+	"payloop/internal/application/dto"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/lib"
@@ -159,4 +160,30 @@ func (u UsageRecordingController) GetSubscriptionUsage(c *gin.Context) {
 		responseItems = append(responseItems, mappers.ToUsageEventResponse(record))
 	}
 	c.JSON(200, gin.H{"items": responseItems, "count": len(responseItems)})
+}
+
+// GetUsageEstimate handles GET /api/subscriptions/:id/usage-estimate
+func (u UsageRecordingController) GetUsageEstimate(c *gin.Context) {
+	user, _ := c.Get("user")
+	authUser := user.(authn.User)
+	orgId := authUser.OrgId
+
+	subscriptionId := c.Param("id")
+
+	// Create application DTO
+	appInput := dto.GetUsageEstimateInput{
+		SubscriptionId: subscriptionId,
+	}
+
+	// Call service to get usage estimate
+	estimate, err := u.usageRecordingService.GetUsageEstimate(c.Request.Context(), orgId, appInput)
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	// Convert application DTO to API response
+	response := mappers.ToUsageEstimateResponse(estimate)
+	c.JSON(200, response)
 }

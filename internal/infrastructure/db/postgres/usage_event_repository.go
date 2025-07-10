@@ -347,10 +347,8 @@ func (r *UsageEventRepository) Delete(ctx context.Context, orgID, subscriptionIt
 }
 
 // AggregateUsageBySubscriptionItem aggregates usage for a subscription item based on the specified aggregation type
-func (r *UsageEventRepository) AggregateUsageBySubscriptionItem(ctx context.Context, orgID, subscriptionItemID string, 
+func (r *UsageEventRepository) AggregateUsageBySubscriptionItem(ctx context.Context, orgID, subscriptionItemID string,
 	startTime, endTime time.Time, aggregationType entities.AggregationType) (float64, error) {
-
-	tx := r.getTransactionFromContext(ctx)
 
 	var query string
 
@@ -358,7 +356,7 @@ func (r *UsageEventRepository) AggregateUsageBySubscriptionItem(ctx context.Cont
 	switch aggregationType {
 	case entities.AggregationTypeSum:
 		query = `
-			SELECT COALESCE(SUM(CAST(data->>'quantity' AS FLOAT)), 0)
+			SELECT count(1)
 			FROM usage_events
 			WHERE org_id = @org_id 
 			  AND subscription_item_id = @subscription_item_id
@@ -414,7 +412,7 @@ func (r *UsageEventRepository) AggregateUsageBySubscriptionItem(ctx context.Cont
 	}
 
 	var result float64
-	err := tx.QueryRow(ctx, query, args).Scan(&result)
+	err := r.Pool.QueryRow(ctx, query, args).Scan(&result)
 	if err != nil {
 		return 0, fmt.Errorf("failed to aggregate usage: %w", err)
 	}

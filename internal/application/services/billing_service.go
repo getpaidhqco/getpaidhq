@@ -115,51 +115,9 @@ func (b *BillingService) CalculateBillingAmount(ctx context.Context, subscriptio
 
 // getCurrentBillingPeriod returns the current billing period for a subscription
 func (b *BillingService) getCurrentBillingPeriod(subscription entities.Subscription) interfaces.BillingPeriod {
-	// Use provided period dates if available
-	if !subscription.CurrentPeriodStart.IsZero() && !subscription.CurrentPeriodEnd.IsZero() {
-		return interfaces.BillingPeriod{
-			StartDate: subscription.CurrentPeriodStart,
-			EndDate:   subscription.CurrentPeriodEnd,
-		}
-	}
-
-	// Calculate based on billing interval
-	now := time.Now().UTC()
-	startDate := subscription.CreatedAt
-
-	// Find the current period based on billing interval
-	switch subscription.BillingInterval {
-	case "monthly":
-		monthsSinceStart := int(now.Sub(startDate).Hours() / 24 / 30)
-		startDate = startDate.AddDate(0, monthsSinceStart, 0)
-		endDate := startDate.AddDate(0, 1, 0)
-		return interfaces.BillingPeriod{
-			StartDate: startDate,
-			EndDate:   endDate,
-		}
-	case "yearly":
-		yearsSinceStart := int(now.Sub(startDate).Hours() / 24 / 365)
-		startDate = startDate.AddDate(yearsSinceStart, 0, 0)
-		endDate := startDate.AddDate(1, 0, 0)
-		return interfaces.BillingPeriod{
-			StartDate: startDate,
-			EndDate:   endDate,
-		}
-	case "weekly":
-		weeksSinceStart := int(now.Sub(startDate).Hours() / 24 / 7)
-		startDate = startDate.AddDate(0, 0, weeksSinceStart*7)
-		endDate := startDate.AddDate(0, 0, 7)
-		return interfaces.BillingPeriod{
-			StartDate: startDate,
-			EndDate:   endDate,
-		}
-	default:
-		// Default to monthly
-		endDate := startDate.AddDate(0, 1, 0)
-		return interfaces.BillingPeriod{
-			StartDate: startDate,
-			EndDate:   endDate,
-		}
+	return interfaces.BillingPeriod{
+		StartDate: subscription.CurrentPeriodStart,
+		EndDate:   subscription.CurrentPeriodEnd,
 	}
 }
 
@@ -298,7 +256,6 @@ func getPricingScheme(item entities.SubscriptionItem) string {
 	}
 	return "fixed"
 }
-
 
 // sumTransactionValuesFromEvents sums the transaction values from usage events
 func (b *BillingService) sumTransactionValuesFromEvents(events []entities.UsageEvent) float64 {

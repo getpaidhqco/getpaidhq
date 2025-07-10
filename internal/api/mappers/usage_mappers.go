@@ -171,6 +171,43 @@ func ToCloudEventUsageResponse(appResponse dto.UsageRecordingResponse) response.
 	}
 }
 
+// ToUsageEstimateResponse converts application result to API response
+func ToUsageEstimateResponse(result dto.UsageEstimateResult) response.UsageEstimateResponse {
+	// Convert usage breakdown
+	usageBreakdown := make([]response.UsageBreakdownItem, len(result.UsageBreakdown))
+	for i, item := range result.UsageBreakdown {
+		usageBreakdown[i] = response.UsageBreakdownItem{
+			SubscriptionItemId: item.SubscriptionItemId,
+			UnitType:           item.UnitType,
+			Quantity:           item.Quantity,
+			UnitPrice:          item.UnitPrice,
+			Amount:             item.Amount,
+			AggregationType:    item.AggregationType,
+		}
+	}
+
+	// Convert item breakdown
+	itemBreakdown := make([]response.SubscriptionItemCost, len(result.ItemBreakdown))
+	for i, item := range result.ItemBreakdown {
+		itemBreakdown[i] = response.SubscriptionItemCost{
+			SubscriptionItemId: item.SubscriptionItemId,
+			Description:        item.Description,
+			PriceCategory:      item.PriceCategory,
+			Amount:             item.Amount,
+		}
+	}
+
+	return response.UsageEstimateResponse{
+		SubscriptionId: result.SubscriptionId,
+		BaseAmount:     result.BaseAmount,
+		UsageAmount:    result.UsageAmount,
+		TotalAmount:    result.TotalAmount,
+		Currency:       result.Currency,
+		UsageBreakdown: usageBreakdown,
+		ItemBreakdown:  itemBreakdown,
+	}
+}
+
 // Helper function to parse date strings
 func parseDate(dateStr string) time.Time {
 	// Implementation would depend on the date format used

@@ -27,15 +27,14 @@ func NewMeterService(meterRepo repositories.MeterRepository, logger logger.Logge
 
 // Create creates a new meter
 func (s *meterService) Create(ctx context.Context, orgId string, input dto.CreateMeterInput) (entities.Meter, error) {
-	// Check if slug already exists
-	existing, err := s.meterRepo.FindBySlug(ctx, orgId, input.Slug)
-	if err == nil && existing.Id != "" {
-		return entities.Meter{}, fmt.Errorf("meter with slug %s already exists", input.Slug)
+	// Check if event name already exists
+	existing, err := s.meterRepo.FindByEventName(ctx, orgId, input.EventName)
+	if err == nil && len(existing) > 0 {
+		return entities.Meter{}, fmt.Errorf("meter with event name %s already exists", input.EventName)
 	}
 
 	// Create meter entity
 	meter, err := entities.NewMeter(orgId, entities.CreateMeterInput{
-		Slug:            input.Slug,
 		Name:            input.Name,
 		Description:     input.Description,
 		EventName:       input.EventName,
@@ -87,9 +86,19 @@ func (s *meterService) Get(ctx context.Context, orgId, meterId string) (entities
 	return s.meterRepo.FindById(ctx, orgId, meterId)
 }
 
-// GetBySlug gets a meter by slug
-func (s *meterService) GetBySlug(ctx context.Context, orgId, slug string) (entities.Meter, error) {
-	return s.meterRepo.FindBySlug(ctx, orgId, slug)
+// GetByEventName gets a meter by event name
+func (s *meterService) GetByEventName(ctx context.Context, orgId, eventName string) (entities.Meter, error) {
+	meters, err := s.meterRepo.FindByEventName(ctx, orgId, eventName)
+	if err != nil {
+		return entities.Meter{}, err
+	}
+	
+	if len(meters) == 0 {
+		return entities.Meter{}, fmt.Errorf("meter with event name %s not found", eventName)
+	}
+	
+	// Since we've made eventName unique per organization, there should only be one result
+	return meters[0], nil
 }
 
 // List lists all meters for an organization with pagination

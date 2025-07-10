@@ -2,7 +2,6 @@ package request
 
 // CreateMeterRequest represents a request to create a new meter
 type CreateMeterRequest struct {
-	Slug            string                 `json:"slug" binding:"required"`
 	Name            string                 `json:"name" binding:"required"`
 	Description     string                 `json:"description"`
 	EventName       string                 `json:"event_name" binding:"required"`
@@ -31,7 +30,7 @@ type UpdateMeterRequest struct {
 	Metadata        map[string]string      `json:"metadata"`
 }
 
-// GetMeterBySlugRequest represents a request to get a meter by slug
-type GetMeterBySlugRequest struct {
-	Slug string `json:"slug" binding:"required"`
+// GetMeterByEventNameRequest represents a request to get a meter by event name
+type GetMeterByEventNameRequest struct {
+	EventName string `json:"event_name" binding:"required"`
 }

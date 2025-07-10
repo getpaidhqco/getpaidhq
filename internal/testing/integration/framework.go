@@ -4,10 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"payloop/internal/application/lib/logger"
+	"payloop/internal/infrastructure/events/nats"
 	"strings"
 	"testing"
 	"time"
 
+	"go.uber.org/fx"
+	"go.uber.org/fx/fxtest"
 	"payloop/internal/api/controllers"
 	"payloop/internal/api/middlewares"
 	"payloop/internal/api/routes"
@@ -20,19 +24,12 @@ import (
 	"payloop/internal/infrastructure/db/postgres"
 	"payloop/internal/infrastructure/email/loops"
 	"payloop/internal/infrastructure/payments/paystack"
-	"payloop/internal/infrastructure/pubsub/nats"
 	"payloop/internal/infrastructure/queue/sqs"
 	"payloop/internal/infrastructure/scheduler/cron"
 	"payloop/internal/infrastructure/storage/s3"
 	"payloop/internal/infrastructure/vault/aes_vault"
 	"payloop/internal/infrastructure/workflow/temporal"
 	"payloop/internal/lib"
-	"payloop/internal/lib/logger"
-	"payloop/internal/lib/pubsub"
-	"payloop/internal/testing/mocks"
-
-	"go.uber.org/fx"
-	"go.uber.org/fx/fxtest"
 )
 
 // TestApp represents a test application instance
@@ -41,9 +38,8 @@ type TestApp struct {
 	SubscriptionService       interfaces.SubscriptionService
 	SubscriptionOrchestration interfaces.SubscriptionOrchestrationService
 	CustomerService           interfaces.CustomerService
-	VariantService            interfaces.VariantService
-	PriceService              interfaces.PriceService
 	ProductService            interfaces.ProductService
+	BillingService            interfaces.BillingService
 	OrderService              interfaces.OrderService
 	Logger                    logger.Logger
 }
@@ -59,7 +55,7 @@ type TestConfig struct {
 func DefaultTestConfig() TestConfig {
 	return TestConfig{
 		UseRealDatabase: true,  // Use real database for integration tests
-		UseMockPubSub:   true,  // Mock pubsub to avoid external dependencies
+		UseMockPubSub:   false, // Mock pubsub to avoid external dependencies
 		UseMockLogger:   false, // Use real logger for debugging
 	}
 }
@@ -69,9 +65,8 @@ func NewTestApp(t *testing.T, config TestConfig) *TestApp {
 	var app *fxtest.App
 	var subscriptionService interfaces.SubscriptionService
 	var customerService interfaces.CustomerService
-	var variantService interfaces.VariantService
-	var priceService interfaces.PriceService
 	var productService interfaces.ProductService
+	var billingService interfaces.BillingService
 	var orderService interfaces.OrderService
 	var subscriptionOrchestration interfaces.SubscriptionOrchestrationService
 	var testLogger logger.Logger
@@ -99,19 +94,11 @@ func NewTestApp(t *testing.T, config TestConfig) *TestApp {
 	modules = append(modules, aes_vault.Module)
 
 	// Add auth modules (required by API layer)
-	modules = append(modules, 
+	modules = append(modules,
 		apikey.Module,
 		cedar.Module)
 
-	// Add mock modules based on configuration
-	if config.UseMockPubSub {
-		// Replace real pubsub with mock
-		modules = append(modules, fx.Decorate(func() pubsub.PubSub {
-			return mocks.NewSilentPubSub()
-		}))
-	} else {
-		modules = append(modules, nats.Module)
-	}
+	modules = append(modules, nats.Module)
 
 	// Add other infrastructure modules with mocks as needed
 	modules = append(modules,
@@ -130,10 +117,9 @@ func NewTestApp(t *testing.T, config TestConfig) *TestApp {
 		&subscriptionService,
 		&subscriptionOrchestration,
 		&customerService,
-		&variantService,
-		&priceService,
 		&productService,
 		&orderService,
+		&billingService,
 		&testLogger,
 	))
 
@@ -147,10 +133,9 @@ func NewTestApp(t *testing.T, config TestConfig) *TestApp {
 		SubscriptionService:       subscriptionService,
 		SubscriptionOrchestration: subscriptionOrchestration,
 		CustomerService:           customerService,
-		VariantService:            variantService,
-		PriceService:              priceService,
 		ProductService:            productService,
 		OrderService:              orderService,
+		BillingService:            billingService,
 		Logger:                    testLogger,
 	}
 }
@@ -169,10 +154,10 @@ func (ta *TestApp) WithContext() context.Context {
 
 // SubscriptionTestSuite provides common setup for subscription-related tests
 type SubscriptionTestSuite struct {
-	t       *testing.T
-	app     *TestApp
-	ctx     context.Context
-	orgId   string
+	t     *testing.T
+	app   *TestApp
+	ctx   context.Context
+	orgId string
 }
 
 // NewSubscriptionTestSuite creates a new subscription test suite

@@ -103,14 +103,14 @@ func (m MeterController) Get(c *gin.Context) {
 	c.JSON(200, response)
 }
 
-// GetBySlug handles GET /api/meters/slug/:slug
-func (m MeterController) GetBySlug(c *gin.Context) {
+// GetByEventName handles GET /api/meters/event/:eventName
+func (m MeterController) GetByEventName(c *gin.Context) {
 	user, _ := c.Get("user")
 	authUser := user.(authn.User)
 	orgId := authUser.OrgId
-	slug := c.Param("slug")
+	eventName := c.Param("eventName")
 
-	meter, err := m.meterService.GetBySlug(c.Request.Context(), orgId, slug)
+	meter, err := m.meterService.GetByEventName(c.Request.Context(), orgId, eventName)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)

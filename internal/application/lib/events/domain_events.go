@@ -8,27 +8,21 @@ import (
 
 // BaseEvent is the foundation for all domain events
 type BaseEvent struct {
-	EventId          string            `json:"event_id"`
-	EventType        string            `json:"event_type"`
-	OrgId            string            `json:"org_id"`
-	AggregateId      string            `json:"aggregate_id"`
-	AggregateType    string            `json:"aggregate_type"`
-	AggregateVersion int               `json:"aggregate_version"`
-	Timestamp        time.Time         `json:"timestamp"`
-	Metadata         map[string]string `json:"metadata,omitempty"`
+	EventId   string            `json:"event_id"`
+	EventType string            `json:"event_type"`
+	OrgId     string            `json:"org_id"`
+	Timestamp time.Time         `json:"timestamp"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
 }
 
 // NewBaseEvent creates a new base event with common fields populated
-func NewBaseEvent(orgId, eventType, aggregateId, aggregateType string) BaseEvent {
+func NewBaseEvent(orgId, eventType, eventId string) BaseEvent {
 	return BaseEvent{
-		EventId:          GenerateEventId(),
-		EventType:        eventType,
-		OrgId:            orgId,
-		AggregateId:      aggregateId,
-		AggregateType:    aggregateType,
-		AggregateVersion: 1,
-		Timestamp:        time.Now().UTC(),
-		Metadata:         make(map[string]string),
+		EventId:   eventId,
+		EventType: eventType,
+		OrgId:     orgId,
+		Timestamp: time.Now().UTC(),
+		Metadata:  make(map[string]string),
 	}
 }
 
@@ -155,75 +149,4 @@ type DunningEvent struct {
 	CampaignStatus    string     `json:"campaign_status"`
 	CommunicationType string     `json:"communication_type,omitempty"`
 	RecoveryAmount    int64      `json:"recovery_amount,omitempty"`
-}
-
-// NewPaymentEvent creates a new payment event
-func NewPaymentEvent(orgId string, eventType string, payment entities.Payment) PaymentEvent {
-	return PaymentEvent{
-		BaseEvent:         NewBaseEvent(orgId, eventType, payment.Id, "payment"),
-		PaymentEventType:  eventType,
-		PaymentId:         payment.Id,
-		SubscriptionId:    payment.SubscriptionId,
-		CustomerId:        payment.OrderId, // Assuming customer is derived from order
-		InvoiceId:         payment.InvoiceId,
-		Payment:           payment,
-		Amount:            payment.Amount,
-		Currency:          payment.Currency,
-		PaymentMethod:     string(payment.Psp),
-		PaymentStatus:     string(payment.Status),
-		ProcessorResponse: payment.Metadata,
-	}
-}
-
-// NewSubscriptionEvent creates a new subscription event
-func NewSubscriptionEvent(orgId string, eventType string, subscription entities.Subscription, previousStatus, newStatus, changeReason string) SubscriptionEvent {
-	return SubscriptionEvent{
-		BaseEvent:             NewBaseEvent(orgId, eventType, subscription.Id, "subscription"),
-		SubscriptionEventType: eventType,
-		SubscriptionId:        subscription.Id,
-		CustomerId:            subscription.CustomerId,
-		PreviousStatus:        previousStatus,
-		NewStatus:             newStatus,
-		Subscription:          subscription,
-		ChangeReason:          changeReason,
-		EffectiveDate:         time.Now().UTC(),
-	}
-}
-
-// NewCustomerEvent creates a new customer event
-func NewCustomerEvent(orgId string, eventType string, customer entities.Customer) CustomerEvent {
-	return CustomerEvent{
-		BaseEvent:         NewBaseEvent(orgId, eventType, customer.Id, "customer"),
-		CustomerEventType: eventType,
-		CustomerId:        customer.Id,
-		Customer:          customer,
-	}
-}
-
-// NewInvoiceEvent creates a new invoice event
-func NewInvoiceEvent(orgId string, eventType string, invoice entities.Invoice) InvoiceEvent {
-	return InvoiceEvent{
-		BaseEvent:        NewBaseEvent(orgId, eventType, invoice.Id, "invoice"),
-		InvoiceEventType: eventType,
-		InvoiceId:        invoice.Id,
-		SubscriptionId:   invoice.SubscriptionId,
-		CustomerId:       invoice.CustomerId,
-		Invoice:          invoice,
-		Amount:           int64(invoice.Total),
-		Currency:         invoice.Currency,
-		DueDate:          invoice.DueAt,
-	}
-}
-
-// NewBillingEvent creates a new billing event
-func NewBillingEvent(orgId string, eventType string, subscriptionId, customerId, invoiceId string, amount int64, currency string) BillingEvent {
-	return BillingEvent{
-		BaseEvent:        NewBaseEvent(orgId, eventType, subscriptionId, "billing"),
-		BillingEventType: eventType,
-		SubscriptionId:   subscriptionId,
-		CustomerId:       customerId,
-		InvoiceId:        invoiceId,
-		Amount:           amount,
-		Currency:         currency,
-	}
 }

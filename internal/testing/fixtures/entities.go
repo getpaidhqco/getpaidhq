@@ -3,9 +3,9 @@ package fixtures
 import (
 	"time"
 
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/prices"
-	"payloop/internal/domain/common"
 	"payloop/internal/lib"
 )
 
@@ -218,14 +218,14 @@ func NewVariantBuilder() *VariantBuilder {
 
 	return &VariantBuilder{
 		variant: entities.Variant{
-			OrgId:     "org_test123",
-			Id:        lib.GenerateId("var"),
-			ProductId: "prod_test123",
-			Name:      "Test Variant",
+			OrgId:       "org_test123",
+			Id:          lib.GenerateId("var"),
+			ProductId:   "prod_test123",
+			Name:        "Test Variant",
 			Description: "A test variant",
-			Metadata:  make(map[string]string),
-			CreatedAt: now,
-			UpdatedAt: now,
+			Metadata:    make(map[string]string),
+			CreatedAt:   now,
+			UpdatedAt:   now,
 		},
 	}
 }
@@ -269,8 +269,8 @@ func NewPriceBuilder() *PriceBuilder {
 			VariantId:          "var_test123",
 			Label:              "Monthly Plan",
 			Category:           prices.PriceCategorySubscription,
-			Scheme:             prices.PriceSchemeFixed,
-			Currency:           common.CurrencyUSD,
+			Scheme:             prices.Fixed,
+			Currency:           common.USD,
 			UnitPrice:          2500, // $25.00
 			BillingInterval:    prices.BillingIntervalMonth,
 			BillingIntervalQty: 1,

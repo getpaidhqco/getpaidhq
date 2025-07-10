@@ -6,7 +6,6 @@ import (
 
 // CreateMeterInput is the input for creating a new meter
 type CreateMeterInput struct {
-	Slug            string                   `json:"slug"`
 	Name            string                   `json:"name"`
 	Description     string                   `json:"description"`
 	EventName       string                   `json:"event_name"`
@@ -38,7 +37,6 @@ type UpdateMeterInput struct {
 // MeterResponse is the response for meter operations
 type MeterResponse struct {
 	Id              string                 `json:"id"`
-	Slug            string                 `json:"slug"`
 	Name            string                 `json:"name"`
 	Description     string                 `json:"description"`
 	EventName       string                 `json:"event_name"`
@@ -59,9 +57,9 @@ type GetMeterInput struct {
 	MeterId string `json:"meter_id"`
 }
 
-// GetMeterBySlugInput is the input for getting a meter by slug
-type GetMeterBySlugInput struct {
-	Slug string `json:"slug"`
+// GetMeterByEventNameInput is the input for getting a meter by event name
+type GetMeterByEventNameInput struct {
+	EventName string `json:"event_name"`
 }
 
 // ListMetersInput is the input for listing meters

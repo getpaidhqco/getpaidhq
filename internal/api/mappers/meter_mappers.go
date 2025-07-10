@@ -10,7 +10,6 @@ import (
 // ToCreateMeterInput converts API request to application input
 func ToCreateMeterInput(req request.CreateMeterRequest) dto.CreateMeterInput {
 	return dto.CreateMeterInput{
-		Slug:            req.Slug,
 		Name:            req.Name,
 		Description:     req.Description,
 		EventName:       req.EventName,

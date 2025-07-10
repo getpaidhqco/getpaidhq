@@ -7,8 +7,8 @@ import (
 )
 
 type MeterRoutes struct {
-	logger         logger.Logger
-	handler        lib.RequestHandler
+	logger          logger.Logger
+	handler         lib.RequestHandler
 	meterController controllers.MeterController
 }
 
@@ -22,7 +22,6 @@ func (m MeterRoutes) Setup() {
 		api.PUT("/meters/:id", m.meterController.Update)
 		api.GET("/meters", m.meterController.List)
 		api.GET("/meters/:id", m.meterController.Get)
-		api.GET("/meters/slug/:slug", m.meterController.GetBySlug)
 		api.DELETE("/meters/:id", m.meterController.Delete)
 	}
 }
@@ -34,8 +33,8 @@ func NewMeterRoutes(
 	meterController controllers.MeterController,
 ) MeterRoutes {
 	return MeterRoutes{
-		logger:         logger,
-		handler:        handler,
+		logger:          logger,
+		handler:         handler,
 		meterController: meterController,
 	}
 }

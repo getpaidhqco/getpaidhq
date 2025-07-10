@@ -1,16 +1,16 @@
-const { PrismaClient } = require('@prisma/client');
-const { faker } = require('@faker-js/faker');
+const {PrismaClient} = require('@prisma/client');
+const {faker} = require('@faker-js/faker');
 
 const prisma = new PrismaClient();
 
 async function seedOrganization(orgId) {
     const now = new Date();
-    
+
     console.log(`Seeding organization: ${orgId}`);
 
     // Create organization
     await prisma.org.upsert({
-        where: { id: orgId },
+        where: {id: orgId},
         update: {},
         create: {
             id: orgId,
@@ -160,9 +160,9 @@ async function seedOrganization(orgId) {
 async function main() {
     // Get org ID from command line arguments or use default
     const orgId = process.argv[2] || 'mollie';
-    
-    console.log('Start seeding...');
-    
+
+    console.log('Start seeding...', orgId);
+
     try {
         await seedOrganization(orgId);
         console.log('Seeding finished.');

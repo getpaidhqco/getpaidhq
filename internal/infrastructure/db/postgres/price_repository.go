@@ -66,7 +66,7 @@ func (r PriceRepository) Create(ctx context.Context, entity entities.Price) (ent
 		"suggested_price":      entity.SuggestedPrice,
 		"billing_interval":     entity.BillingInterval,
 		"billing_interval_qty": entity.BillingIntervalQty,
-		"trial_interval":       entity.TrialInterval,
+		"trial_interval":       pgtype.Text{String: string(entity.TrialInterval), Valid: entity.TrialInterval != ""},
 		"trial_interval_qty":   entity.TrialIntervalQty,
 		"tax_code":             pgtype.Text{String: entity.TaxCode, Valid: entity.TaxCode != ""},
 

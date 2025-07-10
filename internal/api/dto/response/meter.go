@@ -8,7 +8,6 @@ import (
 // Meter represents a meter response
 type Meter struct {
 	Id              string                 `json:"id"`
-	Slug            string                 `json:"slug"`
 	Name            string                 `json:"name"`
 	Description     string                 `json:"description"`
 	EventName       string                 `json:"event_name"`
@@ -28,7 +27,6 @@ type Meter struct {
 func NewMeterFromEntity(entity entities.Meter) Meter {
 	return Meter{
 		Id:              entity.Id,
-		Slug:            entity.Slug,
 		Name:            entity.Name,
 		Description:     entity.Description,
 		EventName:       entity.EventName,

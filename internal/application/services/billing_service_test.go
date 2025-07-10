@@ -27,59 +27,46 @@ import (
 //
 // Example of how this could be implemented:
 //
-//   // Create mock repositories that implement the required interfaces
-//   mockUsageEventRepo := new(MockUsageEventRepository) // Implement this mock
-//   mockMeterRepo := new(MockMeterRepository) // Implement this mock
-//   // ... other required mocks
+//	// Create mock repositories that implement the required interfaces
+//	mockUsageEventRepo := new(MockUsageEventRepository) // Implement this mock
+//	mockMeterRepo := new(MockMeterRepository) // Implement this mock
+//	// ... other required mocks
 //
-//   // Set up mock expectations
-//   mockMeterRepo.On("FindById", ctx, orgId, meterId).Return(meter, nil)
-//   mockUsageEventRepo.On(
-//     "AggregateUsageBySubscriptionItem",
-//     ctx, orgId, subscriptionItemId, period.StartDate, period.EndDate, entities.AggregationTypeSum,
-//   ).Return(float64(5), nil)
+//	// Set up mock expectations
+//	mockMeterRepo.On("FindById", ctx, orgId, meterId).Return(meter, nil)
+//	mockUsageEventRepo.On(
+//	  "AggregateUsageBySubscriptionItem",
+//	  ctx, orgId, subscriptionItemId, period.StartDate, period.EndDate, entities.AggregationTypeSum,
+//	).Return(float64(5), nil)
 //
-//   // Create the billing service with the mocks
-//   billingService := NewBillingService(
-//     mockUsageEventRepo,
-//     mockSubscriptionRepo,
-//     mockSubscriptionItemRepo,
-//     mockPriceRepo,
-//     mockMeterRepo,
-//     mockTierCalculationService,
-//   )
+//	// Create the billing service with the mocks
+//	billingService := NewBillingService(
+//	  mockUsageEventRepo,
+//	  mockSubscriptionRepo,
+//	  mockSubscriptionItemRepo,
+//	  mockPriceRepo,
+//	  mockMeterRepo,
+//	  mockTierCalculationService,
+//	)
 //
-//   // Call the method being tested
-//   amount, usageResult, err := billingService.calculateUsageItemAmount(ctx, item, period)
+//	// Call the method being tested
+//	amount, usageResult, err := billingService.calculateUsageItemAmount(ctx, item, period)
 //
-//   // Assertions
-//   assert.NoError(t, err)
-//   assert.Equal(t, int64(5000), amount)
-//   assert.Equal(t, "count", usageResult.UnitType)
-//   // ... other assertions
+//	// Assertions
+//	assert.NoError(t, err)
+//	assert.Equal(t, int64(5000), amount)
+//	assert.Equal(t, "count", usageResult.UnitType)
+//	// ... other assertions
 //
-//   // Verify that the mocks were called as expected
-//   mockMeterRepo.AssertExpectations(t)
-//   mockUsageEventRepo.AssertExpectations(t)
+//	// Verify that the mocks were called as expected
+//	mockMeterRepo.AssertExpectations(t)
+//	mockUsageEventRepo.AssertExpectations(t)
 func TestPureUsageBilling(t *testing.T) {
 	// Test data
 	ctx := context.Background()
 	orgId := "org_123"
 	subscriptionItemId := "si_123"
 	meterId := "meter_123"
-
-	// Create a subscription item with usage-based billing
-	item := entities.SubscriptionItem{
-		Id:          subscriptionItemId,
-		OrgId:       orgId,
-		MeterId:     meterId,
-		UnitPrice:   1000, // $10.00
-		Description: "API Calls",
-		Metadata: map[string]string{
-			"price_category": "usage",
-			"pricing_scheme": "fixed",
-		},
-	}
 
 	// Create a billing period
 	period := interfaces.BillingPeriod{
@@ -146,19 +133,6 @@ func TestPureUsageBilling_MultipleEvents(t *testing.T) {
 	orgId := "org_123"
 	subscriptionItemId := "si_123"
 	meterId := "meter_123"
-
-	// Create a subscription item with usage-based billing
-	item := entities.SubscriptionItem{
-		Id:          subscriptionItemId,
-		OrgId:       orgId,
-		MeterId:     meterId,
-		UnitPrice:   1000, // $10.00
-		Description: "API Calls",
-		Metadata: map[string]string{
-			"price_category": "usage",
-			"pricing_scheme": "fixed",
-		},
-	}
 
 	// Create a billing period
 	period := interfaces.BillingPeriod{

@@ -10,12 +10,11 @@ import (
 type Meter struct {
 	OrgId       string `json:"org_id"`
 	Id          string `json:"id"`
-	Slug        string `json:"slug"`        // Unique machine-readable identifier (e.g., "api_calls", "storage_gb_hours")
 	Name        string `json:"name"`        // Human-readable name (e.g., "API Calls", "Storage Usage")
 	Description string `json:"description"` // Detailed description of what this meter measures
 
 	// Event Configuration
-	EventName   string                 `json:"event_name"`   // The event type to track (e.g., "api.request", "storage.snapshot")
+	EventName   string                 `json:"event_name"`   // The event type to track (e.g., "api.request", "storage.snapshot") - Unique identifier
 	EventFilter map[string]interface{} `json:"event_filter"` // Optional filters to apply (e.g., {"method": "POST", "tier": "premium"})
 
 	// Aggregation Configuration
@@ -37,7 +36,6 @@ type Meter struct {
 
 // CreateMeterInput is the input for creating a new meter
 type CreateMeterInput struct {
-	Slug            string                 `json:"slug"`
 	Name            string                 `json:"name"`
 	Description     string                 `json:"description"`
 	EventName       string                 `json:"event_name"`
@@ -60,7 +58,6 @@ func NewMeter(orgId string, input CreateMeterInput) (Meter, error) {
 	return Meter{
 		OrgId:           orgId,
 		Id:              lib.GenerateId("meter"),
-		Slug:            input.Slug,
 		Name:            input.Name,
 		Description:     input.Description,
 		EventName:       input.EventName,
@@ -79,9 +76,6 @@ func NewMeter(orgId string, input CreateMeterInput) (Meter, error) {
 
 // validateMeterInput validates the input for creating a meter
 func validateMeterInput(input CreateMeterInput) error {
-	if input.Slug == "" {
-		return fmt.Errorf("slug is required")
-	}
 	if input.Name == "" {
 		return fmt.Errorf("name is required")
 	}

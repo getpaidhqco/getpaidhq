@@ -17,9 +17,6 @@ type MeterRepository interface {
 	// FindById finds a meter by ID
 	FindById(ctx context.Context, orgId, meterId string) (entities.Meter, error)
 
-	// FindBySlug finds a meter by slug
-	FindBySlug(ctx context.Context, orgId, slug string) (entities.Meter, error)
-
 	// FindByEventName finds meters by event name
 	FindByEventName(ctx context.Context, orgId, eventName string) ([]entities.Meter, error)
 
