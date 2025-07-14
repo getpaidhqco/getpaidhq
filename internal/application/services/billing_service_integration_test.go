@@ -50,7 +50,7 @@ func setupTestContext(t *testing.T) *testContext {
 	pgDB := &postgres.PgDatabase{Pool: testDB.Pool}
 	log := lib.GetLogger()
 
-	usageDB := &postgres.PgDatabase{Pool: testDB.Pool} // Same pool for testing
+	usageDB := &postgres.PgDatabase{Pool: testDB.UsagePool}
 	usageEventRepo := postgres.NewUsageEventRepository(usageDB, log)
 
 	subscriptionItemRepo := postgres.NewSubscriptionItemRepository(pgDB, log)
@@ -104,7 +104,6 @@ func setupTestContext(t *testing.T) *testContext {
 
 func (tc *testContext) cleanup(t *testing.T) {
 	tc.db.TruncateTables(t,
-		"usage_events",
 		"subscription_items",
 		"subscriptions",
 		"order_items",

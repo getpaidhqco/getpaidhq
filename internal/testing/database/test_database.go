@@ -16,19 +16,25 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-// TestDatabase provides a test database instance
+// TestDatabase provides test database instances
 type TestDatabase struct {
+	// Main database
 	Container testcontainers.Container
 	Pool      *pgxpool.Pool
 	DSN       string
+
+	// Usage database
+	UsageContainer testcontainers.Container
+	UsagePool      *pgxpool.Pool
+	UsageDSN       string
 }
 
 // SetupTestDatabase creates a new test database using testcontainers (legacy - only applies first migration)
 func SetupTestDatabase(t *testing.T) *TestDatabase {
 	ctx := context.Background()
 
-	// Create postgres container
-	postgresContainer, err := postgres.RunContainer(ctx,
+	// Create main postgres container
+	mainContainer, err := postgres.RunContainer(ctx,
 		testcontainers.WithImage("postgres:15-alpine"),
 		postgres.WithDatabase("testdb"),
 		postgres.WithUsername("test"),
@@ -42,22 +48,52 @@ func SetupTestDatabase(t *testing.T) *TestDatabase {
 	)
 	require.NoError(t, err)
 
-	// Get connection string
-	dsn, err := postgresContainer.ConnectionString(ctx, "sslmode=disable")
+	// Get main connection string
+	mainDSN, err := mainContainer.ConnectionString(ctx, "sslmode=disable")
 	require.NoError(t, err)
 
-	// Create connection pool
-	pool, err := pgxpool.New(ctx, dsn)
+	// Create main connection pool
+	mainPool, err := pgxpool.New(ctx, mainDSN)
 	require.NoError(t, err)
 
-	// Verify connection
-	err = pool.Ping(ctx)
+	// Verify main connection
+	err = mainPool.Ping(ctx)
+	require.NoError(t, err)
+
+	// Create usage postgres container
+	usageContainer, err := postgres.RunContainer(ctx,
+		testcontainers.WithImage("postgres:15-alpine"),
+		postgres.WithDatabase("usagedb"),
+		postgres.WithUsername("test"),
+		postgres.WithPassword("test"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(30*time.Second),
+		),
+	)
+	require.NoError(t, err)
+
+	// Get usage connection string
+	usageDSN, err := usageContainer.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	// Create usage connection pool
+	usagePool, err := pgxpool.New(ctx, usageDSN)
+	require.NoError(t, err)
+
+	// Verify usage connection
+	err = usagePool.Ping(ctx)
 	require.NoError(t, err)
 
 	return &TestDatabase{
-		Container: postgresContainer,
-		Pool:      pool,
-		DSN:       dsn,
+		Container: mainContainer,
+		Pool:      mainPool,
+		DSN:       mainDSN,
+
+		UsageContainer: usageContainer,
+		UsagePool:      usagePool,
+		UsageDSN:       usageDSN,
 	}
 }
 
@@ -65,8 +101,8 @@ func SetupTestDatabase(t *testing.T) *TestDatabase {
 func SetupTestDatabaseWithPrisma(t *testing.T) *TestDatabase {
 	ctx := context.Background()
 
-	// Create postgres container without init scripts
-	postgresContainer, err := postgres.RunContainer(ctx,
+	// Create main postgres container without init scripts
+	mainContainer, err := postgres.RunContainer(ctx,
 		testcontainers.WithImage("postgres:15-alpine"),
 		postgres.WithDatabase("testdb"),
 		postgres.WithUsername("test"),
@@ -79,32 +115,60 @@ func SetupTestDatabaseWithPrisma(t *testing.T) *TestDatabase {
 	)
 	require.NoError(t, err)
 
-	// Get connection string
-	dsn, err := postgresContainer.ConnectionString(ctx, "sslmode=disable")
+	// Get main connection string
+	mainDSN, err := mainContainer.ConnectionString(ctx, "sslmode=disable")
 	require.NoError(t, err)
 
-	// Apply Prisma schema using db push
-	err = applyPrismaSchema(dsn)
-	require.NoError(t, err, "Failed to apply Prisma schema")
+	// Apply main Prisma schema using db push
+	err = applyPrismaSchema(mainDSN)
+	require.NoError(t, err, "Failed to apply main Prisma schema")
 
-	// Create connection pool
-	pool, err := pgxpool.New(ctx, dsn)
+	// Create main connection pool
+	mainPool, err := pgxpool.New(ctx, mainDSN)
 	require.NoError(t, err)
 
-	// Verify connection
-	err = pool.Ping(ctx)
+	// Verify main connection
+	err = mainPool.Ping(ctx)
 	require.NoError(t, err)
 
-	// Create usage_events table if needed (normally in separate DB)
-	err = createUsageEventsTable(ctx, pool)
-	if err != nil {
-		t.Logf("Warning: Failed to create usage_events table: %v", err)
-	}
+	// Create usage postgres container
+	usageContainer, err := postgres.RunContainer(ctx,
+		testcontainers.WithImage("postgres:15-alpine"),
+		postgres.WithDatabase("usagedb"),
+		postgres.WithUsername("test"),
+		postgres.WithPassword("test"),
+		testcontainers.WithWaitStrategy(
+			wait.ForLog("database system is ready to accept connections").
+				WithOccurrence(2).
+				WithStartupTimeout(30*time.Second),
+		),
+	)
+	require.NoError(t, err)
+
+	// Get usage connection string
+	usageDSN, err := usageContainer.ConnectionString(ctx, "sslmode=disable")
+	require.NoError(t, err)
+
+	// Apply usage Prisma schema using db push
+	err = applyUsagePrismaSchema(usageDSN)
+	require.NoError(t, err, "Failed to apply usage Prisma schema")
+
+	// Create usage connection pool
+	usagePool, err := pgxpool.New(ctx, usageDSN)
+	require.NoError(t, err)
+
+	// Verify usage connection
+	err = usagePool.Ping(ctx)
+	require.NoError(t, err)
 
 	return &TestDatabase{
-		Container: postgresContainer,
-		Pool:      pool,
-		DSN:       dsn,
+		Container: mainContainer,
+		Pool:      mainPool,
+		DSN:       mainDSN,
+
+		UsageContainer: usageContainer,
+		UsagePool:      usagePool,
+		UsageDSN:       usageDSN,
 	}
 }
 
@@ -112,7 +176,7 @@ func SetupTestDatabaseWithPrisma(t *testing.T) *TestDatabase {
 func applyPrismaSchema(dsn string) error {
 	// Create a clean environment without loading .env file
 	env := os.Environ()
-	
+
 	// Replace or add GPHQ_DATABASE_URL (as configured in schema.prisma)
 	found := false
 	for i, e := range env {
@@ -125,20 +189,54 @@ func applyPrismaSchema(dsn string) error {
 	if !found {
 		env = append(env, fmt.Sprintf("GPHQ_DATABASE_URL=%s", dsn))
 	}
-	
+
 	// Also set DATABASE_URL just in case
 	env = append(env, fmt.Sprintf("DATABASE_URL=%s", dsn))
-	
+
 	// Tell Prisma to ignore .env file
 	env = append(env, "DOTENV_CONFIG_PATH=/dev/null")
-	
+
 	// Run prisma db push with DATABASE_URL set
 	cmd := exec.Command("pnpm", "dlx", "prisma", "db", "push", "--skip-generate", "--accept-data-loss")
 	cmd.Dir = "../../.." // Navigate to project root
 	cmd.Env = env
 	cmd.Stdout = os.Stdout
 	cmd.Stderr = os.Stderr
-	
+
+	return cmd.Run()
+}
+
+// applyUsagePrismaSchema uses Prisma CLI to push the usage schema to the usage database
+func applyUsagePrismaSchema(dsn string) error {
+	// Create a clean environment without loading .env file
+	env := os.Environ()
+
+	// Replace or add GPHQ_USAGE_DATABASE_URL (as configured in usage schema.prisma)
+	found := false
+	for i, e := range env {
+		if strings.HasPrefix(e, "GPHQ_USAGE_DATABASE_URL=") {
+			env[i] = fmt.Sprintf("GPHQ_USAGE_DATABASE_URL=%s", dsn)
+			found = true
+			break
+		}
+	}
+	if !found {
+		env = append(env, fmt.Sprintf("GPHQ_USAGE_DATABASE_URL=%s", dsn))
+	}
+
+	// Also set DATABASE_URL just in case
+	env = append(env, fmt.Sprintf("DATABASE_URL=%s", dsn))
+
+	// Tell Prisma to ignore .env file
+	env = append(env, "DOTENV_CONFIG_PATH=/dev/null")
+
+	// Run prisma db push with DATABASE_URL set for usage schema
+	cmd := exec.Command("pnpm", "dlx", "prisma", "db", "push", "--schema=./schemas/usage/schema.prisma", "--skip-generate", "--accept-data-loss")
+	cmd.Dir = "../../.." // Navigate to project root
+	cmd.Env = env
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+
 	return cmd.Run()
 }
 
@@ -159,6 +257,7 @@ func createUsageEventsTable(ctx context.Context, pool *pgxpool.Pool) error {
 			subject TEXT NOT NULL,
 			data JSONB NOT NULL,
 			received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+			stored_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
 			quantity DECIMAL(15,4),
 			transaction_value BIGINT,
 			metadata JSONB,
@@ -167,21 +266,32 @@ func createUsageEventsTable(ctx context.Context, pool *pgxpool.Pool) error {
 			PRIMARY KEY (org_id, id)
 		)
 	`
-	
+
 	_, err := pool.Exec(ctx, query)
 	return err
 }
 
-// Cleanup terminates the test database
+// Cleanup terminates the test databases
 func (db *TestDatabase) Cleanup(t *testing.T) {
 	ctx := context.Background()
-	
+
+	// Cleanup main database
 	if db.Pool != nil {
 		db.Pool.Close()
 	}
-	
+
 	if db.Container != nil {
 		err := db.Container.Terminate(ctx)
+		require.NoError(t, err)
+	}
+
+	// Cleanup usage database
+	if db.UsagePool != nil {
+		db.UsagePool.Close()
+	}
+
+	if db.UsageContainer != nil {
+		err := db.UsageContainer.Terminate(ctx)
 		require.NoError(t, err)
 	}
 }
@@ -189,10 +299,10 @@ func (db *TestDatabase) Cleanup(t *testing.T) {
 // TruncateTables clears all test data from specified tables
 func (db *TestDatabase) TruncateTables(t *testing.T, tables ...string) {
 	ctx := context.Background()
-	
+
 	for _, table := range tables {
-		query := fmt.Sprintf("TRUNCATE TABLE %s CASCADE", table)
-		_, err := db.Pool.Exec(ctx, query)
+		// Use a prepared statement with parameter for table name
+		_, err := db.Pool.Exec(ctx, "TRUNCATE TABLE "+table+" CASCADE")
 		require.NoError(t, err)
 	}
 }
@@ -200,26 +310,26 @@ func (db *TestDatabase) TruncateTables(t *testing.T, tables ...string) {
 // ExecuteInTransaction runs a function within a database transaction
 func (db *TestDatabase) ExecuteInTransaction(t *testing.T, fn func(context.Context) error) {
 	ctx := context.Background()
-	
+
 	tx, err := db.Pool.Begin(ctx)
 	require.NoError(t, err)
-	
+
 	defer func() {
 		if r := recover(); r != nil {
 			_ = tx.Rollback(ctx)
 			panic(r)
 		}
 	}()
-	
+
 	// Add transaction to context
 	ctx = context.WithValue(ctx, "tx", tx)
-	
+
 	err = fn(ctx)
 	if err != nil {
 		_ = tx.Rollback(ctx)
 		t.Fatal(err)
 	}
-	
+
 	err = tx.Commit(ctx)
 	require.NoError(t, err)
 }
