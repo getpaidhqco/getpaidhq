@@ -201,7 +201,7 @@ func (r MeterRepository) FindById(ctx context.Context, orgId, meterId string) (e
 	return model.ToEntity(), nil
 }
 
-func (r MeterRepository) FindByEventName(ctx context.Context, orgId, eventName string) ([]entities.Meter, error) {
+func (r MeterRepository) FindByEventName(ctx context.Context, orgId, eventName string) (entities.Meter, error) {
 	tx := r.getTransactionFromContext(ctx)
 
 	query := `SELECT 
@@ -209,72 +209,60 @@ func (r MeterRepository) FindByEventName(ctx context.Context, orgId, eventName s
 		aggregation_type, value_property, unit_type, display_name, 
 		window_size, reset_interval, metadata, created_at, updated_at
 		FROM meters
-		WHERE org_id = @org_id AND event_name = @event_name`
+		WHERE org_id = @org_id AND event_name = @event_name
+		LIMIT 1`
 
 	args := pgx.NamedArgs{
 		"org_id":     orgId,
 		"event_name": eventName,
 	}
 
-	rows, err := tx.Query(ctx, query, args)
+	var model models.Meter
+	var eventFilterJson, metadataJson []byte
+
+	err := tx.QueryRow(ctx, query, args).Scan(
+		&model.OrgId,
+		&model.Id,
+		&model.Name,
+		&model.Description,
+		&model.EventName,
+		&eventFilterJson,
+		&model.AggregationType,
+		&model.ValueProperty,
+		&model.UnitType,
+		&model.DisplayName,
+		&model.WindowSize,
+		&model.ResetInterval,
+		&metadataJson,
+		&model.CreatedAt,
+		&model.UpdatedAt,
+	)
+
 	if err != nil {
-		r.logger.Error("failed to find meters by event name", err.Error())
-		return nil, err
-	}
-	defer rows.Close()
-
-	var meters []entities.Meter
-	for rows.Next() {
-		var model models.Meter
-		var eventFilterJson, metadataJson []byte
-
-		err := rows.Scan(
-			&model.OrgId,
-			&model.Id,
-			&model.Name,
-			&model.Description,
-			&model.EventName,
-			&eventFilterJson,
-			&model.AggregationType,
-			&model.ValueProperty,
-			&model.UnitType,
-			&model.DisplayName,
-			&model.WindowSize,
-			&model.ResetInterval,
-			&metadataJson,
-			&model.CreatedAt,
-			&model.UpdatedAt,
-		)
-
-		if err != nil {
-			r.logger.Error("failed to scan meter", err.Error())
-			return nil, err
+		if err == pgx.ErrNoRows {
+			r.logger.Info("no meter found with event name", "event_name", eventName, "org_id", orgId)
+			return entities.Meter{}, fmt.Errorf("meter with event name %s not found", eventName)
 		}
-
-		// Parse JSON fields
-		if len(eventFilterJson) > 0 {
-			if err := json.Unmarshal(eventFilterJson, &model.EventFilter); err != nil {
-				r.logger.Error("failed to unmarshal event filter", err.Error())
-				return nil, err
-			}
-		}
-
-		if len(metadataJson) > 0 {
-			if err := json.Unmarshal(metadataJson, &model.Metadata); err != nil {
-				r.logger.Error("failed to unmarshal metadata", err.Error())
-				return nil, err
-			}
-		}
-
-		meters = append(meters, model.ToEntity())
+		r.logger.Error("failed to find meter by event name", err.Error())
+		return entities.Meter{}, err
 	}
 
-	if err := rows.Err(); err != nil {
-		r.logger.Error("error iterating over meters", err.Error())
-		return nil, err
+	// Parse JSON fields
+	if len(eventFilterJson) > 0 {
+		if err := json.Unmarshal(eventFilterJson, &model.EventFilter); err != nil {
+			r.logger.Error("failed to unmarshal event filter", err.Error())
+			return entities.Meter{}, err
+		}
 	}
 
-	return meters, nil
+	if len(metadataJson) > 0 {
+		if err := json.Unmarshal(metadataJson, &model.Metadata); err != nil {
+			r.logger.Error("failed to unmarshal metadata", err.Error())
+			return entities.Meter{}, err
+		}
+	}
+
+	return model.ToEntity(), nil
 }
 
 func (r MeterRepository) List(ctx context.Context, orgId string, pagination dto.Pagination) (dto.PaginatedResult[entities.Meter], error) {

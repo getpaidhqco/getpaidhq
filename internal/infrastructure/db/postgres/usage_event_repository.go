@@ -45,32 +45,30 @@ func (r *UsageEventRepository) Create(ctx context.Context, event entities.UsageE
 	query := `
 		INSERT INTO usage_events (
 			org_id, id, 
-			subscription_id, subscription_item_id, meter_id,
+			meter_id,
 			spec_version, type, event_id, time, source, subject, data,
-			received_at
+			received_at, stored_at
 		) VALUES (
 			@org_id, @id, 
-			@subscription_id, @subscription_item_id, @meter_id,
+			@meter_id,
 			@spec_version, @type, @event_id, @time, @source, @subject, @data,
-			@received_at
+			@received_at, now()
 		)
 		ON CONFLICT (org_id, id) DO NOTHING
 	`
 
 	args := pgx.NamedArgs{
-		"org_id":               model.OrgId,
-		"id":                   model.Id,
-		"subscription_id":      model.SubscriptionId,
-		"subscription_item_id": model.SubscriptionItemId,
-		"meter_id":             model.MeterId,
-		"spec_version":         model.SpecVersion,
-		"type":                 model.Type,
-		"event_id":             model.EventId,
-		"time":                 model.Time,
-		"source":               model.Source,
-		"subject":              model.Subject,
-		"data":                 dataJSON,
-		"received_at":          model.ReceivedAt,
+		"org_id":       model.OrgId,
+		"id":           model.Id,
+		"meter_id":     model.MeterId,
+		"spec_version": model.SpecVersion,
+		"type":         model.Type,
+		"event_id":     model.EventId,
+		"time":         model.Time,
+		"source":       model.Source,
+		"subject":      model.Subject,
+		"data":         dataJSON,
+		"received_at":  model.ReceivedAt,
 	}
 
 	_, err = tx.Exec(ctx, query, args)
@@ -92,12 +90,12 @@ func (r *UsageEventRepository) BatchCreate(ctx context.Context, events []entitie
 	query := `
 		INSERT INTO usage_events (
 			org_id, id, 
-			subscription_id, subscription_item_id, meter_id,
+			meter_id,
 			spec_version, type, event_id, time, source, subject, data,
 			received_at
 		) VALUES (
 			@org_id, @id, 
-			@subscription_id, @subscription_item_id, @meter_id,
+			@meter_id,
 			@spec_version, @type, @event_id, @time, @source, @subject, @data,
 			@received_at
 		)
@@ -115,19 +113,17 @@ func (r *UsageEventRepository) BatchCreate(ctx context.Context, events []entitie
 		}
 
 		args := pgx.NamedArgs{
-			"org_id":               model.OrgId,
-			"id":                   model.Id,
-			"subscription_id":      model.SubscriptionId,
-			"subscription_item_id": model.SubscriptionItemId,
-			"meter_id":             model.MeterId,
-			"spec_version":         model.SpecVersion,
-			"type":                 model.Type,
-			"event_id":             model.EventId,
-			"time":                 model.Time,
-			"source":               model.Source,
-			"subject":              model.Subject,
-			"data":                 dataJSON,
-			"received_at":          model.ReceivedAt,
+			"org_id":       model.OrgId,
+			"id":           model.Id,
+			"meter_id":     model.MeterId,
+			"spec_version": model.SpecVersion,
+			"type":         model.Type,
+			"event_id":     model.EventId,
+			"time":         model.Time,
+			"source":       model.Source,
+			"subject":      model.Subject,
+			"data":         dataJSON,
+			"received_at":  model.ReceivedAt,
 		}
 
 		_, err = tx.Exec(ctx, query, args)
@@ -145,14 +141,15 @@ func (r *UsageEventRepository) FindByID(ctx context.Context, orgID, subscription
 
 	// Note: The repository interface expects to find by orgID, subscriptionItemID, and time
 	// but the schema has a primary key of [orgId, id]. We'll query by the available fields.
+	// Since subscriptionItemId is no longer in the schema, we'll use subject field which contains it
 	query := `
 		SELECT 
 			org_id, id, 
-			subscription_id, subscription_item_id, meter_id,
+			meter_id,
 			spec_version, type, event_id, time, source, subject, data,
 			received_at
 		FROM usage_events
-		WHERE org_id = @org_id AND subscription_item_id = @subscription_item_id AND time = @time
+		WHERE org_id = @org_id AND subject = @subscription_item_id AND time = @time
 		LIMIT 1
 	`
 
@@ -168,8 +165,6 @@ func (r *UsageEventRepository) FindByID(ctx context.Context, orgID, subscription
 	err := tx.QueryRow(ctx, query, args).Scan(
 		&model.OrgId,
 		&model.Id,
-		&model.SubscriptionId,
-		&model.SubscriptionItemId,
 		&model.MeterId,
 		&model.SpecVersion,
 		&model.Type,
@@ -201,14 +196,15 @@ func (r *UsageEventRepository) FindByID(ctx context.Context, orgID, subscription
 func (r *UsageEventRepository) FindBySubscriptionItem(ctx context.Context, orgID, subscriptionItemID string, startTime, endTime time.Time) ([]entities.UsageEvent, error) {
 	tx := r.getTransactionFromContext(ctx)
 
+	// Since subscriptionItemId is no longer in the schema, we'll use subject field which contains it
 	query := `
 		SELECT 
 			org_id, id, 
-			subscription_id, subscription_item_id, meter_id,
+			meter_id,
 			spec_version, type, event_id, time, source, subject, data,
 			received_at
 		FROM usage_events
-		WHERE org_id = @org_id AND subscription_item_id = @subscription_item_id
+		WHERE org_id = @org_id AND subject = @subscription_item_id
 		  AND time >= @start_time AND time < @end_time
 		ORDER BY time DESC
 	`
@@ -234,8 +230,6 @@ func (r *UsageEventRepository) FindBySubscriptionItem(ctx context.Context, orgID
 		err := rows.Scan(
 			&model.OrgId,
 			&model.Id,
-			&model.SubscriptionId,
-			&model.SubscriptionItemId,
 			&model.MeterId,
 			&model.SpecVersion,
 			&model.Type,
@@ -270,7 +264,7 @@ func (r *UsageEventRepository) FindByReferenceID(ctx context.Context, referenceI
 	query := `
 		SELECT 
 			org_id, id, 
-			subscription_id, subscription_item_id, meter_id,
+			meter_id,
 			spec_version, type, event_id, time, source, subject, data,
 			received_at
 		FROM usage_events
@@ -288,8 +282,6 @@ func (r *UsageEventRepository) FindByReferenceID(ctx context.Context, referenceI
 	err := tx.QueryRow(ctx, query, args).Scan(
 		&model.OrgId,
 		&model.Id,
-		&model.SubscriptionId,
-		&model.SubscriptionItemId,
 		&model.MeterId,
 		&model.SpecVersion,
 		&model.Type,
@@ -323,9 +315,10 @@ func (r *UsageEventRepository) Delete(ctx context.Context, orgID, subscriptionIt
 
 	// Note: The repository interface expects to delete by orgID, subscriptionItemID, and time
 	// but the schema has a primary key of [orgId, id]. We'll delete by the available fields.
+	// Since subscriptionItemId is no longer in the schema, we'll use subject field which contains it
 	query := `
 		DELETE FROM usage_events
-		WHERE org_id = @org_id AND subscription_item_id = @subscription_item_id AND time = @time
+		WHERE org_id = @org_id AND subject = @subscription_item_id AND time = @time
 	`
 
 	args := pgx.NamedArgs{
@@ -353,13 +346,14 @@ func (r *UsageEventRepository) AggregateUsageBySubscriptionItem(ctx context.Cont
 	var query string
 
 	// Build query based on aggregation type
+	// Since subscriptionItemId is no longer in the schema, we'll use subject field which contains it
 	switch aggregationType {
 	case entities.AggregationTypeSum:
 		query = `
 			SELECT count(1)
 			FROM usage_events
 			WHERE org_id = @org_id 
-			  AND subscription_item_id = @subscription_item_id
+			  AND subject = @subscription_item_id
 			  AND time >= @start_time 
 			  AND time < @end_time
 		`
@@ -368,7 +362,7 @@ func (r *UsageEventRepository) AggregateUsageBySubscriptionItem(ctx context.Cont
 			SELECT COALESCE(MAX(CAST(data->>'quantity' AS FLOAT)), 0)
 			FROM usage_events
 			WHERE org_id = @org_id 
-			  AND subscription_item_id = @subscription_item_id
+			  AND subject = @subscription_item_id
 			  AND time >= @start_time 
 			  AND time < @end_time
 		`
@@ -377,7 +371,7 @@ func (r *UsageEventRepository) AggregateUsageBySubscriptionItem(ctx context.Cont
 			SELECT COALESCE(AVG(CAST(data->>'quantity' AS FLOAT)), 0)
 			FROM usage_events
 			WHERE org_id = @org_id 
-			  AND subscription_item_id = @subscription_item_id
+			  AND subject = @subscription_item_id
 			  AND time >= @start_time 
 			  AND time < @end_time
 		`
@@ -386,7 +380,7 @@ func (r *UsageEventRepository) AggregateUsageBySubscriptionItem(ctx context.Cont
 			SELECT COALESCE(CAST(data->>'quantity' AS FLOAT), 0)
 			FROM usage_events
 			WHERE org_id = @org_id 
-			  AND subscription_item_id = @subscription_item_id
+			  AND subject = @subscription_item_id
 			  AND time >= @start_time 
 			  AND time < @end_time
 			ORDER BY time DESC
@@ -398,7 +392,7 @@ func (r *UsageEventRepository) AggregateUsageBySubscriptionItem(ctx context.Cont
 			SELECT COALESCE(SUM(CAST(data->>'quantity' AS FLOAT)), 0)
 			FROM usage_events
 			WHERE org_id = @org_id 
-			  AND subscription_item_id = @subscription_item_id
+			  AND subject = @subscription_item_id
 			  AND time >= @start_time 
 			  AND time < @end_time
 		`

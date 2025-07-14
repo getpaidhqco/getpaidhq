@@ -72,6 +72,28 @@ func NewSubscriptionOrchestrationService(
 	}
 }
 
+func (s SubscriptionOrchestrationService) Create(ctx context.Context, orgId string, input dto.CreateSubscriptionInput) (entities.Subscription, error) {
+	s.logger.Info("Creating new subscription", "orgId", orgId)
+
+	// Call the base service to create the subscription
+	subscription, err := s.SubscriptionService.Create(ctx, orgId, input)
+	if err != nil {
+		s.logger.Error("Failed to create subscription", err.Error())
+		return entities.Subscription{}, err
+	}
+
+	// If the subscription should be activated immediately, start the workflow
+	if subscription.Status == entities.SubscriptionStatusActive {
+		err = s.workflowEngine.StartSubscriptionWorkflow(ctx, subscription)
+		if err != nil {
+			s.logger.Errorf("Failed to start workflow %v", err.Error())
+			return subscription, err
+		}
+	}
+
+	return subscription, nil
+}
+
 func (s SubscriptionOrchestrationService) Update(ctx context.Context, input subscriptions.UpdateSubscriptionInput) (entities.Subscription, error) {
 	s.logger.Info("Updating subscription", "orgId", input.OrgId, "id", input.Id)
 

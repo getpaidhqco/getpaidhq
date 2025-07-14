@@ -729,37 +729,54 @@ paths:
 
   /api/subscriptions/{id}/usage:
     get:
-      tags: [Subscriptions]
+      tags: [Usage]
       summary: Get subscription usage
+      description: Get usage records for a specific subscription
       operationId: getSubscriptionUsage
       parameters:
         - $ref: '#/components/parameters/SubscriptionId'
         - name: start_date
           in: query
-          required: true
           schema:
             type: string
-            format: date-time
+            format: date
+          description: Start date for usage period
         - name: end_date
           in: query
-          required: true
           schema:
             type: string
-            format: date-time
+            format: date
+          description: End date for usage period
       responses:
         '200':
-          description: Subscription usage records
+          description: Usage records for the subscription
           content:
             application/json:
               schema:
-                allOf:
-                  - $ref: '#/components/schemas/ListResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/UsageRecord'
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UsageEventResponse'
+                  count:
+                    type: integer
+
+  /api/subscriptions/{id}/estimate:
+    get:
+      tags: [Usage]
+      summary: Get usage estimate
+      description: Get current billing period usage estimate for a subscription
+      operationId: getUsageEstimate
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      responses:
+        '200':
+          description: Usage estimate for current billing period
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageEstimateResponse'
 
   # Meters
   /api/meters:
@@ -2154,6 +2171,12 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ApiError'
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
     InternalError:
       description: Internal server error
       content:
@@ -3390,10 +3413,6 @@ components:
       properties:
         id:
           type: string
-        org_id:
-          type: string
-        slug:
-          type: string
         name:
           type: string
         description:
@@ -3401,6 +3420,10 @@ components:
         event_name:
           type: string
           description: The name of the event to track
+        event_filter:
+          type: object
+          additionalProperties: true
+          description: Optional filter to apply to events
         aggregation_type:
           type: string
           enum: [sum, max, average, last_during_period]
@@ -3411,8 +3434,21 @@ components:
         unit_type:
           type: string
           description: Unit of measurement (e.g., "API calls", "GB", "users")
-        is_active:
-          type: boolean
+        display_name:
+          type: string
+          description: Display name for the unit type
+        window_size:
+          type: string
+          enum: [minute, hour, day, month]
+          description: Window size for aggregation
+        reset_interval:
+          type: string
+          enum: [hourly, daily, monthly, never]
+          description: When to reset aggregation
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
         created_at:
           type: string
           format: date-time

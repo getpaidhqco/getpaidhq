@@ -24,6 +24,7 @@ type SubscriptionOrchestrationService interface {
 
 type SubscriptionService interface {
 	CreateSubscriptionsForOrder(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error)
+	Create(ctx context.Context, orgId string, input dto.CreateSubscriptionInput) (entities.Subscription, error)
 	FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error)
 	Activate(ctx context.Context, orgId string, id string) (entities.Subscription, error)
 	PauseSubscription(ctx context.Context, input subscriptions.PauseSubscriptionInput) (entities.Subscription, error)

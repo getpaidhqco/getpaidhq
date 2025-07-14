@@ -284,18 +284,16 @@ func (h *usageEventHandler) processMessage(ctx context.Context, msg *sarama.Cons
 
 	// Convert event to domain entity
 	usageEvent := entities.UsageEvent{
-		OrgId:              event.OrgId,
-		Id:                 event.EventId,
-		SubscriptionId:     event.SubscriptionId,
-		SubscriptionItemId: event.SubscriptionItemId,
-		MeterId:            event.MeterId,
+		OrgId:   event.OrgId,
+		Id:      event.Id,
+		MeterId: event.MeterId,
 		// CloudEvents fields
 		SpecVersion: "1.0",
 		Type:        event.EventType,
 		EventId:     event.EventId,
 		Time:        event.Timestamp,
 		Source:      event.Metadata["source"],
-		Subject:     event.SubscriptionItemId,
+		Subject:     event.Subject,
 		Data:        event.Data.(map[string]interface{}),
 		// Audit
 		ReceivedAt: event.ReceivedAt,
@@ -308,7 +306,7 @@ func (h *usageEventHandler) processMessage(ctx context.Context, msg *sarama.Cons
 
 	h.consumer.logger.Info("Successfully processed usage event",
 		"event_id", event.EventId,
-		"subscription_item_id", event.SubscriptionItemId)
+		"subject", event.Metadata["subject"])
 
 	return nil
 }

@@ -107,11 +107,12 @@ func ToUsageEventResponse(record entities.UsageEvent) response.UsageEventRespons
 	}
 
 	// Create response with available fields
+	// Note: Subject field contains the subscription item ID
 	return response.UsageEventResponse{
 		OrgId:              record.OrgId,
 		Id:                 record.Id,
-		SubscriptionId:     record.SubscriptionId,
-		SubscriptionItemId: record.SubscriptionItemId,
+		SubscriptionId:     "",             // No longer stored in UsageEvent
+		SubscriptionItemId: record.Subject, // Subject field contains the subscription item ID
 		MeterId:            record.MeterId,
 		UsageType:          entities.UsageTypeMetered, // Default to metered
 		Quantity:           quantity,
@@ -158,16 +159,15 @@ func ToUsageSummaryResponse(result dto.UsageSummaryResult) response.UsageSummary
 	}
 }
 
-// ToCloudEventUsageResponse converts application response to API response
-func ToCloudEventUsageResponse(appResponse dto.UsageRecordingResponse) response.CloudEventUsageResponse {
-	return response.CloudEventUsageResponse{
-		EventId:            appResponse.EventId,
-		OriginalEventId:    appResponse.OriginalEventId,
-		SubscriptionItemId: appResponse.SubscriptionItemId,
-		Type:               appResponse.Type,
-		Status:             appResponse.Status,
-		RecordedAt:         appResponse.RecordedAt,
-		Message:            "CloudEvent usage recorded successfully. Calculation in progress.",
+// ToUsageResponse converts application response to API response
+func ToUsageResponse(appResponse dto.UsageRecordingResponse) response.UsageResponse {
+	return response.UsageResponse{
+		EventId:         appResponse.EventId,
+		OriginalEventId: appResponse.OriginalEventId,
+		Type:            appResponse.Type,
+		Status:          appResponse.Status,
+		RecordedAt:      appResponse.RecordedAt,
+		Message:         "CloudEvent usage recorded successfully. Calculation in progress.",
 	}
 }
 

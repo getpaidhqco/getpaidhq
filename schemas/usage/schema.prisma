@@ -14,9 +14,7 @@ model UsageEvent {
   id    String // CloudEvent id field
 
   // Business context (enriched from CloudEvent subject)
-  subscriptionId     String @map("subscription_id")
-  subscriptionItemId String @map("subscription_item_id")
-  meterId            String @map("meter_id")
+  meterId String @map("meter_id")
 
   // CloudEvents v1.0 fields
   specVersion String   @map("spec_version")
@@ -29,6 +27,7 @@ model UsageEvent {
 
   // Audit
   receivedAt DateTime @default(now()) @map("received_at") @db.Timestamptz
+  storedAt   DateTime @default(now()) @map("stored_at") @db.Timestamptz
 
   @@id([orgId, id])
   @@map("usage_events")

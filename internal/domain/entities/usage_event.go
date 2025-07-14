@@ -10,9 +10,7 @@ type UsageEvent struct {
 	Id    string `json:"id"` // CloudEvent id field
 
 	// Business context (enriched from CloudEvent subject)
-	SubscriptionId     string `json:"subscription_id"`
-	SubscriptionItemId string `json:"subscription_item_id"`
-	MeterId            string `json:"meter_id"`
+	MeterId string `json:"meter_id"`
 
 	// CloudEvents v1.0 fields
 	SpecVersion string                 `json:"spec_version"`

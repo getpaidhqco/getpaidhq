@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"payloop/internal/api"
 	"payloop/internal/api/authn"
+	"payloop/internal/api/dto/mappers"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/api/dto/response"
 	"payloop/internal/application/dto"
@@ -25,6 +26,71 @@ func NewSubscriptionController(subscriptionService interfaces.SubscriptionOrches
 		subsOrchastration: subscriptionService,
 		logger:            logger,
 	}
+}
+
+func (s SubscriptionController) Create(c *gin.Context) {
+	var input request.CreateSubscriptionRequest
+	user, _ := c.Get("user")
+	authUser := user.(authn.User)
+	orgId := authUser.OrgId
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	// Validate required fields
+	if input.PaymentMethodId == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "payment_method_id is required",
+		})
+		return
+	}
+
+	if input.Amount <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "amount must be greater than 0",
+		})
+		return
+	}
+
+	if input.Currency == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "currency is required",
+		})
+		return
+	}
+
+	if input.BillingInterval == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "billing_interval is required",
+		})
+		return
+	}
+
+	if input.BillingIntervalQty <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"error": "billing_interval_qty must be greater than 0",
+		})
+		return
+	}
+
+	// Convert API DTO to application DTO
+	// In a real implementation, we would need to get the customer ID from somewhere
+	// For now, we'll use a placeholder
+	customerId := "cus_placeholder" // This would be determined based on business logic
+	appInput := mappers.ToCreateSubscriptionInput(input, customerId)
+
+	// Call the service to create the subscription
+	subscription, err := s.subsOrchastration.Create(c.Request.Context(), orgId, appInput)
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	c.JSON(http.StatusCreated, response.NewSubscriptionFromEntity(subscription))
 }
 
 func (s SubscriptionController) Get(c *gin.Context) {

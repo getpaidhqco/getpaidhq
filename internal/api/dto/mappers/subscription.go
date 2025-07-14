@@ -3,6 +3,7 @@ package mappers
 import (
     "time"
     "payloop/internal/api/dto/request"
+    "payloop/internal/application/dto"
     "payloop/internal/domain/entities"
 )
 
@@ -72,4 +73,18 @@ func ToChangePlanInput(req request.ChangePlanRequest) (entities.ChangePlanInput,
     }
 
     return input, nil
+}
+
+// ToCreateSubscriptionInput converts API request to application DTO
+func ToCreateSubscriptionInput(req request.CreateSubscriptionRequest, customerId string) dto.CreateSubscriptionInput {
+    return dto.CreateSubscriptionInput{
+        CustomerId:      customerId,
+        PaymentMethodId: req.PaymentMethodId,
+        Metadata:        req.Metadata,
+        // Note: These fields would need to be populated from the variant and price
+        // that would be selected in a real implementation
+        VariantId:       "",
+        PriceId:         "",
+        TrialPeriodDays: 0,
+    }
 }

@@ -17,6 +17,7 @@ func (s SubscriptionRoutes) Setup() {
 	s.logger.Info("Setting up Subscription")
 	api := s.handler.Gin.Group("/api")
 	{
+		api.POST("/subscriptions", s.subscriptionController.Create)
 		api.GET("/subscriptions", s.subscriptionController.List)
 		api.GET("/subscriptions/:id", s.subscriptionController.Get)
 		api.GET("/subscriptions/:id/payments", s.subscriptionController.ListPayments)

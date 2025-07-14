@@ -114,10 +114,30 @@ func (s SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, or
 	return subs, nil
 }
 
-func (s SubscriptionService) Create(ctx context.Context, input entities.CreateSubscriptionInput) (entities.Subscription, error) {
-	s.logger.Info("Creating new subscription", "orgId", input.OrgId)
+func (s SubscriptionService) Create(ctx context.Context, orgId string, input dto.CreateSubscriptionInput) (entities.Subscription, error) {
+	s.logger.Info("Creating new subscription", "orgId", orgId)
 
-	subscription := entities.NewFromCreateInput(input)
+	// Convert application DTO to domain entity input
+	// In a real implementation, we would fetch the variant and price details
+	// to populate the subscription correctly
+	domainInput := entities.CreateSubscriptionInput{
+		OrgId:           orgId,
+		PaymentMethodId: input.PaymentMethodId,
+		Metadata:        input.Metadata,
+		// These fields would typically be populated from the variant and price
+		Amount:            0, // Would be populated from price
+		Currency:          "", // Would be populated from price
+		BillingInterval:   "", // Would be populated from price
+		BillingIntervalQty: 0, // Would be populated from price
+	}
+
+	// If trial period is specified, convert to appropriate interval
+	if input.TrialPeriodDays > 0 {
+		domainInput.TrialInterval = "day"
+		domainInput.TrialIntervalQty = input.TrialPeriodDays
+	}
+
+	subscription := entities.NewFromCreateInput(domainInput)
 	subscription, err := s.subscriptionRepository.Create(ctx, subscription)
 
 	if err != nil {

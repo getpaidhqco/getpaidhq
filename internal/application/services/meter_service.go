@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"fmt"
+	"strings"
 	"payloop/internal/application/dto"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
@@ -28,9 +29,14 @@ func NewMeterService(meterRepo repositories.MeterRepository, logger logger.Logge
 // Create creates a new meter
 func (s *meterService) Create(ctx context.Context, orgId string, input dto.CreateMeterInput) (entities.Meter, error) {
 	// Check if event name already exists
-	existing, err := s.meterRepo.FindByEventName(ctx, orgId, input.EventName)
-	if err == nil && len(existing) > 0 {
+	_, err := s.meterRepo.FindByEventName(ctx, orgId, input.EventName)
+	if err == nil {
 		return entities.Meter{}, fmt.Errorf("meter with event name %s already exists", input.EventName)
+	}
+	// If the error is "not found", we can proceed with creation
+	// Otherwise, return the error
+	if err != nil && !strings.Contains(err.Error(), "not found") {
+		return entities.Meter{}, err
 	}
 
 	// Create meter entity
@@ -88,17 +94,12 @@ func (s *meterService) Get(ctx context.Context, orgId, meterId string) (entities
 
 // GetByEventName gets a meter by event name
 func (s *meterService) GetByEventName(ctx context.Context, orgId, eventName string) (entities.Meter, error) {
-	meters, err := s.meterRepo.FindByEventName(ctx, orgId, eventName)
+	meter, err := s.meterRepo.FindByEventName(ctx, orgId, eventName)
 	if err != nil {
 		return entities.Meter{}, err
 	}
-	
-	if len(meters) == 0 {
-		return entities.Meter{}, fmt.Errorf("meter with event name %s not found", eventName)
-	}
-	
-	// Since we've made eventName unique per organization, there should only be one result
-	return meters[0], nil
+
+	return meter, nil
 }
 
 // List lists all meters for an organization with pagination

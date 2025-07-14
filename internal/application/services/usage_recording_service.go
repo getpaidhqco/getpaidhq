@@ -54,33 +54,13 @@ func (s *UsageRecordingService) RecordUsage(
 		return dto.UsageRecordingResponse{}, fmt.Errorf("The subject is required")
 	}
 
-	// 2. Resolve subject to subscription item
-	subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, input.OrgId, input.Subject)
-	if err != nil {
-		return dto.UsageRecordingResponse{}, lib.NewCustomError(lib.NotFoundError, "Item not found", err)
-	}
-
-	// Validate subscription item has usage enabled and meter configured
-	if !subscriptionItem.HasUsage {
-		return dto.UsageRecordingResponse{}, fmt.Errorf("subscription item does not support usage recording")
-	}
-
-	if subscriptionItem.MeterId == "" {
-		return dto.UsageRecordingResponse{}, fmt.Errorf("subscription item does not have a meter configured")
-	}
-
-	// 5. Validate meter exists and event type matches meter configuration
-	meter, err := s.meterRepo.FindById(ctx, input.OrgId, subscriptionItem.MeterId)
+	// Validate meter exists and event type matches meter configuration
+	meter, err := s.meterRepo.FindByEventName(ctx, input.OrgId, input.Type)
 	if err != nil {
 		return dto.UsageRecordingResponse{}, fmt.Errorf("meter not found: %w", err)
 	}
 
-	// Match CloudEvent type to meter (can be meter ID or event name)
-	if input.Type != meter.Id && input.Type != meter.EventName {
-		return dto.UsageRecordingResponse{}, fmt.Errorf("CloudEvent type %s does not match meter %s", input.Type, meter.Id)
-	}
-
-	// 6. Set timestamp if not provided
+	// Set timestamp if not provided
 	timestamp := input.Time
 	if timestamp.IsZero() {
 		timestamp = time.Now().UTC()
@@ -88,7 +68,7 @@ func (s *UsageRecordingService) RecordUsage(
 	}
 
 	// 7. Create enriched raw usage event
-	eventId := lib.GenerateId("ue")
+	internalId := lib.GenerateId("ue")
 
 	baseEvent := events.NewBaseEvent(
 		input.OrgId,
@@ -97,13 +77,14 @@ func (s *UsageRecordingService) RecordUsage(
 	)
 
 	rawUsageEvent := events.RawUsageRecordedEvent{
-		BaseEvent:          baseEvent,
-		Data:               input.Data,
-		OrgId:              input.OrgId,
-		SubscriptionId:     subscriptionItem.SubscriptionId,
-		SubscriptionItemId: subscriptionItem.Id,
-		MeterId:            subscriptionItem.MeterId,
-		ReceivedAt:         time.Now().UTC(),
+		BaseEvent:  baseEvent,
+		Data:       input.Data,
+		OrgId:      input.OrgId,
+		MeterId:    meter.Id,
+		Id:         internalId,
+		Source:     input.Source,
+		Subject:    input.Subject,
+		ReceivedAt: time.Now().UTC(),
 	}
 
 	// 8. Publish raw usage event for storage
@@ -114,19 +95,17 @@ func (s *UsageRecordingService) RecordUsage(
 	}
 
 	s.logger.Info("Raw usage event published successfully",
-		"subscriptionItemId", subscriptionItem.Id,
-		"cloudEventType", input.Type,
-		"cloudEventId", input.Id,
-		"eventId", eventId)
+		"type", input.Type,
+		"id", input.Id,
+		"internalId", internalId)
 
 	// 9. Return response immediately (no calculations performed)
 	return dto.UsageRecordingResponse{
-		EventId:            eventId,
-		OriginalEventId:    input.Id,
-		SubscriptionItemId: subscriptionItem.Id,
-		Type:               input.Type,
-		Status:             "recorded",
-		RecordedAt:         timestamp,
+		EventId:         internalId,
+		OriginalEventId: input.Id,
+		Type:            input.Type,
+		Status:          "recorded",
+		RecordedAt:      timestamp,
 	}, nil
 }
 
@@ -207,7 +186,8 @@ func (s *UsageRecordingService) GetUsageEvent(
 	}
 
 	// 2. Validate access through subscription
-	subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, usageEvent.SubscriptionItemId)
+	// The subject field contains the subscription item ID
+	subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, usageEvent.Subject)
 	if err != nil {
 		return entities.UsageEvent{}, fmt.Errorf("subscription item not found: %w", err)
 	}
@@ -279,7 +259,8 @@ func (s *UsageRecordingService) DeleteUsageEvent(
 		return fmt.Errorf("usage event not found: %w", err)
 	}
 
-	subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, usageEvent.SubscriptionItemId)
+	// The subject field contains the subscription item ID
+	subscriptionItem, err := s.subscriptionItemRepo.FindById(ctx, orgId, usageEvent.Subject)
 	if err != nil {
 		return fmt.Errorf("subscription item not found: %w", err)
 	}
@@ -291,7 +272,7 @@ func (s *UsageRecordingService) DeleteUsageEvent(
 	}
 
 	// 3. Delete usage event
-	err = s.usageEventRepo.Delete(ctx, orgId, usageEvent.SubscriptionItemId, eventTime)
+	err = s.usageEventRepo.Delete(ctx, orgId, usageEvent.Subject, eventTime)
 	if err != nil {
 		return fmt.Errorf("failed to delete usage event: %w", err)
 	}

@@ -17,19 +17,19 @@ func NewUsageEventBuilder(orgId, subscriptionId, subscriptionItemId string) *Usa
 	now := time.Now()
 	return &UsageEventBuilder{
 		event: entities.UsageEvent{
-			Id:                 fmt.Sprintf("evt_%d", now.UnixNano()),
-			OrgId:              orgId,
-			SubscriptionId:     subscriptionId,
-			SubscriptionItemId: subscriptionItemId,
-			MeterId:            "meter_default",
-			SpecVersion:        "1.0",
-			Type:               "usage.recorded",
-			EventId:            fmt.Sprintf("event_%d", now.UnixNano()),
-			Time:               now,
-			Source:             "test",
-			Subject:            subscriptionItemId,
+			Id:          fmt.Sprintf("evt_%d", now.UnixNano()),
+			OrgId:       orgId,
+			MeterId:     "meter_default",
+			SpecVersion: "1.0",
+			Type:        "usage.recorded",
+			EventId:     fmt.Sprintf("event_%d", now.UnixNano()),
+			Time:        now,
+			Source:      "test",
+			Subject:     subscriptionItemId, // Subject field contains the subscription item ID
 			Data: map[string]interface{}{
-				"quantity": float64(1),
+				"quantity":           float64(1),
+				"subscription_id":    subscriptionId,     // Store in Data for backward compatibility
+				"subscription_item_id": subscriptionItemId, // Store in Data for backward compatibility
 			},
 			ReceivedAt: now,
 		},
@@ -78,7 +78,7 @@ func CreateUsageEventsForPeriod(
 	dailyQuantity float64,
 ) []entities.UsageEvent {
 	var events []entities.UsageEvent
-	
+
 	current := startTime
 	for current.Before(endTime) {
 		event := NewUsageEventBuilder(orgId, subscriptionId, subscriptionItemId).
@@ -88,7 +88,7 @@ func CreateUsageEventsForPeriod(
 		events = append(events, event)
 		current = current.Add(24 * time.Hour)
 	}
-	
+
 	return events
 }
 
@@ -101,7 +101,7 @@ func CreateTransactionEvents(
 	},
 ) []entities.UsageEvent {
 	var events []entities.UsageEvent
-	
+
 	for _, tx := range transactions {
 		event := NewUsageEventBuilder(orgId, subscriptionId, subscriptionItemId).
 			WithTime(tx.Time).
@@ -110,7 +110,7 @@ func CreateTransactionEvents(
 			Build()
 		events = append(events, event)
 	}
-	
+
 	return events
 }
 
@@ -121,7 +121,7 @@ func CreateMaxUsageEvents(
 	quantities []float64,
 ) []entities.UsageEvent {
 	var events []entities.UsageEvent
-	
+
 	for i, qty := range quantities {
 		event := NewUsageEventBuilder(orgId, subscriptionId, subscriptionItemId).
 			WithTime(period.Add(time.Duration(i) * time.Hour)).
@@ -129,6 +129,6 @@ func CreateMaxUsageEvents(
 			Build()
 		events = append(events, event)
 	}
-	
+
 	return events
 }

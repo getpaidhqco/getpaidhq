@@ -12,10 +12,11 @@ type RawUsageRecordedEvent struct {
 	Data interface{} `json:"data"`
 
 	// Enriched context (resolved from subject)
-	OrgId              string `json:"org_id"`
-	SubscriptionId     string `json:"subscription_id"`
-	SubscriptionItemId string `json:"subscription_item_id"`
-	MeterId            string `json:"meter_id"`
+	OrgId   string `json:"org_id"`
+	MeterId string `json:"meter_id"`
+	Id      string `json:"id"`
+	Source  string `json:"source"`
+	Subject string `json:"subject"`
 
 	// Processing metadata
 	ReceivedAt time.Time `json:"received_at"`

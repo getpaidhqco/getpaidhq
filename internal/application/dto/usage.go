@@ -57,12 +57,11 @@ type GetSubscriptionUsageInput struct {
 
 // UsageRecordingResponse represents the immediate response after recording usage
 type UsageRecordingResponse struct {
-	EventId            string    `json:"event_id"`          // Internal event ID
-	OriginalEventId    string    `json:"original_event_id"` // Original CloudEvent ID
-	SubscriptionItemId string    `json:"subscription_item_id"`
-	Type               string    `json:"type"`   // CloudEvent type
-	Status             string    `json:"status"` // "recorded", "processing", "calculated"
-	RecordedAt         time.Time `json:"recorded_at"`
+	EventId         string    `json:"event_id"`          // Internal event ID
+	OriginalEventId string    `json:"original_event_id"` // Original CloudEvent ID
+	Type            string    `json:"type"`              // CloudEvent type
+	Status          string    `json:"status"`            // "recorded", "processing", "calculated"
+	RecordedAt      time.Time `json:"recorded_at"`
 }
 
 // GetUsageEstimateInput represents input for getting usage estimate for a subscription

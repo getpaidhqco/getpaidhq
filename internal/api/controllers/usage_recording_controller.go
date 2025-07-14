@@ -54,7 +54,7 @@ func (u UsageRecordingController) RecordUsage(c *gin.Context) {
 	}
 
 	// Convert application response to API response
-	response := mappers.ToCloudEventUsageResponse(record)
+	response := mappers.ToUsageResponse(record)
 	c.JSON(201, response)
 }
 
