@@ -1,6 +1,7 @@
 package entities
 
 import (
+	"encoding/json"
 	"payloop/internal/domain/entities/prices"
 	"strings"
 	"testing"
@@ -128,30 +129,192 @@ func TestNextBillingDate(t *testing.T) {
 
 func TestSetActivationDates(t *testing.T) {
 	now := time.Now().UTC()
-	trialQty := 0
-	trialInterval := prices.BillingIntervalNone
 
-	orderItem := OrderItem{
-		OrgId:   "org_123",
-		OrderId: "order_123",
-		Price: Price{
-			BillingInterval:    prices.BillingIntervalMonth,
-			BillingIntervalQty: 1,
-			Category:           prices.PriceCategorySubscription,
-			Currency:           "USD",
-			UnitPrice:          1000,
-			TrialInterval:      trialInterval,
-			TrialIntervalQty:   trialQty,
+	tests := []struct {
+		name                 string
+		orderItem            OrderItem
+		subscriptionItems    []SubscriptionItem
+		expectedTrialEndsAt  bool
+		expectedTrialDays    int
+	}{
+		{
+			name: "No trial period in OrderItem",
+			orderItem: OrderItem{
+				OrgId:   "org_123",
+				OrderId: "order_123",
+				Price: Price{
+					BillingInterval:    prices.BillingIntervalMonth,
+					BillingIntervalQty: 1,
+					Category:           prices.PriceCategorySubscription,
+					Currency:           "USD",
+					UnitPrice:          1000,
+					TrialInterval:      prices.BillingIntervalNone,
+					TrialIntervalQty:   0,
+				},
+			},
+			subscriptionItems:   []SubscriptionItem{},
+			expectedTrialEndsAt: false,
+			expectedTrialDays:   0,
+		},
+		{
+			name: "With trial period in OrderItem",
+			orderItem: OrderItem{
+				OrgId:   "org_123",
+				OrderId: "order_123",
+				Price: Price{
+					BillingInterval:    prices.BillingIntervalMonth,
+					BillingIntervalQty: 1,
+					Category:           prices.PriceCategorySubscription,
+					Currency:           "USD",
+					UnitPrice:          1000,
+					TrialInterval:      prices.BillingIntervalDay,
+					TrialIntervalQty:   14,
+				},
+			},
+			subscriptionItems:   []SubscriptionItem{},
+			expectedTrialEndsAt: true,
+			expectedTrialDays:   14,
+		},
+		{
+			name: "Multiple subscription items with different trial periods",
+			orderItem: OrderItem{
+				OrgId:   "org_123",
+				OrderId: "order_123",
+				Price: Price{
+					BillingInterval:    prices.BillingIntervalMonth,
+					BillingIntervalQty: 1,
+					Category:           prices.PriceCategorySubscription,
+					Currency:           "USD",
+					UnitPrice:          1000,
+					TrialInterval:      prices.BillingIntervalDay,
+					TrialIntervalQty:   30, // This should be ignored in favor of subscription items
+				},
+			},
+			subscriptionItems: []SubscriptionItem{
+				{
+					OrgId:          "org_123",
+					SubscriptionId: "sub_123",
+					PriceId:        "price_1",
+					PriceSnapshot:  createPriceSnapshotForTest(t, prices.BillingIntervalDay, 14),
+				},
+				{
+					OrgId:          "org_123",
+					SubscriptionId: "sub_123",
+					PriceId:        "price_2",
+					PriceSnapshot:  createPriceSnapshotForTest(t, prices.BillingIntervalDay, 7), // Shortest trial
+				},
+				{
+					OrgId:          "org_123",
+					SubscriptionId: "sub_123",
+					PriceId:        "price_3",
+					PriceSnapshot:  createPriceSnapshotForTest(t, prices.BillingIntervalDay, 21),
+				},
+			},
+			expectedTrialEndsAt: true,
+			expectedTrialDays:   7, // Should use the shortest trial period (7 days)
+		},
+		{
+			name: "One subscription item with no trial period",
+			orderItem: OrderItem{
+				OrgId:   "org_123",
+				OrderId: "order_123",
+				Price: Price{
+					BillingInterval:    prices.BillingIntervalMonth,
+					BillingIntervalQty: 1,
+					Category:           prices.PriceCategorySubscription,
+					Currency:           "USD",
+					UnitPrice:          1000,
+					TrialInterval:      prices.BillingIntervalDay,
+					TrialIntervalQty:   14, // This should be ignored in favor of subscription items
+				},
+			},
+			subscriptionItems: []SubscriptionItem{
+				{
+					OrgId:          "org_123",
+					SubscriptionId: "sub_123",
+					PriceId:        "price_1",
+					PriceSnapshot:  createPriceSnapshotForTest(t, prices.BillingIntervalDay, 14),
+				},
+				{
+					OrgId:          "org_123",
+					SubscriptionId: "sub_123",
+					PriceId:        "price_2",
+					PriceSnapshot:  createPriceSnapshotForTest(t, prices.BillingIntervalNone, 0), // No trial
+				},
+			},
+			expectedTrialEndsAt: false, // Should have no trial because one item has no trial
+			expectedTrialDays:   0,
+		},
+		{
+			name: "Different trial interval types",
+			orderItem: OrderItem{
+				OrgId:   "org_123",
+				OrderId: "order_123",
+				Price: Price{
+					BillingInterval:    prices.BillingIntervalMonth,
+					BillingIntervalQty: 1,
+					Category:           prices.PriceCategorySubscription,
+					Currency:           "USD",
+					UnitPrice:          1000,
+					TrialInterval:      prices.BillingIntervalDay,
+					TrialIntervalQty:   30, // This should be ignored in favor of subscription items
+				},
+			},
+			subscriptionItems: []SubscriptionItem{
+				{
+					OrgId:          "org_123",
+					SubscriptionId: "sub_123",
+					PriceId:        "price_1",
+					PriceSnapshot:  createPriceSnapshotForTest(t, prices.BillingIntervalMonth, 1), // 30 days approx
+				},
+				{
+					OrgId:          "org_123",
+					SubscriptionId: "sub_123",
+					PriceId:        "price_2",
+					PriceSnapshot:  createPriceSnapshotForTest(t, prices.BillingIntervalWeek, 1), // 7 days
+				},
+			},
+			expectedTrialEndsAt: true,
+			expectedTrialDays:   7, // Should use the shortest trial period (7 days)
 		},
 	}
 
-	subscription := NewSubscriptionFromOrderItem(orderItem)
-	subscription.SetActivationDates()
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			subscription := NewSubscriptionFromOrderItem(tt.orderItem)
+			subscription.Items = tt.subscriptionItems
+			subscription.SetActivationDates()
 
-	assert.WithinDuration(t, now, subscription.StartDate, 10*time.Second)
-	assert.WithinDuration(t, now, subscription.CurrentPeriodStart, 10*time.Second)
-	assert.WithinDuration(t, now, subscription.RenewsAt, 10*time.Second)
-	assert.Equal(t, now.Day(), subscription.BillingAnchor)
+			assert.WithinDuration(t, now, subscription.StartDate, 10*time.Second)
+			assert.WithinDuration(t, now, subscription.CurrentPeriodStart, 10*time.Second)
+			assert.Equal(t, now.Day(), subscription.BillingAnchor)
+
+			if tt.expectedTrialEndsAt {
+				assert.False(t, subscription.TrialEndsAt.IsZero(), "Expected trial end date to be set")
+				expectedTrialEnd := now.AddDate(0, 0, tt.expectedTrialDays)
+				assert.WithinDuration(t, expectedTrialEnd, subscription.TrialEndsAt, 10*time.Second)
+			} else {
+				assert.True(t, subscription.TrialEndsAt.IsZero(), "Expected trial end date to be zero")
+			}
+		})
+	}
+}
+
+// Helper function to create a price snapshot for testing
+func createPriceSnapshotForTest(t *testing.T, trialInterval prices.BillingInterval, trialIntervalQty int) json.RawMessage {
+	price := Price{
+		BillingInterval:    prices.BillingIntervalMonth,
+		BillingIntervalQty: 1,
+		Category:           prices.PriceCategorySubscription,
+		Currency:           "USD",
+		UnitPrice:          1000,
+		TrialInterval:      trialInterval,
+		TrialIntervalQty:   trialIntervalQty,
+	}
+
+	snapshot, err := json.Marshal(price)
+	require.NoError(t, err, "Failed to marshal price")
+	return snapshot
 }
 
 func TestUpdateBillingAnchor(t *testing.T) {

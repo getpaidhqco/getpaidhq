@@ -32,6 +32,7 @@ type SubscriptionService struct {
 	subscriptionRepository repositories.SubscriptionRepository
 	paymentRepository      repositories.PaymentRepository
 	orderItemRepository    repositories.OrderItemRepository
+	priceRepository        repositories.PriceRepository
 	workflowService        interfaces.WorkflowService
 	gatewayFactory         factories.GatewayFactory
 	tokenVault             security.TokenVault
@@ -49,6 +50,7 @@ func NewSubscriptionService(
 	customerRepository repositories.CustomerRepository,
 	orderRepository repositories.OrderRepository,
 	paymentRepository repositories.PaymentRepository,
+	priceRepository repositories.PriceRepository,
 	tokenVault security.TokenVault,
 	pubsub events.NotificationPublisher,
 	gatewayFactory factories.GatewayFactory,
@@ -73,6 +75,7 @@ func NewSubscriptionService(
 		orderRepository:        orderRepository,
 		orderItemRepository:    orderItemRepository,
 		subscriptionRepository: subscriptionRepository,
+		priceRepository:        priceRepository,
 		tokenVault:             tokenVault,
 		pubsub:                 pubsub,
 		logger:                 logger,
@@ -117,34 +120,93 @@ func (s SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, or
 func (s SubscriptionService) Create(ctx context.Context, orgId string, input dto.CreateSubscriptionInput) (entities.Subscription, error) {
 	s.logger.Info("Creating new subscription", "orgId", orgId)
 
-	// Convert application DTO to domain entity input
-	// In a real implementation, we would fetch the variant and price details
-	// to populate the subscription correctly
-	domainInput := entities.CreateSubscriptionInput{
-		OrgId:           orgId,
-		PaymentMethodId: input.PaymentMethodId,
-		Metadata:        input.Metadata,
-		// These fields would typically be populated from the variant and price
-		Amount:            0, // Would be populated from price
-		Currency:          "", // Would be populated from price
-		BillingInterval:   "", // Would be populated from price
-		BillingIntervalQty: 0, // Would be populated from price
-	}
-
-	// If trial period is specified, convert to appropriate interval
-	if input.TrialPeriodDays > 0 {
-		domainInput.TrialInterval = "day"
-		domainInput.TrialIntervalQty = input.TrialPeriodDays
-	}
-
-	subscription := entities.NewFromCreateInput(domainInput)
-	subscription, err := s.subscriptionRepository.Create(ctx, subscription)
-
+	s.logger.Debug("Validating customer exists", "customerId", input.CustomerId)
+	_, err := s.customerRepository.FindById(ctx, orgId, input.CustomerId)
 	if err != nil {
-		s.logger.Error("Failed create subscriptions", err.Error())
+		s.logger.Error("Customer not found", "customerId", input.CustomerId, "error", err.Error())
+		return entities.Subscription{}, lib.NewCustomError(lib.NotFoundError, "customer not found", err)
+	}
+
+	// Create a new subscription entity
+	subscription := entities.Subscription{
+		OrgId:              orgId,
+		Id:                 lib.GenerateId("sub"),
+		CustomerId:         input.CustomerId,
+		PaymentMethodId:    input.PaymentMethodId,
+		Status:             entities.SubscriptionStatusPending,
+		Currency:           input.Currency,
+		BillingInterval:    "month", // Default to monthly billing
+		BillingIntervalQty: 1,       // Default to 1 month
+		BillingAnchor:      time.Now().UTC().Day(),
+		StartDate:          time.Now().UTC(),
+		CreatedAt:          time.Now().UTC(),
+		UpdatedAt:          time.Now().UTC(),
+		Items:              []entities.SubscriptionItem{},
+	}
+
+	// Set metadata if provided
+	if input.Metadata != nil {
+		subscription.SetMetadata(input.Metadata)
+	}
+
+	// Create subscription items from the input
+	for _, itemInput := range input.Items {
+
+		// Validate that price exists
+		price, err := s.priceRepository.FindById(ctx, orgId, itemInput.PriceId)
+		if err != nil {
+			s.logger.Error("Invalid price", "priceId", itemInput.PriceId, err.Error())
+			return entities.Subscription{}, lib.NewCustomError(lib.BadRequestError, "invalid price", err)
+		}
+
+		priceSnapshot, err := json.Marshal(price)
+		if err != nil {
+			s.logger.Error("Failed to create price snapshot", err.Error())
+			return entities.Subscription{}, lib.NewCustomError(lib.InternalError, "failed to create price snapshot", err)
+		}
+
+		subscriptionItem := entities.SubscriptionItem{
+			OrgId:            orgId,
+			Id:               lib.GenerateId("si"),
+			SubscriptionId:   subscription.Id,
+			PriceId:          itemInput.PriceId,
+			VariantId:        price.VariantId,
+			MeterId:          price.MeterId,
+			Name:             itemInput.Name,
+			Description:      itemInput.Description,
+			Status:           entities.SubscriptionItemStatusActive,
+			Quantity:         itemInput.Quantity,
+			Amount:           0, // Amount will be calculated based on price
+			Currency:         input.Currency,
+			HasUsage:         price.HasUsage,
+			PercentageRate:   price.PercentageRate,
+			FixedFee:         price.FixedFee,
+			UnitPrice:        price.UnitPrice,
+			OverageUnitPrice: price.OverageUnitPrice,
+			IncludedUsage:    price.IncludedUsage,
+			UsageLimit:       price.UsageLimit,
+			PriceSnapshot:    priceSnapshot,
+			CreatedAt:        time.Now().UTC(),
+			UpdatedAt:        time.Now().UTC(),
+		}
+
+		// Set metadata if provided
+		if itemInput.Metadata != nil {
+			subscriptionItem.SetMetadata(itemInput.Metadata)
+		}
+
+		// Add the item to the subscription
+		subscription.Items = append(subscription.Items, subscriptionItem)
+	}
+
+	// Create the subscription in the repository
+	subscription, err = s.subscriptionRepository.Create(ctx, subscription)
+	if err != nil {
+		s.logger.Error("Failed to create subscription", err.Error())
 		return entities.Subscription{}, err
 	}
 
+	// Publish subscription created event
 	_ = s.pubsub.Publish(subscription.OrgId, topic.TopicSubscriptionCreated, subscription)
 
 	return subscription, nil
@@ -195,7 +257,15 @@ func (s SubscriptionService) Activate(ctx context.Context, orgId string, id stri
 		return entities.Subscription{}, err
 	}
 
+	s.logger.Debug("Checking payment method", "paymentMethodId", subscription.PaymentMethodId)
+	if subscription.PaymentMethodId == "" {
+		s.logger.Error("No payment method attached to subscription")
+		return entities.Subscription{}, lib.NewCustomError(lib.BadRequestError, "subscription must have a payment method attached", nil)
+	}
+
 	subscription.Status = entities.SubscriptionStatusActive
+	subscription.SetActivationDates()
+
 	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
 		s.logger.Error("Failed to update subscription", "err", err.Error())
@@ -502,7 +572,6 @@ func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context
 	return newSub, nil
 }
 
-// HandleSubscriptionChargeFailure logs the failed payment and updates the subscription status to past_due.
 func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context, input subscriptions.SubscriptionChargeInput) (entities.Subscription, error) {
 	s.logger.Info("Charge failure happened",
 		"orgId", input.Subscription.OrgId,

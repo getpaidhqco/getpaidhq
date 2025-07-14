@@ -7,36 +7,35 @@ import (
 
 // SubscriptionItemResponse represents a response containing a subscription item
 type SubscriptionItemResponse struct {
-	OrgId          string                      `json:"org_id"`
-	Id             string                      `json:"id"`
-	SubscriptionId string                      `json:"subscription_id"`
+	Id             string `json:"id"`
+	SubscriptionId string `json:"subscription_id"`
 
 	// Product/Price reference
-	PriceId        string                      `json:"price_id"`
-	ProductId      string                      `json:"product_id,omitempty"`
-	VariantId      string                      `json:"variant_id,omitempty"`
+	PriceId   string `json:"price_id"`
+	ProductId string `json:"product_id,omitempty"`
+	VariantId string `json:"variant_id,omitempty"`
 
 	// Item details
-	Name           string                      `json:"name"`
-	Description    string                      `json:"description,omitempty"`
-	Status         entities.SubscriptionItemStatus `json:"status"`
+	Name        string                          `json:"name"`
+	Description string                          `json:"description,omitempty"`
+	Status      entities.SubscriptionItemStatus `json:"status"`
 
 	// Quantity for fixed items
-	Quantity       int                         `json:"quantity"`
+	Quantity int `json:"quantity"`
 
 	// Billing
-	Amount         int64                       `json:"amount,omitempty"`
-	Currency       string                      `json:"currency"`
+	Amount   int64  `json:"amount,omitempty"`
+	Currency string `json:"currency"`
 
- // Usage configuration
-	HasUsage       bool                        `json:"has_usage"`
+	// Usage configuration
+	HasUsage bool `json:"has_usage"`
 	// MeterId is added to reference the meter that defines usage measurement
-	MeterId        string                      `json:"meter_id,omitempty"`
+	MeterId string `json:"meter_id,omitempty"`
 
 	// Metadata
-	Metadata       map[string]string           `json:"metadata,omitempty"`
-	CreatedAt      time.Time                   `json:"created_at"`
-	UpdatedAt      time.Time                   `json:"updated_at"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
+	CreatedAt time.Time         `json:"created_at"`
+	UpdatedAt time.Time         `json:"updated_at"`
 }
 
 // SubscriptionItemListResponse represents a response containing a list of subscription items
@@ -50,7 +49,6 @@ type SubscriptionItemListResponse struct {
 // FromSubscriptionItem converts a subscription item entity to a response
 func FromSubscriptionItem(item entities.SubscriptionItem) SubscriptionItemResponse {
 	return SubscriptionItemResponse{
-		OrgId:          item.OrgId,
 		Id:             item.Id,
 		SubscriptionId: item.SubscriptionId,
 		PriceId:        item.PriceId,

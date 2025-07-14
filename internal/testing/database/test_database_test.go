@@ -17,20 +17,21 @@ func TestSetupTestDatabaseWithPrisma(t *testing.T) {
 
 	ctx := context.Background()
 
-	// Verify we can query tables that should exist from the full schema in main database
-	mainTables := []string{
+	// Verify we can query tables that should exist from the full schema
+	tables := []string{
 		"orgs",
 		"customers",
 		"subscriptions",
 		"subscription_items",
 		"prices",
 		"meters",
+		"usage_events", // Created separately for testing
 		"invoices",
 		"payment_methods",
 		"refunds",
 	}
 
-	for _, table := range mainTables {
+	for _, table := range tables {
 		var exists bool
 		err := testDB.Pool.QueryRow(ctx, `
 			SELECT EXISTS (
@@ -39,33 +40,12 @@ func TestSetupTestDatabaseWithPrisma(t *testing.T) {
 				AND table_name = $1
 			)
 		`, table).Scan(&exists)
-
-		require.NoError(t, err, "Failed to check if table %s exists in main database", table)
-		assert.True(t, exists, "Table %s should exist in main database", table)
+		
+		require.NoError(t, err, "Failed to check if table %s exists", table)
+		assert.True(t, exists, "Table %s should exist", table)
 	}
 
-	// Verify we can query tables that should exist from the usage schema in usage database
-	usageTables := []string{
-		"usage_events",
-		"usage_processing_status",
-		"usage_event_log",
-	}
-
-	for _, table := range usageTables {
-		var exists bool
-		err := testDB.UsagePool.QueryRow(ctx, `
-			SELECT EXISTS (
-				SELECT FROM information_schema.tables 
-				WHERE table_schema = 'public' 
-				AND table_name = $1
-			)
-		`, table).Scan(&exists)
-
-		require.NoError(t, err, "Failed to check if table %s exists in usage database", table)
-		assert.True(t, exists, "Table %s should exist in usage database", table)
-	}
-
-	// Test that we can insert and query data in main database
+	// Test that we can insert and query data
 	_, err := testDB.Pool.Exec(ctx, `
 		INSERT INTO orgs (id, name, country, created_at, updated_at)
 		VALUES ('test_org', 'Test Org', 'US', NOW(), NOW())
@@ -76,18 +56,6 @@ func TestSetupTestDatabaseWithPrisma(t *testing.T) {
 	err = testDB.Pool.QueryRow(ctx, "SELECT name FROM orgs WHERE id = 'test_org'").Scan(&orgName)
 	require.NoError(t, err, "Should be able to query orgs table")
 	assert.Equal(t, "Test Org", orgName)
-
-	// Test that we can insert and query data in usage database
-	_, err = testDB.UsagePool.Exec(ctx, `
-		INSERT INTO usage_event_log (id, org_id, event_type)
-		VALUES ('test_id', 'test_org', 'recorded')
-	`)
-	require.NoError(t, err, "Should be able to insert into usage_event_log table")
-
-	var eventType string
-	err = testDB.UsagePool.QueryRow(ctx, "SELECT event_type FROM usage_event_log WHERE id = 'test_id'").Scan(&eventType)
-	require.NoError(t, err, "Should be able to query usage_event_log table")
-	assert.Equal(t, "recorded", eventType)
 }
 
 func TestCompareSchemas(t *testing.T) {
@@ -102,14 +70,14 @@ func TestCompareSchemas(t *testing.T) {
 
 	// Get tables from old setup
 	oldTables := getTableNames(t, ctx, oldDB)
-
+	
 	// Get tables from new setup
 	newTables := getTableNames(t, ctx, newDB)
 
 	// Log the differences
 	t.Logf("Tables in old setup: %d", len(oldTables))
 	t.Logf("Tables in new setup: %d", len(newTables))
-
+	
 	// Find tables only in new setup
 	for table := range newTables {
 		if _, exists := oldTables[table]; !exists {

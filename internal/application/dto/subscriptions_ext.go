@@ -5,15 +5,22 @@ import (
 	"payloop/internal/domain/entities/subscriptions"
 )
 
+// CreateSubscriptionItemInput represents input for creating a subscription item
+type CreateSubscriptionItemInput struct {
+	PriceId     string            `json:"price_id" jsonschema:"required,description=Price ID to use"`
+	Name        string            `json:"name" jsonschema:"required,description=Name of the subscription item"`
+	Description string            `json:"description,omitempty" jsonschema:"description=Description of the subscription item"`
+	Quantity    int               `json:"quantity" jsonschema:"minimum=1,description=Quantity of the subscription item"`
+	Metadata    map[string]string `json:"metadata,omitempty" jsonschema:"description=Additional metadata as key-value pairs"`
+}
+
 // CreateSubscriptionInput represents input for creating a subscription
 type CreateSubscriptionInput struct {
-	CustomerId         string            `json:"customer_id" jsonschema:"required,description=Customer ID for the subscription"`
-	VariantId          string            `json:"variant_id" jsonschema:"required,description=Product variant ID"`
-	PriceId            string            `json:"price_id" jsonschema:"required,description=Price ID to use"`
-	PaymentMethodId    string            `json:"payment_method_id,omitempty" jsonschema:"description=Payment method ID (optional, will use default if not provided)"`
-	TrialPeriodDays    int               `json:"trial_period_days,omitempty" jsonschema:"minimum=0,description=Number of trial days (0 = no trial)"`
-	BillingCycleAnchor int               `json:"billing_cycle_anchor,omitempty" jsonschema:"minimum=1,maximum=31,description=Day of month for billing (1-31)"`
-	Metadata           map[string]string `json:"metadata,omitempty" jsonschema:"description=Additional metadata as key-value pairs"`
+	CustomerId      string                       `json:"customer_id" jsonschema:"required,description=Customer ID for the subscription"`
+	PaymentMethodId string                       `json:"payment_method_id,omitempty" jsonschema:"description=Payment method ID (optional, will use default if not provided)"`
+	Currency        string                       `json:"currency" jsonschema:"required,description=Currency for the subscription"`
+	Items           []CreateSubscriptionItemInput `json:"items" jsonschema:"required,description=Items to include in the subscription"`
+	Metadata        map[string]string            `json:"metadata,omitempty" jsonschema:"description=Additional metadata as key-value pairs"`
 }
 
 // UpdateSubscriptionInput represents input for updating a subscription
@@ -32,7 +39,7 @@ type PauseSubscriptionInput struct {
 
 // ResumeSubscriptionInput represents input for resuming a subscription
 type ResumeSubscriptionInput struct {
-	SubscriptionId string                               `json:"subscription_id" jsonschema:"required,description=Subscription ID to resume"`
+	SubscriptionId string                                   `json:"subscription_id" jsonschema:"required,description=Subscription ID to resume"`
 	ResumeBehavior subscriptions.SubscriptionResumeBehavior `json:"resume_behavior,omitempty" jsonschema:"enum=immediate,enum=next_billing_cycle,description=When to resume the subscription"`
 }
 

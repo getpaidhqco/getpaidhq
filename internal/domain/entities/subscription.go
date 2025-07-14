@@ -424,12 +424,82 @@ func (s *Subscription) UpdateBillingAnchor(anchor int, prorationMode string) Pro
 
 // SetActivation sets the activation date for a subscription based on the trial interval
 func (s *Subscription) SetActivationDates() *Subscription {
-	price := s.OrderItem.Price
 	var startDate = time.Now().UTC()
 	var trialEndsAt time.Time
 	var endsAt time.Time
 
-	if s.OrderItem.Price.TrialInterval != prices.BillingIntervalNone {
+	// Default to the subscription's billing interval and cycles for end date calculation
+	billingInterval := s.BillingInterval
+	billingIntervalQty := s.BillingIntervalQty
+	cycles := s.Cycles
+
+	// If we have subscription items, determine the shortest trial period
+	if len(s.Items) > 0 {
+		var shortestTrialInterval prices.BillingInterval
+		var shortestTrialIntervalQty int
+
+		for i, item := range s.Items {
+			// Skip items without price snapshot
+			if len(item.PriceSnapshot) == 0 {
+				continue
+			}
+
+			// Unmarshal the price snapshot
+			var price Price
+			if err := json.Unmarshal(item.PriceSnapshot, &price); err != nil {
+				continue
+			}
+
+			// Initialize with the first valid item's trial period
+			if i == 0 || shortestTrialInterval == "" {
+				shortestTrialInterval = price.TrialInterval
+				shortestTrialIntervalQty = price.TrialIntervalQty
+				// Also use this item's billing details for end date calculation
+				billingInterval = price.BillingInterval
+				billingIntervalQty = price.BillingIntervalQty
+				cycles = price.Cycles
+				continue
+			}
+
+			// Skip if this item has no trial
+			if price.TrialInterval == prices.BillingIntervalNone {
+				shortestTrialInterval = prices.BillingIntervalNone
+				shortestTrialIntervalQty = 0
+				break
+			}
+
+			// Compare trial periods to find the shortest
+			if shortestTrialInterval != prices.BillingIntervalNone {
+				// Convert both trial periods to days for comparison
+				currentTrialDays := convertToDays(shortestTrialInterval, shortestTrialIntervalQty)
+				newTrialDays := convertToDays(price.TrialInterval, price.TrialIntervalQty)
+
+				if newTrialDays < currentTrialDays {
+					shortestTrialInterval = price.TrialInterval
+					shortestTrialIntervalQty = price.TrialIntervalQty
+				}
+			}
+		}
+
+		// Calculate trial end date based on the shortest trial period
+		if shortestTrialInterval != prices.BillingIntervalNone {
+			switch shortestTrialInterval {
+			case "minute":
+				trialEndsAt = startDate.Add(time.Minute * time.Duration(shortestTrialIntervalQty))
+			case "hour":
+				trialEndsAt = startDate.Add(time.Hour * time.Duration(shortestTrialIntervalQty))
+			case "day":
+				trialEndsAt = startDate.AddDate(0, 0, shortestTrialIntervalQty)
+			case "week":
+				trialEndsAt = startDate.AddDate(0, 0, shortestTrialIntervalQty*7)
+			case "month":
+				trialEndsAt = startDate.AddDate(0, shortestTrialIntervalQty, 0)
+			case "year":
+				trialEndsAt = startDate.AddDate(shortestTrialIntervalQty, 0, 0)
+			}
+		}
+	} else if s.OrderItem.Price.TrialInterval != prices.BillingIntervalNone {
+		// Fallback to OrderItem for backward compatibility
 		switch s.OrderItem.Price.TrialInterval {
 		case "minute":
 			trialEndsAt = startDate.Add(time.Minute * time.Duration(s.OrderItem.Price.TrialIntervalQty))
@@ -444,10 +514,15 @@ func (s *Subscription) SetActivationDates() *Subscription {
 		case "year":
 			trialEndsAt = startDate.AddDate(s.OrderItem.Price.TrialIntervalQty, 0, 0)
 		}
+
+		// Use OrderItem price for end date calculation
+		billingInterval = s.OrderItem.Price.BillingInterval
+		billingIntervalQty = s.OrderItem.Price.BillingIntervalQty
+		cycles = s.OrderItem.Price.Cycles
 	}
 
-	if s.OrderItem.Price.Cycles > 0 {
-		endsAtV := calculateNextDate(price.BillingInterval, price.Cycles*price.BillingIntervalQty, startDate)
+	if cycles > 0 {
+		endsAtV := calculateNextDate(billingInterval, cycles*billingIntervalQty, startDate)
 		endsAt = endsAtV
 	}
 
@@ -527,6 +602,26 @@ func calculateNextDate(interval prices.BillingInterval, qty int, startDate time.
 		startDate = startDate.AddDate(qty, 0, 0)
 	}
 	return startDate
+}
+
+// convertToDays converts a billing interval and quantity to an approximate number of days
+func convertToDays(interval prices.BillingInterval, qty int) int {
+	switch interval {
+	case "minute":
+		return 0 // Less than a day
+	case "hour":
+		return 0 // Less than a day
+	case "day":
+		return qty
+	case "week":
+		return qty * 7
+	case "month":
+		return qty * 30 // Approximate
+	case "year":
+		return qty * 365 // Approximate
+	default:
+		return 0
+	}
 }
 
 // NewSubscriptionFromItem creates a new Subscription from a payloop-cart Item

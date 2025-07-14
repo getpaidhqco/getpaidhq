@@ -11,8 +11,8 @@ type Subscription struct {
 	Status      entities.SubscriptionStatus `json:"status"`
 	Currency    string                      `json:"currency"`
 	Amount      int64                       `json:"amount"`
-	OrderId     string                      `json:"order_id"`
-	OrderItemId string                      `json:"order_item_id"`
+	OrderId     string                      `json:"order_id,omitempty" `
+	OrderItemId string                      `json:"order_item_id,omitempty"`
 
 	PaymentMethodId string `json:"payment_method_id,omitempty"`
 

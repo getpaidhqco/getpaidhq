@@ -103,9 +103,13 @@ func (s SubscriptionOrchestrationService) Update(ctx context.Context, input subs
 		return entities.Subscription{}, err
 	}
 
-	if input.Status != subscription.Status {
+	if input.Status != "" {
 		s.logger.Infof("Updating status %s", input.Status)
 		subscription.Status = input.Status
+	}
+	if input.DefaultPaymentMethod != "" {
+		s.logger.Infof("Updating PaymentMethodId %s", input.DefaultPaymentMethod)
+		subscription.PaymentMethodId = input.DefaultPaymentMethod
 	}
 
 	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
@@ -128,12 +132,16 @@ func (s SubscriptionOrchestrationService) Activate(ctx context.Context, orgId st
 		return entities.Subscription{}, err
 	}
 
-	subscription.Status = entities.SubscriptionStatusActive
-	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
+	subscription, err = s.SubscriptionService.Activate(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", "err", err.Error())
-		return entities.Subscription{}, err
+		s.logger.Error("Failed to activate subscription", err.Error())
+		var serr lib.CustomError
+		if errors.As(err, &serr) {
+			return entities.Subscription{}, err
+		}
+		return entities.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
 	}
+
 	err = s.workflowEngine.StartSubscriptionWorkflow(ctx, subscription)
 	if err != nil {
 		s.logger.Errorf("Failed to start workflow %v", err.Error())

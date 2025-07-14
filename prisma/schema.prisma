@@ -578,11 +578,11 @@ model Subscription {
 
   status SubscriptionStatus
 
-  orderId String @map("order_id")
-  order   Order  @relation(fields: [orgId, orderId], references: [orgId, id])
+  orderId String? @map("order_id")
+  order   Order?  @relation(fields: [orgId, orderId], references: [orgId, id])
 
-  orderItemId String    @map("order_item_id")
-  orderItem   OrderItem @relation(fields: [orgId, orderItemId], references: [orgId, id])
+  orderItemId String?    @map("order_item_id")
+  orderItem   OrderItem? @relation(fields: [orgId, orderItemId], references: [orgId, id])
 
   customerId String   @map("customer_id")
   customer   Customer @relation(fields: [orgId, customerId], references: [orgId, id])
@@ -592,7 +592,7 @@ model Subscription {
 
   // Optional amount and currency for backward compatibility
   amount   Int? // Optional for multi-item subscriptions
-  currency String? // Optional for multi-item subscriptions
+  currency String
 
   startDate          DateTime?       @map("start_date")
   endDate            DateTime?       @map("end_date")
@@ -622,8 +622,8 @@ model Subscription {
   updatedAt DateTime  @updatedAt @map("updated_at")
   payments  Payment[]
 
-  org     Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  Invoice Invoice[]
+  org      Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
 
   // Dunning relationships
   dunningCampaigns DunningCampaign[]
@@ -757,11 +757,11 @@ model Payment {
   reference String  @default("") @map("reference")
   recurring Boolean @default(false)
 
-  orderId String @map("order_id")
-  order   Order  @relation(fields: [orgId, orderId], references: [orgId, id])
+  orderId String? @map("order_id")
+  order   Order?  @relation(fields: [orgId, orderId], references: [orgId, id])
 
   invoiceId String?  @map("invoice_id")
-  Invoice   Invoice? @relation(fields: [orgId, invoiceId], references: [orgId, id])
+  invoice   Invoice? @relation(fields: [orgId, invoiceId], references: [orgId, id])
 
   subscriptionId String?       @map("subscription_id")
   subscription   Subscription? @relation(fields: [orgId, subscriptionId], references: [orgId, id])

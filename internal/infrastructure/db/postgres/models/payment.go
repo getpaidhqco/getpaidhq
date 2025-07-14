@@ -13,7 +13,7 @@ type Payment struct {
 	Psp            string            `json:"psp"`
 	PspId          pgtype.Text       `json:"psp_id"`
 	Reference      pgtype.Text       `json:"reference"`
-	OrderId        string            `json:"order_id"`
+	OrderId        pgtype.Text       `json:"order_id"`
 	InvoiceId      pgtype.Text       `json:"invoice_id"`
 	SubscriptionId pgtype.Text       `json:"subscription_id"`
 	Recurring      bool              `json:"recurring"`
@@ -36,7 +36,7 @@ func (s *Payment) ToEntity() entities.Payment {
 		Psp:            common.Gateway(s.Psp),
 		PspId:          s.PspId.String,
 		Reference:      s.Reference.String,
-		OrderId:        s.OrderId,
+		OrderId:        s.OrderId.String,
 		InvoiceId:      s.InvoiceId.String,
 		SubscriptionId: s.SubscriptionId.String,
 		Recurring:      s.Recurring,

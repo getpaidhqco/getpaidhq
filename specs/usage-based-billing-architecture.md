@@ -63,3 +63,4 @@ This specification outlines the implementation of an event-driven PostgreSQL arc
 - Time-Period Boundaries
    - Each subscription item queries events for its specific billing period
    - Same events can be queried by multiple subscriptions (intentional)
+- 

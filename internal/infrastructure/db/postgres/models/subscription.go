@@ -11,8 +11,8 @@ type Subscription struct {
 	OrgId           string      `json:"org_id"`
 	Id              string      `json:"id"`
 	PspId           string      `json:"psp_id"`
-	OrderId         string      `json:"order_id"`
-	OrderItemId     string      `json:"order_item_id"`
+	OrderId         pgtype.Text `json:"order_id"`
+	OrderItemId     pgtype.Text `json:"order_item_id"`
 	OrderItem       OrderItem   `json:"-"`
 	CustomerId      string      `json:"customer_id"`
 	Customer        Customer    `json:"-"`
@@ -54,8 +54,8 @@ func (s *Subscription) ToEntity() entities.Subscription {
 		OrgId:                   s.OrgId,
 		Id:                      s.Id,
 		PspId:                   common.Gateway(s.PspId),
-		OrderId:                 s.OrderId,
-		OrderItemId:             s.OrderItemId,
+		OrderId:                 s.OrderId.String,
+		OrderItemId:             s.OrderItemId.String,
 		OrderItem:               s.OrderItem.ToEntity(),
 		CustomerId:              s.CustomerId,
 		Customer:                s.Customer.ToEntity(),

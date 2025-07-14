@@ -215,7 +215,7 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 	_, err := tx.Exec(ctx, query, args)
 
 	if err != nil {
-		r.logger.Error(`failed to insert Subscription`, err.Error())
+		r.logger.Error(`failed to insert Subscription`, "err", err.Error())
 		return entities.Subscription{}, err
 	}
 
@@ -527,8 +527,8 @@ func entityToNamedArgs(entity entities.Subscription) pgx.NamedArgs {
 		"id":                         entity.Id,
 		"payment_method_id":          pgtype.Text{String: entity.PaymentMethodId, Valid: entity.PaymentMethodId != ""},
 		"psp_id":                     entity.PspId,
-		"order_id":                   entity.OrderId,
-		"order_item_id":              entity.OrderItemId,
+		"order_id":                   pgtype.Text{String: entity.OrderId, Valid: entity.OrderId != ""},
+		"order_item_id":              pgtype.Text{String: entity.OrderItemId, Valid: entity.OrderItemId != ""},
 		"customer_id":                entity.CustomerId,
 		"status":                     entity.Status,
 		"amount":                     pgtype.Int8{Int64: entity.Amount, Valid: entity.Amount >= 0},

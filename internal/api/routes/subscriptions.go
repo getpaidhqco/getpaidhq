@@ -24,6 +24,7 @@ func (s SubscriptionRoutes) Setup() {
 		api.PUT("/subscriptions/:id/pause", s.subscriptionController.Pause)
 		api.PUT("/subscriptions/:id/cancel", s.subscriptionController.Cancel)
 		api.PUT("/subscriptions/:id/resume", s.subscriptionController.Resume)
+		api.PUT("/subscriptions/:id/activate", s.subscriptionController.Activate)
 		api.PUT("/subscriptions/:id/billing-anchor", s.subscriptionController.UpdateBillingAnchor)
 		api.PUT("/subscriptions/:id/change-plan", s.subscriptionController.ChangePlan)
 		api.PATCH("/subscriptions/:id", s.subscriptionController.Update)

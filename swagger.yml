@@ -544,6 +544,25 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/Subscription'
+    post:
+      tags: [Subscriptions]
+      summary: Create subscription
+      operationId: createSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubscriptionRequest'
+      responses:
+        '201':
+          description: Created subscription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   /api/subscriptions/{id}:
     get:
@@ -664,7 +683,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CancelSubscriptionRequest'
+              $ref: '#/components/schemas/PauseSubscriptionRequest'
       responses:
         '200':
           description: Cancelled subscription
@@ -929,14 +948,14 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CloudEventUsageRequest'
+              $ref: '#/components/schemas/RecordUsageRequest'
       responses:
         '201':
           description: Usage event recorded
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CloudEventUsageResponse'
+                $ref: '#/components/schemas/UsageResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
 
@@ -1087,6 +1106,170 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/UsageSummary'
+
+  # Orders
+  /api/orders:
+    get:
+      tags: [Orders]
+      summary: List orders
+      operationId: listOrders
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, failed, refunded, partial_refund, completed, expired, cancelled, fraudulent]
+        - name: customer_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of orders
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Order'
+    post:
+      tags: [Orders]
+      summary: Create order
+      operationId: createOrder
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderRequest'
+      responses:
+        '201':
+          description: Created order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  /api/orders/{id}:
+    get:
+      tags: [Orders]
+      summary: Get order by ID
+      operationId: getOrder
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  /api/orders/{id}/complete:
+    post:
+      tags: [Orders]
+      summary: Complete order
+      operationId: completeOrder
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CompleteOrderRequest'
+      responses:
+        '200':
+          description: Order completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+
+  /api/orders/{id}/subscriptions:
+    get:
+      tags: [Orders]
+      summary: List order subscriptions
+      operationId: listOrderSubscriptions
+      parameters:
+        - $ref: '#/components/parameters/OrderId'
+      responses:
+        '200':
+          description: List of subscriptions created from this order
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Subscription'
+
+  # Shopping Cart
+  /api/carts/{id}/add:
+    post:
+      tags: [Orders]
+      summary: Add item to cart
+      operationId: addCartItem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cart ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCartItemRequest'
+      responses:
+        '200':
+          description: Item added to cart
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "added"
+
+  /api/carts/{id}/remove:
+    post:
+      tags: [Orders]
+      summary: Remove item from cart
+      operationId: removeCartItem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cart ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveCartItemRequest'
+      responses:
+        '200':
+          description: Item removed from cart
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "removed"
 
   # Payments
   /api/payments:
@@ -2551,48 +2734,44 @@ components:
 
     PauseSubscriptionRequest:
       type: object
-      required: [reason, pause_mode]
+      required: [pause_mode]
       properties:
-        reason:
-          type: string
-          description: Reason for pausing
         pause_mode:
           type: string
-          enum: [temporary, indefinite]
           description: Type of pause
         resume_at:
           type: string
-          format: date-time
           description: When to automatically resume (for temporary pauses)
+        reason:
+          type: string
+          description: Reason for pausing
 
     ResumeSubscriptionRequest:
       type: object
       properties:
-        reason:
-          type: string
-          description: Reason for resuming
-        resume_behavior:
-          type: string
-          enum: [continue_existing_period, start_new_period]
-          default: continue_existing_period
-          description: How to handle the billing period
         proration_mode:
           type: string
-          enum: [none, credit_unused]
-          default: none
           description: Proration handling
+        resume_behavior:
+          type: string
+          description: How to handle the billing period
 
     CancelSubscriptionRequest:
       type: object
+      required: [cancel_mode]
       properties:
+        cancel_mode:
+          type: string
+          description: When to cancel the subscription
+        proration_mode:
+          type: string
+          description: Proration handling
+        cancellation_date:
+          type: string
+          description: Specific cancellation date
         reason:
           type: string
           description: Reason for cancellation
-        cancel_at:
-          type: string
-          enum: [immediate, period_end]
-          default: period_end
-          description: When to cancel the subscription
 
     ChangePlanRequest:
       type: object
@@ -2620,7 +2799,7 @@ components:
 
     UpdateBillingAnchorRequest:
       type: object
-      required: [billing_anchor]
+      required: [billing_anchor, proration_mode]
       properties:
         billing_anchor:
           type: integer
@@ -2630,44 +2809,85 @@ components:
         proration_mode:
           type: string
           enum: [none, credit_unused]
-          default: none
           description: How to handle prorations
 
-    RecordUsageRequest:
+    CreateSubscriptionRequest:
       type: object
-      required: [subscription_item_id, quantity, timestamp]
+      required: [customer_id, currency, items]
       properties:
-        subscription_item_id:
+        customer_id:
           type: string
-          description: ID of the subscription item to record usage for
-        quantity:
-          type: number
-          minimum: 0
-          description: Usage quantity (for unit-based billing)
-        transaction_value:
-          type: integer
-          minimum: 0
-          description: Transaction value in cents (for percentage-based billing)
-        percentage_rate:
-          type: number
-          minimum: 0
-          maximum: 100
-          description: Percentage rate to apply
-        timestamp:
+          description: Customer ID for the subscription
+        payment_method_id:
           type: string
-          format: date-time
-          description: When the usage occurred
-        reference_id:
+          description: Payment method ID to use for billing (optional)
+        currency:
           type: string
-          description: External reference ID for deduplication
-        reference_type:
-          type: string
-          description: Type of the external reference
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 currency code
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/CreateSubscriptionItemRequest'
+          description: Subscription items
         metadata:
           type: object
           additionalProperties:
             type: string
-          description: Additional usage metadata
+          description: Custom metadata
+
+    CreateSubscriptionItemRequest:
+      type: object
+      required: [price_id, name]
+      properties:
+        price_id:
+          type: string
+          description: Price ID for this subscription item
+        name:
+          type: string
+          description: Name for this subscription item
+        description:
+          type: string
+          description: Optional description
+        quantity:
+          type: integer
+          minimum: 1
+          description: Quantity for this item
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: Custom metadata
+
+    RecordUsageRequest:
+      type: object
+      required: [specversion, type, id, time, subject, data]
+      properties:
+        specversion:
+          type: string
+          example: "1.0"
+          description: CloudEvents specification version
+        type:
+          type: string
+          description: Event type (should match meter event_name)
+        id:
+          type: string
+          description: Unique identifier for this event
+        time:
+          type: string
+          format: date-time
+          description: When the event occurred
+        source:
+          type: string
+          description: Source of the event (service, app, etc.)
+        subject:
+          type: string
+          description: Subject of the event (subscription_item_id)
+        data:
+          type: object
+          additionalProperties: true
+          description: Event-specific data containing the usage information
 
     BatchRecordUsageRequest:
       type: object
@@ -3363,6 +3583,9 @@ components:
     UpdateSubscriptionRequest:
       type: object
       properties:
+        payment_method_id:
+          type: string
+          description: Payment method ID to use for billing
         metadata:
           type: object
           additionalProperties:
@@ -3458,11 +3681,8 @@ components:
 
     CreateMeterRequest:
       type: object
-      required: [slug, name, event_name, aggregation_type, value_property]
+      required: [name, event_name, aggregation_type, unit_type]
       properties:
-        slug:
-          type: string
-          description: Unique identifier for the meter
         name:
           type: string
           description: Display name for the meter
@@ -3472,6 +3692,10 @@ components:
         event_name:
           type: string
           description: The name of the event to track
+        event_filter:
+          type: object
+          additionalProperties: true
+          description: Optional filter to apply to events
         aggregation_type:
           type: string
           enum: [sum, max, average, last_during_period]
@@ -3482,9 +3706,25 @@ components:
         unit_type:
           type: string
           description: Unit of measurement (e.g., "API calls", "GB", "users")
+        display_name:
+          type: string
+          description: Display name for the unit type
+        window_size:
+          type: string
+          enum: [minute, hour, day, month]
+          description: Window size for aggregation
+        reset_interval:
+          type: string
+          enum: [hourly, daily, monthly, never]
+          description: When to reset aggregation
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
 
     UpdateMeterRequest:
       type: object
+      required: [name, event_name, aggregation_type, unit_type, display_name]
       properties:
         name:
           type: string
@@ -3495,6 +3735,10 @@ components:
         event_name:
           type: string
           description: The name of the event to track
+        event_filter:
+          type: object
+          additionalProperties: true
+          description: Optional filter to apply to events
         aggregation_type:
           type: string
           enum: [sum, max, average, last_during_period]
@@ -3505,8 +3749,21 @@ components:
         unit_type:
           type: string
           description: Unit of measurement (e.g., "API calls", "GB", "users")
-        is_active:
-          type: boolean
+        display_name:
+          type: string
+          description: Display name for the unit type
+        window_size:
+          type: string
+          enum: [minute, hour, day, month]
+          description: Window size for aggregation
+        reset_interval:
+          type: string
+          enum: [hourly, daily, monthly, never]
+          description: When to reset aggregation
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
 
     # CloudEvents schemas
     CloudEventUsageRequest:
@@ -3537,6 +3794,106 @@ components:
           type: object
           additionalProperties: true
           description: Event-specific data containing the usage information
+
+    # Usage response schemas
+    UsageResponse:
+      type: object
+      properties:
+        event_id:
+          type: string
+          description: Internal event ID
+        original_event_id:
+          type: string
+          description: Original CloudEvent ID
+        subscription_item_id:
+          type: string
+        type:
+          type: string
+          description: CloudEvent type
+        status:
+          type: string
+          enum: ["recorded", "processing", "calculated"]
+          description: Processing status
+        recorded_at:
+          type: string
+          format: date-time
+        message:
+          type: string
+          description: Optional status message
+
+    UsageEventResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        org_id:
+          type: string
+        subscription_id:
+          type: string
+        subscription_item_id:
+          type: string
+        meter_id:
+          type: string
+        spec_version:
+          type: string
+        type:
+          type: string
+        event_id:
+          type: string
+        time:
+          type: string
+          format: date-time
+        source:
+          type: string
+        subject:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+        received_at:
+          type: string
+          format: date-time
+
+    UsageEstimateResponse:
+      type: object
+      properties:
+        subscription_id:
+          type: string
+        billing_period:
+          type: string
+          description: Current billing period in YYYY-MM format
+        estimate:
+          type: object
+          properties:
+            total_usage:
+              type: number
+              description: Total usage quantity for the period
+            estimated_amount:
+              type: integer
+              description: Estimated billing amount in cents
+            currency:
+              type: string
+            period_start:
+              type: string
+              format: date-time
+            period_end:
+              type: string
+              format: date-time
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              subscription_item_id:
+                type: string
+              unit_type:
+                type: string
+              quantity:
+                type: number
+              unit_price:
+                type: integer
+              estimated_amount:
+                type: integer
 
     CloudEventUsageResponse:
       type: object
