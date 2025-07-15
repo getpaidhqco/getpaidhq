@@ -11,7 +11,8 @@ phases:
     commands:
       - echo "Running migrations"
       - npx prisma migrate deploy
-#      - npx prisma migrate deploy --schema=schemas/reporting/schema.prisma
+      - npx prisma migrate deploy --schema=schemas/reporting/schema.prisma
+      - npx prisma migrate deploy --schema=schemas/usage/schema.prisma
       - echo Building the Docker image...
       - docker build --build-arg AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID -t $IMAGE_REPO_NAME:$IMAGE_TAG .
       - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG
