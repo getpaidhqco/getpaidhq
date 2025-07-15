@@ -37,7 +37,7 @@ type SubscriptionService struct {
 	workflowService        interfaces.WorkflowService
 	gatewayFactory         factories.GatewayFactory
 	tokenVault             security.TokenVault
-	pubsub                 events.NotificationPublisher
+	notificationPublisher  events.NotificationPublisher
 	logger                 logger.Logger
 	billingService         interfaces.BillingService
 }
@@ -53,13 +53,13 @@ func NewSubscriptionService(
 	paymentRepository repositories.PaymentRepository,
 	priceRepository repositories.PriceRepository,
 	tokenVault security.TokenVault,
-	pubsub events.NotificationPublisher,
+	notificationPublisher events.NotificationPublisher,
 	gatewayFactory factories.GatewayFactory,
 	logger logger.Logger,
 	billingService interfaces.BillingService,
 ) interfaces.SubscriptionService {
 
-	_, err := pubsub.Subscribe("subscription.workflow.>", func(topic string, data []byte) {
+	_, err := notificationPublisher.Subscribe("subscription.workflow.>", func(topic string, data []byte) {
 		logger.Infof("Received message from %s", topic)
 	})
 	if err != nil {
@@ -78,7 +78,7 @@ func NewSubscriptionService(
 		subscriptionRepository: subscriptionRepository,
 		priceRepository:        priceRepository,
 		tokenVault:             tokenVault,
-		pubsub:                 pubsub,
+		notificationPublisher:  notificationPublisher,
 		logger:                 logger,
 		gatewayFactory:         gatewayFactory,
 		billingService:         billingService,
@@ -208,7 +208,7 @@ func (s SubscriptionService) Create(ctx context.Context, orgId string, input dto
 	}
 
 	// Publish subscription created event
-	_ = s.pubsub.Publish(subscription.OrgId, topic.TopicSubscriptionCreated, subscription)
+	_ = s.notificationPublisher.Publish(subscription.OrgId, topic.TopicSubscriptionCreated, subscription)
 
 	return subscription, nil
 }
@@ -233,7 +233,7 @@ func (s SubscriptionService) Update(ctx context.Context, input subscriptions.Upd
 		return entities.Subscription{}, err
 	}
 
-	_ = s.pubsub.Publish(subscription.OrgId, topic.GetSubscriptionTopic(subscription.Status), newSub)
+	_ = s.notificationPublisher.Publish(subscription.OrgId, topic.GetSubscriptionTopic(subscription.Status), newSub)
 	return newSub, err
 }
 
@@ -583,13 +583,13 @@ func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context
 
 	// Publish the events
 	if newSub.Status == entities.SubscriptionStatusExpired {
-		_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusExpired, newSub)
+		_ = s.notificationPublisher.Publish(subscription.OrgId, topic.SubscriptionStatusExpired, newSub)
 	}
 	if newSub.Status == entities.SubscriptionStatusCompleted {
-		_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusCompleted, newSub)
+		_ = s.notificationPublisher.Publish(subscription.OrgId, topic.SubscriptionStatusCompleted, newSub)
 	}
 
-	_ = s.pubsub.Publish(
+	_ = s.notificationPublisher.Publish(
 		subscription.OrgId,
 		topic.SubscriptionPaymentChargeSuccess,
 		topic.NewSubscriptionPaymentChargeSuccessEvent(subscription, payment),
@@ -656,13 +656,13 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 	}
 
 	// Publish the events
-	_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionPaymentChargeFailed, map[string]interface{}{
+	_ = s.notificationPublisher.Publish(subscription.OrgId, topic.SubscriptionPaymentChargeFailed, map[string]interface{}{
 		"subscription":  subscription,
 		"charge_result": charge,
 	})
 	// Publish the events
-	_ = s.pubsub.Publish(subscription.OrgId, topic.PaymentFailed, payment)
-	_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusPastDue, newSub)
+	_ = s.notificationPublisher.Publish(subscription.OrgId, topic.PaymentFailed, payment)
+	_ = s.notificationPublisher.Publish(subscription.OrgId, topic.SubscriptionStatusPastDue, newSub)
 
 	return newSub, nil
 }
@@ -803,7 +803,7 @@ func (s SubscriptionService) ChangeSubscriptionPlan(ctx context.Context, input s
 
 	// 7. Emit subscription.plan_changed event
 	event := topic.NewSubscriptionPlanChangedEvent(updatedSubscription, createdPlanChange)
-	_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionPlanChanged, event)
+	_ = s.notificationPublisher.Publish(subscription.OrgId, topic.SubscriptionPlanChanged, event)
 
 	return &updatedSubscription, &createdPlanChange, nil
 }
@@ -913,7 +913,7 @@ func (s SubscriptionService) ProcessSubscriptionCharge(ctx context.Context, subs
 			"error", chargeResult.ErrorReason,
 			"psp", string(currentSubscription.PspId),
 		)
-		return payments.ChargeResult{}, errors.New("gateway error: " + chargeResult.ErrorReason)
+		return payments.ChargeResult{}, lib.NewCustomError(lib.GatewayError, chargeResult.ErrorReason, nil)
 	}
 
 	// Convert to domain charge result
@@ -943,29 +943,6 @@ func (s SubscriptionService) ProcessSubscriptionCharge(ctx context.Context, subs
 		Reference:   chargeResult.Reference,
 		ProcessedAt: completedAt,
 		RawData:     string(rawData),
-	}
-
-	// Handle charge result (success or failure)
-	if domainChargeResult.Status == payments.PaymentStatusSucceeded {
-		_, err = s.HandleSubscriptionChargeSuccess(ctx, subscriptions.SubscriptionChargeInput{
-			Subscription: currentSubscription,
-			ChargeResult: domainChargeResult,
-		})
-	} else {
-		_, err = s.HandleSubscriptionChargeFailure(ctx, subscriptions.SubscriptionChargeInput{
-			Subscription: currentSubscription,
-			ChargeResult: domainChargeResult,
-		})
-	}
-
-	if err != nil {
-		s.logger.Error("Failed to handle charge result",
-			"orgId", currentSubscription.OrgId,
-			"subscriptionId", currentSubscription.Id,
-			"status", domainChargeResult.Status,
-			"error", err.Error(),
-		)
-		return domainChargeResult, fmt.Errorf("failed to handle charge result: %w", err)
 	}
 
 	return domainChargeResult, nil

@@ -2,6 +2,7 @@ package controllers
 
 import (
 	"net/http"
+	"payloop/internal/application/dto"
 
 	"github.com/gin-gonic/gin"
 	"payloop/internal/api"
@@ -95,19 +96,19 @@ func (d DunningController) UpdateCampaign(c *gin.Context) {
 
 	switch req.Status {
 	case string(dunning.DunningStatusPaused):
-		campaign, err = d.dunningService.PauseCampaign(c.Request.Context(), interfaces.PauseDunningCampaignInput{
+		campaign, err = d.dunningService.PauseCampaign(c.Request.Context(), dto.PauseDunningCampaignInput{
 			OrgId:  orgId,
 			Id:     id,
 			Reason: req.Reason,
 		})
 	case string(dunning.DunningStatusActive):
-		campaign, err = d.dunningService.ResumeCampaign(c.Request.Context(), interfaces.ResumeDunningCampaignInput{
+		campaign, err = d.dunningService.ResumeCampaign(c.Request.Context(), dto.ResumeDunningCampaignInput{
 			OrgId:  orgId,
 			Id:     id,
 			Reason: req.Reason,
 		})
 	case string(dunning.DunningStatusCancelled):
-		campaign, err = d.dunningService.CancelCampaign(c.Request.Context(), interfaces.CancelDunningCampaignInput{
+		campaign, err = d.dunningService.CancelCampaign(c.Request.Context(), dto.CancelDunningCampaignInput{
 			OrgId:  orgId,
 			Id:     id,
 			Reason: req.Reason,
@@ -168,9 +169,10 @@ func (d DunningController) TriggerManualAttempt(c *gin.Context) {
 		return
 	}
 
-	attempt, err := d.dunningService.TriggerManualAttempt(c.Request.Context(), interfaces.TriggerManualAttemptInput{
+	attempt, err := d.dunningService.TriggerChargeAttempt(c.Request.Context(), dto.TriggerAttemptInput{
 		OrgId:           orgId,
 		CampaignId:      campaignId,
+		Type:            dunning.DunningAttemptTypeManual,
 		PaymentMethodId: req.PaymentMethodID,
 		TriggeredBy:     user.(authn.User).Id,
 	})
@@ -246,7 +248,7 @@ func (d DunningController) ActivatePaymentToken(c *gin.Context) {
 		return
 	}
 
-	token, err := d.dunningService.ActivatePaymentUpdateToken(c.Request.Context(), interfaces.ActivatePaymentUpdateTokenInput{
+	token, err := d.dunningService.ActivatePaymentUpdateToken(c.Request.Context(), dto.ActivatePaymentUpdateTokenInput{
 		OrgId:     orgId,
 		TokenId:   req.TokenID,
 		IpAddress: c.ClientIP(),
@@ -282,7 +284,7 @@ func (d DunningController) CreatePaymentToken(c *gin.Context) {
 		return
 	}
 
-	token, err := d.dunningService.CreatePaymentUpdateToken(c.Request.Context(), interfaces.CreatePaymentUpdateTokenInput{
+	token, err := d.dunningService.CreatePaymentUpdateToken(c.Request.Context(), dto.CreatePaymentUpdateTokenInput{
 		OrgId:          orgId,
 		SubscriptionId: subscriptionId,
 		CustomerId:     subscription.CustomerId,
@@ -360,7 +362,7 @@ func (d DunningController) CreateConfiguration(c *gin.Context) {
 		return
 	}
 
-	config, err := d.dunningService.CreateConfiguration(c.Request.Context(), interfaces.CreateDunningConfigurationInput{
+	config, err := d.dunningService.CreateConfiguration(c.Request.Context(), dto.CreateDunningConfigurationInput{
 		OrgId:            orgId,
 		Name:             req.Name,
 		Description:      req.Description,
@@ -394,7 +396,7 @@ func (d DunningController) UpdateConfiguration(c *gin.Context) {
 		return
 	}
 
-	config, err := d.dunningService.UpdateConfiguration(c.Request.Context(), interfaces.UpdateDunningConfigurationInput{
+	config, err := d.dunningService.UpdateConfiguration(c.Request.Context(), dto.UpdateDunningConfigurationInput{
 		OrgId:            orgId,
 		Id:               id,
 		Name:             req.Name,

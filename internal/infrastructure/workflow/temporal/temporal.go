@@ -10,6 +10,7 @@ import (
 	"go.temporal.io/sdk/worker"
 	temporal "go.temporal.io/sdk/workflow"
 	"log/slog"
+	"payloop/internal/application/dto"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/logger"
@@ -307,7 +308,7 @@ func (t Temporal) SignalSubscriptionWorkflow(ctx context.Context, signal string,
 }
 
 // StartDunningWorkflow starts a dunning workflow for a failed payment
-func (t Temporal) StartDunningWorkflow(ctx context.Context, input interfaces.StartDunningWorkflowInput) (string, string, error) {
+func (t Temporal) StartDunningWorkflow(ctx context.Context, input dto.StartDunningWorkflowInput) (string, string, error) {
 	t.logger.Info("Starting dunning workflow", "OrgId", input.OrgId, "SubscriptionId", input.SubscriptionId)
 
 	// Start the workflow

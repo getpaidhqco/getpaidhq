@@ -3,6 +3,7 @@ package activities
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 	"payloop/internal/application/interfaces"
@@ -131,26 +132,43 @@ func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId strin
 	return subs, err
 }
 
-// ChargeCustomerForBillingPeriod is responsible for charging the customer for the billing period and to
-// update the subscription status to reflect the billing period
+// ChargeCustomerForBillingPeriod is responsible for charging the customer for the billing period
+// If a technical error occurs, it will return an error that Temporal can retry.
+// Any other error are handled downstream as it implies dunning
 func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, currentSub entities.Subscription) (payments.ChargeResult, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("ChargeCustomerForBillingPeriod", "orgId", currentSub.OrgId, "subscriptionId", currentSub.Id, "amount", currentSub.Amount)
+	logger.Info("ProcessRetryCharge", "orgId", currentSub.OrgId, "subscriptionId", currentSub.Id, "amount", currentSub.Amount)
 
-	// Thin delegation to subscription service
 	chargeResult, err := a.subscriptionService.ProcessSubscriptionCharge(ctx, currentSub)
 	if err != nil {
-		logger.Error("Failed to process subscription charge", "orgId", currentSub.OrgId, "subscriptionId", currentSub.Id, "error", err.Error())
-		return payments.ChargeResult{}, err
+		var gatewayErr *lib.CustomError
+		if errors.As(err, &gatewayErr) && gatewayErr.Type == lib.GatewayError {
+			// Gateway errors should be retried by Temporal using the retry policy in the workflow.
+			logger.Error("Gateway error, returning error so that the charge can be retried", "error", chargeResult.ErrorReason)
+			a.errorReporter.ReportError(ctx, errors.New("gateway error while charging subscription"), map[string]interface{}{
+				"org_id":          currentSub.OrgId,
+				"error":           chargeResult.ErrorReason,
+				"psp":             string(currentSub.PspId),
+				"subscription_id": currentSub.Id,
+			})
+			return payments.ChargeResult{}, temporal.NewApplicationError(chargeResult.ErrorReason, "gateway_error", nil)
+
+		} else {
+			logger.Error("Generic error during ProcessSubscriptionCharge",
+				"orgId", currentSub.OrgId,
+				"subscriptionId", currentSub.Id,
+				"error", err.Error())
+			return chargeResult, err
+		}
 	}
 
-	logger.Info("Subscription charge completed", "orgId", currentSub.OrgId, "subscriptionId", currentSub.Id, "status", chargeResult.Status, "amount", chargeResult.Amount)
+	logger.Info("Subscription charge attempted successfully", "orgId", currentSub.OrgId, "subscriptionId", currentSub.Id, "status", chargeResult.Status, "amount", chargeResult.Amount)
 	return chargeResult, nil
 }
 
 func (a *OrderActivities) HandleChargeResult(ctx context.Context, subscription entities.Subscription, chargeResult payments.ChargeResult) (entities.Subscription, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("HandleChargeResult", "id", subscription.Id, "status", chargeResult.Status)
+	logger.Info("HandleDunningChargeResult", "id", subscription.Id, "status", chargeResult.Status)
 
 	if chargeResult.Status == payments.PaymentStatusSucceeded {
 		return a.subscriptionService.HandleSubscriptionChargeSuccess(ctx, subscriptions.SubscriptionChargeInput{

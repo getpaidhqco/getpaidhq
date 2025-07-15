@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"payloop/internal/api/dto/request"
+	"payloop/internal/application/dto"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
@@ -57,8 +58,7 @@ func NewDunningOrchestrationService(
 	return svc
 }
 
-// HandleOutboundWebhook listens for all published messages and starts an outgoing webhook workflow
-// if the org is subscribed to the event.
+// HandleSubscriptionPastDue starts a dunning workflow when a subscription payment fails
 func (s DunningOrchestrationService) HandleSubscriptionPastDue(t string, data []byte) {
 	s.logger.Infof("[DunningOrchestrationService] checking topic: %s", t)
 	// Check if the org is subscribed to any outgoing messages and send them using a workflow
@@ -84,7 +84,7 @@ func (s DunningOrchestrationService) HandleSubscriptionPastDue(t string, data []
 	subscription := chargeFailureEvent.Subscription
 	chargeResult := chargeFailureEvent.ChargeResult
 
-	_, _, err = s.workflowEngine.StartDunningWorkflow(context.Background(), interfaces.StartDunningWorkflowInput{
+	_, _, err = s.workflowEngine.StartDunningWorkflow(context.Background(), dto.StartDunningWorkflowInput{
 		OrgId:                subscription.OrgId,
 		SubscriptionId:       subscription.Id,
 		CustomerId:           subscription.CustomerId,
@@ -113,11 +113,11 @@ func (s DunningOrchestrationService) HandleSubscriptionPastDue(t string, data []
 }
 
 // StartDunningWorkflow starts a dunning workflow for a failed payment
-func (s *DunningOrchestrationService) StartDunningWorkflow(ctx context.Context, input interfaces.StartDunningWorkflowInput) (dunning.DunningCampaign, error) {
+func (s *DunningOrchestrationService) StartDunningWorkflow(ctx context.Context, input dto.StartDunningWorkflowInput) (dunning.DunningCampaign, error) {
 	s.logger.Info("Starting dunning workflow", "OrgId", input.OrgId, "SubscriptionId", input.SubscriptionId)
 
 	// Create a campaign record
-	campaign, err := s.CreateCampaign(ctx, interfaces.CreateDunningCampaignInput{
+	campaign, err := s.CreateCampaign(ctx, dto.CreateDunningCampaignInput{
 		OrgId:                input.OrgId,
 		SubscriptionId:       input.SubscriptionId,
 		CustomerId:           input.CustomerId,
@@ -171,7 +171,7 @@ func (s *DunningOrchestrationService) StartDunningWorkflow(ctx context.Context, 
 }
 
 // HandlePaymentMethodUpdated handles a payment method update
-func (s *DunningOrchestrationService) HandlePaymentMethodUpdated(ctx context.Context, input interfaces.PaymentMethodUpdatedInput) error {
+func (s *DunningOrchestrationService) HandlePaymentMethodUpdated(ctx context.Context, input dto.PaymentMethodUpdatedInput) error {
 	s.logger.Info("Handling payment method update", "OrgId", input.OrgId, "SubscriptionId", input.SubscriptionId)
 
 	// If no campaign ID is provided, find the active campaign for the subscription
@@ -226,7 +226,7 @@ func (s *DunningOrchestrationService) HandlePaymentMethodUpdated(ctx context.Con
 }
 
 // HandleSubscriptionStateChanged handles a subscription state change
-func (s *DunningOrchestrationService) HandleSubscriptionStateChanged(ctx context.Context, input interfaces.SubscriptionStateChangedInput) error {
+func (s *DunningOrchestrationService) HandleSubscriptionStateChanged(ctx context.Context, input dto.SubscriptionStateChangedInput) error {
 	s.logger.Info("Handling subscription state change", "OrgId", input.OrgId, "SubscriptionId", input.SubscriptionId)
 
 	// If no campaign ID is provided, find the active campaign for the subscription
@@ -281,7 +281,7 @@ func (s *DunningOrchestrationService) HandleSubscriptionStateChanged(ctx context
 }
 
 // HandleDunningAttemptResult handles a dunning attempt result
-func (s *DunningOrchestrationService) HandleDunningAttemptResult(ctx context.Context, input interfaces.DunningAttemptResultInput) (dunning.DunningCampaign, error) {
+func (s *DunningOrchestrationService) HandleDunningAttemptResult(ctx context.Context, input dto.DunningAttemptResultInput) (dunning.DunningCampaign, error) {
 	s.logger.Info("Handling dunning attempt result", "OrgId", input.OrgId, "CampaignId", input.CampaignId)
 
 	// Get the campaign

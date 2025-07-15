@@ -9,83 +9,83 @@ import (
 
 // DunningCampaignEvent is the base event for dunning campaign events
 type DunningCampaignEvent struct {
-	OrgId             string                 `json:"org_id"`
-	CampaignId        string                 `json:"campaign_id"`
-	SubscriptionId    string                 `json:"subscription_id"`
-	CustomerId        string                 `json:"customer_id"`
-	Status            dunning.DunningStatus  `json:"status"`
-	FailedAmount      int                    `json:"failed_amount"`
-	Currency          string                 `json:"currency"`
-	TotalAttempts     int                    `json:"total_attempts"`
-	ImmediateAttempts int                    `json:"immediate_attempts"`
-	ProgressiveAttempts int                  `json:"progressive_attempts"`
-	Metadata          map[string]string      `json:"metadata,omitempty"`
+	OrgId               string                `json:"org_id"`
+	CampaignId          string                `json:"campaign_id"`
+	SubscriptionId      string                `json:"subscription_id"`
+	CustomerId          string                `json:"customer_id"`
+	Status              dunning.DunningStatus `json:"status"`
+	FailedAmount        int                   `json:"failed_amount"`
+	Currency            string                `json:"currency"`
+	TotalAttempts       int                   `json:"total_attempts"`
+	ImmediateAttempts   int                   `json:"immediate_attempts"`
+	ProgressiveAttempts int                   `json:"progressive_attempts"`
+	Metadata            map[string]string     `json:"metadata,omitempty"`
 }
 
 // DunningAttemptEvent represents an event for a dunning attempt
 type DunningAttemptEvent struct {
-	OrgId             string                 `json:"org_id"`
-	CampaignId        string                 `json:"campaign_id"`
-	AttemptId         string                 `json:"attempt_id"`
-	SubscriptionId    string                 `json:"subscription_id"`
-	CustomerId        string                 `json:"customer_id"`
-	AttemptNumber     int                    `json:"attempt_number"`
-	AttemptType       dunning.DunningAttemptType `json:"attempt_type"`
-	Amount            int                    `json:"amount"`
-	Currency          string                 `json:"currency"`
-	Status            payments.PaymentStatus `json:"status"`
-	FailureReason     string                 `json:"failure_reason,omitempty"`
-	FailureCode       string                 `json:"failure_code,omitempty"`
-	ShouldSuspend     bool                   `json:"should_suspend"`
-	IsFinalNotice     bool                   `json:"is_final_notice"`
-	Metadata          map[string]string      `json:"metadata,omitempty"`
+	OrgId          string                     `json:"org_id"`
+	CampaignId     string                     `json:"campaign_id"`
+	AttemptId      string                     `json:"attempt_id"`
+	SubscriptionId string                     `json:"subscription_id"`
+	CustomerId     string                     `json:"customer_id"`
+	AttemptNumber  int                        `json:"attempt_number"`
+	AttemptType    dunning.DunningAttemptType `json:"attempt_type"`
+	Amount         int64                      `json:"amount"`
+	Currency       string                     `json:"currency"`
+	Status         payments.PaymentStatus     `json:"status"`
+	FailureReason  string                     `json:"failure_reason,omitempty"`
+	FailureCode    string                     `json:"failure_code,omitempty"`
+	ShouldSuspend  bool                       `json:"should_suspend"`
+	IsFinalNotice  bool                       `json:"is_final_notice"`
+	Metadata       map[string]string          `json:"metadata,omitempty"`
 }
 
 // DunningCommunicationEvent represents an event for a dunning communication
 type DunningCommunicationEvent struct {
-	OrgId             string                 `json:"org_id"`
-	CampaignId        string                 `json:"campaign_id"`
-	CommunicationId   string                 `json:"communication_id"`
-	CustomerId        string                 `json:"customer_id"`
-	Channel           dunning.CommunicationChannel `json:"channel"`
-	TemplateId        string                 `json:"template_id"`
-	AttemptNumber     int                    `json:"attempt_number"`
-	Status            dunning.CommunicationStatus `json:"status"`
-	FailureReason     string                 `json:"failure_reason,omitempty"`
+	OrgId           string                       `json:"org_id"`
+	CampaignId      string                       `json:"campaign_id"`
+	CommunicationId string                       `json:"communication_id"`
+	CustomerId      string                       `json:"customer_id"`
+	Channel         dunning.CommunicationChannel `json:"channel"`
+	TemplateId      string                       `json:"template_id"`
+	AttemptNumber   int                          `json:"attempt_number"`
+	Status          dunning.CommunicationStatus  `json:"status"`
+	FailureReason   string                       `json:"failure_reason,omitempty"`
 }
 
 // DunningTokenEvent represents an event for a payment update token
 type DunningTokenEvent struct {
-	OrgId             string                 `json:"org_id"`
-	TokenId           string                 `json:"token_id"`
-	SubscriptionId    string                 `json:"subscription_id"`
-	CustomerId        string                 `json:"customer_id"`
-	CampaignId        string                 `json:"campaign_id,omitempty"`
-	Status            dunning.TokenStatus    `json:"status"`
-	ExpiresAt         string                 `json:"expires_at"`
-	MaxUses           int                    `json:"max_uses"`
-	UsedCount         int                    `json:"used_count"`
-	AllowedActions    map[string]bool        `json:"allowed_actions"`
-	AdminGenerated    bool                   `json:"admin_generated"`
+	OrgId          string              `json:"org_id"`
+	TokenId        string              `json:"token_id"`
+	SubscriptionId string              `json:"subscription_id"`
+	CustomerId     string              `json:"customer_id"`
+	CampaignId     string              `json:"campaign_id,omitempty"`
+	Status         dunning.TokenStatus `json:"status"`
+	ExpiresAt      string              `json:"expires_at"`
+	MaxUses        int                 `json:"max_uses"`
+	UsedCount      int                 `json:"used_count"`
+	AllowedActions map[string]bool     `json:"allowed_actions"`
+	AdminGenerated bool                `json:"admin_generated"`
 }
 
 // DunningSubscriptionEvent represents an event for a subscription state change during dunning
 type DunningSubscriptionEvent struct {
-	OrgId             string                 `json:"org_id"`
-	CampaignId        string                 `json:"campaign_id"`
-	SubscriptionId    string                 `json:"subscription_id"`
-	CustomerId        string                 `json:"customer_id"`
-	OldStatus         entities.SubscriptionStatus `json:"old_status"`
-	NewStatus         entities.SubscriptionStatus `json:"new_status"`
+	OrgId          string                      `json:"org_id"`
+	CampaignId     string                      `json:"campaign_id"`
+	SubscriptionId string                      `json:"subscription_id"`
+	CustomerId     string                      `json:"customer_id"`
+	OldStatus      entities.SubscriptionStatus `json:"old_status"`
+	NewStatus      entities.SubscriptionStatus `json:"new_status"`
 }
 
 // DunningConfigurationEvent represents an event for a dunning configuration change
 type DunningConfigurationEvent struct {
-	OrgId             string                 `json:"org_id"`
-	ConfigId          string                 `json:"config_id"`
-	Name              string                 `json:"name"`
-	AppliesTo         dunning.DunningConfigScope `json:"applies_to"`
-	Status            dunning.ConfigStatus   `json:"status"`
+	OrgId     string                     `json:"org_id"`
+	ConfigId  string                     `json:"config_id"`
+	Name      string                     `json:"name"`
+	AppliesTo dunning.DunningConfigScope `json:"applies_to"`
+	Status    dunning.ConfigStatus       `json:"status"`
 }
 
 // Helper functions to create events
@@ -93,17 +93,17 @@ type DunningConfigurationEvent struct {
 // NewDunningCampaignEvent creates a new DunningCampaignEvent from a DunningCampaign
 func NewDunningCampaignEvent(campaign dunning.DunningCampaign) DunningCampaignEvent {
 	return DunningCampaignEvent{
-		OrgId:              campaign.OrgId,
-		CampaignId:         campaign.Id,
-		SubscriptionId:     campaign.SubscriptionId,
-		CustomerId:         campaign.CustomerId,
-		Status:             campaign.Status,
-		FailedAmount:       campaign.FailedAmount,
-		Currency:           campaign.Currency,
-		TotalAttempts:      campaign.TotalAttempts,
-		ImmediateAttempts:  campaign.ImmediateAttempts,
+		OrgId:               campaign.OrgId,
+		CampaignId:          campaign.Id,
+		SubscriptionId:      campaign.SubscriptionId,
+		CustomerId:          campaign.CustomerId,
+		Status:              campaign.Status,
+		FailedAmount:        campaign.FailedAmount,
+		Currency:            campaign.Currency,
+		TotalAttempts:       campaign.TotalAttempts,
+		ImmediateAttempts:   campaign.ImmediateAttempts,
 		ProgressiveAttempts: campaign.ProgressiveAttempts,
-		Metadata:           campaign.Metadata,
+		Metadata:            campaign.Metadata,
 	}
 }
 

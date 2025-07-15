@@ -2,6 +2,7 @@ package interfaces
 
 import (
 	"context"
+	"payloop/internal/application/dto"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/payment_providers"
 )
@@ -16,7 +17,7 @@ type Engine interface {
 	UpdateSubscriptionWorkflow(ctx context.Context, updateName string, subscription entities.Subscription) error
 	CancelSubscriptionWorkflow(ctx context.Context, subscription entities.Subscription) error
 	SignalSubscriptionWorkflow(ctx context.Context, signal string, subscription entities.Subscription, payload interface{}) error
-	StartDunningWorkflow(ctx context.Context, input StartDunningWorkflowInput) (string, string, error)
+	StartDunningWorkflow(ctx context.Context, input dto.StartDunningWorkflowInput) (string, string, error)
 	SignalDunningWorkflow(ctx context.Context, workflowId string, signal string, payload interface{}) error
 }
 
