@@ -48,6 +48,13 @@ type ChangePlanInput struct {
 	Reason         string `json:"reason"`
 }
 
+type ActivateSubscriptionInput struct {
+	OrgId          string `json:"org_id"`
+	Id             string `json:"id"`
+	PaymentMethodId string `json:"payment_method_id,omitempty"`
+	Reason         string `json:"reason,omitempty"`
+}
+
 type ProcessSubscriptionChargeInput struct {
 	Subscription entities.Subscription `json:"subscription"`
 }

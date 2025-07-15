@@ -6,7 +6,7 @@ import (
 	"payloop/internal/api"
 	"payloop/internal/api/authn"
 	"payloop/internal/api/dto/request"
-	"payloop/internal/api/dto/response"
+	"payloop/internal/api/mappers"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
 )
@@ -36,14 +36,19 @@ func (cc CustomerController) Create(c *gin.Context) {
 		return
 	}
 
-	customer, err := cc.customerService.Create(c.Request.Context(), authUser.OrgId, input)
+	// Convert API DTO to application DTO
+	appInput := mappers.ToCreateCustomerInput(input)
+
+	customer, err := cc.customerService.Create(c.Request.Context(), authUser.OrgId, appInput)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
-	c.JSON(http.StatusOK, customer)
+	// Convert domain entity to API response
+	response := mappers.ToCustomerResponse(customer)
+	c.JSON(http.StatusOK, response)
 }
 
 // CreateCustomerPaymentMethod handles the creation of a new payment method for a customer
@@ -59,12 +64,10 @@ func (cc CustomerController) CreateCustomerPaymentMethod(c *gin.Context) {
 		return
 	}
 
-	paymentMethod, err := cc.customerService.CreatePaymentMethod(
-		c.Request.Context(), authUser.OrgId, interfaces.CreatePaymentMethodInput{
-			CreatePaymentMethodRequest: input,
-			OrgId:                      authUser.OrgId,
-			CustomerId:                 customerId,
-		})
+	// Convert API DTO to application DTO
+	appInput := mappers.ToCreatePaymentMethodInput(input, customerId)
+
+	paymentMethod, err := cc.customerService.CreatePaymentMethod(c.Request.Context(), authUser.OrgId, appInput)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -74,12 +77,11 @@ func (cc CustomerController) CreateCustomerPaymentMethod(c *gin.Context) {
 	c.JSON(http.StatusOK, paymentMethod)
 }
 
-// CreateCustomerPaymentMethod handles the creation of a new payment method for a customer
+// UpdateCustomerPaymentMethod handles the update of a payment method for a customer
 func (cc CustomerController) UpdateCustomerPaymentMethod(c *gin.Context) {
 	var input request.UpdatePaymentMethodRequest
 	user, _ := c.Get("user")
 	authUser := user.(authn.User)
-	customerId := c.Param("id")
 	pmId := c.Param("pmid")
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -88,13 +90,10 @@ func (cc CustomerController) UpdateCustomerPaymentMethod(c *gin.Context) {
 		return
 	}
 
-	paymentMethod, err := cc.customerService.UpdatePaymentMethod(
-		c.Request.Context(), authUser.OrgId, interfaces.UpdatePaymentMethodInput{
-			UpdatePaymentMethodRequest: input,
-			PaymentMethodId:            pmId,
-			OrgId:                      authUser.OrgId,
-			CustomerId:                 customerId,
-		})
+	// Convert API DTO to application DTO
+	appInput := mappers.ToUpdatePaymentMethodInput(input)
+
+	paymentMethod, err := cc.customerService.UpdatePaymentMethod(c.Request.Context(), authUser.OrgId, pmId, appInput)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -132,7 +131,9 @@ func (cc CustomerController) Get(c *gin.Context) {
 		return
 	}
 
-	c.JSON(http.StatusOK, response.NewCustomerFromEntity(customer))
+	// Convert domain entity to API response
+	response := mappers.ToCustomerResponse(customer)
+	c.JSON(http.StatusOK, response)
 }
 
 // List handles retrieving a list of customers with pagination and search
@@ -141,24 +142,17 @@ func (cc CustomerController) List(c *gin.Context) {
 	authUser := user.(authn.User)
 	pagination := request.GetPagination(c)
 
-	customers, total, err := cc.customerService.List(c.Request.Context(), authUser.OrgId, pagination)
+	// Convert API DTO to application DTO
+	appPagination := mappers.ToPagination(pagination)
+
+	result, err := cc.customerService.List(c.Request.Context(), authUser.OrgId, appPagination)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
-	customerResponses := make([]response.Customer, len(customers))
-	for i, customer := range customers {
-		customerResponses[i] = response.NewCustomerFromEntity(customer)
-	}
-
-	c.JSON(http.StatusOK, response.ListResponse{
-		Data: customerResponses,
-		Meta: response.Meta{
-			Total: total,
-			Page:  pagination.Page,
-			Limit: pagination.Limit,
-		},
-	})
+	// Convert paginated result to API response
+	response := mappers.ToCustomerListResponse(result)
+	c.JSON(http.StatusOK, response)
 }

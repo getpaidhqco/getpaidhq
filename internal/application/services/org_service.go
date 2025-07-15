@@ -14,7 +14,7 @@ import (
 )
 
 type OrgService struct {
-	pubsub             pubsub.PubSub
+	pubsub             pubsub.NotificationPublisher
 	authProvider       authn.AuthProvider
 	orgRepository      repositories.OrgRepository
 	cohortRepository   repositories.CohortRepository
@@ -26,7 +26,7 @@ type OrgService struct {
 
 func NewOrgService(
 	repo repositories.OrgRepository,
-	pubsub pubsub.PubSub,
+	pubsub pubsub.NotificationPublisher,
 	authProvider authn.AuthProvider,
 	cohortRepository repositories.CohortRepository,
 	settingRepository repositories.SettingRepository,

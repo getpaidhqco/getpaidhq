@@ -2,32 +2,24 @@ package interfaces
 
 import (
 	"context"
-	"payloop/internal/api/dto/request"
+	"payloop/internal/application/dto"
 	"payloop/internal/domain/entities"
 )
 
-type CreatePaymentMethodInput struct {
-	request.CreatePaymentMethodRequest
-	OrgId      string
-	CustomerId string
-}
-type UpdatePaymentMethodInput struct {
-	request.UpdatePaymentMethodRequest
-	OrgId           string
-	PaymentMethodId string
-	CustomerId      string
-}
-
 type CustomerService interface {
-	GetPaymentMethod(ctx context.Context, orgId string, id string) (entities.PaymentMethod, error)
-	Create(ctx context.Context, orgId string, customerRequest request.CreateCustomerRequest) (entities.Customer, error)
-	CreatePaymentMethod(ctx context.Context, orgId string, input CreatePaymentMethodInput) (entities.PaymentMethod, error)
-	UpdatePaymentMethod(ctx context.Context, orgId string, input UpdatePaymentMethodInput) (entities.PaymentMethod, error)
+	// Customer operations
+	Create(ctx context.Context, orgId string, input dto.CreateCustomerInput) (entities.Customer, error)
+	Update(ctx context.Context, orgId string, customerId string, input dto.UpdateCustomerInput) (entities.Customer, error)
 	Get(ctx context.Context, orgId string, id string) (entities.Customer, error)
-	List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Customer, int, error)
+	List(ctx context.Context, orgId string, pagination dto.Pagination) (dto.PaginatedResult[entities.Customer], error)
+
+	// Payment method operations
+	CreatePaymentMethod(ctx context.Context, orgId string, input dto.CreatePaymentMethodInput) (entities.PaymentMethod, error)
+	UpdatePaymentMethod(ctx context.Context, orgId string, paymentMethodId string, input dto.UpdatePaymentMethodInput) (entities.PaymentMethod, error)
+	GetPaymentMethod(ctx context.Context, orgId string, id string) (entities.PaymentMethod, error)
 
 	// Secure payment method operations
 	GetSecurePaymentMethod(ctx context.Context, orgId string, id string) (entities.SecurePaymentMethod, error)
-	CreateSecurePaymentMethod(ctx context.Context, orgId string, input CreatePaymentMethodInput) (entities.SecurePaymentMethod, error)
-	UpdateSecurePaymentMethod(ctx context.Context, orgId string, input UpdatePaymentMethodInput) (entities.SecurePaymentMethod, error)
+	CreateSecurePaymentMethod(ctx context.Context, orgId string, input dto.CreatePaymentMethodInput) (entities.SecurePaymentMethod, error)
+	UpdateSecurePaymentMethod(ctx context.Context, orgId string, paymentMethodId string, input dto.UpdatePaymentMethodInput) (entities.SecurePaymentMethod, error)
 }

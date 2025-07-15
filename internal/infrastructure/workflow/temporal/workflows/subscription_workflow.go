@@ -252,7 +252,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			// This shouldn't be reached because of the retry policy which will retry forever
 			// The workflow can be stopped using updates
 			// TODO report this error
-			logger.Error("ChargeCustomerForBillingPeriod failed completely, ending workflow", "Error", err.Error())
+			logger.Error("ProcessRetryCharge failed completely, ending workflow", "Error", err.Error())
 			return subscription, err
 		}
 
@@ -291,7 +291,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		err = workflow.ExecuteActivity(updateCtx, a.HandleChargeResult, subscription, chargeResult).
 			Get(updateCtx, &updateResult)
 		if err != nil {
-			logger.Error("Failed to HandleChargeResult", "Error", err.Error())
+			logger.Error("Failed to HandleDunningChargeResult", "Error", err.Error())
 			return subscription, err
 		}
 		if updateResult.Id == "" {
@@ -302,7 +302,8 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 		// Update the local state with the updated subscription
 		subscription = updateResult
 
-		// If the subscription was paused, wait until it is activated again
+		// If the subscription is past due now, wait until it is activated again
+		// the payment retries are handled by the Dunning workflow
 		if subscription.Status == entities.SubscriptionStatusPastDue {
 			err = workflow.Await(ctx, func() bool {
 				logger.Debug(fmt.Sprintf("Workflow paused until subscription is activated [%s][%s][%s]", subscription.OrgId, subscription.Id, subscription.Status))

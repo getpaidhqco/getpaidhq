@@ -2,8 +2,16 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
+	"fmt"
+	"payloop/internal/application/lib/logger"
+	"payloop/internal/infrastructure/events/nats"
+	"strings"
 	"testing"
+	"time"
 
+	"go.uber.org/fx"
+	"go.uber.org/fx/fxtest"
 	"payloop/internal/api/controllers"
 	"payloop/internal/api/middlewares"
 	"payloop/internal/api/routes"
@@ -16,19 +24,12 @@ import (
 	"payloop/internal/infrastructure/db/postgres"
 	"payloop/internal/infrastructure/email/loops"
 	"payloop/internal/infrastructure/payments/paystack"
-	"payloop/internal/infrastructure/pubsub/nats"
 	"payloop/internal/infrastructure/queue/sqs"
 	"payloop/internal/infrastructure/scheduler/cron"
 	"payloop/internal/infrastructure/storage/s3"
 	"payloop/internal/infrastructure/vault/aes_vault"
 	"payloop/internal/infrastructure/workflow/temporal"
 	"payloop/internal/lib"
-	"payloop/internal/lib/logger"
-	"payloop/internal/lib/pubsub"
-	"payloop/internal/testing/mocks"
-
-	"go.uber.org/fx"
-	"go.uber.org/fx/fxtest"
 )
 
 // TestApp represents a test application instance
@@ -37,9 +38,8 @@ type TestApp struct {
 	SubscriptionService       interfaces.SubscriptionService
 	SubscriptionOrchestration interfaces.SubscriptionOrchestrationService
 	CustomerService           interfaces.CustomerService
-	VariantService            interfaces.VariantService
-	PriceService              interfaces.PriceService
 	ProductService            interfaces.ProductService
+	BillingService            interfaces.BillingService
 	OrderService              interfaces.OrderService
 	Logger                    logger.Logger
 }
@@ -55,7 +55,7 @@ type TestConfig struct {
 func DefaultTestConfig() TestConfig {
 	return TestConfig{
 		UseRealDatabase: true,  // Use real database for integration tests
-		UseMockPubSub:   true,  // Mock pubsub to avoid external dependencies
+		UseMockPubSub:   false, // Mock pubsub to avoid external dependencies
 		UseMockLogger:   false, // Use real logger for debugging
 	}
 }
@@ -65,9 +65,8 @@ func NewTestApp(t *testing.T, config TestConfig) *TestApp {
 	var app *fxtest.App
 	var subscriptionService interfaces.SubscriptionService
 	var customerService interfaces.CustomerService
-	var variantService interfaces.VariantService
-	var priceService interfaces.PriceService
 	var productService interfaces.ProductService
+	var billingService interfaces.BillingService
 	var orderService interfaces.OrderService
 	var subscriptionOrchestration interfaces.SubscriptionOrchestrationService
 	var testLogger logger.Logger
@@ -95,20 +94,11 @@ func NewTestApp(t *testing.T, config TestConfig) *TestApp {
 	modules = append(modules, aes_vault.Module)
 
 	// Add auth modules (required by API layer)
-	modules = append(modules, 
+	modules = append(modules,
 		apikey.Module,
-		cedar.Module,
-	)
+		cedar.Module)
 
-	// Add mock modules based on configuration
-	if config.UseMockPubSub {
-		// Replace real pubsub with mock
-		modules = append(modules, fx.Decorate(func() pubsub.PubSub {
-			return mocks.NewSilentPubSub()
-		}))
-	} else {
-		modules = append(modules, nats.Module)
-	}
+	modules = append(modules, nats.Module)
 
 	// Add other infrastructure modules with mocks as needed
 	modules = append(modules,
@@ -127,10 +117,9 @@ func NewTestApp(t *testing.T, config TestConfig) *TestApp {
 		&subscriptionService,
 		&subscriptionOrchestration,
 		&customerService,
-		&variantService,
-		&priceService,
 		&productService,
 		&orderService,
+		&billingService,
 		&testLogger,
 	))
 
@@ -140,15 +129,14 @@ func NewTestApp(t *testing.T, config TestConfig) *TestApp {
 	app = fxtest.New(t, modules...)
 
 	return &TestApp{
-		App:                          app,
-		SubscriptionService:          subscriptionService,
-		SubscriptionOrchestration:    subscriptionOrchestration,
-		CustomerService:              customerService,
-		VariantService:               variantService,
-		PriceService:                 priceService,
-		ProductService:               productService,
-		OrderService:                 orderService,
-		Logger:                       testLogger,
+		App:                       app,
+		SubscriptionService:       subscriptionService,
+		SubscriptionOrchestration: subscriptionOrchestration,
+		CustomerService:           customerService,
+		ProductService:            productService,
+		OrderService:              orderService,
+		BillingService:            billingService,
+		Logger:                    testLogger,
 	}
 }
 
@@ -157,24 +145,26 @@ func (ta *TestApp) Cleanup() {
 	ta.App.RequireStop()
 }
 
-// WithContext creates a context for testing
+// WithContext creates a context for testing with a default timeout
 func (ta *TestApp) WithContext() context.Context {
-	return context.Background()
+	// Create a context with a 30-second timeout for tests
+	ctx, _ := context.WithTimeout(context.Background(), 30*time.Second)
+	return ctx
 }
 
 // SubscriptionTestSuite provides common setup for subscription-related tests
 type SubscriptionTestSuite struct {
-	t       *testing.T
-	app     *TestApp
-	ctx     context.Context
-	orgId   string
+	t     *testing.T
+	app   *TestApp
+	ctx   context.Context
+	orgId string
 }
 
 // NewSubscriptionTestSuite creates a new subscription test suite
 func NewSubscriptionTestSuite(t *testing.T) *SubscriptionTestSuite {
 	config := DefaultTestConfig()
 	app := NewTestApp(t, config)
-	
+
 	return &SubscriptionTestSuite{
 		t:     t,
 		app:   app,
@@ -205,25 +195,82 @@ func (s *SubscriptionTestSuite) Cleanup() {
 
 // Helper function to generate unique test IDs
 func generateTestId() string {
-	return lib.GenerateId("test")
+	// Generate a unique ID with "test" prefix
+	id := lib.GenerateId("test")
+
+	// If the ID is empty for some reason, fall back to a timestamp-based ID
+	if id == "" {
+		return fmt.Sprintf("test_%d", time.Now().UnixNano())
+	}
+
+	return id
 }
 
 // TestDatabase provides utilities for database testing
 type TestDatabase struct {
 	app *TestApp
+	ctx context.Context
 }
 
 // NewTestDatabase creates a new test database instance
 func NewTestDatabase(app *TestApp) *TestDatabase {
-	return &TestDatabase{app: app}
+	return &TestDatabase{
+		app: app,
+		ctx: app.WithContext(),
+	}
 }
 
-// TODO: Add database seeding and cleanup methods here
-// Examples:
-// - SeedCustomer(customer entities.Customer)
-// - SeedSubscription(subscription entities.Subscription)
-// - CleanupOrg(orgId string)
-// - CleanupAll()
+// SeedCustomer seeds a customer entity into the database for testing
+func (db *TestDatabase) SeedCustomer(orgId string, customer interface{}) error {
+	// This is a simplified implementation
+	// In a real implementation, you would use the repository to create the customer
+	fmt.Printf("Seeding customer for testing, orgId: %s\n", orgId)
+
+	// Example implementation using customer service
+	// The actual implementation would depend on the specific repository structure
+	// customerEntity := mapToCustomerEntity(customer, orgId)
+	// _, err := db.app.CustomerService.Create(db.ctx, orgId, customerEntity)
+	// return err
+
+	return nil // Placeholder
+}
+
+// SeedSubscription seeds a subscription entity into the database for testing
+func (db *TestDatabase) SeedSubscription(orgId string, subscription interface{}) error {
+	// This is a simplified implementation
+	fmt.Printf("Seeding subscription for testing, orgId: %s\n", orgId)
+
+	// Example implementation
+	// subscriptionEntity := mapToSubscriptionEntity(subscription, orgId)
+	// _, err := db.app.SubscriptionService.Create(db.ctx, orgId, subscriptionEntity)
+	// return err
+
+	return nil // Placeholder
+}
+
+// CleanupOrg removes all test data for a specific organization
+func (db *TestDatabase) CleanupOrg(orgId string) error {
+	if !strings.HasPrefix(orgId, "org_test_") {
+		return fmt.Errorf("refusing to clean up non-test org ID: %s", orgId)
+	}
+
+	fmt.Printf("Cleaning up test data for organization, orgId: %s\n", orgId)
+
+	// In a real implementation, you would execute database queries to delete test data
+	// Example: DELETE FROM customers WHERE org_id = $1 AND id LIKE 'test_%'
+
+	return nil // Placeholder
+}
+
+// CleanupAll removes all test data across all test organizations
+func (db *TestDatabase) CleanupAll() error {
+	fmt.Println("Cleaning up all test data")
+
+	// In a real implementation, you would execute database queries to delete all test data
+	// Example: DELETE FROM customers WHERE org_id LIKE 'org_test_%'
+
+	return nil // Placeholder
+}
 
 // TestAsserter provides common assertions for integration tests
 type TestAsserter struct {
@@ -237,11 +284,59 @@ func NewTestAsserter(t *testing.T) *TestAsserter {
 
 // AssertSubscriptionEquals asserts that two subscriptions are equal
 func (a *TestAsserter) AssertSubscriptionEquals(expected, actual interface{}) {
-	// TODO: Implement custom subscription comparison logic
-	// This could include ignoring timestamps, IDs, etc.
-	if expected != actual {
-		a.t.Errorf("Subscriptions not equal. Expected: %+v, Actual: %+v", expected, actual)
+	// Convert interfaces to maps for flexible comparison
+	expectedMap, ok1 := a.toMap(expected)
+	actualMap, ok2 := a.toMap(actual)
+
+	if !ok1 || !ok2 {
+		a.t.Fatalf("Failed to convert subscriptions to maps for comparison")
+		return
 	}
+
+	// Fields to ignore in comparison (timestamps, auto-generated IDs)
+	ignoreFields := map[string]bool{
+		"CreatedAt": true,
+		"UpdatedAt": true,
+		// Add other fields to ignore as needed
+	}
+
+	// Compare maps, ignoring specified fields
+	for key, expectedValue := range expectedMap {
+		if ignoreFields[key] {
+			continue
+		}
+
+		actualValue, exists := actualMap[key]
+		if !exists {
+			a.t.Errorf("Field %s missing in actual subscription", key)
+			continue
+		}
+
+		if fmt.Sprintf("%v", expectedValue) != fmt.Sprintf("%v", actualValue) {
+			a.t.Errorf("Field %s not equal. Expected: %v, Actual: %v", key, expectedValue, actualValue)
+		}
+	}
+}
+
+// toMap converts an interface to a map for flexible comparison
+func (a *TestAsserter) toMap(obj interface{}) (map[string]interface{}, bool) {
+	// Try to convert to map directly if it's already a map
+	if m, ok := obj.(map[string]interface{}); ok {
+		return m, true
+	}
+
+	// Otherwise, convert to JSON and back to map
+	jsonBytes, err := json.Marshal(obj)
+	if err != nil {
+		return nil, false
+	}
+
+	var result map[string]interface{}
+	if err := json.Unmarshal(jsonBytes, &result); err != nil {
+		return nil, false
+	}
+
+	return result, true
 }
 
 // AssertNoError asserts that an error is nil

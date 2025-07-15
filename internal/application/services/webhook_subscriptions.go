@@ -25,14 +25,14 @@ type WebhookSubscriptionService struct {
 	logger          logger.Logger
 	idempotencyRepo repositories.IdempotencyKeyRepository
 	whsRepo         repositories.WebhookSubscriptionRepository
-	pubsub          events.PubSub
+	pubsub          events.NotificationPublisher
 }
 
 func NewWebhookSubscriptionService(
 	logger logger.Logger,
 	whsRepo repositories.WebhookSubscriptionRepository,
 	idempotencyRepo repositories.IdempotencyKeyRepository,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 ) interfaces.WebhookSubscriptionService {
 	service := WebhookSubscriptionService{
 		logger:          logger,

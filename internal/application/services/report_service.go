@@ -18,7 +18,7 @@ import (
 type ReportService struct {
 	logger           logger.Logger
 	reportRepository repositories.ReportRepository
-	pubsub           events.PubSub
+	pubsub           events.NotificationPublisher
 	queueClient      events.QueueClient
 	orgRepository    repositories.OrgRepository
 	cdcStream        postgres.CdcStream
@@ -27,7 +27,7 @@ type ReportService struct {
 func NewReportService(
 	logger logger.Logger,
 	reportRepository repositories.ReportRepository,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 	queueClient events.QueueClient,
 	cdcStream postgres.CdcStream,
 	scheduler interfaces.Scheduler,
@@ -122,7 +122,7 @@ func (s ReportService) GetCustomerChurnRates(ctx context.Context, orgId string, 
 	return mrr, nil
 }
 
-// HandlePublishedEvent handles the published event from the pubsub and processes it
+// HandlePublishedEvent handles the published event from the notificationPublisher and processes it
 // either via the queue or directly.  Which one to use depends on the deployment, simple
 // deployments will call the service directly, while more complex deployments will use the queue.
 // it will eventually end up in the reporting service HandleDataChangeEvent

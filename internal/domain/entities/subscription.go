@@ -1,6 +1,7 @@
 package entities
 
 import (
+	"encoding/json"
 	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities/prices"
 	"payloop/internal/lib"
@@ -24,6 +25,32 @@ type CreateSubscriptionInput struct {
 	TrialIntervalQty int                    `json:"trial_interval_qty"`
 
 	Metadata map[string]string `json:"metadata"`
+}
+
+type UpdateSubscriptionInput struct {
+	PaymentMethodId string            `json:"payment_method_id"`
+	Metadata        map[string]string `json:"metadata,omitempty"`
+}
+
+type PauseSubscriptionInput struct {
+	PauseMode string    `json:"pause_mode"`
+	ResumeAt  time.Time `json:"resume_at,omitempty"`
+}
+
+type ResumeSubscriptionInput struct {
+	ProrationMode string `json:"proration_mode"`
+}
+
+type CancelSubscriptionInput struct {
+	CancelMode       string    `json:"cancel_mode"`
+	ProrationMode    string    `json:"proration_mode"`
+	CancellationDate time.Time `json:"cancellation_date,omitempty"`
+}
+
+type ChangePlanInput struct {
+	NewPriceId    string    `json:"new_price_id"`
+	ProrationMode string    `json:"proration_mode"`
+	EffectiveDate time.Time `json:"effective_date,omitempty"`
 }
 
 type SubscriptionStatus string
@@ -60,10 +87,11 @@ type Subscription struct {
 	Status          SubscriptionStatus `json:"status"`
 	PaymentMethodId string             `json:"payment_method_id,omitempty"`
 
-	// Product, variant and price references
-	ProductId string `json:"product_id"`
-	VariantId string `json:"variant_id"`
-	PriceId   string `json:"price_id"`
+	// Optional amount and currency for backward compatibility
+	// For simple subscriptions, use these fields
+	// For multi-item subscriptions, these will be null and calculated from items
+	Amount   int64  `json:"amount,omitempty"`
+	Currency string `json:"currency,omitempty"`
 
 	// StartDate is the date when the subscription was activated.
 	// It doesn't include the trial period, if any.
@@ -96,14 +124,15 @@ type Subscription struct {
 	// ActiveDunningCampaignId is the ID of the active dunning campaign for this subscription
 	ActiveDunningCampaignId string `json:"active_dunning_campaign_id,omitempty"`
 
-	Currency        string            `json:"currency"`
-	Amount          int64             `json:"amount"`
 	Metadata        map[string]string `json:"metadata"`
 	CyclesProcessed int               `json:"cycles_processed"`
 	TotalRevenue    int64             `json:"total_revenue"`
 	CancelledAt     time.Time         `json:"cancelled_at,omitempty,omitzero"`
 	CreatedAt       time.Time         `json:"created_at"`
 	UpdatedAt       time.Time         `json:"updated_at"`
+
+	// Subscription items
+	Items []SubscriptionItem `json:"items,omitempty"`
 }
 
 type ProrationDetails struct {
@@ -160,8 +189,16 @@ func (s *Subscription) CalculateProrationDetails(
 			return details
 		}
 
+		// Get the total amount to prorate
+		totalAmount := s.GetTotalAmount()
+
+		// If there are no items but the subscription has an Amount field set, use that
+		if totalAmount == 0 && s.Amount > 0 {
+			totalAmount = s.Amount
+		}
+
 		// Calculate the credit amount based on the proportion of days remaining
-		creditAmount := int(float64(s.Amount) * float64(daysRemaining) / float64(totalDays))
+		creditAmount := int(float64(totalAmount) * float64(daysRemaining) / float64(totalDays))
 
 		details.CreditAmount = creditAmount
 		details.DaysCredited = daysRemaining
@@ -197,6 +234,81 @@ func (s *Subscription) SetMetadata(meta map[string]string) *Subscription {
 	return s
 }
 
+// AddItem adds a new subscription item to the subscription
+func (s *Subscription) AddItem(item SubscriptionItem) *Subscription {
+	if s.Items == nil {
+		s.Items = []SubscriptionItem{}
+	}
+	s.Items = append(s.Items, item)
+	s.UpdatedAt = time.Now().UTC()
+	return s
+}
+
+// RemoveItem removes a subscription item from the subscription
+func (s *Subscription) RemoveItem(itemId string) *Subscription {
+	if s.Items == nil {
+		return s
+	}
+
+	var newItems []SubscriptionItem
+	for _, item := range s.Items {
+		if item.Id != itemId {
+			newItems = append(newItems, item)
+		}
+	}
+
+	s.Items = newItems
+	s.UpdatedAt = time.Now().UTC()
+	return s
+}
+
+// FindItem finds a subscription item by ID
+func (s *Subscription) FindItem(itemId string) *SubscriptionItem {
+	if s.Items == nil {
+		return nil
+	}
+
+	for i, item := range s.Items {
+		if item.Id == itemId {
+			return &s.Items[i]
+		}
+	}
+
+	return nil
+}
+
+// GetActiveItems returns all active subscription items
+func (s *Subscription) GetActiveItems() []SubscriptionItem {
+	if s.Items == nil {
+		return []SubscriptionItem{}
+	}
+
+	var activeItems []SubscriptionItem
+	for _, item := range s.Items {
+		if item.Status == SubscriptionItemStatusActive {
+			activeItems = append(activeItems, item)
+		}
+	}
+
+	return activeItems
+}
+
+// GetTotalAmount calculates the total fixed amount for all active subscription items
+func (s *Subscription) GetTotalAmount() int64 {
+	if s.Items == nil || len(s.Items) == 0 {
+		return 0
+	}
+
+	var total int64
+	for _, item := range s.GetActiveItems() {
+		if item.Amount > 0 {
+			total += item.Amount * int64(item.Quantity)
+		}
+	}
+
+	return total
+}
+
 // CalculateNextBillingDate calculates and returns the next billing date for a subscription
 // based on the StartDate, BillingInterval, BillingIntervalQty and CyclesProcessed
 // It can't use LastCharge as the base date because of retries - LastCharge could be in middle of the
@@ -215,8 +327,11 @@ func (s *Subscription) CalculateNextBillingDate() time.Time {
 		return s.StartDate
 	}
 
-	//
+	// Use CurrentPeriodEnd as base if set, otherwise use LastCharge
 	base := s.CurrentPeriodEnd
+	if base.IsZero() {
+		base = s.LastCharge
+	}
 
 	switch s.BillingInterval {
 	case "minute":
@@ -309,12 +424,82 @@ func (s *Subscription) UpdateBillingAnchor(anchor int, prorationMode string) Pro
 
 // SetActivation sets the activation date for a subscription based on the trial interval
 func (s *Subscription) SetActivationDates() *Subscription {
-	price := s.OrderItem.Price
 	var startDate = time.Now().UTC()
 	var trialEndsAt time.Time
 	var endsAt time.Time
 
-	if s.OrderItem.Price.TrialInterval != prices.BillingIntervalNone {
+	// Default to the subscription's billing interval and cycles for end date calculation
+	billingInterval := s.BillingInterval
+	billingIntervalQty := s.BillingIntervalQty
+	cycles := s.Cycles
+
+	// If we have subscription items, determine the shortest trial period
+	if len(s.Items) > 0 {
+		var shortestTrialInterval prices.BillingInterval
+		var shortestTrialIntervalQty int
+
+		for i, item := range s.Items {
+			// Skip items without price snapshot
+			if len(item.PriceSnapshot) == 0 {
+				continue
+			}
+
+			// Unmarshal the price snapshot
+			var price Price
+			if err := json.Unmarshal(item.PriceSnapshot, &price); err != nil {
+				continue
+			}
+
+			// Initialize with the first valid item's trial period
+			if i == 0 || shortestTrialInterval == "" {
+				shortestTrialInterval = price.TrialInterval
+				shortestTrialIntervalQty = price.TrialIntervalQty
+				// Also use this item's billing details for end date calculation
+				billingInterval = price.BillingInterval
+				billingIntervalQty = price.BillingIntervalQty
+				cycles = price.Cycles
+				continue
+			}
+
+			// Skip if this item has no trial
+			if price.TrialInterval == prices.BillingIntervalNone {
+				shortestTrialInterval = prices.BillingIntervalNone
+				shortestTrialIntervalQty = 0
+				break
+			}
+
+			// Compare trial periods to find the shortest
+			if shortestTrialInterval != prices.BillingIntervalNone {
+				// Convert both trial periods to days for comparison
+				currentTrialDays := convertToDays(shortestTrialInterval, shortestTrialIntervalQty)
+				newTrialDays := convertToDays(price.TrialInterval, price.TrialIntervalQty)
+
+				if newTrialDays < currentTrialDays {
+					shortestTrialInterval = price.TrialInterval
+					shortestTrialIntervalQty = price.TrialIntervalQty
+				}
+			}
+		}
+
+		// Calculate trial end date based on the shortest trial period
+		if shortestTrialInterval != prices.BillingIntervalNone {
+			switch shortestTrialInterval {
+			case "minute":
+				trialEndsAt = startDate.Add(time.Minute * time.Duration(shortestTrialIntervalQty))
+			case "hour":
+				trialEndsAt = startDate.Add(time.Hour * time.Duration(shortestTrialIntervalQty))
+			case "day":
+				trialEndsAt = startDate.AddDate(0, 0, shortestTrialIntervalQty)
+			case "week":
+				trialEndsAt = startDate.AddDate(0, 0, shortestTrialIntervalQty*7)
+			case "month":
+				trialEndsAt = startDate.AddDate(0, shortestTrialIntervalQty, 0)
+			case "year":
+				trialEndsAt = startDate.AddDate(shortestTrialIntervalQty, 0, 0)
+			}
+		}
+	} else if s.OrderItem.Price.TrialInterval != prices.BillingIntervalNone {
+		// Fallback to OrderItem for backward compatibility
 		switch s.OrderItem.Price.TrialInterval {
 		case "minute":
 			trialEndsAt = startDate.Add(time.Minute * time.Duration(s.OrderItem.Price.TrialIntervalQty))
@@ -329,10 +514,15 @@ func (s *Subscription) SetActivationDates() *Subscription {
 		case "year":
 			trialEndsAt = startDate.AddDate(s.OrderItem.Price.TrialIntervalQty, 0, 0)
 		}
+
+		// Use OrderItem price for end date calculation
+		billingInterval = s.OrderItem.Price.BillingInterval
+		billingIntervalQty = s.OrderItem.Price.BillingIntervalQty
+		cycles = s.OrderItem.Price.Cycles
 	}
 
-	if s.OrderItem.Price.Cycles > 0 {
-		endsAtV := calculateNextDate(price.BillingInterval, price.Cycles*price.BillingIntervalQty, startDate)
+	if cycles > 0 {
+		endsAtV := calculateNextDate(billingInterval, cycles*billingIntervalQty, startDate)
 		endsAt = endsAtV
 	}
 
@@ -414,31 +604,105 @@ func calculateNextDate(interval prices.BillingInterval, qty int, startDate time.
 	return startDate
 }
 
+// convertToDays converts a billing interval and quantity to an approximate number of days
+func convertToDays(interval prices.BillingInterval, qty int) int {
+	switch interval {
+	case "minute":
+		return 0 // Less than a day
+	case "hour":
+		return 0 // Less than a day
+	case "day":
+		return qty
+	case "week":
+		return qty * 7
+	case "month":
+		return qty * 30 // Approximate
+	case "year":
+		return qty * 365 // Approximate
+	default:
+		return 0
+	}
+}
+
 // NewSubscriptionFromItem creates a new Subscription from a payloop-cart Item
 func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
-
-	return Subscription{
-		OrgId:                   item.OrgId,
-		Id:                      lib.GenerateId("sub"),
-		OrderId:                 item.OrderId,
-		OrderItemId:             item.Id,
-		OrderItem:               item,
-		ProductId:               item.ProductId,
-		VariantId:               item.VariantId,
-		PriceId:                 item.Price.Id,
-		Status:                  SubscriptionStatusPending,
-		BillingInterval:         item.Price.BillingInterval,
-		BillingIntervalQty:      item.Price.BillingIntervalQty,
-		Cycles:                  item.Price.Cycles,
-		DunningActive:           false,
-		ActiveDunningCampaignId: "",
-		Currency:                string(item.Price.Currency),
-		Amount:                  item.Price.UnitPrice,
-		CyclesProcessed:         0,
-		TotalRevenue:            0,
-		CreatedAt:               time.Now().UTC(),
-		UpdatedAt:               time.Now().UTC(),
+	subscription := Subscription{
+		OrgId:              item.OrgId,
+		Id:                 lib.GenerateId("sub"),
+		OrderId:            item.OrderId,
+		OrderItemId:        item.Id,
+		OrderItem:          item,
+		Status:             SubscriptionStatusPending,
+		BillingInterval:    item.Price.BillingInterval,
+		BillingIntervalQty: item.Price.BillingIntervalQty,
+		Cycles:             item.Price.Cycles,
+		DunningActive:      false,
+		Currency:           string(item.Price.Currency),
+		Amount:             0,
+		CyclesProcessed:    0,
+		TotalRevenue:       0,
+		CreatedAt:          time.Now().UTC(),
+		UpdatedAt:          time.Now().UTC(),
 	}
+
+	// Create a subscription item for backward compatibility
+	subscriptionItem := NewSubscriptionItem(
+		item.OrgId,
+		subscription.Id,
+		item.Price.Id,
+		item.Description,
+		string(item.Price.Currency),
+	)
+	subscriptionItem.ProductId = item.ProductId
+	subscriptionItem.VariantId = item.VariantId
+	subscriptionItem.Description = item.Description
+
+	// Set meter reference if available
+	subscriptionItem.MeterId = item.Price.MeterId
+
+	// Create price snapshot for comparison/audit
+	if priceSnapshot, err := json.Marshal(item.Price); err == nil {
+		subscriptionItem.PriceSnapshot = priceSnapshot
+	}
+
+	// Configure pricing based on category
+	switch item.Price.Category {
+	case prices.PriceCategoryUsage:
+		// Pure usage-based billing
+		subscriptionItem.HasUsage = true
+		subscriptionItem.UnitPrice = item.Price.UnitPrice
+		subscriptionItem.PercentageRate = item.Price.PercentageRate
+		subscriptionItem.FixedFee = item.Price.FixedFee
+		subscriptionItem.OverageUnitPrice = item.Price.OverageUnitPrice
+		subscriptionItem.IncludedUsage = item.Price.IncludedUsage
+		subscriptionItem.UsageLimit = item.Price.UsageLimit
+		subscriptionItem.Amount = 0 // No fixed amount for pure usage
+	case prices.PriceCategoryHybrid:
+		// Hybrid billing (fixed + usage)
+		subscriptionItem.HasUsage = true
+
+		// Use a quantity of at least 1 for the base amount
+		quantity := item.Quantity
+		if quantity <= 0 {
+			quantity = 1
+		}
+		subscriptionItem.Amount = item.Price.UnitPrice * int64(quantity) // Base fixed amount multiplied by quantity
+
+		subscriptionItem.UnitPrice = item.Price.UnitPrice
+		subscriptionItem.OverageUnitPrice = item.Price.OverageUnitPrice // Overage rate
+		subscriptionItem.PercentageRate = item.Price.PercentageRate
+		subscriptionItem.FixedFee = item.Price.FixedFee
+		subscriptionItem.IncludedUsage = item.Price.IncludedUsage
+		subscriptionItem.UsageLimit = item.Price.UsageLimit
+	default:
+		// Traditional subscription billing
+		subscriptionItem.Amount = item.Price.UnitPrice
+		subscriptionItem.HasUsage = false
+	}
+
+	subscription.Items = []SubscriptionItem{subscriptionItem}
+
+	return subscription
 }
 
 // NewSubscriptionFrominput creates a new Subscription from a payloop-cart input
@@ -465,7 +729,7 @@ func NewFromCreateInput(input CreateSubscriptionInput) Subscription {
 		trialEndsAt = startDate
 	}
 
-	return Subscription{
+	subscription := Subscription{
 		OrgId:                   input.OrgId,
 		Id:                      lib.GenerateId("sub"),
 		Status:                  SubscriptionStatusPending,
@@ -477,11 +741,23 @@ func NewFromCreateInput(input CreateSubscriptionInput) Subscription {
 		TrialEndsAt:             trialEndsAt,
 		DunningActive:           false,
 		ActiveDunningCampaignId: "",
-		Currency:                input.Currency,
-		Amount:                  input.Amount,
 		CyclesProcessed:         0,
 		TotalRevenue:            0,
 		CreatedAt:               time.Now().UTC(),
 		UpdatedAt:               time.Now().UTC(),
 	}
+
+	// Create a subscription item for backward compatibility
+	subscriptionItem := NewSubscriptionItem(
+		input.OrgId,
+		subscription.Id,
+		"",             // No price ID available from input
+		"Subscription", // Generic name
+		input.Currency,
+	)
+	subscriptionItem.Amount = input.Amount
+
+	subscription.Items = []SubscriptionItem{subscriptionItem}
+
+	return subscription
 }

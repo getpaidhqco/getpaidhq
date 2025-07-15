@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"payloop/internal/api"
 	"payloop/internal/api/authn"
+	"payloop/internal/api/dto/mappers"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/api/dto/response"
 	"payloop/internal/application/dto"
@@ -25,6 +26,32 @@ func NewSubscriptionController(subscriptionService interfaces.SubscriptionOrches
 		subsOrchastration: subscriptionService,
 		logger:            logger,
 	}
+}
+
+func (s SubscriptionController) Create(c *gin.Context) {
+	var input request.CreateSubscriptionRequest
+	user, _ := c.Get("user")
+	authUser := user.(authn.User)
+	orgId := authUser.OrgId
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	// Convert API request to application DTO
+	appInput := mappers.ToCreateSubscriptionInput(input)
+
+	// Call the service to create the subscription
+	subscription, err := s.subsOrchastration.Create(c.Request.Context(), orgId, appInput)
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	c.JSON(http.StatusCreated, response.NewSubscriptionFromEntity(subscription))
 }
 
 func (s SubscriptionController) Get(c *gin.Context) {
@@ -57,10 +84,11 @@ func (s SubscriptionController) Update(c *gin.Context) {
 	}
 
 	subscription, err := s.subsOrchastration.Update(c.Request.Context(), subscriptions.UpdateSubscriptionInput{
-		OrgId:    orgId,
-		Id:       id,
-		Status:   input.Status,
-		Metadata: input.Metadata,
+		OrgId:                orgId,
+		Id:                   id,
+		Status:               input.Status,
+		DefaultPaymentMethod: input.DefaultPaymentMethod,
+		Metadata:             input.Metadata,
 	})
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -308,4 +336,48 @@ func (s SubscriptionController) ChangePlan(c *gin.Context) {
 	}
 
 	c.JSON(200, response.NewSubscriptionFromEntity(*subscription))
+}
+
+// Activate a subscription
+// swagger:route PUT /api/subscriptions/{id}/activate subscriptions activateSubscription
+// Activates a subscription based on the Id
+//
+// Produces:
+// - application/json
+//
+// Consumes:
+// - application/json
+//
+// Schemes: http
+//
+// Responses:
+// default: apiError
+// 200: subscription
+func (s SubscriptionController) Activate(c *gin.Context) {
+	var input request.ActivateSubscriptionRequest
+	user, _ := c.Get("user")
+	orgId := user.(authn.User).OrgId
+	id := c.Param("id")
+
+	if err := c.ShouldBindJSON(&input); err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	activateInput := subscriptions.ActivateSubscriptionInput{
+		OrgId:          orgId,
+		Id:             id,
+		PaymentMethodId: input.PaymentMethodId,
+		Reason:         input.Reason,
+	}
+
+	subscription, err := s.subsOrchastration.Activate(c.Request.Context(), activateInput)
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	c.JSON(200, response.NewSubscriptionFromEntity(subscription))
 }

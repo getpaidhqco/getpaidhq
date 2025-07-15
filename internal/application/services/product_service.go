@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"payloop/internal/api/dto/request"
+	appDto "payloop/internal/application/dto"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
@@ -19,7 +20,7 @@ type ProductService struct {
 	variantRepository repositories.VariantRepository
 	priceRepository   repositories.PriceRepository
 	cartRepository    repositories.CartRepository
-	pubsub            events.PubSub
+	pubsub            events.NotificationPublisher
 	logger            logger.Logger
 }
 
@@ -29,7 +30,7 @@ func NewProductService(
 	priceRepository repositories.PriceRepository,
 	cartRepository repositories.CartRepository,
 	logger logger.Logger,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 ) ProductService {
 	return ProductService{
 		productRepository: productRepository,
@@ -41,15 +42,15 @@ func NewProductService(
 	}
 }
 
-func (s ProductService) CreateProduct(ctx context.Context, orgId string, request request.CreateProductRequest) (entities.Product, error) {
+func (s ProductService) CreateProduct(ctx context.Context, orgId string, input appDto.CreateProductInput) (entities.Product, error) {
 
 	product, err := s.productRepository.Create(ctx,
 		entities.Product{
 			OrgId:       orgId,
 			Id:          lib.GenerateId("prod"),
-			Name:        request.Name,
-			Description: request.Description,
-			Metadata:    request.Metadata,
+			Name:        input.Name,
+			Description: input.Description,
+			Metadata:    input.Metadata,
 			CreatedAt:   time.Now().UTC(),
 			UpdatedAt:   time.Now().UTC(),
 		})
@@ -58,7 +59,7 @@ func (s ProductService) CreateProduct(ctx context.Context, orgId string, request
 		return entities.Product{}, err
 	}
 
-	for _, v := range request.Variants {
+	for _, v := range input.Variants {
 		variant, err := s.variantRepository.Create(ctx,
 			entities.Variant{
 				OrgId:     orgId,
@@ -74,25 +75,62 @@ func (s ProductService) CreateProduct(ctx context.Context, orgId string, request
 		}
 
 		for _, p := range v.Prices {
-			_, err := s.priceRepository.Create(ctx,
-				entities.NewPrice(orgId, variant.Id, entities.CreatePriceInput{
-					OrgId:              orgId,
-					Label:              p.Label,
-					VariantId:          variant.Id,
-					Category:           p.Category,
-					Scheme:             p.Scheme,
-					Cycles:             p.Cycles,
-					Currency:           p.Currency,
-					UnitPrice:          p.UnitPrice,
-					MinPrice:           p.MinPrice,
-					SuggestedPrice:     p.SuggestedPrice,
-					BillingInterval:    p.BillingInterval,
-					BillingIntervalQty: p.BillingIntervalQty,
-					TrialInterval:      p.TrialInterval,
-					TrialIntervalQty:   p.TrialIntervalQty,
-					TaxCode:            p.TaxCode,
-					Metadata:           p.Metadata,
-				}))
+			// Convert input tiers to entity tiers
+			var tiers []entities.CreatePriceTierInput
+			for _, t := range p.Tiers {
+				// Convert FromQty from int64 to int
+				fromQty := int(t.FromQty)
+
+				// Convert ToQty from int64 to *int
+				var toQty *int
+				if t.ToQty > 0 {
+					toQtyInt := int(t.ToQty)
+					toQty = &toQtyInt
+				}
+
+				tiers = append(tiers, entities.CreatePriceTierInput{
+					Tier:        t.Tier,
+					FromQty:     fromQty,
+					ToQty:       toQty,
+					UnitPrice:   t.UnitPrice,
+					Description: t.Description,
+				})
+			}
+
+			priceInput := entities.CreatePriceInput{
+				OrgId:              orgId,
+				Label:              p.Label,
+				VariantId:          variant.Id,
+				Category:           p.Category,
+				Scheme:             p.Scheme,
+				Cycles:             p.Cycles,
+				Currency:           p.Currency,
+				UnitPrice:          p.UnitPrice,
+				MinPrice:           p.MinPrice,
+				SuggestedPrice:     p.SuggestedPrice,
+				BillingInterval:    p.BillingInterval,
+				BillingIntervalQty: p.BillingIntervalQty,
+				TrialInterval:      p.TrialInterval,
+				TrialIntervalQty:   p.TrialIntervalQty,
+				TaxCode:            p.TaxCode,
+				HasUsage:           p.HasUsage,
+				MeterId:            p.MeterId,
+				PercentageRate:     p.PercentageRate,
+				FixedFee:           p.FixedFee,
+				OverageUnitPrice:   p.OverageUnitPrice,
+				IncludedUsage:      p.IncludedUsage,
+				UsageLimit:         p.UsageLimit,
+				Tiers:              tiers,
+				Metadata:           p.Metadata,
+			}
+
+			price, err := entities.NewPrice(orgId, variant.Id, priceInput)
+			if err != nil {
+				s.logger.Error("Failed to validate price", err.Error())
+				return entities.Product{}, lib.NewCustomError(lib.BadRequestError, err.Error(), nil)
+			}
+
+			_, err = s.priceRepository.Create(ctx, price)
 			if err != nil {
 				s.logger.Error("Failed to create price", err.Error())
 				return entities.Product{}, err
@@ -131,7 +169,6 @@ func (s ProductService) FindById(ctx context.Context, orgId string, id string) (
 }
 
 func (s ProductService) CreateProductPrice(ctx context.Context, input entities.CreatePriceInput) (entities.Price, error) {
-
 	if input.BillingInterval == "" {
 		input.BillingInterval = prices.BillingIntervalNone
 	}
@@ -139,28 +176,15 @@ func (s ProductService) CreateProductPrice(ctx context.Context, input entities.C
 		input.TrialInterval = prices.BillingIntervalNone
 	}
 
-	price, err := s.priceRepository.Create(ctx, entities.Price{
-		OrgId:              input.OrgId,
-		Id:                 lib.GenerateId("price"),
-		Label:              input.Label,
-		VariantId:          input.VariantId,
-		Category:           input.Category,
-		Scheme:             input.Scheme,
-		Cycles:             input.Cycles,
-		Currency:           common.Currency(input.Currency),
-		UnitPrice:          input.UnitPrice,
-		MinPrice:           input.MinPrice,
-		SuggestedPrice:     input.SuggestedPrice,
-		BillingInterval:    input.BillingInterval,
-		BillingIntervalQty: input.BillingIntervalQty,
-		TrialInterval:      input.TrialInterval,
-		TrialIntervalQty:   input.TrialIntervalQty,
-		TaxCode:            input.TaxCode,
-		Metadata:           input.Metadata,
-		CreatedAt:          time.Now(),
-		UpdatedAt:          time.Now(),
-	})
+	// Create and validate price entity
+	price, err := entities.NewPrice(input.OrgId, input.VariantId, input)
+	if err != nil {
+		s.logger.Error("Failed to validate price", err.Error())
+		return entities.Price{}, lib.NewCustomError(lib.BadRequestError, err.Error(), nil)
+	}
 
+	// Create price in repository
+	price, err = s.priceRepository.Create(ctx, price)
 	if err != nil {
 		s.logger.Error("Failed to create product price", err.Error())
 		return entities.Price{}, err
@@ -170,16 +194,16 @@ func (s ProductService) CreateProductPrice(ctx context.Context, input entities.C
 	return price, nil
 }
 
-func (s ProductService) UpdateProduct(ctx context.Context, orgId string, id string, request request.UpdateProductRequest) (entities.Product, error) {
+func (s ProductService) UpdateProduct(ctx context.Context, orgId string, id string, input appDto.UpdateProductInput) (entities.Product, error) {
 	product, err := s.productRepository.FindById(ctx, orgId, id)
 	if err != nil {
 		s.logger.Error("Failed to find product", err.Error())
 		return entities.Product{}, err
 	}
 
-	product.Name = request.Name
-	product.Description = request.Description
-	product.Metadata = request.Metadata
+	product.Name = input.Name
+	product.Description = input.Description
+	product.Metadata = input.Metadata
 	product.UpdatedAt = time.Now().UTC()
 
 	product, err = s.productRepository.Update(ctx, product)
@@ -335,13 +359,56 @@ func (s ProductService) UpdatePrice(ctx context.Context, orgId string, id string
 	price.TrialInterval = input.TrialInterval
 	price.TrialIntervalQty = input.TrialIntervalQty
 	price.TaxCode = input.TaxCode
+	price.HasUsage = input.HasUsage
+	price.MeterId = input.MeterId
+	price.PercentageRate = input.PercentageRate
+	price.FixedFee = input.FixedFee
+	price.OverageUnitPrice = input.OverageUnitPrice
+	price.IncludedUsage = input.IncludedUsage
+	price.UsageLimit = input.UsageLimit
 	price.Metadata = input.Metadata
 	price.UpdatedAt = time.Now().UTC()
+
+	// Convert input tiers to price tiers
+	var tiers []entities.PriceTier
+	for _, tierInput := range input.Tiers {
+		tiers = append(tiers, entities.NewPriceTier(entities.CreatePriceTierInput{
+			OrgId:       orgId,
+			PriceId:     price.Id,
+			Tier:        tierInput.Tier,
+			FromQty:     tierInput.FromQty,
+			ToQty:       tierInput.ToQty,
+			UnitPrice:   tierInput.UnitPrice,
+			Description: tierInput.Description,
+		}))
+	}
+	price.Tiers = tiers
+
+	// Validate price before updating
+	if err := price.Validate(); err != nil {
+		return entities.Price{}, lib.NewCustomError(lib.BadRequestError, err.Error(), nil)
+	}
 
 	price, err = s.priceRepository.Update(ctx, price)
 	if err != nil {
 		s.logger.Error("Failed to update price", err.Error())
 		return entities.Price{}, err
+	}
+
+	// Update price tiers if any
+	if len(input.Tiers) > 0 {
+		err = s.priceRepository.UpdatePriceTiers(ctx, orgId, price.Id, price.Tiers)
+		if err != nil {
+			s.logger.Error("Failed to update price tiers", err.Error())
+			return entities.Price{}, err
+		}
+	} else {
+		// Delete all tiers if none are provided
+		err = s.priceRepository.DeletePriceTiers(ctx, orgId, price.Id)
+		if err != nil {
+			s.logger.Error("Failed to delete price tiers", err.Error())
+			return entities.Price{}, err
+		}
 	}
 
 	_ = s.pubsub.Publish(orgId, topic.PriceUpdated, price)

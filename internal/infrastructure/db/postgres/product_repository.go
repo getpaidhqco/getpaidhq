@@ -15,10 +15,15 @@ import (
 
 type ProductRepository struct {
 	*PgDatabase
-	logger logger.Logger
+	logger    logger.Logger
+	priceRepo repositories.PriceRepository
 }
 
-func NewProductRepository(primaryDb lib.Database, logger logger.Logger) repositories.ProductRepository {
+func NewProductRepository(
+	primaryDb lib.Database,
+	logger logger.Logger,
+	priceRepo repositories.PriceRepository,
+) repositories.ProductRepository {
 	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
@@ -26,6 +31,7 @@ func NewProductRepository(primaryDb lib.Database, logger logger.Logger) reposito
 	return ProductRepository{
 		PgDatabase: pgDatabase,
 		logger:     logger,
+		priceRepo:  priceRepo,
 	}
 }
 
@@ -51,7 +57,9 @@ func (r ProductRepository) FindById(ctx context.Context, orgId string, id string
 	                 v.org_id, v.id, v.product_id, v.name, v.description, v.metadata, v.created_at, v.updated_at,
 	                 pr.org_id, pr.id, pr.label, pr.variant_id, pr.category, pr.scheme, pr.cycles, pr.currency, pr.unit_price, pr.min_price, 
                      pr.suggested_price, pr.billing_interval, pr.billing_interval_qty, pr.trial_interval, pr.trial_interval_qty,
-                     pr.tax_code, pr.metadata, pr.created_at, pr.updated_at
+                     pr.tax_code, 
+                     pr.meter_id, pr.has_usage, pr.percentage_rate, pr.fixed_fee, pr.overage_unit_price, pr.included_usage, pr.usage_limit,
+                     pr.metadata, pr.created_at, pr.updated_at
               FROM products p
               LEFT JOIN variants v ON p.org_id = v.org_id AND p.id = v.product_id
               LEFT JOIN prices pr ON v.org_id = pr.org_id AND v.id = pr.variant_id
@@ -103,6 +111,13 @@ func (r ProductRepository) FindById(ctx context.Context, orgId string, id string
 			&price.TrialInterval,
 			&price.TrialIntervalQty,
 			&price.TaxCode,
+			&price.MeterId,
+			&price.HasUsage,
+			&price.PercentageRate,
+			&price.FixedFee,
+			&price.OverageUnitPrice,
+			&price.IncludedUsage,
+			&price.UsageLimit,
 			&price.Metadata,
 			&price.CreatedAt,
 			&price.UpdatedAt,
@@ -130,11 +145,40 @@ func (r ProductRepository) FindById(ctx context.Context, orgId string, id string
 		return entities.Product{}, rows.Err()
 	}
 
+	// Create a map to store price tiers for each price
+	priceTiers := make(map[string][]entities.PriceTier)
+
+	// Collect all prices from all variants
 	for _, variant := range variantsMap {
+		for _, price := range variant.Prices {
+			if price.OrgId.Valid && price.Id.Valid {
+				// Load price tiers for this price
+				tiers, err := r.priceRepo.GetPriceTiers(ctx, price.OrgId.String, price.Id.String)
+				if err != nil {
+					r.logger.Error(`failed to load price tiers`, err.Error())
+					// Continue even if we can't load tiers for a specific price
+					continue
+				}
+				// Store the tiers in the map using the price ID as the key
+				priceTiers[price.Id.String] = tiers
+			}
+		}
 		product.Variants = append(product.Variants, *variant)
 	}
 
-	return product.ToEntity(), nil
+	// Convert the product to an entity
+	productEntity := product.ToEntity()
+
+	// Add price tiers to each price in the product entity
+	for i, variant := range productEntity.Variants {
+		for j, price := range variant.Prices {
+			if tiers, ok := priceTiers[price.Id]; ok {
+				productEntity.Variants[i].Prices[j].Tiers = tiers
+			}
+		}
+	}
+
+	return productEntity, nil
 }
 
 func (r ProductRepository) Find(ctx context.Context, orgId string, p request.Pagination) ([]entities.Product, int, error) {

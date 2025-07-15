@@ -29,7 +29,7 @@ type OrderActivities struct {
 	subscriptionRepository repositories.SubscriptionRepository
 	settingRepository      repositories.SettingRepository
 	paymentRepository      repositories.PaymentRepository
-	pubsub                 events.PubSub
+	pubsub                 events.NotificationPublisher
 	gatewayFactory         factories.GatewayFactory
 	errorReporter          lib.ErrorReporter
 }
@@ -40,7 +40,7 @@ func NewOrderActivities(
 	subscriptionService interfaces.SubscriptionService,
 	dunningService interfaces.DunningService,
 	subscriptionRepository repositories.SubscriptionRepository,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 	paymentRepository repositories.PaymentRepository,
 	gatewayFactory factories.GatewayFactory,
 	errorReporter lib.ErrorReporter,
@@ -132,106 +132,43 @@ func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId strin
 	return subs, err
 }
 
-// ChargeCustomerForBillingPeriod is responsible for charging the customer for the billing period and to
-// update the subscription status to reflect the billing period
+// ChargeCustomerForBillingPeriod is responsible for charging the customer for the billing period
+// If a technical error occurs, it will return an error that Temporal can retry.
+// Any other error are handled downstream as it implies dunning
 func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, currentSub entities.Subscription) (payments.ChargeResult, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("ChargeCustomerForBillingPeriod", "id", currentSub.Id, "Total", currentSub.Amount)
+	logger.Info("ProcessRetryCharge", "orgId", currentSub.OrgId, "subscriptionId", currentSub.Id, "amount", currentSub.Amount)
 
-	subscription, err := a.subscriptionRepository.FindById(ctx, currentSub.OrgId, currentSub.Id)
+	chargeResult, err := a.subscriptionService.ProcessSubscriptionCharge(ctx, currentSub)
 	if err != nil {
-		logger.Error("Failed to find subscription", "error", err.Error())
-		return payments.ChargeResult{}, err
+		var gatewayErr *lib.CustomError
+		if errors.As(err, &gatewayErr) && gatewayErr.Type == lib.GatewayError {
+			// Gateway errors should be retried by Temporal using the retry policy in the workflow.
+			logger.Error("Gateway error, returning error so that the charge can be retried", "error", chargeResult.ErrorReason)
+			a.errorReporter.ReportError(ctx, errors.New("gateway error while charging subscription"), map[string]interface{}{
+				"org_id":          currentSub.OrgId,
+				"error":           chargeResult.ErrorReason,
+				"psp":             string(currentSub.PspId),
+				"subscription_id": currentSub.Id,
+			})
+			return payments.ChargeResult{}, temporal.NewApplicationError(chargeResult.ErrorReason, "gateway_error", nil)
+
+		} else {
+			logger.Error("Generic error during ProcessSubscriptionCharge",
+				"orgId", currentSub.OrgId,
+				"subscriptionId", currentSub.Id,
+				"error", err.Error())
+			return chargeResult, err
+		}
 	}
 
-	gw, err := a.gatewayFactory.NewGateway(ctx, subscription.OrgId, string(subscription.PspId))
-	if err != nil {
-		logger.Error("Failed to get gateway", "err", err.Error())
-		return payments.ChargeResult{}, err
-	}
-
-	customer, err := a.subscriptionService.GetSubscriptionCustomer(ctx, subscription)
-	if err != nil {
-		logger.Error("failed to get customer", "error", err.Error())
-		return payments.ChargeResult{}, err
-	}
-
-	securePaymentMethod, err := a.subscriptionService.GetSubscriptionPaymentMethod(ctx, subscription)
-	if err != nil {
-		logger.Error("failed to get secure paymentMethod", "error", err.Error())
-		return payments.ChargeResult{}, err
-	}
-
-	// Get the decrypted token for payment processing
-	decryptedToken, err := securePaymentMethod.GetToken(ctx)
-	if err != nil {
-		logger.Error("failed to decrypt payment token", "error", err.Error())
-		return payments.ChargeResult{}, err
-	}
-
-	chargeResult := gw.ChargePayment(ctx, payment_providers.ChargePaymentCommand{
-		OrgId:          subscription.OrgId,
-		OrderId:        subscription.OrderId,
-		SubscriptionId: subscription.Id,
-		Amount:         subscription.Amount,
-		Currency:       subscription.Currency,
-		PaymentMethod: payment_providers.PaymentMethod{
-			PspId:       securePaymentMethod.Id,
-			Name:        securePaymentMethod.Name,
-			Type:        string(securePaymentMethod.Type),
-			IsRecurring: true,
-			Token:       decryptedToken, // Use decrypted token
-		},
-		Customer: customer,
-	})
-
-	// Gateway errors should be retried by Temporal using the retry policy in the workflow.
-	if chargeResult.Status == payment_providers.GatewayError {
-		logger.Error("Gateway error, returning error so that the charge can be retried", "error", chargeResult.ErrorReason)
-		a.errorReporter.ReportError(ctx, errors.New("gateway error while charging subscription"), map[string]interface{}{
-			"org_id":          subscription.OrgId,
-			"error":           chargeResult.ErrorReason,
-			"psp":             string(subscription.PspId),
-			"subscription_id": subscription.Id,
-		})
-		return payments.ChargeResult{}, temporal.NewApplicationError(chargeResult.ErrorReason, "gateway_error", nil)
-	}
-
-	rawData, err := json.Marshal(chargeResult.PspResponse)
-	if err != nil {
-		logger.Error("failed to marshal charge result", "error", err.Error())
-	}
-
-	var status payments.PaymentStatus
-	var completedAt time.Time
-	switch chargeResult.Status {
-	case payment_providers.ChargePaymentStatusSuccess:
-		status = payments.PaymentStatusSucceeded
-		completedAt = time.Now()
-	case payment_providers.ChargePaymentStatusPending:
-		status = payments.PaymentStatusPending
-	case payment_providers.ChargePaymentStatusError:
-		status = payments.PaymentStatusFailed
-	}
-
-	result := payments.ChargeResult{
-		Psp:         chargeResult.Psp,
-		Amount:      chargeResult.AmountCharged,
-		Status:      status,
-		Currency:    subscription.Currency,
-		ErrorReason: chargeResult.ErrorReason,
-		ErrorCode:   chargeResult.ErrorCode,
-		PspId:       chargeResult.PspId,
-		Reference:   chargeResult.Reference,
-		ProcessedAt: completedAt,
-		RawData:     string(rawData),
-	}
-	return result, nil
+	logger.Info("Subscription charge attempted successfully", "orgId", currentSub.OrgId, "subscriptionId", currentSub.Id, "status", chargeResult.Status, "amount", chargeResult.Amount)
+	return chargeResult, nil
 }
 
 func (a *OrderActivities) HandleChargeResult(ctx context.Context, subscription entities.Subscription, chargeResult payments.ChargeResult) (entities.Subscription, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("HandleChargeResult", "id", subscription.Id, "status", chargeResult.Status)
+	logger.Info("HandleDunningChargeResult", "id", subscription.Id, "status", chargeResult.Status)
 
 	if chargeResult.Status == payments.PaymentStatusSucceeded {
 		return a.subscriptionService.HandleSubscriptionChargeSuccess(ctx, subscriptions.SubscriptionChargeInput{

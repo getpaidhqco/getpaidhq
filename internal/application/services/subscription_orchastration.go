@@ -29,7 +29,7 @@ type SubscriptionOrchestrationService struct {
 	orderItemRepository    repositories.OrderItemRepository
 	workflowService        interfaces.WorkflowService
 	gatewayFactory         factories.GatewayFactory
-	pubsub                 events.PubSub
+	pubsub                 events.NotificationPublisher
 	logger                 logger.Logger
 }
 
@@ -41,7 +41,7 @@ func NewSubscriptionOrchestrationService(
 	customerRepository repositories.CustomerRepository,
 	orderRepository repositories.OrderRepository,
 	paymentRepository repositories.PaymentRepository,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 	gatewayFactory factories.GatewayFactory,
 	logger logger.Logger,
 	subs interfaces.SubscriptionService,
@@ -72,6 +72,28 @@ func NewSubscriptionOrchestrationService(
 	}
 }
 
+func (s SubscriptionOrchestrationService) Create(ctx context.Context, orgId string, input dto.CreateSubscriptionInput) (entities.Subscription, error) {
+	s.logger.Info("Creating new subscription", "orgId", orgId)
+
+	// Call the base service to create the subscription
+	subscription, err := s.SubscriptionService.Create(ctx, orgId, input)
+	if err != nil {
+		s.logger.Error("Failed to create subscription", err.Error())
+		return entities.Subscription{}, err
+	}
+
+	// If the subscription should be activated immediately, start the workflow
+	if subscription.Status == entities.SubscriptionStatusActive {
+		err = s.workflowEngine.StartSubscriptionWorkflow(ctx, subscription)
+		if err != nil {
+			s.logger.Errorf("Failed to start workflow %v", err.Error())
+			return subscription, err
+		}
+	}
+
+	return subscription, nil
+}
+
 func (s SubscriptionOrchestrationService) Update(ctx context.Context, input subscriptions.UpdateSubscriptionInput) (entities.Subscription, error) {
 	s.logger.Info("Updating subscription", "orgId", input.OrgId, "id", input.Id)
 
@@ -81,9 +103,13 @@ func (s SubscriptionOrchestrationService) Update(ctx context.Context, input subs
 		return entities.Subscription{}, err
 	}
 
-	if input.Status != subscription.Status {
+	if input.Status != "" {
 		s.logger.Infof("Updating status %s", input.Status)
 		subscription.Status = input.Status
+	}
+	if input.DefaultPaymentMethod != "" {
+		s.logger.Infof("Updating PaymentMethodId %s", input.DefaultPaymentMethod)
+		subscription.PaymentMethodId = input.DefaultPaymentMethod
 	}
 
 	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
@@ -97,21 +123,25 @@ func (s SubscriptionOrchestrationService) Update(ctx context.Context, input subs
 }
 
 // Activate a subscription and update the Entity Workflow
-func (s SubscriptionOrchestrationService) Activate(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
-	s.logger.Info("Marking subscription active", "orgId", orgId, "id", id)
+func (s SubscriptionOrchestrationService) Activate(ctx context.Context, input subscriptions.ActivateSubscriptionInput) (entities.Subscription, error) {
+	s.logger.Info("Marking subscription active", "orgId", input.OrgId, "id", input.Id)
 
-	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, id)
+	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
 		s.logger.Error("Failed to find subscriptions", err.Error())
 		return entities.Subscription{}, err
 	}
 
-	subscription.Status = entities.SubscriptionStatusActive
-	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
+	subscription, err = s.SubscriptionService.Activate(ctx, input)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", "err", err.Error())
-		return entities.Subscription{}, err
+		s.logger.Error("Failed to activate subscription", err.Error())
+		var serr lib.CustomError
+		if errors.As(err, &serr) {
+			return entities.Subscription{}, err
+		}
+		return entities.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
 	}
+
 	err = s.workflowEngine.StartSubscriptionWorkflow(ctx, subscription)
 	if err != nil {
 		s.logger.Errorf("Failed to start workflow %v", err.Error())

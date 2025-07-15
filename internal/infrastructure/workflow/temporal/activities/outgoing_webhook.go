@@ -13,14 +13,14 @@ type OutgoingWebhookActivities struct {
 	whService         interfaces.WebhookSubscriptionService
 	webhookRepository repositories.WebhookSubscriptionRepository
 	settingRepository repositories.SettingRepository
-	pubsub            events.PubSub
+	pubsub            events.NotificationPublisher
 }
 
 func NewOutgoingWebhookActivities(
 	webhookRepository repositories.WebhookSubscriptionRepository,
 	settingRepository repositories.SettingRepository,
 	whService interfaces.WebhookSubscriptionService,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 ) OutgoingWebhookActivities {
 	return OutgoingWebhookActivities{
 		whService:         whService,

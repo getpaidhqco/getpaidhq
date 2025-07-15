@@ -4,16 +4,20 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/dto"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/payments"
 	"payloop/internal/domain/entities/settings"
 	"payloop/internal/domain/entities/subscriptions"
 	"payloop/internal/domain/factories"
+	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/domain/security"
 	"payloop/internal/lib"
@@ -29,11 +33,13 @@ type SubscriptionService struct {
 	subscriptionRepository repositories.SubscriptionRepository
 	paymentRepository      repositories.PaymentRepository
 	orderItemRepository    repositories.OrderItemRepository
+	priceRepository        repositories.PriceRepository
 	workflowService        interfaces.WorkflowService
 	gatewayFactory         factories.GatewayFactory
 	tokenVault             security.TokenVault
-	pubsub                 events.PubSub
+	notificationPublisher  events.NotificationPublisher
 	logger                 logger.Logger
+	billingService         interfaces.BillingService
 }
 
 func NewSubscriptionService(
@@ -45,13 +51,15 @@ func NewSubscriptionService(
 	customerRepository repositories.CustomerRepository,
 	orderRepository repositories.OrderRepository,
 	paymentRepository repositories.PaymentRepository,
+	priceRepository repositories.PriceRepository,
 	tokenVault security.TokenVault,
-	pubsub events.PubSub,
+	notificationPublisher events.NotificationPublisher,
 	gatewayFactory factories.GatewayFactory,
 	logger logger.Logger,
+	billingService interfaces.BillingService,
 ) interfaces.SubscriptionService {
 
-	_, err := pubsub.Subscribe("subscription.workflow.>", func(topic string, data []byte) {
+	_, err := notificationPublisher.Subscribe("subscription.workflow.>", func(topic string, data []byte) {
 		logger.Infof("Received message from %s", topic)
 	})
 	if err != nil {
@@ -68,10 +76,12 @@ func NewSubscriptionService(
 		orderRepository:        orderRepository,
 		orderItemRepository:    orderItemRepository,
 		subscriptionRepository: subscriptionRepository,
+		priceRepository:        priceRepository,
 		tokenVault:             tokenVault,
-		pubsub:                 pubsub,
+		notificationPublisher:  notificationPublisher,
 		logger:                 logger,
 		gatewayFactory:         gatewayFactory,
+		billingService:         billingService,
 	}
 }
 
@@ -108,18 +118,97 @@ func (s SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, or
 	return subs, nil
 }
 
-func (s SubscriptionService) Create(ctx context.Context, input entities.CreateSubscriptionInput) (entities.Subscription, error) {
-	s.logger.Info("Creating new subscription", "orgId", input.OrgId)
+func (s SubscriptionService) Create(ctx context.Context, orgId string, input dto.CreateSubscriptionInput) (entities.Subscription, error) {
+	s.logger.Info("Creating new subscription", "orgId", orgId)
 
-	subscription := entities.NewFromCreateInput(input)
-	subscription, err := s.subscriptionRepository.Create(ctx, subscription)
-
+	s.logger.Debug("Validating customer exists", "customerId", input.CustomerId)
+	_, err := s.customerRepository.FindById(ctx, orgId, input.CustomerId)
 	if err != nil {
-		s.logger.Error("Failed create subscriptions", err.Error())
+		s.logger.Error("Customer not found", "customerId", input.CustomerId, "error", err.Error())
+		return entities.Subscription{}, lib.NewCustomError(lib.NotFoundError, "customer not found", err)
+	}
+
+	// Create a new subscription entity
+	subscription := entities.Subscription{
+		OrgId:              orgId,
+		Id:                 lib.GenerateId("sub"),
+		CustomerId:         input.CustomerId,
+		PaymentMethodId:    input.PaymentMethodId,
+		Status:             entities.SubscriptionStatusPending,
+		Currency:           input.Currency,
+		BillingInterval:    "month", // Default to monthly billing
+		BillingIntervalQty: 1,       // Default to 1 month
+		BillingAnchor:      time.Now().UTC().Day(),
+		StartDate:          time.Now().UTC(),
+		CreatedAt:          time.Now().UTC(),
+		UpdatedAt:          time.Now().UTC(),
+		Items:              []entities.SubscriptionItem{},
+	}
+
+	// Set metadata if provided
+	if input.Metadata != nil {
+		subscription.SetMetadata(input.Metadata)
+	}
+
+	// Create subscription items from the input
+	for _, itemInput := range input.Items {
+
+		// Validate that price exists
+		price, err := s.priceRepository.FindById(ctx, orgId, itemInput.PriceId)
+		if err != nil {
+			s.logger.Error("Invalid price", "priceId", itemInput.PriceId, err.Error())
+			return entities.Subscription{}, lib.NewCustomError(lib.BadRequestError, "invalid price", err)
+		}
+
+		priceSnapshot, err := json.Marshal(price)
+		if err != nil {
+			s.logger.Error("Failed to create price snapshot", err.Error())
+			return entities.Subscription{}, lib.NewCustomError(lib.InternalError, "failed to create price snapshot", err)
+		}
+
+		subscriptionItem := entities.SubscriptionItem{
+			OrgId:            orgId,
+			Id:               lib.GenerateId("si"),
+			SubscriptionId:   subscription.Id,
+			PriceId:          itemInput.PriceId,
+			VariantId:        price.VariantId,
+			MeterId:          price.MeterId,
+			Name:             itemInput.Name,
+			Description:      itemInput.Description,
+			Status:           entities.SubscriptionItemStatusActive,
+			Quantity:         itemInput.Quantity,
+			Amount:           0, // Amount will be calculated based on price
+			Currency:         input.Currency,
+			HasUsage:         price.HasUsage,
+			PercentageRate:   price.PercentageRate,
+			FixedFee:         price.FixedFee,
+			UnitPrice:        price.UnitPrice,
+			OverageUnitPrice: price.OverageUnitPrice,
+			IncludedUsage:    price.IncludedUsage,
+			UsageLimit:       price.UsageLimit,
+			PriceSnapshot:    priceSnapshot,
+			CreatedAt:        time.Now().UTC(),
+			UpdatedAt:        time.Now().UTC(),
+		}
+
+		// Set metadata if provided
+		if itemInput.Metadata != nil {
+			subscriptionItem.SetMetadata(itemInput.Metadata)
+		}
+
+		// Add the item to the subscription
+		subscription.Items = append(subscription.Items, subscriptionItem)
+	}
+
+	// Create the subscription in the repository
+	subscription, err = s.subscriptionRepository.Create(ctx, subscription)
+	if err != nil {
+		s.logger.Error("Failed to create subscription", err.Error())
 		return entities.Subscription{}, err
 	}
 
-	_ = s.pubsub.Publish(subscription.OrgId, topic.TopicSubscriptionCreated, subscription)
+	// Publish subscription created event
+	_ = s.notificationPublisher.Publish(subscription.OrgId, topic.TopicSubscriptionCreated, subscription)
 
 	return subscription, nil
 }
@@ -144,7 +233,7 @@ func (s SubscriptionService) Update(ctx context.Context, input subscriptions.Upd
 		return entities.Subscription{}, err
 	}
 
-	_ = s.pubsub.Publish(subscription.OrgId, topic.GetSubscriptionTopic(subscription.Status), newSub)
+	_ = s.notificationPublisher.Publish(subscription.OrgId, topic.GetSubscriptionTopic(subscription.Status), newSub)
 	return newSub, err
 }
 
@@ -160,16 +249,49 @@ func (s SubscriptionService) FindById(ctx context.Context, orgId string, id stri
 	return subscription, nil
 }
 
-func (s SubscriptionService) Activate(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
-	s.logger.Info("Marking subscription active", "orgId", orgId, "id", id)
+func (s SubscriptionService) Activate(ctx context.Context, input subscriptions.ActivateSubscriptionInput) (entities.Subscription, error) {
+	s.logger.Info("Marking subscription active", "orgId", input.OrgId, "id", input.Id)
 
-	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, id)
+	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
 		s.logger.Error("Failed to find subscriptions", err.Error())
 		return entities.Subscription{}, err
 	}
 
+	// If PaymentMethodId is provided in the input, update the subscription
+	if input.PaymentMethodId != "" {
+		s.logger.Debug("Updating payment method", "paymentMethodId", input.PaymentMethodId)
+
+		// Validate that payment method exists and belongs to customer
+		paymentMethod, err := s.customerRepository.FindPaymentMethodById(ctx, input.OrgId, input.PaymentMethodId)
+		if err != nil {
+			s.logger.Error("Payment method not found", "paymentMethodId", input.PaymentMethodId, "error", err.Error())
+			return entities.Subscription{}, lib.NewCustomError(lib.BadRequestError, "invalid payment method", err)
+		}
+
+		if paymentMethod.CustomerId != subscription.CustomerId {
+			s.logger.Error("Payment method does not belong to customer", "customerId", subscription.CustomerId)
+			return entities.Subscription{}, lib.NewCustomError(lib.BadRequestError, "payment method does not belong to customer", nil)
+		}
+
+		subscription.PaymentMethodId = input.PaymentMethodId
+		subscription.PspId = common.Gateway(paymentMethod.Psp)
+	}
+
+	s.logger.Debug("Checking payment method", "paymentMethodId", subscription.PaymentMethodId)
+	if subscription.PaymentMethodId == "" {
+		s.logger.Error("No payment method attached to subscription")
+		return entities.Subscription{}, lib.NewCustomError(lib.BadRequestError, "subscription must have a payment method attached", nil)
+	}
+
+	if subscription.Status == entities.SubscriptionStatusActive {
+		s.logger.Info("Subscription is already active")
+		return subscription, lib.NewCustomError(lib.BadRequestError, "subscription is already active", nil)
+	}
+
 	subscription.Status = entities.SubscriptionStatusActive
+	subscription.SetActivationDates()
+
 	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
 		s.logger.Error("Failed to update subscription", "err", err.Error())
@@ -461,13 +583,13 @@ func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context
 
 	// Publish the events
 	if newSub.Status == entities.SubscriptionStatusExpired {
-		_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusExpired, newSub)
+		_ = s.notificationPublisher.Publish(subscription.OrgId, topic.SubscriptionStatusExpired, newSub)
 	}
 	if newSub.Status == entities.SubscriptionStatusCompleted {
-		_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusCompleted, newSub)
+		_ = s.notificationPublisher.Publish(subscription.OrgId, topic.SubscriptionStatusCompleted, newSub)
 	}
 
-	_ = s.pubsub.Publish(
+	_ = s.notificationPublisher.Publish(
 		subscription.OrgId,
 		topic.SubscriptionPaymentChargeSuccess,
 		topic.NewSubscriptionPaymentChargeSuccessEvent(subscription, payment),
@@ -476,7 +598,6 @@ func (s SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context
 	return newSub, nil
 }
 
-// HandleSubscriptionChargeFailure logs the failed payment and updates the subscription status to past_due.
 func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context, input subscriptions.SubscriptionChargeInput) (entities.Subscription, error) {
 	s.logger.Info("Charge failure happened",
 		"orgId", input.Subscription.OrgId,
@@ -535,14 +656,14 @@ func (s SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context
 	}
 
 	// Publish the events
-	_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionPaymentChargeFailed, map[string]interface{}{
+	_ = s.notificationPublisher.Publish(subscription.OrgId, topic.SubscriptionPaymentChargeFailed, map[string]interface{}{
 		"subscription":  subscription,
 		"charge_result": charge,
 	})
 	// Publish the events
-	_ = s.pubsub.Publish(subscription.OrgId, topic.PaymentFailed, payment)
-	_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionStatusPastDue, newSub)
-	
+	_ = s.notificationPublisher.Publish(subscription.OrgId, topic.PaymentFailed, payment)
+	_ = s.notificationPublisher.Publish(subscription.OrgId, topic.SubscriptionStatusPastDue, newSub)
+
 	return newSub, nil
 }
 
@@ -578,19 +699,26 @@ func (s SubscriptionService) ChangeSubscriptionPlan(ctx context.Context, input s
 		return nil, nil, lib.NewCustomError(lib.BadRequestError, "subscription is not in a valid state for plan change", nil)
 	}
 
-	// 2. Fetch and validate new variant/price
-	// Note: In a real implementation, you would fetch the variant and price from a repository
-	// For now, we'll assume the variant and price are valid and just use the IDs
+	// Check if subscription has any usage-based items
+	// For now, we only support fixed subscriptions
+	for _, item := range subscription.Items {
+		if item.HasUsage {
+			return nil, nil, lib.NewCustomError(lib.BadRequestError, "changing plans for usage-based subscriptions is not supported yet", nil)
+		}
+	}
 
-	// 3. Ensure product ID matches current subscription (if product ID is already set)
-	// In a real implementation, you would check that the new variant belongs to the same product
-	// For now, we'll assume this validation is done elsewhere
+	// If no items exist, return an error
+	if len(subscription.Items) == 0 {
+		return nil, nil, lib.NewCustomError(lib.BadRequestError, "subscription has no items", nil)
+	}
 
 	// Store the original values for the plan change record
-	fromProductId := subscription.ProductId
-	fromVariantId := subscription.VariantId
-	fromPriceId := subscription.PriceId
-	fromAmount := subscription.Amount
+	// Use the first subscription item for backward compatibility
+	item := subscription.Items[0]
+	fromProductId := item.ProductId
+	fromVariantId := item.VariantId
+	fromPriceId := item.PriceId
+	fromAmount := item.Amount * int64(item.Quantity)
 
 	// 4. Calculate proration (if applicable)
 	var prorationAmount int64 = 0
@@ -608,11 +736,18 @@ func (s SubscriptionService) ChangeSubscriptionPlan(ctx context.Context, input s
 		prorationAmount = int64(prorationDetails.CreditAmount)
 	}
 
-	// 5. Update subscription fields
-	subscription.VariantId = input.NewVariantId
-	subscription.PriceId = input.NewPriceId
-	// In a real implementation, you would update the amount and other fields based on the new price
-	// For now, we'll assume the amount stays the same
+	// 5. Update subscription item fields with the new plan details
+	for i := range subscription.Items {
+		if subscription.Items[i].Id == item.Id {
+			subscription.Items[i].VariantId = input.NewVariantId
+			subscription.Items[i].PriceId = input.NewPriceId
+			subscription.Items[i].UpdatedAt = time.Now().UTC()
+			break
+		}
+	}
+
+	// Update subscription's updated timestamp
+	subscription.UpdatedAt = time.Now().UTC()
 
 	// Update the subscription in the database
 	updatedSubscription, err := s.subscriptionRepository.Update(ctx, subscription)
@@ -621,11 +756,20 @@ func (s SubscriptionService) ChangeSubscriptionPlan(ctx context.Context, input s
 		return nil, nil, err
 	}
 
+	// Get the updated item from the updated subscription
+	var updatedItem entities.SubscriptionItem
+	if len(updatedSubscription.Items) > 0 {
+		updatedItem = updatedSubscription.Items[0]
+	} else {
+		updatedItem = item
+	}
+
 	// 6. Create SubscriptionPlanChange record
+	toAmount := updatedItem.Amount * int64(updatedItem.Quantity)
 	changeType := "switch"
-	if updatedSubscription.Amount > fromAmount {
+	if toAmount > fromAmount {
 		changeType = "upgrade"
-	} else if updatedSubscription.Amount < fromAmount {
+	} else if toAmount < fromAmount {
 		changeType = "downgrade"
 	}
 
@@ -637,10 +781,10 @@ func (s SubscriptionService) ChangeSubscriptionPlan(ctx context.Context, input s
 		FromVariantId:   fromVariantId,
 		FromPriceId:     fromPriceId,
 		FromAmount:      fromAmount,
-		ToProductId:     subscription.ProductId,
-		ToVariantId:     subscription.VariantId,
-		ToPriceId:       subscription.PriceId,
-		ToAmount:        subscription.Amount,
+		ToProductId:     updatedItem.ProductId,
+		ToVariantId:     updatedItem.VariantId,
+		ToPriceId:       updatedItem.PriceId,
+		ToAmount:        toAmount,
 		ChangeType:      changeType,
 		EffectiveDate:   effectiveDate,
 		ProrationMode:   input.ProrationMode,
@@ -659,7 +803,7 @@ func (s SubscriptionService) ChangeSubscriptionPlan(ctx context.Context, input s
 
 	// 7. Emit subscription.plan_changed event
 	event := topic.NewSubscriptionPlanChangedEvent(updatedSubscription, createdPlanChange)
-	_ = s.pubsub.Publish(subscription.OrgId, topic.SubscriptionPlanChanged, event)
+	_ = s.notificationPublisher.Publish(subscription.OrgId, topic.SubscriptionPlanChanged, event)
 
 	return &updatedSubscription, &createdPlanChange, nil
 }
@@ -686,4 +830,120 @@ func (s SubscriptionService) GetOrgSubscriptionSettings(ctx context.Context, org
 	}
 
 	return subscriptionSettings, nil
+}
+
+// ProcessSubscriptionCharge handles the complete subscription charging process
+// including billing calculation, payment processing, and result handling
+func (s SubscriptionService) ProcessSubscriptionCharge(ctx context.Context, subscription entities.Subscription) (payments.ChargeResult, error) {
+	// Get latest subscription data
+	currentSubscription, err := s.subscriptionRepository.FindById(ctx, subscription.OrgId, subscription.Id)
+	if err != nil {
+		return payments.ChargeResult{}, fmt.Errorf("failed to get subscription: %w", err)
+	}
+
+	// Skip charging if subscription is not active
+	if !currentSubscription.IsRunning() {
+		s.logger.Warn("Skipping charge for non-active subscription", "orgId", subscription.OrgId, "subscriptionId", subscription.Id, "status", currentSubscription.Status)
+		return payments.ChargeResult{
+			Status:      payments.PaymentStatusFailed,
+			ErrorReason: "Subscription is not active",
+		}, nil
+	}
+
+	// Calculate billing amount
+	billingCalculation, err := s.billingService.CalculateBillingAmount(ctx, currentSubscription)
+	if err != nil {
+		return payments.ChargeResult{}, fmt.Errorf("failed to calculate billing amount: %w", err)
+	}
+
+	// Skip charging if amount is zero
+	if billingCalculation.TotalAmount <= 0 {
+		return payments.ChargeResult{
+			Status:      payments.PaymentStatusSucceeded,
+			Amount:      0,
+			Currency:    billingCalculation.Currency,
+			ProcessedAt: time.Now(),
+		}, nil
+	}
+
+	// Get payment gateway
+	gateway, err := s.gatewayFactory.NewGateway(ctx, currentSubscription.OrgId, string(currentSubscription.PspId))
+	if err != nil {
+		return payments.ChargeResult{}, fmt.Errorf("failed to get payment gateway: %w", err)
+	}
+
+	// Get customer and payment method
+	customer, err := s.GetSubscriptionCustomer(ctx, currentSubscription)
+	if err != nil {
+		return payments.ChargeResult{}, fmt.Errorf("failed to get customer: %w", err)
+	}
+
+	paymentMethod, err := s.GetSubscriptionPaymentMethod(ctx, currentSubscription)
+	if err != nil {
+		return payments.ChargeResult{}, fmt.Errorf("failed to get payment method: %w", err)
+	}
+
+	decryptedToken, err := paymentMethod.GetToken(ctx)
+	if err != nil {
+		return payments.ChargeResult{}, fmt.Errorf("failed to decrypt payment token: %w", err)
+	}
+
+	// Process payment
+	chargeResult := gateway.ChargePayment(ctx, payment_providers.ChargePaymentCommand{
+		OrgId:          currentSubscription.OrgId,
+		OrderId:        currentSubscription.OrderId,
+		SubscriptionId: currentSubscription.Id,
+		Amount:         billingCalculation.TotalAmount,
+		Currency:       billingCalculation.Currency,
+		PaymentMethod: payment_providers.PaymentMethod{
+			PspId:       paymentMethod.Id,
+			Name:        paymentMethod.Name,
+			Type:        string(paymentMethod.Type),
+			IsRecurring: true,
+			Token:       decryptedToken,
+		},
+		Customer: customer,
+	})
+
+	// Handle gateway errors
+	if chargeResult.Status == payment_providers.GatewayError {
+		s.logger.Error("Gateway error while charging subscription",
+			"orgId", currentSubscription.OrgId,
+			"subscriptionId", currentSubscription.Id,
+			"error", chargeResult.ErrorReason,
+			"psp", string(currentSubscription.PspId),
+		)
+		return payments.ChargeResult{}, lib.NewCustomError(lib.GatewayError, chargeResult.ErrorReason, nil)
+	}
+
+	// Convert to domain charge result
+	rawData, _ := json.Marshal(chargeResult.PspResponse)
+
+	var status payments.PaymentStatus
+	var completedAt time.Time
+
+	switch chargeResult.Status {
+	case payment_providers.ChargePaymentStatusSuccess:
+		status = payments.PaymentStatusSucceeded
+		completedAt = time.Now()
+	case payment_providers.ChargePaymentStatusPending:
+		status = payments.PaymentStatusPending
+	case payment_providers.ChargePaymentStatusError:
+		status = payments.PaymentStatusFailed
+	}
+
+	domainChargeResult := payments.ChargeResult{
+		Psp:         chargeResult.Psp,
+		Amount:      chargeResult.AmountCharged,
+		Status:      status,
+		Currency:    currentSubscription.Currency,
+		ErrorReason: chargeResult.ErrorReason,
+		ErrorCode:   chargeResult.ErrorCode,
+		PspId:       chargeResult.PspId,
+		Reference:   chargeResult.Reference,
+		ProcessedAt: completedAt,
+		RawData:     string(rawData),
+	}
+
+	return domainChargeResult, nil
 }

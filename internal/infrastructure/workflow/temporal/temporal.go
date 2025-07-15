@@ -10,6 +10,7 @@ import (
 	"go.temporal.io/sdk/worker"
 	temporal "go.temporal.io/sdk/workflow"
 	"log/slog"
+	"payloop/internal/application/dto"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/logger"
@@ -30,7 +31,7 @@ type Temporal struct {
 	orderActivities activities.OrderActivities
 
 	settingRepository repositories.SettingRepository
-	pubsub            events.PubSub
+	pubsub            events.NotificationPublisher
 }
 
 func NewTemporalEngine(
@@ -41,7 +42,7 @@ func NewTemporalEngine(
 	errorReporter lib.ErrorReporter,
 	webhookActivities activities.OutgoingWebhookActivities,
 	settingRepository repositories.SettingRepository,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 ) interfaces.Engine {
 	// The client is orderActivities heavyweight object that should be created once per process.
 	// Set our Zap logger so that workflows and activities can use it
@@ -294,7 +295,7 @@ func (t Temporal) SignalSubscriptionWorkflow(ctx context.Context, signal string,
 }
 
 // StartDunningWorkflow starts a dunning workflow for a failed payment
-func (t Temporal) StartDunningWorkflow(ctx context.Context, input interfaces.StartDunningWorkflowInput) (string, string, error) {
+func (t Temporal) StartDunningWorkflow(ctx context.Context, input dto.StartDunningWorkflowInput) (string, string, error) {
 	t.logger.Info("Starting dunning workflow", "OrgId", input.OrgId, "SubscriptionId", input.SubscriptionId)
 
 	// Start the workflow

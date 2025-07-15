@@ -14,7 +14,7 @@ type WorkflowService struct {
 	logger          logger.Logger
 	idempotencyRepo repositories.IdempotencyKeyRepository
 	whsRepo         repositories.WebhookSubscriptionRepository
-	pubsub          events.PubSub
+	pubsub          events.NotificationPublisher
 	engine          interfaces.Engine
 }
 
@@ -22,7 +22,7 @@ func NewWorkflowService(
 	logger logger.Logger,
 	whsRepo repositories.WebhookSubscriptionRepository,
 	idempotencyRepo repositories.IdempotencyKeyRepository,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 	engine interfaces.Engine,
 ) interfaces.WorkflowService {
 	service := WorkflowService{

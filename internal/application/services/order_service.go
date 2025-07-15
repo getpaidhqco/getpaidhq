@@ -35,7 +35,7 @@ type OrderService struct {
 	paymentMethodRepository repositories.PaymentMethodRepository
 	paymentRepository       repositories.PaymentRepository
 	gatewayFactory          factories.GatewayFactory
-	pubsub                  events.PubSub
+	pubsub                  events.NotificationPublisher
 	cartFactory             factories.CartFactory
 	tokenVault              security.TokenVault
 	logger                  logger.Logger
@@ -54,7 +54,7 @@ func NewOrderService(
 	paymentMethodRepository repositories.PaymentMethodRepository,
 	gatewayFactory factories.GatewayFactory,
 	cartFactory factories.CartFactory,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 	tokenVault security.TokenVault,
 	logger logger.Logger,
 ) interfaces.OrderService {
@@ -224,8 +224,12 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 			return orders.CreateOrderResponse{}, err
 		}
 
-		if orderItem.Price.Category == prices.PriceCategorySubscription {
+		if orderItem.Price.Category == prices.PriceCategorySubscription ||
+			orderItem.Price.Category == prices.PriceCategoryUsage ||
+			orderItem.Price.Category == prices.PriceCategoryHybrid {
+			s.logger.Debugf("Creating subscription for order item %s", orderItem.Id)
 			subscription := entities.NewSubscriptionFromOrderItem(orderItem)
+			subscription.BillingAnchor = time.Now().Day()
 			subscription.CustomerId = customerEntity.Id
 			subscription.PspId = input.PspId
 			subscription.PaymentMethodId = input.PaymentMethodId

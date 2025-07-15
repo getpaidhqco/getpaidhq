@@ -17,7 +17,7 @@ import (
 type SessionService struct {
 	sessionRepository repositories.SessionRepository
 	cartRepository    repositories.CartRepository
-	pubsub            events.PubSub
+	pubsub            events.NotificationPublisher
 	cartFactory       factories.CartFactory
 	logger            logger.Logger
 }
@@ -26,7 +26,7 @@ func NewSessionService(sessionRepository repositories.SessionRepository,
 	cartRepository repositories.CartRepository,
 	logger logger.Logger,
 	cartFactory factories.CartFactory,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 ) interfaces.SessionService {
 	return SessionService{
 		sessionRepository: sessionRepository,

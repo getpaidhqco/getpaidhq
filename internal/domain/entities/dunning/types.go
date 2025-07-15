@@ -16,7 +16,6 @@ const (
 type DunningAttemptType string
 
 const (
-	DunningAttemptTypeImmediate   DunningAttemptType = "immediate"
 	DunningAttemptTypeProgressive DunningAttemptType = "progressive"
 	DunningAttemptTypeManual      DunningAttemptType = "manual"
 	DunningAttemptTypeTriggered   DunningAttemptType = "triggered"
@@ -48,9 +47,9 @@ const (
 type TokenStatus string
 
 const (
-	TokenStatusActive        TokenStatus = "active"
-	TokenStatusExpired       TokenStatus = "expired"
-	TokenStatusRevoked       TokenStatus = "revoked"
+	TokenStatusActive         TokenStatus = "active"
+	TokenStatusExpired        TokenStatus = "expired"
+	TokenStatusRevoked        TokenStatus = "revoked"
 	TokenStatusMaxUsesReached TokenStatus = "max_uses_reached"
 )
 

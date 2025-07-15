@@ -21,7 +21,7 @@ func NewTransactionService(db lib.Database, logger logger.Logger) interfaces.Tra
 	}
 }
 
-// WithTransaction executes the given function within a transaction
-func (s *TransactionService) WithTransaction(ctx context.Context, fn func(ctx context.Context) error) error {
-	return lib.WithTransaction(ctx, s.db, fn)
+// WithTransaction executes the given function within a transaction and returns the result
+func (s *TransactionService) WithTransaction(ctx context.Context, fn func(ctx context.Context) (any, error)) (any, error) {
+	return lib.WithTransaction[any](ctx, s.db, fn)
 }

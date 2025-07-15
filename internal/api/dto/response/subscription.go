@@ -11,8 +11,8 @@ type Subscription struct {
 	Status      entities.SubscriptionStatus `json:"status"`
 	Currency    string                      `json:"currency"`
 	Amount      int64                       `json:"amount"`
-	OrderId     string                      `json:"order_id"`
-	OrderItemId string                      `json:"order_item_id"`
+	OrderId     string                      `json:"order_id,omitempty" `
+	OrderItemId string                      `json:"order_item_id,omitempty"`
 
 	PaymentMethodId string `json:"payment_method_id,omitempty"`
 
@@ -42,10 +42,13 @@ type Subscription struct {
 	CancelledAt     time.Time         `json:"cancelled_at,omitempty,omitzero"`
 	CreatedAt       time.Time         `json:"created_at"`
 	UpdatedAt       time.Time         `json:"updated_at"`
+
+	// Subscription items
+	Items []SubscriptionItemResponse `json:"items,omitempty"`
 }
 
 func NewSubscriptionFromEntity(entity entities.Subscription) Subscription {
-	return Subscription{
+	subscription := Subscription{
 		Id:                 entity.Id,
 		OrderId:            entity.OrderId,
 		OrderItemId:        entity.OrderItemId,
@@ -74,4 +77,14 @@ func NewSubscriptionFromEntity(entity entities.Subscription) Subscription {
 		CreatedAt:          entity.CreatedAt,
 		UpdatedAt:          entity.UpdatedAt,
 	}
+
+	// Convert subscription items
+	if len(entity.Items) > 0 {
+		subscription.Items = make([]SubscriptionItemResponse, len(entity.Items))
+		for i, item := range entity.Items {
+			subscription.Items[i] = FromSubscriptionItem(item)
+		}
+	}
+
+	return subscription
 }

@@ -20,19 +20,19 @@ import (
 type PaymentService struct {
 	paymentRepository repositories.PaymentRepository
 	gatewayFactory    factories.GatewayFactory
-	pubsub            events.PubSub
+	notificationPublisher events.NotificationPublisher
 	logger            logger.Logger
 }
 
 func NewPaymentService(
 	paymentRepository repositories.PaymentRepository,
-	pubsub events.PubSub,
+	notificationPublisher events.NotificationPublisher,
 	gatewayFactory factories.GatewayFactory,
 	logger logger.Logger,
 ) interfaces.PaymentService {
 	return PaymentService{
 		paymentRepository: paymentRepository,
-		pubsub:            pubsub,
+		notificationPublisher: notificationPublisher,
 		gatewayFactory:    gatewayFactory,
 		logger:            logger,
 	}
@@ -130,7 +130,7 @@ func (s PaymentService) Refund(ctx context.Context, orgId string, paymentId stri
 	}
 
 	// Publish events
-	_ = s.pubsub.Publish(orgId, topic.RefundCreated, refund)
+	_ = s.notificationPublisher.Publish(orgId, topic.RefundCreated, refund)
 
 	return refund, nil
 }

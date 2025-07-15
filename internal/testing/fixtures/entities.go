@@ -18,35 +18,47 @@ type SubscriptionBuilder struct {
 func NewSubscriptionBuilder() *SubscriptionBuilder {
 	now := time.Now().UTC()
 
-	return &SubscriptionBuilder{
-		subscription: entities.Subscription{
-			OrgId:              "org_test123",
-			Id:                 lib.GenerateId("sub"),
-			ProductId:          "prod_test123",
-			VariantId:          "var_test123",
-			PriceId:            "price_test123",
-			Status:             entities.SubscriptionStatusActive,
-			OrderId:            "order_test123",
-			OrderItemId:        "item_test123",
-			CustomerId:         "cust_test123",
-			PaymentMethodId:    "pm_test123",
-			StartDate:          now,
-			BillingInterval:    prices.BillingIntervalMonth,
-			BillingIntervalQty: 1,
-			Cycles:             0, // 0 = unlimited
-			BillingAnchor:      now.Day(),
-			Currency:           "USD",
-			Amount:             2500, // $25.00
-			CurrentPeriodStart: now,
-			CurrentPeriodEnd:   now.AddDate(0, 1, 0), // 1 month from now
-			RenewsAt:           now.AddDate(0, 1, 0),
+	subscription := entities.Subscription{
+		OrgId:              "org_test123",
+		Id:                 lib.GenerateId("sub"),
+		Status:             entities.SubscriptionStatusActive,
+		OrderId:            "order_test123",
+		OrderItemId:        "item_test123",
+		CustomerId:         "cust_test123",
+		PaymentMethodId:    "pm_test123",
+		StartDate:          now,
+		BillingInterval:    prices.BillingIntervalMonth,
+		BillingIntervalQty: 1,
+		Cycles:             0, // 0 = unlimited
+		BillingAnchor:      now.Day(),
+		Currency:           "USD",
+		Amount:             2500, // $25.00
+		CurrentPeriodStart: now,
+		CurrentPeriodEnd:   now.AddDate(0, 1, 0), // 1 month from now
+		RenewsAt:           now.AddDate(0, 1, 0),
+		CyclesProcessed:    1,
+		TotalRevenue:       2500,
+		Metadata:           make(map[string]string),
+		CreatedAt:          now,
+		UpdatedAt:          now,
+	}
 
-			CyclesProcessed: 1,
-			TotalRevenue:    2500,
-			Metadata:        make(map[string]string),
-			CreatedAt:       now,
-			UpdatedAt:       now,
-		},
+	// Create a default subscription item
+	subscriptionItem := entities.NewSubscriptionItem(
+		subscription.OrgId,
+		subscription.Id,
+		"price_test123",
+		"Test Subscription",
+		"USD",
+	)
+	subscriptionItem.ProductId = "prod_test123"
+	subscriptionItem.VariantId = "var_test123"
+	subscriptionItem.Amount = 2500
+
+	subscription.Items = []entities.SubscriptionItem{subscriptionItem}
+
+	return &SubscriptionBuilder{
+		subscription: subscription,
 	}
 }
 
@@ -74,11 +86,28 @@ func (b *SubscriptionBuilder) WithCustomerId(customerId string) *SubscriptionBui
 	return b
 }
 
-// WithProductVariantPrice sets the product, variant, and price IDs
+// WithProductVariantPrice sets the product, variant, and price IDs on the first subscription item
 func (b *SubscriptionBuilder) WithProductVariantPrice(productId, variantId, priceId string) *SubscriptionBuilder {
-	b.subscription.ProductId = productId
-	b.subscription.VariantId = variantId
-	b.subscription.PriceId = priceId
+	if len(b.subscription.Items) == 0 {
+		// Create a subscription item if none exists
+		subscriptionItem := entities.NewSubscriptionItem(
+			b.subscription.OrgId,
+			b.subscription.Id,
+			priceId,
+			"Test Subscription",
+			b.subscription.Currency,
+		)
+		subscriptionItem.ProductId = productId
+		subscriptionItem.VariantId = variantId
+		subscriptionItem.Amount = b.subscription.Amount
+
+		b.subscription.Items = []entities.SubscriptionItem{subscriptionItem}
+	} else {
+		// Update the first subscription item
+		b.subscription.Items[0].ProductId = productId
+		b.subscription.Items[0].VariantId = variantId
+		b.subscription.Items[0].PriceId = priceId
+	}
 	return b
 }
 
@@ -240,8 +269,8 @@ func NewPriceBuilder() *PriceBuilder {
 			VariantId:          "var_test123",
 			Label:              "Monthly Plan",
 			Category:           prices.PriceCategorySubscription,
-			Scheme:             prices.PriceSchemeFixed,
-			Currency:           common.CurrencyUSD,
+			Scheme:             prices.Fixed,
+			Currency:           common.USD,
 			UnitPrice:          2500, // $25.00
 			BillingInterval:    prices.BillingIntervalMonth,
 			BillingIntervalQty: 1,

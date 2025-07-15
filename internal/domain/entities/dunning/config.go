@@ -13,19 +13,12 @@ type ChannelConfig struct {
 
 // DunningConfig represents the configuration for a dunning campaign
 type DunningConfig struct {
-	// Immediate retries for technical failures
-	ImmediateRetries struct {
-		Enabled      bool     `json:"enabled"`
-		MaxAttempts  int      `json:"max_attempts"`
-		Intervals    []string `json:"intervals"` // e.g. ["2m", "10m", "30m"]
-		FailureTypes []string `json:"failure_types"` // e.g. ["api_timeout", "gateway_error", "processing_error"]
-	} `json:"immediate_retries"`
 
 	// Progressive retries for user-space errors
 	ProgressiveRetries struct {
 		Enabled      bool     `json:"enabled"`
 		MaxAttempts  int      `json:"max_attempts"`
-		Intervals    []string `json:"intervals"` // e.g. ["3d", "4d", "7d", "14d", "30d"]
+		Intervals    []string `json:"intervals"`     // e.g. ["3d", "4d", "7d", "14d", "30d"]
 		FailureTypes []string `json:"failure_types"` // e.g. ["card_declined", "insufficient_funds", "expired_card"]
 	} `json:"progressive_retries"`
 
@@ -43,7 +36,7 @@ type DunningConfig struct {
 
 	// Token settings
 	TokenSettings struct {
-		DefaultMaxUses    int `json:"default_max_uses"`
+		DefaultMaxUses     int `json:"default_max_uses"`
 		DefaultExpiryHours int `json:"default_expiry_hours"`
 	} `json:"token_settings"`
 }
@@ -52,27 +45,15 @@ type DunningConfig struct {
 func DefaultDunningConfig() DunningConfig {
 	config := DunningConfig{}
 
-	// Immediate retries
-	config.ImmediateRetries.Enabled = true
-	config.ImmediateRetries.MaxAttempts = 3
-	config.ImmediateRetries.Intervals = []string{"2m", "10m", "30m"}
-	config.ImmediateRetries.FailureTypes = []string{
-		"api_timeout", 
-		"gateway_error", 
-		"processing_error", 
-		"rate_limit", 
-		"network_error",
-	}
-
 	// Progressive retries
 	config.ProgressiveRetries.Enabled = true
 	config.ProgressiveRetries.MaxAttempts = 5
 	config.ProgressiveRetries.Intervals = []string{"3d", "4d", "7d", "14d", "30d"}
 	config.ProgressiveRetries.FailureTypes = []string{
-		"card_declined", 
-		"insufficient_funds", 
-		"expired_card", 
-		"do_not_honor", 
+		"card_declined",
+		"insufficient_funds",
+		"expired_card",
+		"do_not_honor",
 		"generic_decline",
 	}
 

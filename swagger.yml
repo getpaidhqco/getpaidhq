@@ -1,20 +1,62 @@
 openapi: 3.0.3
 info:
-  title: getpaidhq API
-  description: Subscription billing platform API
-  version: 1.0.0
+  title: GetPaidHQ API
+  description: |
+    Comprehensive subscription billing platform API supporting traditional subscriptions, 
+    usage-based billing, and hybrid models with advanced features like dunning management, 
+    multi-currency support, and enterprise-grade security.
+  version: 2.0.0
   contact:
     name: GetPaidHQ Support
-    url: https://getpaidhq.co
+    url: https://getpaidhq.com
+    email: support@getpaidhq.com
+  license:
+    name: Proprietary
+    url: https://getpaidhq.com/terms
+
 servers:
-  - url: https://api.getpaidhq.co
+  - url: https://api.getpaidhq.com
     description: Production server
-  - url: https://api.test.getpaidhq.co
+  - url: https://api.test.getpaidhq.com
     description: Test server
 
 security:
   - ApiKeyAuth: []
   - BearerAuth: []
+
+tags:
+  - name: Health
+    description: Health check endpoints
+  - name: Organizations
+    description: Organization management
+  - name: Customers
+    description: Customer management and payment methods
+  - name: Products
+    description: Product catalog management
+  - name: Variants
+    description: Product variant management
+  - name: Prices
+    description: Pricing configuration
+  - name: Subscriptions
+    description: Subscription lifecycle management
+  - name: Orders
+    description: Order processing and management
+  - name: Payments
+    description: Payment processing and refunds
+  - name: Invoices
+    description: Invoice generation and management
+  - name: Usage
+    description: Usage-based billing, metering, and CloudEvents processing
+  - name: Meters
+    description: Meter management for usage-based billing
+  - name: Dunning
+    description: Failed payment recovery management
+  - name: Webhooks
+    description: Webhook management and notifications
+  - name: Reports
+    description: Analytics and reporting
+  - name: Settings
+    description: Organization settings
 
 paths:
   # Health
@@ -22,7 +64,9 @@ paths:
     get:
       tags: [Health]
       summary: Health check
+      description: Returns the health status of the API service
       operationId: healthCheck
+      security: []
       responses:
         '200':
           description: Service is healthy
@@ -35,234 +79,27 @@ paths:
                     type: string
                     example: "ok"
 
-  # Subscriptions
-  /api/subscriptions:
-    get:
-      tags: [Subscriptions]
-      summary: List subscriptions
-      operationId: listSubscriptions
-      parameters:
-        - $ref: '#/components/parameters/Page'
-        - $ref: '#/components/parameters/Limit'
-        - $ref: '#/components/parameters/SortBy'
-        - $ref: '#/components/parameters/SortDirection'
-      responses:
-        '200':
-          description: List of subscriptions
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ListResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Subscription'
-
-  /api/subscriptions/{id}:
-    get:
-      tags: [Subscriptions]
-      summary: Get subscription by ID
-      operationId: getSubscription
-      parameters:
-        - $ref: '#/components/parameters/SubscriptionId'
-      responses:
-        '200':
-          description: Subscription details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Subscription'
-        '404':
-          $ref: '#/components/responses/NotFound'
-    patch:
-      tags: [Subscriptions]
-      summary: Update subscription
-      operationId: updateSubscription
-      parameters:
-        - $ref: '#/components/parameters/SubscriptionId'
+  # Organizations
+  /api/organizations:
+    post:
+      tags: [Organizations]
+      summary: Create organization
+      description: Create a new organization (used during onboarding)
+      operationId: createOrganization
+      security: []
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                metadata:
-                  type: object
-                  additionalProperties:
-                    type: string
+              $ref: '#/components/schemas/CreateOrganizationRequest'
       responses:
-        '200':
-          description: Updated subscription
+        '201':
+          description: Organization created
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Subscription'
-
-  /api/subscriptions/{id}/payments:
-    get:
-      tags: [Subscriptions]
-      summary: List subscription payments
-      operationId: listSubscriptionPayments
-      parameters:
-        - $ref: '#/components/parameters/SubscriptionId'
-        - $ref: '#/components/parameters/Page'
-        - $ref: '#/components/parameters/Limit'
-      responses:
-        '200':
-          description: List of payments
-          content:
-            application/json:
-              schema:
-                allOf:
-                  - $ref: '#/components/schemas/ListResponse'
-                  - type: object
-                    properties:
-                      data:
-                        type: array
-                        items:
-                          $ref: '#/components/schemas/Payment'
-
-  /api/subscriptions/{id}/pause:
-    put:
-      tags: [Subscriptions]
-      summary: Pause subscription
-      operationId: pauseSubscription
-      parameters:
-        - $ref: '#/components/parameters/SubscriptionId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                reason:
-                  type: string
-                  description: Reason for pausing
-      responses:
-        '200':
-          description: Paused subscription
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Subscription'
-
-  /api/subscriptions/{id}/resume:
-    put:
-      tags: [Subscriptions]
-      summary: Resume subscription
-      operationId: resumeSubscription
-      parameters:
-        - $ref: '#/components/parameters/SubscriptionId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                reason:
-                  type: string
-                  description: Reason for resuming
-                continue_existing_period:
-                  type: boolean
-                  description: Whether to continue existing billing period
-      responses:
-        '200':
-          description: Resumed subscription
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Subscription'
-
-  /api/subscriptions/{id}/cancel:
-    put:
-      tags: [Subscriptions]
-      summary: Cancel subscription
-      operationId: cancelSubscription
-      parameters:
-        - $ref: '#/components/parameters/SubscriptionId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                reason:
-                  type: string
-                  description: Reason for cancellation
-      responses:
-        '200':
-          description: Cancelled subscription
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Subscription'
-
-  /api/subscriptions/{id}/change-plan:
-    put:
-      tags: [Subscriptions]
-      summary: Change subscription plan
-      operationId: changeSubscriptionPlan
-      parameters:
-        - $ref: '#/components/parameters/SubscriptionId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ChangePlanRequest'
-      responses:
-        '200':
-          description: Updated subscription
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Subscription'
-        '400':
-          $ref: '#/components/responses/BadRequest'
-
-  /api/subscriptions/{id}/billing-anchor:
-    put:
-      tags: [Subscriptions]
-      summary: Update subscription billing anchor
-      operationId: updateBillingAnchor
-      parameters:
-        - $ref: '#/components/parameters/SubscriptionId'
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required: [billing_anchor]
-              properties:
-                billing_anchor:
-                  type: integer
-                  minimum: 1
-                  maximum: 31
-                  description: Day of month for billing
-                proration_mode:
-                  type: string
-                  enum: [none, credit_unused]
-                  default: none
-      responses:
-        '200':
-          description: Updated subscription with proration details
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  subscription:
-                    $ref: '#/components/schemas/Subscription'
-                  proration_details:
-                    $ref: '#/components/schemas/ProrationDetails'
+                $ref: '#/components/schemas/Organization'
 
   # Customers
   /api/customers:
@@ -273,6 +110,16 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+        - name: email
+          in: query
+          schema:
+            type: string
+          description: Filter by email address
       responses:
         '200':
           description: List of customers
@@ -363,7 +210,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreatePaymentMethodRequest'
+              $ref: '#/components/schemas/UpdatePaymentMethodRequest'
       responses:
         '200':
           description: Updated payment method
@@ -381,6 +228,11 @@ paths:
         - $ref: '#/components/parameters/CustomerId'
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, sent, paid, overdue, cancelled, refunded]
       responses:
         '200':
           description: List of customer invoices
@@ -395,6 +247,23 @@ paths:
                         type: array
                         items:
                           $ref: '#/components/schemas/Invoice'
+
+  /api/customers/{id}/dunning-history:
+    get:
+      tags: [Customers]
+      summary: Get customer dunning history
+      operationId: getCustomerDunningHistory
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Customer dunning history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DunningCampaign'
 
   # Products
   /api/products:
@@ -462,16 +331,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                name:
-                  type: string
-                description:
-                  type: string
-                metadata:
-                  type: object
-                  additionalProperties:
-                    type: string
+              $ref: '#/components/schemas/UpdateProductRequest'
       responses:
         '200':
           description: Updated product
@@ -551,7 +411,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/CreateVariantRequest'
+              $ref: '#/components/schemas/UpdateVariantRequest'
       responses:
         '200':
           description: Updated variant
@@ -631,14 +491,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                label:
-                  type: string
-                metadata:
-                  type: object
-                  additionalProperties:
-                    type: string
+              $ref: '#/components/schemas/UpdatePriceRequest'
       responses:
         '200':
           description: Updated price
@@ -656,6 +509,604 @@ paths:
         '204':
           description: Price deleted
 
+  # Subscriptions
+  /api/subscriptions:
+    get:
+      tags: [Subscriptions]
+      summary: List subscriptions
+      operationId: listSubscriptions
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - $ref: '#/components/parameters/SortBy'
+        - $ref: '#/components/parameters/SortDirection'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [trial, active, past_due, non_renewing, paused, unpaid, cancelled, pending, expired, completed, error]
+        - name: customer_id
+          in: query
+          schema:
+            type: string
+          description: Filter by customer ID
+      responses:
+        '200':
+          description: List of subscriptions
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Subscription'
+    post:
+      tags: [Subscriptions]
+      summary: Create subscription
+      operationId: createSubscription
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSubscriptionRequest'
+      responses:
+        '201':
+          description: Created subscription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/subscriptions/{id}:
+    get:
+      tags: [Subscriptions]
+      summary: Get subscription by ID
+      operationId: getSubscription
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      responses:
+        '200':
+          description: Subscription details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    patch:
+      tags: [Subscriptions]
+      summary: Update subscription
+      description: Update subscription metadata and other mutable fields
+      operationId: updateSubscription
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSubscriptionRequest'
+      responses:
+        '200':
+          description: Subscription updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/subscriptions/{id}/payments:
+    get:
+      tags: [Subscriptions]
+      summary: List subscription payments
+      operationId: listSubscriptionPayments
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: List of payments
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Payment'
+
+  /api/subscriptions/{id}/pause:
+    put:
+      tags: [Subscriptions]
+      summary: Pause subscription
+      operationId: pauseSubscription
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PauseSubscriptionRequest'
+      responses:
+        '200':
+          description: Paused subscription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+
+  /api/subscriptions/{id}/resume:
+    put:
+      tags: [Subscriptions]
+      summary: Resume subscription
+      operationId: resumeSubscription
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResumeSubscriptionRequest'
+      responses:
+        '200':
+          description: Resumed subscription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+
+  /api/subscriptions/{id}/cancel:
+    put:
+      tags: [Subscriptions]
+      summary: Cancel subscription
+      operationId: cancelSubscription
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PauseSubscriptionRequest'
+      responses:
+        '200':
+          description: Cancelled subscription
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Subscription'
+
+  /api/subscriptions/{id}/change-plan:
+    put:
+      tags: [Subscriptions]
+      summary: Change subscription plan
+      operationId: changeSubscriptionPlan
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePlanRequest'
+      responses:
+        '200':
+          description: Updated subscription and plan change details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subscription:
+                    $ref: '#/components/schemas/Subscription'
+                  plan_change:
+                    $ref: '#/components/schemas/PlanChange'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/subscriptions/{id}/billing-anchor:
+    put:
+      tags: [Subscriptions]
+      summary: Update subscription billing anchor
+      operationId: updateBillingAnchor
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBillingAnchorRequest'
+      responses:
+        '200':
+          description: Updated subscription with proration details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  subscription:
+                    $ref: '#/components/schemas/Subscription'
+                  proration_details:
+                    $ref: '#/components/schemas/ProrationDetails'
+
+  /api/subscriptions/{id}/usage:
+    get:
+      tags: [Usage]
+      summary: Get subscription usage
+      description: Get usage records for a specific subscription
+      operationId: getSubscriptionUsage
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: Start date for usage period
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+          description: End date for usage period
+      responses:
+        '200':
+          description: Usage records for the subscription
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UsageEventResponse'
+                  count:
+                    type: integer
+
+  /api/subscriptions/{id}/estimate:
+    get:
+      tags: [Usage]
+      summary: Get usage estimate
+      description: Get current billing period usage estimate for a subscription
+      operationId: getUsageEstimate
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      responses:
+        '200':
+          description: Usage estimate for current billing period
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageEstimateResponse'
+
+  # Meters
+  /api/meters:
+    get:
+      tags: [Meters]
+      summary: List meters
+      description: Get a list of all meters for usage-based billing
+      operationId: listMeters
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: List of meters
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Meter'
+    post:
+      tags: [Meters]
+      summary: Create meter
+      description: Create a new meter for usage-based billing
+      operationId: createMeter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateMeterRequest'
+      responses:
+        '201':
+          description: Meter created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meter'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /api/meters/{id}:
+    get:
+      tags: [Meters]
+      summary: Get meter by ID
+      description: Get a specific meter by ID
+      operationId: getMeter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Meter ID
+      responses:
+        '200':
+          description: Meter details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meter'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Meters]
+      summary: Update meter
+      description: Update an existing meter
+      operationId: updateMeter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Meter ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateMeterRequest'
+      responses:
+        '200':
+          description: Meter updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meter'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Meters]
+      summary: Delete meter
+      description: Delete a meter
+      operationId: deleteMeter
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Meter ID
+      responses:
+        '204':
+          description: Meter deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/meters/slug/{slug}:
+    get:
+      tags: [Meters]
+      summary: Get meter by slug
+      description: Get a specific meter by its slug
+      operationId: getMeterBySlug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Meter slug
+      responses:
+        '200':
+          description: Meter details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Meter'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Usage-Based Billing
+  /api/usage-events:
+    post:
+      tags: [Usage]
+      summary: Record usage via CloudEvents
+      description: Record usage events using CloudEvents v1.0 specification (new standard)
+      operationId: recordCloudEventUsage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordUsageRequest'
+      responses:
+        '201':
+          description: Usage event recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/usage-records:
+    get:
+      tags: [Usage]
+      summary: List usage records
+      operationId: listUsageRecords
+      parameters:
+        - name: subscription_item_id
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Subscription item ID to filter by
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: List of usage records
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/UsageRecord'
+    post:
+      tags: [Usage]
+      summary: Record usage
+      description: Record a single usage event for billing
+      operationId: recordUsage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordUsageRequest'
+      responses:
+        '201':
+          description: Usage recorded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageRecord'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/usage-records/batch:
+    post:
+      tags: [Usage]
+      summary: Batch record usage
+      description: Record multiple usage events in a single request
+      operationId: batchRecordUsage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchRecordUsageRequest'
+      responses:
+        '201':
+          description: Usage records created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  records:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/UsageRecord'
+                  total_count:
+                    type: integer
+
+  /api/usage-records/{id}:
+    get:
+      tags: [Usage]
+      summary: Get usage record by ID
+      operationId: getUsageRecord
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Usage record ID
+      responses:
+        '200':
+          description: Usage record details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageRecord'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Usage]
+      summary: Delete usage record
+      description: Delete a usage record (for corrections, only allowed if not processed)
+      operationId: deleteUsageRecord
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Usage record ID
+      responses:
+        '204':
+          description: Usage record deleted
+        '400':
+          description: Cannot delete processed usage record
+
+  /api/subscription-items/{id}/usage-summary:
+    get:
+      tags: [Usage]
+      summary: Get usage summary
+      description: Get aggregated usage summary for a subscription item
+      operationId: getUsageSummary
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Subscription item ID
+        - name: start_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Usage summary
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UsageSummary'
+
   # Orders
   /api/orders:
     get:
@@ -665,6 +1116,15 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, failed, refunded, partial_refund, completed, expired, cancelled, fraudulent]
+        - name: customer_id
+          in: query
+          schema:
+            type: string
       responses:
         '200':
           description: List of orders
@@ -727,7 +1187,7 @@ paths:
               $ref: '#/components/schemas/CompleteOrderRequest'
       responses:
         '200':
-          description: Completed order
+          description: Order completed
           content:
             application/json:
               schema:
@@ -742,13 +1202,74 @@ paths:
         - $ref: '#/components/parameters/OrderId'
       responses:
         '200':
-          description: List of subscriptions created from order
+          description: List of subscriptions created from this order
           content:
             application/json:
               schema:
                 type: array
                 items:
                   $ref: '#/components/schemas/Subscription'
+
+  # Shopping Cart
+  /api/carts/{id}/add:
+    post:
+      tags: [Orders]
+      summary: Add item to cart
+      operationId: addCartItem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cart ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddCartItemRequest'
+      responses:
+        '200':
+          description: Item added to cart
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "added"
+
+  /api/carts/{id}/remove:
+    post:
+      tags: [Orders]
+      summary: Remove item from cart
+      operationId: removeCartItem
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cart ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveCartItemRequest'
+      responses:
+        '200':
+          description: Item removed from cart
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "removed"
 
   # Payments
   /api/payments:
@@ -759,6 +1280,15 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, failed, succeeded, refunded, partial_refund, cancelled, expired, fraudulent]
+        - name: customer_id
+          in: query
+          schema:
+            type: string
       responses:
         '200':
           description: List of payments
@@ -810,6 +1340,26 @@ paths:
               schema:
                 $ref: '#/components/schemas/Refund'
 
+  /api/payment-methods/{id}:
+    get:
+      tags: [Payments]
+      summary: Get payment method by ID
+      operationId: getPaymentMethod
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Payment method ID
+      responses:
+        '200':
+          description: Payment method details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentMethod'
+
   # Invoices
   /api/invoices:
     get:
@@ -819,6 +1369,15 @@ paths:
       parameters:
         - $ref: '#/components/parameters/Page'
         - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, sent, paid, overdue, cancelled, refunded]
+        - name: customer_id
+          in: query
+          schema:
+            type: string
       responses:
         '200':
           description: List of invoices
@@ -876,15 +1435,7 @@ paths:
         content:
           application/json:
             schema:
-              type: object
-              properties:
-                customer_notes:
-                  type: string
-                notes:
-                  type: string
-                due_at:
-                  type: string
-                  format: date-time
+              $ref: '#/components/schemas/UpdateInvoiceRequest'
       responses:
         '200':
           description: Updated invoice
@@ -1039,15 +1590,667 @@ paths:
                 type: string
                 format: binary
 
+  # Dunning Management
+  /api/dunning/campaigns:
+    get:
+      tags: [Dunning]
+      summary: List dunning campaigns
+      operationId: listDunningCampaigns
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, paused, completed]
+        - name: subscription_id
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of dunning campaigns
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/DunningCampaign'
+
+  /api/dunning/campaigns/{id}:
+    get:
+      tags: [Dunning]
+      summary: Get dunning campaign by ID
+      operationId: getDunningCampaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Campaign ID
+      responses:
+        '200':
+          description: Campaign details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DunningCampaign'
+    patch:
+      tags: [Dunning]
+      summary: Update dunning campaign
+      operationId: updateDunningCampaign
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Campaign ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDunningCampaignRequest'
+      responses:
+        '200':
+          description: Updated campaign
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DunningCampaign'
+
+  /api/dunning/campaigns/{id}/attempts:
+    get:
+      tags: [Dunning]
+      summary: List campaign attempts
+      operationId: listCampaignAttempts
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Campaign ID
+      responses:
+        '200':
+          description: List of attempts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DunningAttempt'
+    post:
+      tags: [Dunning]
+      summary: Trigger manual attempt
+      operationId: triggerManualAttempt
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Campaign ID
+      responses:
+        '200':
+          description: Attempt triggered
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DunningAttempt'
+
+  /api/dunning/campaigns/{id}/communications:
+    get:
+      tags: [Dunning]
+      summary: List campaign communications
+      operationId: listCampaignCommunications
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Campaign ID
+      responses:
+        '200':
+          description: List of communications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DunningCommunication'
+
+  /api/dunning/configurations:
+    get:
+      tags: [Dunning]
+      summary: List dunning configurations
+      operationId: listDunningConfigurations
+      responses:
+        '200':
+          description: List of configurations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DunningConfiguration'
+    post:
+      tags: [Dunning]
+      summary: Create dunning configuration
+      operationId: createDunningConfiguration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDunningConfigurationRequest'
+      responses:
+        '201':
+          description: Created configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DunningConfiguration'
+
+  /api/dunning/configurations/{id}:
+    get:
+      tags: [Dunning]
+      summary: Get dunning configuration by ID
+      operationId: getDunningConfiguration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Configuration ID
+      responses:
+        '200':
+          description: Configuration details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DunningConfiguration'
+    patch:
+      tags: [Dunning]
+      summary: Update dunning configuration
+      operationId: updateDunningConfiguration
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Configuration ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDunningConfigurationRequest'
+      responses:
+        '200':
+          description: Updated configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DunningConfiguration'
+
+  # Payment Tokens
+  /api/payment-tokens/verify:
+    post:
+      tags: [Dunning]
+      summary: Verify payment token
+      operationId: verifyPaymentToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyPaymentTokenRequest'
+      responses:
+        '200':
+          description: Token verified
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentTokenVerification'
+
+  /api/payment-tokens/activate:
+    post:
+      tags: [Dunning]
+      summary: Activate payment token
+      operationId: activatePaymentToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivatePaymentTokenRequest'
+      responses:
+        '200':
+          description: Token activated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "activated"
+
+  /api/admin/subscriptions/{id}/payment-tokens:
+    post:
+      tags: [Dunning]
+      summary: Create payment token for subscription
+      operationId: createSubscriptionPaymentToken
+      parameters:
+        - $ref: '#/components/parameters/SubscriptionId'
+      responses:
+        '201':
+          description: Payment token created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentToken'
+
+  # Webhooks
+  /api/webhooks:
+    get:
+      tags: [Webhooks]
+      summary: List webhook subscriptions
+      operationId: listWebhooks
+      responses:
+        '200':
+          description: List of webhook subscriptions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WebhookSubscription'
+    post:
+      tags: [Webhooks]
+      summary: Create webhook subscription
+      operationId: createWebhook
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateWebhookRequest'
+      responses:
+        '201':
+          description: Webhook subscription created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/WebhookSubscription'
+
+  /api/notify:
+    post:
+      tags: [Webhooks]
+      summary: Process webhooks
+      description: Internal endpoint for processing webhook notifications
+      operationId: processWebhooks
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: Webhook processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "processed"
+
+  /api/notify/cdc:
+    post:
+      tags: [Webhooks]
+      summary: Process CDC webhooks
+      description: Internal endpoint for processing Change Data Capture webhooks
+      operationId: processCdcWebhooks
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        '200':
+          description: CDC webhook processed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "processed"
+
+  # Reports & Analytics
+  /api/reports/revenue/mrr:
+    get:
+      tags: [Reports]
+      summary: Monthly Recurring Revenue
+      operationId: getMrr
+      parameters:
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: MRR data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevenueReport'
+
+  /api/reports/revenue/arr:
+    get:
+      tags: [Reports]
+      summary: Annual Recurring Revenue
+      operationId: getArr
+      parameters:
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: ARR data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RevenueReport'
+
+  /api/reports/active-subscribers:
+    get:
+      tags: [Reports]
+      summary: Active subscribers count
+      operationId: getActiveSubscribers
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Active subscribers data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SubscriberReport'
+
+  /api/reports/refunds:
+    get:
+      tags: [Reports]
+      summary: Refund totals
+      operationId: getRefundTotals
+      parameters:
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Refund data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundReport'
+
+  /api/reports/churn/totals:
+    get:
+      tags: [Reports]
+      summary: Customer churn totals
+      operationId: getChurnTotals
+      parameters:
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Churn totals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChurnReport'
+
+  /api/reports/churn/rates:
+    get:
+      tags: [Reports]
+      summary: Customer churn rates
+      operationId: getChurnRates
+      parameters:
+        - name: period
+          in: query
+          schema:
+            type: string
+            enum: [monthly, quarterly, yearly]
+      responses:
+        '200':
+          description: Churn rates
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChurnReport'
+
+  # Settings
+  /api/settings/{parent_id}:
+    get:
+      tags: [Settings]
+      summary: List settings
+      operationId: listSettings
+      parameters:
+        - name: parent_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Parent ID (organization ID)
+      responses:
+        '200':
+          description: List of settings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Setting'
+    post:
+      tags: [Settings]
+      summary: Create setting
+      operationId: createSetting
+      parameters:
+        - name: parent_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Parent ID (organization ID)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSettingRequest'
+      responses:
+        '201':
+          description: Setting created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+
+  /api/settings/{parent_id}/{id}:
+    get:
+      tags: [Settings]
+      summary: Get setting by ID
+      operationId: getSetting
+      parameters:
+        - name: parent_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Parent ID (organization ID)
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Setting ID
+      responses:
+        '200':
+          description: Setting details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+    put:
+      tags: [Settings]
+      summary: Update setting
+      operationId: updateSetting
+      parameters:
+        - name: parent_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Parent ID (organization ID)
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Setting ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSettingRequest'
+      responses:
+        '200':
+          description: Setting updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Setting'
+    delete:
+      tags: [Settings]
+      summary: Delete setting
+      operationId: deleteSetting
+      parameters:
+        - name: parent_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Parent ID (organization ID)
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Setting ID
+      responses:
+        '204':
+          description: Setting deleted
+
+  # PSP Management
+  /api/gateways:
+    post:
+      tags: [Settings]
+      summary: Create PSP configuration
+      operationId: createPspConfiguration
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePspConfigurationRequest'
+      responses:
+        '201':
+          description: PSP configuration created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PspConfiguration'
+
+  # Sessions
+  /api/sessions:
+    post:
+      tags: [Settings]
+      summary: Create session
+      operationId: createSession
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSessionRequest'
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+
 components:
   securitySchemes:
     ApiKeyAuth:
       type: apiKey
       in: header
       name: X-API-Key
+      description: API key authentication
     BearerAuth:
       type: http
       scheme: bearer
+      description: Bearer token authentication
 
   parameters:
     Page:
@@ -1057,6 +2260,7 @@ components:
         type: integer
         minimum: 0
         default: 0
+      description: Page number (0-based)
     Limit:
       name: limit
       in: query
@@ -1065,11 +2269,13 @@ components:
         minimum: 1
         maximum: 100
         default: 10
+      description: Number of items per page
     SortBy:
       name: sort_by
       in: query
       schema:
         type: string
+      description: Field to sort by
     SortDirection:
       name: sort_order
       in: query
@@ -1077,6 +2283,7 @@ components:
         type: string
         enum: [asc, desc]
         default: desc
+      description: Sort direction
     SubscriptionId:
       name: id
       in: path
@@ -1147,12 +2354,36 @@ components:
         application/json:
           schema:
             $ref: '#/components/schemas/ApiError'
+    Conflict:
+      description: Resource conflict
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ApiError'
     InternalError:
       description: Internal server error
       content:
         application/json:
           schema:
             $ref: '#/components/schemas/ApiError'
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            allOf:
+              - $ref: '#/components/schemas/ApiError'
+              - type: object
+                properties:
+                  details:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        field:
+                          type: string
+                        message:
+                          type: string
 
   schemas:
     # Common schemas
@@ -1170,20 +2401,33 @@ components:
       properties:
         total:
           type: integer
+          description: Total number of items
         page:
           type: integer
+          description: Current page number
         limit:
           type: integer
+          description: Items per page
+        has_more:
+          type: boolean
+          description: Whether there are more pages
 
     ApiError:
       type: object
+      required: [code, message]
       properties:
         code:
           type: string
+          description: Error code
+          enum: [bad_request, authentication_error, not_found, validation_error, internal_error]
         message:
           type: string
+          description: Human-readable error message
         details:
-          type: object
+          oneOf:
+            - type: object
+            - type: string
+          description: Additional error details
 
     Address:
       type: object
@@ -1194,12 +2438,15 @@ components:
           type: string
         email:
           type: string
+          format: email
         phone:
           type: string
         line1:
           type: string
+          description: Address line 1
         line2:
           type: string
+          description: Address line 2
         city:
           type: string
         state:
@@ -1208,8 +2455,30 @@ components:
           type: string
         country:
           type: string
+          pattern: '^[A-Z]{2}$'
+          description: ISO 3166-1 alpha-2 country code
 
     # Request schemas
+    CreateOrganizationRequest:
+      type: object
+      required: [name, country, timezone]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        country:
+          type: string
+          pattern: '^[A-Z]{2}$'
+          description: ISO 3166-1 alpha-2 country code
+        timezone:
+          type: string
+          description: IANA timezone identifier
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
     CreateCustomerRequest:
       type: object
       required: [email]
@@ -1219,16 +2488,20 @@ components:
           format: email
         first_name:
           type: string
+          maxLength: 255
         last_name:
           type: string
+          maxLength: 255
         phone:
           type: string
+          maxLength: 50
         billing_address:
           $ref: '#/components/schemas/Address'
         metadata:
           type: object
           additionalProperties:
             type: string
+          description: Key-value pairs for storing additional data
 
     CreatePaymentMethodRequest:
       type: object
@@ -1236,15 +2509,33 @@ components:
       properties:
         psp:
           type: string
-          description: Payment service provider
+          description: Payment service provider identifier
         name:
           type: string
+          description: Display name for the payment method
         type:
           type: string
-          enum: [card]
+          enum: [card, bank_account]
         details:
           type: object
+          description: PSP-specific payment method details
         token:
+          type: string
+          description: Payment method token from PSP
+        is_default:
+          type: boolean
+          default: false
+        billing_address:
+          $ref: '#/components/schemas/Address'
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    UpdatePaymentMethodRequest:
+      type: object
+      properties:
+        name:
           type: string
         is_default:
           type: boolean
@@ -1261,16 +2552,35 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
+          maxLength: 255
         description:
           type: string
+          maxLength: 1000
         metadata:
           type: object
           additionalProperties:
             type: string
         variants:
           type: array
+          minItems: 1
           items:
             $ref: '#/components/schemas/CreateVariantRequest'
+
+    UpdateProductRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
 
     CreateVariantRequest:
       type: object
@@ -1278,8 +2588,30 @@ components:
       properties:
         name:
           type: string
+          minLength: 1
+          maxLength: 255
         description:
           type: string
+          maxLength: 1000
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        prices:
+          type: array
+          items:
+            $ref: '#/components/schemas/CreatePriceRequest'
+
+    UpdateVariantRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
         metadata:
           type: object
           additionalProperties:
@@ -1287,71 +2619,321 @@ components:
 
     CreatePriceRequest:
       type: object
-      required: [variant_id, category, scheme, currency, unit_price]
+      required: [variant_id, category, scheme, currency]
       properties:
         variant_id:
           type: string
         label:
           type: string
+          description: Display label for the price
         category:
           type: string
-          enum: [one_time, subscription, free, variable]
+          enum: [one_time, subscription, usage, hybrid, free, variable]
+          description: Price category
         scheme:
           type: string
           enum: [fixed, tiered, volume, graduated]
+          description: Pricing scheme
         cycles:
           type: integer
           minimum: 1
+          description: Number of billing cycles (null for unlimited)
         currency:
           type: string
           pattern: '^[A-Z]{3}$'
+          description: ISO 4217 currency code
         unit_price:
           type: integer
           minimum: 0
-          description: Amount in smallest currency unit (e.g., cents)
+          description: Price in smallest currency unit (e.g., cents)
         min_price:
           type: integer
           minimum: 0
+          description: Minimum price for variable pricing
         suggested_price:
           type: integer
           minimum: 0
+          description: Suggested price for variable pricing
         billing_interval:
           type: string
           enum: [none, minute, hour, day, week, month, year]
+          description: Billing interval
         billing_interval_qty:
           type: integer
           minimum: 1
           maximum: 999
+          description: Billing interval quantity
         trial_interval:
           type: string
           enum: [none, minute, hour, day, week, month, year]
+          description: Trial period interval
         trial_interval_qty:
           type: integer
           minimum: 1
+          description: Trial period quantity
+        # Usage-based billing fields
+        has_usage:
+          type: boolean
+          default: false
+          description: Whether this price supports usage billing
+        usage_type:
+          type: string
+          enum: [metered, licensed]
+          description: Type of usage billing
+        unit_type:
+          type: string
+          description: Unit type for usage (e.g., api_calls, gb, seats)
+        aggregation_type:
+          type: string
+          enum: [sum, max, average, last_during_period]
+          description: How usage is aggregated for billing
+        percentage_rate:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Percentage rate for transaction-based billing
+        tiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PricingTier'
+          description: Pricing tiers for tiered/graduated schemes
         tax_code:
+          type: string
+          description: Tax code for tax calculations
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    UpdatePriceRequest:
+      type: object
+      properties:
+        label:
           type: string
         metadata:
           type: object
           additionalProperties:
             type: string
 
+    PricingTier:
+      type: object
+      required: [up_to, unit_price]
+      properties:
+        up_to:
+          type: integer
+          minimum: 1
+          description: Upper limit for this tier (null for unlimited)
+        unit_price:
+          type: integer
+          minimum: 0
+          description: Price per unit in this tier
+        flat_fee:
+          type: integer
+          minimum: 0
+          description: Flat fee for this tier
+
+    PauseSubscriptionRequest:
+      type: object
+      required: [pause_mode]
+      properties:
+        pause_mode:
+          type: string
+          description: Type of pause
+        resume_at:
+          type: string
+          description: When to automatically resume (for temporary pauses)
+        reason:
+          type: string
+          description: Reason for pausing
+
+    ResumeSubscriptionRequest:
+      type: object
+      properties:
+        proration_mode:
+          type: string
+          description: Proration handling
+        resume_behavior:
+          type: string
+          description: How to handle the billing period
+
+    CancelSubscriptionRequest:
+      type: object
+      required: [cancel_mode]
+      properties:
+        cancel_mode:
+          type: string
+          description: When to cancel the subscription
+        proration_mode:
+          type: string
+          description: Proration handling
+        cancellation_date:
+          type: string
+          description: Specific cancellation date
+        reason:
+          type: string
+          description: Reason for cancellation
+
+    ChangePlanRequest:
+      type: object
+      required: [new_variant_id, new_price_id]
+      properties:
+        new_variant_id:
+          type: string
+          description: ID of the new variant
+        new_price_id:
+          type: string
+          description: ID of the new price
+        proration_mode:
+          type: string
+          enum: [none, immediate, credit_unused]
+          default: none
+          description: How to handle prorations
+        effective_date:
+          type: string
+          enum: [immediate, next_billing_cycle]
+          default: immediate
+          description: When the change takes effect
+        reason:
+          type: string
+          description: Reason for the plan change
+
+    UpdateBillingAnchorRequest:
+      type: object
+      required: [billing_anchor, proration_mode]
+      properties:
+        billing_anchor:
+          type: integer
+          minimum: 1
+          maximum: 31
+          description: Day of month for billing
+        proration_mode:
+          type: string
+          enum: [none, credit_unused]
+          description: How to handle prorations
+
+    CreateSubscriptionRequest:
+      type: object
+      required: [customer_id, currency, items]
+      properties:
+        customer_id:
+          type: string
+          description: Customer ID for the subscription
+        payment_method_id:
+          type: string
+          description: Payment method ID to use for billing (optional)
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 currency code
+        items:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/CreateSubscriptionItemRequest'
+          description: Subscription items
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: Custom metadata
+
+    CreateSubscriptionItemRequest:
+      type: object
+      required: [price_id, name]
+      properties:
+        price_id:
+          type: string
+          description: Price ID for this subscription item
+        name:
+          type: string
+          description: Name for this subscription item
+        description:
+          type: string
+          description: Optional description
+        quantity:
+          type: integer
+          minimum: 1
+          description: Quantity for this item
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: Custom metadata
+
+    RecordUsageRequest:
+      type: object
+      required: [specversion, type, id, time, subject, data]
+      properties:
+        specversion:
+          type: string
+          example: "1.0"
+          description: CloudEvents specification version
+        type:
+          type: string
+          description: Event type (should match meter event_name)
+        id:
+          type: string
+          description: Unique identifier for this event
+        time:
+          type: string
+          format: date-time
+          description: When the event occurred
+        source:
+          type: string
+          description: Source of the event (service, app, etc.)
+        subject:
+          type: string
+          description: Subject of the event (subscription_item_id)
+        data:
+          type: object
+          additionalProperties: true
+          description: Event-specific data containing the usage information
+
+    BatchRecordUsageRequest:
+      type: object
+      required: [records]
+      properties:
+        records:
+          type: array
+          minItems: 1
+          maxItems: 1000
+          items:
+            $ref: '#/components/schemas/RecordUsageRequest'
+          description: Array of usage records to create
+
     CreateOrderRequest:
       type: object
       required: [customer, psp_id]
       properties:
         customer:
-          $ref: '#/components/schemas/CreateCustomerRequest'
+          oneOf:
+            - type: object
+              required: [id]
+              properties:
+                id:
+                  type: string
+                  description: Existing customer ID
+            - $ref: '#/components/schemas/CreateCustomerRequest'
+          description: Customer information (existing ID or new customer data)
         payment_method_id:
           type: string
+          description: Payment method ID to use
         session_id:
           type: string
+          description: Session ID for tracking
         psp_id:
           type: string
+          description: Payment service provider ID
         cart:
           type: object
           properties:
+            currency:
+              type: string
+              pattern: '^[A-Z]{3}$'
+              description: Order currency
             items:
               type: array
+              minItems: 1
               items:
                 type: object
                 required: [product_id, price_id, quantity]
@@ -1367,34 +2949,57 @@ components:
           type: object
           additionalProperties:
             type: string
-        options:
-          type: object
-          additionalProperties:
-            type: string
 
     CompleteOrderRequest:
       type: object
       properties:
         payment_method_id:
           type: string
+          description: Payment method to use for completion
         payment_method:
           type: object
           properties:
             token:
               type: string
+              description: Payment method token
             type:
               type: string
+              enum: [card, bank_account]
+          description: New payment method details
         payment:
           type: object
           properties:
             amount:
               type: integer
+              minimum: 0
+              description: Payment amount in cents
             currency:
               type: string
+              pattern: '^[A-Z]{3}$'
+          description: Payment details
         metadata:
           type: object
           additionalProperties:
             type: string
+
+    AddCartItemRequest:
+      type: object
+      required: [product_id, price_id, quantity]
+      properties:
+        product_id:
+          type: string
+        price_id:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+
+    RemoveCartItemRequest:
+      type: object
+      required: [product_id]
+      properties:
+        product_id:
+          type: string
 
     CreateInvoiceRequest:
       type: object
@@ -1404,24 +3009,31 @@ components:
           type: string
         order_id:
           type: string
+          description: Associated order ID
         subscription_id:
           type: string
+          description: Associated subscription ID
         type:
           type: string
           enum: [invoice, proforma, quote, receipt, statement]
+          description: Document type
         invoice_type:
           type: string
           enum: [initial, recurring, usage, adjustment, setup, cancellation, refund]
+          description: Invoice category
         currency:
           type: string
           pattern: '^[A-Z]{3}$'
         due_at:
           type: string
           format: date-time
+          description: Payment due date
         notes:
           type: string
+          description: Internal notes
         customer_notes:
           type: string
+          description: Notes visible to customer
         metadata:
           type: object
           additionalProperties:
@@ -1430,6 +3042,21 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/CreateInvoiceLineItemRequest'
+
+    UpdateInvoiceRequest:
+      type: object
+      properties:
+        customer_notes:
+          type: string
+        notes:
+          type: string
+        due_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
 
     CreateInvoiceLineItemRequest:
       type: object
@@ -1443,25 +3070,32 @@ components:
           type: string
         description:
           type: string
+          description: Line item description
         category:
           type: string
+          description: Line item category
         quantity:
           type: number
           minimum: 0
         unit_price:
           type: integer
           minimum: 0
+          description: Price per unit in cents
         discount_type:
           type: string
           enum: [percentage, fixed]
         discount_value:
           type: integer
+          minimum: 0
         tax_code:
           type: string
         tax_rate:
           type: integer
+          minimum: 0
+          description: Tax rate in basis points (e.g., 875 = 8.75%)
         tax_exempt:
           type: boolean
+          default: false
         metadata:
           type: object
           additionalProperties:
@@ -1485,10 +3119,12 @@ components:
           enum: [percentage, fixed]
         discount_value:
           type: integer
+          minimum: 0
         tax_code:
           type: string
         tax_rate:
           type: integer
+          minimum: 0
         tax_exempt:
           type: boolean
         metadata:
@@ -1496,36 +3132,216 @@ components:
           additionalProperties:
             type: string
 
-    ChangePlanRequest:
-      type: object
-      required: [new_variant_id, new_price_id]
-      properties:
-        new_variant_id:
-          type: string
-        new_price_id:
-          type: string
-        proration_mode:
-          type: string
-          enum: [none, immediate, credit_unused]
-          default: none
-        effective_date:
-          type: string
-          enum: [immediate, next_billing_cycle]
-          default: immediate
-        reason:
-          type: string
-
     RefundPaymentRequest:
       type: object
       properties:
         reason:
           type: string
+          description: Reason for refund
         amount:
           type: integer
+          minimum: 1
+          description: Amount to refund in cents (if not provided, full amount)
+
+    UpdateDunningCampaignRequest:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [active, paused, completed]
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    CreateDunningConfigurationRequest:
+      type: object
+      required: [name, max_attempts, retry_schedule]
+      properties:
+        name:
+          type: string
+          description: Configuration name
+        max_attempts:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Maximum number of retry attempts
+        retry_schedule:
+          type: array
+          items:
+            type: object
+            required: [delay_days, communication_template]
+            properties:
+              delay_days:
+                type: integer
+                minimum: 0
+                description: Days to wait before this attempt
+              communication_template:
+                type: string
+                description: Email template to use
+        grace_period_days:
+          type: integer
           minimum: 0
-          description: Amount to refund in smallest currency unit. If not provided, full amount will be refunded.
+          description: Grace period before starting dunning
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    UpdateDunningConfigurationRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        max_attempts:
+          type: integer
+          minimum: 1
+          maximum: 10
+        retry_schedule:
+          type: array
+          items:
+            type: object
+            properties:
+              delay_days:
+                type: integer
+                minimum: 0
+              communication_template:
+                type: string
+        grace_period_days:
+          type: integer
+          minimum: 0
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    VerifyPaymentTokenRequest:
+      type: object
+      required: [token]
+      properties:
+        token:
+          type: string
+          description: Payment token to verify
+
+    ActivatePaymentTokenRequest:
+      type: object
+      required: [token, payment_method_token]
+      properties:
+        token:
+          type: string
+          description: Payment token
+        payment_method_token:
+          type: string
+          description: New payment method token from PSP
+
+    CreateWebhookRequest:
+      type: object
+      required: [url, events]
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Webhook endpoint URL
+        events:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            enum: [
+              'subscription.created', 'subscription.updated', 'subscription.cancelled',
+              'invoice.created', 'invoice.finalized', 'invoice.payment_succeeded', 'invoice.payment_failed',
+              'payment.succeeded', 'payment.failed',
+              'customer.created', 'customer.updated',
+              'usage.recorded'
+            ]
+          description: List of events to subscribe to
+        secret:
+          type: string
+          description: Secret for webhook signature verification
+
+    CreatePspConfigurationRequest:
+      type: object
+      required: [name, provider, configuration]
+      properties:
+        name:
+          type: string
+          description: Configuration name
+        provider:
+          type: string
+          enum: [paystack, checkout_com, stripe]
+          description: Payment service provider
+        configuration:
+          type: object
+          description: PSP-specific configuration
+        is_active:
+          type: boolean
+          default: true
+
+    CreateSessionRequest:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [checkout, customer_portal]
+          description: Session type
+        customer_id:
+          type: string
+          description: Customer ID (required for customer portal)
+        return_url:
+          type: string
+          format: uri
+          description: URL to return to after session
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    CreateSettingRequest:
+      type: object
+      required: [key, value]
+      properties:
+        key:
+          type: string
+          description: Setting key
+        value:
+          type: string
+          description: Setting value
+        description:
+          type: string
+          description: Setting description
+
+    UpdateSettingRequest:
+      type: object
+      properties:
+        value:
+          type: string
+        description:
+          type: string
 
     # Response schemas
+    Organization:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        country:
+          type: string
+        timezone:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
     Customer:
       type: object
       properties:
@@ -1535,6 +3351,7 @@ components:
           type: string
         email:
           type: string
+          format: email
         first_name:
           type: string
         last_name:
@@ -1543,6 +3360,8 @@ components:
           type: string
         billing_address:
           $ref: '#/components/schemas/Address'
+        default_payment_method_id:
+          type: string
         metadata:
           type: object
           additionalProperties:
@@ -1615,7 +3434,7 @@ components:
           type: string
         category:
           type: string
-          enum: [one_time, subscription, free, variable]
+          enum: [one_time, subscription, usage, hybrid, free, variable]
         scheme:
           type: string
           enum: [fixed, tiered, volume, graduated]
@@ -1639,6 +3458,22 @@ components:
           enum: [none, minute, hour, day, week, month, year]
         trial_interval_qty:
           type: integer
+        has_usage:
+          type: boolean
+        usage_type:
+          type: string
+          enum: [metered, licensed]
+        unit_type:
+          type: string
+        aggregation_type:
+          type: string
+          enum: [sum, max, average, last_during_period]
+        percentage_rate:
+          type: number
+        tiers:
+          type: array
+          items:
+            $ref: '#/components/schemas/PricingTier'
         tax_code:
           type: string
         metadata:
@@ -1734,12 +3569,447 @@ components:
           format: date-time
         customer:
           $ref: '#/components/schemas/Customer'
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubscriptionItem'
         created_at:
           type: string
           format: date-time
         updated_at:
           type: string
           format: date-time
+
+    UpdateSubscriptionRequest:
+      type: object
+      properties:
+        payment_method_id:
+          type: string
+          description: Payment method ID to use for billing
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: Custom metadata for the subscription
+
+    SubscriptionItem:
+      type: object
+      properties:
+        id:
+          type: string
+        subscription_id:
+          type: string
+        price_id:
+          type: string
+        quantity:
+          type: integer
+        description:
+          type: string
+        currency:
+          type: string
+        unit_price:
+          type: integer
+        has_usage:
+          type: boolean
+        usage_type:
+          type: string
+          enum: [metered, licensed]
+        unit_type:
+          type: string
+        aggregation_type:
+          type: string
+          enum: [sum, max, average, last_during_period]
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # Meter schemas
+    Meter:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        event_name:
+          type: string
+          description: The name of the event to track
+        event_filter:
+          type: object
+          additionalProperties: true
+          description: Optional filter to apply to events
+        aggregation_type:
+          type: string
+          enum: [sum, max, average, last_during_period]
+          description: How usage values are aggregated
+        value_property:
+          type: string
+          description: JSON path to extract the value from event data
+        unit_type:
+          type: string
+          description: Unit of measurement (e.g., "API calls", "GB", "users")
+        display_name:
+          type: string
+          description: Display name for the unit type
+        window_size:
+          type: string
+          enum: [minute, hour, day, month]
+          description: Window size for aggregation
+        reset_interval:
+          type: string
+          enum: [hourly, daily, monthly, never]
+          description: When to reset aggregation
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    CreateMeterRequest:
+      type: object
+      required: [name, event_name, aggregation_type, unit_type]
+      properties:
+        name:
+          type: string
+          description: Display name for the meter
+        description:
+          type: string
+          description: Optional description
+        event_name:
+          type: string
+          description: The name of the event to track
+        event_filter:
+          type: object
+          additionalProperties: true
+          description: Optional filter to apply to events
+        aggregation_type:
+          type: string
+          enum: [sum, max, average, last_during_period]
+          description: How usage values are aggregated
+        value_property:
+          type: string
+          description: JSON path to extract the value from event data
+        unit_type:
+          type: string
+          description: Unit of measurement (e.g., "API calls", "GB", "users")
+        display_name:
+          type: string
+          description: Display name for the unit type
+        window_size:
+          type: string
+          enum: [minute, hour, day, month]
+          description: Window size for aggregation
+        reset_interval:
+          type: string
+          enum: [hourly, daily, monthly, never]
+          description: When to reset aggregation
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    UpdateMeterRequest:
+      type: object
+      required: [name, event_name, aggregation_type, unit_type, display_name]
+      properties:
+        name:
+          type: string
+          description: Display name for the meter
+        description:
+          type: string
+          description: Optional description
+        event_name:
+          type: string
+          description: The name of the event to track
+        event_filter:
+          type: object
+          additionalProperties: true
+          description: Optional filter to apply to events
+        aggregation_type:
+          type: string
+          enum: [sum, max, average, last_during_period]
+          description: How usage values are aggregated
+        value_property:
+          type: string
+          description: JSON path to extract the value from event data
+        unit_type:
+          type: string
+          description: Unit of measurement (e.g., "API calls", "GB", "users")
+        display_name:
+          type: string
+          description: Display name for the unit type
+        window_size:
+          type: string
+          enum: [minute, hour, day, month]
+          description: Window size for aggregation
+        reset_interval:
+          type: string
+          enum: [hourly, daily, monthly, never]
+          description: When to reset aggregation
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+
+    # CloudEvents schemas
+    CloudEventUsageRequest:
+      type: object
+      required: [specversion, type, id, time, source, subject, data]
+      properties:
+        specversion:
+          type: string
+          example: "1.0"
+          description: CloudEvents specification version
+        type:
+          type: string
+          description: Event type (should match meter event_name)
+        id:
+          type: string
+          description: Unique identifier for this event
+        time:
+          type: string
+          format: date-time
+          description: When the event occurred
+        source:
+          type: string
+          description: Source of the event (service, app, etc.)
+        subject:
+          type: string
+          description: Subject of the event (subscription_item_id)
+        data:
+          type: object
+          additionalProperties: true
+          description: Event-specific data containing the usage information
+
+    # Usage response schemas
+    UsageResponse:
+      type: object
+      properties:
+        event_id:
+          type: string
+          description: Internal event ID
+        original_event_id:
+          type: string
+          description: Original CloudEvent ID
+        subscription_item_id:
+          type: string
+        type:
+          type: string
+          description: CloudEvent type
+        status:
+          type: string
+          enum: ["recorded", "processing", "calculated"]
+          description: Processing status
+        recorded_at:
+          type: string
+          format: date-time
+        message:
+          type: string
+          description: Optional status message
+
+    UsageEventResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        org_id:
+          type: string
+        subscription_id:
+          type: string
+        subscription_item_id:
+          type: string
+        meter_id:
+          type: string
+        spec_version:
+          type: string
+        type:
+          type: string
+        event_id:
+          type: string
+        time:
+          type: string
+          format: date-time
+        source:
+          type: string
+        subject:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+        received_at:
+          type: string
+          format: date-time
+
+    UsageEstimateResponse:
+      type: object
+      properties:
+        subscription_id:
+          type: string
+        billing_period:
+          type: string
+          description: Current billing period in YYYY-MM format
+        estimate:
+          type: object
+          properties:
+            total_usage:
+              type: number
+              description: Total usage quantity for the period
+            estimated_amount:
+              type: integer
+              description: Estimated billing amount in cents
+            currency:
+              type: string
+            period_start:
+              type: string
+              format: date-time
+            period_end:
+              type: string
+              format: date-time
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              subscription_item_id:
+                type: string
+              unit_type:
+                type: string
+              quantity:
+                type: number
+              unit_price:
+                type: integer
+              estimated_amount:
+                type: integer
+
+    CloudEventUsageResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        org_id:
+          type: string
+        subscription_id:
+          type: string
+        subscription_item_id:
+          type: string
+        meter_id:
+          type: string
+        spec_version:
+          type: string
+        type:
+          type: string
+        event_id:
+          type: string
+        time:
+          type: string
+          format: date-time
+        source:
+          type: string
+        subject:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+        received_at:
+          type: string
+          format: date-time
+
+    UsageRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        org_id:
+          type: string
+        subscription_id:
+          type: string
+        subscription_item_id:
+          type: string
+        customer_id:
+          type: string
+        price_id:
+          type: string
+        usage_type:
+          type: string
+          enum: [metered, licensed]
+        unit_type:
+          type: string
+        aggregation_type:
+          type: string
+          enum: [sum, max, average, last_during_period]
+        quantity:
+          type: number
+        unit_price:
+          type: integer
+        transaction_value:
+          type: integer
+        percentage_rate:
+          type: number
+        calculated_fee:
+          type: integer
+        total_amount:
+          type: integer
+        usage_date:
+          type: string
+          format: date-time
+        billing_period:
+          type: string
+          description: Billing period in YYYY-MM format
+        processed:
+          type: boolean
+        reference_id:
+          type: string
+        reference_type:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UsageSummary:
+      type: object
+      properties:
+        subscription_id:
+          type: string
+        subscription_item_id:
+          type: string
+        billing_period:
+          type: string
+        usage_type:
+          type: string
+          enum: [metered, licensed]
+        unit_type:
+          type: string
+        aggregation_type:
+          type: string
+          enum: [sum, max, average, last_during_period]
+        total_quantity:
+          type: number
+        total_amount:
+          type: integer
+        details:
+          type: object
+          description: Additional summary details
 
     Order:
       type: object
@@ -1757,10 +4027,18 @@ components:
           type: string
         currency:
           type: string
+        sub_total:
+          type: integer
+        tax_total:
+          type: integer
+        discount_total:
+          type: integer
         total:
           type: integer
         metadata:
           type: object
+          additionalProperties:
+            type: string
         items:
           type: array
           items:
@@ -1791,6 +4069,8 @@ components:
           type: string
         quantity:
           type: number
+        unit_price:
+          type: integer
         sub_total:
           type: integer
         total:
@@ -1801,6 +4081,8 @@ components:
           type: integer
         metadata:
           type: object
+          additionalProperties:
+            type: string
         created_at:
           type: string
           format: date-time
@@ -1827,6 +4109,8 @@ components:
           type: string
         subscription_id:
           type: string
+        customer_id:
+          type: string
         amount:
           type: integer
         currency:
@@ -1844,6 +4128,8 @@ components:
           type: integer
         metadata:
           type: object
+          additionalProperties:
+            type: string
         completed_at:
           type: string
           format: date-time
@@ -1872,12 +4158,18 @@ components:
           $ref: '#/components/schemas/Address'
         details:
           type: object
+          description: Masked payment method details
         type:
           type: string
+          enum: [card, bank_account]
         token:
           type: string
+        is_default:
+          type: boolean
         metadata:
           type: object
+          additionalProperties:
+            type: string
         expire_at:
           type: string
           format: date-time
@@ -1955,6 +4247,8 @@ components:
           type: string
         metadata:
           type: object
+          additionalProperties:
+            type: string
         exchange_rate:
           type: integer
         base_currency:
@@ -2001,6 +4295,7 @@ components:
           type: integer
         discount_type:
           type: string
+          enum: [percentage, fixed]
         discount_value:
           type: integer
         discount_total:
@@ -2017,6 +4312,8 @@ components:
           type: integer
         metadata:
           type: object
+          additionalProperties:
+            type: string
         created_at:
           type: string
           format: date-time
@@ -2028,6 +4325,8 @@ components:
       type: object
       properties:
         id:
+          type: string
+        invoice_id:
           type: string
         action:
           type: string
@@ -2077,6 +4376,35 @@ components:
           type: string
           format: date-time
 
+    PlanChange:
+      type: object
+      properties:
+        id:
+          type: string
+        subscription_id:
+          type: string
+        old_variant_id:
+          type: string
+        new_variant_id:
+          type: string
+        old_price_id:
+          type: string
+        new_price_id:
+          type: string
+        proration_mode:
+          type: string
+          enum: [none, immediate, credit_unused]
+        effective_date:
+          type: string
+          enum: [immediate, next_billing_cycle]
+        reason:
+          type: string
+        proration_amount:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
     ProrationDetails:
       type: object
       properties:
@@ -2100,5 +4428,339 @@ components:
           type: string
           format: date-time
         new_period_end:
+          type: string
+          format: date-time
+
+    # Dunning schemas
+    DunningCampaign:
+      type: object
+      properties:
+        id:
+          type: string
+        subscription_id:
+          type: string
+        customer_id:
+          type: string
+        status:
+          type: string
+          enum: [active, paused, completed, failed]
+        current_attempt:
+          type: integer
+        max_attempts:
+          type: integer
+        next_attempt_at:
+          type: string
+          format: date-time
+        configuration_id:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    DunningAttempt:
+      type: object
+      properties:
+        id:
+          type: string
+        campaign_id:
+          type: string
+        attempt_number:
+          type: integer
+        status:
+          type: string
+          enum: [scheduled, processing, succeeded, failed, skipped]
+        payment_result:
+          type: string
+          enum: [succeeded, failed, no_payment_method]
+        scheduled_at:
+          type: string
+          format: date-time
+        attempted_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+        error_message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    DunningCommunication:
+      type: object
+      properties:
+        id:
+          type: string
+        campaign_id:
+          type: string
+        attempt_id:
+          type: string
+        type:
+          type: string
+          enum: [email, sms, webhook]
+        template_id:
+          type: string
+        recipient:
+          type: string
+        subject:
+          type: string
+        content:
+          type: string
+        status:
+          type: string
+          enum: [sent, delivered, failed, bounced]
+        sent_at:
+          type: string
+          format: date-time
+        delivered_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    DunningConfiguration:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        max_attempts:
+          type: integer
+        grace_period_days:
+          type: integer
+        retry_schedule:
+          type: array
+          items:
+            type: object
+            properties:
+              delay_days:
+                type: integer
+              communication_template:
+                type: string
+        is_active:
+          type: boolean
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PaymentToken:
+      type: object
+      properties:
+        token:
+          type: string
+        subscription_id:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    PaymentTokenVerification:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        subscription_id:
+          type: string
+        customer_id:
+          type: string
+        expires_at:
+          type: string
+          format: date-time
+
+    # Webhook schemas
+    WebhookSubscription:
+      type: object
+      properties:
+        id:
+          type: string
+        url:
+          type: string
+          format: uri
+        events:
+          type: array
+          items:
+            type: string
+        secret:
+          type: string
+          description: Webhook secret for signature verification
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # Report schemas
+    RevenueReport:
+      type: object
+      properties:
+        period:
+          type: string
+        currency:
+          type: string
+        total_revenue:
+          type: integer
+        recurring_revenue:
+          type: integer
+        one_time_revenue:
+          type: integer
+        usage_revenue:
+          type: integer
+        data_points:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              amount:
+                type: integer
+
+    SubscriberReport:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        active_subscribers:
+          type: integer
+        new_subscribers:
+          type: integer
+        churned_subscribers:
+          type: integer
+        trial_subscribers:
+          type: integer
+
+    RefundReport:
+      type: object
+      properties:
+        period_start:
+          type: string
+          format: date
+        period_end:
+          type: string
+          format: date
+        total_refunds:
+          type: integer
+        refund_count:
+          type: integer
+        refund_rate:
+          type: number
+          description: Refund rate as percentage
+
+    ChurnReport:
+      type: object
+      properties:
+        period:
+          type: string
+        churned_customers:
+          type: integer
+        total_customers:
+          type: integer
+        churn_rate:
+          type: number
+          description: Churn rate as percentage
+        data_points:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              churn_rate:
+                type: number
+
+    # Configuration schemas
+    PspConfiguration:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        provider:
+          type: string
+          enum: [paystack, checkout_com, stripe]
+        configuration:
+          type: object
+          description: Provider-specific configuration (sensitive data masked)
+        is_active:
+          type: boolean
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [checkout, customer_portal]
+        url:
+          type: string
+          format: uri
+          description: Session URL for redirect
+        customer_id:
+          type: string
+        return_url:
+          type: string
+          format: uri
+        expires_at:
+          type: string
+          format: date-time
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Setting:
+      type: object
+      properties:
+        id:
+          type: string
+        parent_id:
+          type: string
+        key:
+          type: string
+        value:
+          type: string
+        description:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
           type: string
           format: date-time

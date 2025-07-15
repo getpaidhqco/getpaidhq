@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"payloop/internal/api/dto/request"
+	"payloop/internal/application/dto"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
@@ -12,8 +13,8 @@ import (
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/dunning"
 	"payloop/internal/domain/entities/payments"
+	"payloop/internal/domain/entities/subscriptions"
 	"payloop/internal/domain/factories"
-	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 	"time"
@@ -27,8 +28,9 @@ type DunningService struct {
 	paymentRepository      repositories.PaymentRepository
 	subscriptionService    interfaces.SubscriptionService
 	gatewayFactory         factories.GatewayFactory
-	pubsub                 events.PubSub
+	pubsub                 events.NotificationPublisher
 	logger                 logger.Logger
+	errorReporter          lib.ErrorReporter
 }
 
 // NewDunningService creates a new DunningService
@@ -39,8 +41,9 @@ func NewDunningService(
 	paymentRepository repositories.PaymentRepository,
 	subscriptionService interfaces.SubscriptionService,
 	gatewayFactory factories.GatewayFactory,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 	logger logger.Logger,
+	errorReporter lib.ErrorReporter,
 ) interfaces.DunningService {
 	return &DunningService{
 		dunningRepository:      dunningRepository,
@@ -51,11 +54,12 @@ func NewDunningService(
 		gatewayFactory:         gatewayFactory,
 		pubsub:                 pubsub,
 		logger:                 logger,
+		errorReporter:          errorReporter,
 	}
 }
 
 // CreateCampaign creates a new dunning campaign
-func (s *DunningService) CreateCampaign(ctx context.Context, input interfaces.CreateDunningCampaignInput) (dunning.DunningCampaign, error) {
+func (s *DunningService) CreateCampaign(ctx context.Context, input dto.CreateDunningCampaignInput) (dunning.DunningCampaign, error) {
 	s.logger.Info("Creating dunning campaign", "orgId", input.OrgId, "subscriptionId", input.SubscriptionId)
 
 	// Validate subscription exists
@@ -190,7 +194,7 @@ func (s *DunningService) ListCampaignsByCustomer(ctx context.Context, orgId stri
 }
 
 // PauseCampaign pauses a dunning campaign
-func (s *DunningService) PauseCampaign(ctx context.Context, input interfaces.PauseDunningCampaignInput) (dunning.DunningCampaign, error) {
+func (s *DunningService) PauseCampaign(ctx context.Context, input dto.PauseDunningCampaignInput) (dunning.DunningCampaign, error) {
 	s.logger.Info("Pausing dunning campaign", "orgId", input.OrgId, "id", input.Id)
 
 	// Find campaign
@@ -229,7 +233,7 @@ func (s *DunningService) PauseCampaign(ctx context.Context, input interfaces.Pau
 }
 
 // ResumeCampaign resumes a paused dunning campaign
-func (s *DunningService) ResumeCampaign(ctx context.Context, input interfaces.ResumeDunningCampaignInput) (dunning.DunningCampaign, error) {
+func (s *DunningService) ResumeCampaign(ctx context.Context, input dto.ResumeDunningCampaignInput) (dunning.DunningCampaign, error) {
 	s.logger.Info("Resuming dunning campaign", "orgId", input.OrgId, "id", input.Id)
 
 	// Find campaign
@@ -268,7 +272,7 @@ func (s *DunningService) ResumeCampaign(ctx context.Context, input interfaces.Re
 }
 
 // CancelCampaign cancels a dunning campaign
-func (s *DunningService) CancelCampaign(ctx context.Context, input interfaces.CancelDunningCampaignInput) (dunning.DunningCampaign, error) {
+func (s *DunningService) CancelCampaign(ctx context.Context, input dto.CancelDunningCampaignInput) (dunning.DunningCampaign, error) {
 	s.logger.Info("Cancelling dunning campaign", "orgId", input.OrgId, "id", input.Id)
 
 	// Find campaign
@@ -362,7 +366,7 @@ func (s *DunningService) ListAttemptsByCampaign(ctx context.Context, orgId strin
 }
 
 // TriggerManualAttempt triggers a manual payment attempt
-func (s *DunningService) TriggerManualAttempt(ctx context.Context, input interfaces.TriggerManualAttemptInput) (dunning.DunningAttempt, error) {
+func (s *DunningService) TriggerChargeAttempt(ctx context.Context, input dto.TriggerAttemptInput) (dunning.DunningAttempt, error) {
 	s.logger.Info("Triggering manual payment attempt", "orgId", input.OrgId, "campaignId", input.CampaignId)
 
 	// Find campaign
@@ -396,12 +400,12 @@ func (s *DunningService) TriggerManualAttempt(ctx context.Context, input interfa
 	// Create attempt
 	attempt := dunning.DunningAttempt{
 		OrgId:             input.OrgId,
-		Id:                lib.GenerateId("dat"),
+		Id:                lib.GenerateId("dun"),
 		DunningCampaignId: input.CampaignId,
 		SubscriptionId:    campaign.SubscriptionId,
 		AttemptNumber:     campaign.TotalAttempts + 1,
-		AttemptType:       dunning.DunningAttemptTypeManual,
-		Amount:            campaign.FailedAmount,
+		AttemptType:       input.Type,
+		Amount:            int64(campaign.FailedAmount),
 		Currency:          campaign.Currency,
 		PaymentMethodId:   paymentMethodId,
 		AttemptedAt:       time.Now().UTC(),
@@ -409,126 +413,17 @@ func (s *DunningService) TriggerManualAttempt(ctx context.Context, input interfa
 		CreatedAt:         time.Now().UTC(),
 	}
 
-	// Get the payment gateway
-	gw, err := s.gatewayFactory.NewGateway(ctx, subscription.OrgId, string(subscription.PspId))
+	chargeResult, err := s.subscriptionService.ProcessSubscriptionCharge(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to get payment gateway", err.Error())
-
-		// Save attempt with error
-		attempt.Status = payments.PaymentStatusFailed
-		attempt.FailureReason = "Failed to get payment gateway: " + err.Error()
-		attempt.CompletedAt = time.Now().UTC()
-
-		attempt, saveErr := s.dunningRepository.CreateAttempt(ctx, attempt)
-		if saveErr != nil {
-			s.logger.Error("Failed to create dunning attempt", saveErr.Error())
-			return dunning.DunningAttempt{}, saveErr
-		}
-
-		return attempt, nil
-	}
-
-	// Get the customer
-	customer, err := s.customerRepository.FindById(ctx, input.OrgId, campaign.CustomerId)
-	if err != nil {
-		s.logger.Error("Failed to get customer", err.Error())
-
-		// Save attempt with error
-		attempt.Status = payments.PaymentStatusFailed
-		attempt.FailureReason = "Failed to get customer: " + err.Error()
-		attempt.CompletedAt = time.Now().UTC()
-
-		attempt, saveErr := s.dunningRepository.CreateAttempt(ctx, attempt)
-		if saveErr != nil {
-			s.logger.Error("Failed to create dunning attempt", saveErr.Error())
-			return dunning.DunningAttempt{}, saveErr
-		}
-
-		return attempt, nil
-	}
-
-	// Get the payment method
-	securePaymentMethod, err := s.subscriptionService.GetSubscriptionPaymentMethod(ctx, subscription)
-	if err != nil {
-		s.logger.Error("Failed to get payment method", err.Error())
-
-		// Save attempt with error
-		attempt.Status = payments.PaymentStatusFailed
-		attempt.FailureReason = "Failed to get payment method: " + err.Error()
-		attempt.CompletedAt = time.Now().UTC()
-
-		attempt, saveErr := s.dunningRepository.CreateAttempt(ctx, attempt)
-		if saveErr != nil {
-			s.logger.Error("Failed to create dunning attempt", saveErr.Error())
-			return dunning.DunningAttempt{}, saveErr
-		}
-
-		return attempt, nil
-	}
-
-	// Get the decrypted token for payment processing
-	decryptedToken, err := securePaymentMethod.GetToken(ctx)
-	if err != nil {
-		s.logger.Error("Failed to decrypt payment token", err.Error())
-
-		// Save attempt with error
-		attempt.Status = payments.PaymentStatusFailed
-		attempt.FailureReason = "Failed to decrypt payment token: " + err.Error()
-		attempt.CompletedAt = time.Now().UTC()
-
-		attempt, saveErr := s.dunningRepository.CreateAttempt(ctx, attempt)
-		if saveErr != nil {
-			s.logger.Error("Failed to create dunning attempt", saveErr.Error())
-			return dunning.DunningAttempt{}, saveErr
-		}
-
-		return attempt, nil
-	}
-
-	// Charge the payment
-	chargeResult := gw.ChargePayment(ctx, payment_providers.ChargePaymentCommand{
-		OrgId:          subscription.OrgId,
-		OrderId:        subscription.OrderId,
-		SubscriptionId: subscription.Id,
-		Amount:         int64(campaign.FailedAmount),
-		Currency:       campaign.Currency,
-		PaymentMethod: payment_providers.PaymentMethod{
-			PspId:       securePaymentMethod.Id,
-			Name:        securePaymentMethod.Name,
-			Type:        string(securePaymentMethod.Type),
-			IsRecurring: true,
-			Token:       decryptedToken,
-		},
-		Customer: customer,
-	})
-
-	// Process the charge result
-	var status payments.PaymentStatus
-	var completedAt time.Time
-	switch chargeResult.Status {
-	case payment_providers.ChargePaymentStatusSuccess:
-		status = payments.PaymentStatusSucceeded
-		completedAt = time.Now().UTC()
-	case payment_providers.ChargePaymentStatusPending:
-		status = payments.PaymentStatusPending
-	case payment_providers.ChargePaymentStatusError, payment_providers.GatewayError:
-		status = payments.PaymentStatusFailed
-		completedAt = time.Now().UTC()
+		return dunning.DunningAttempt{}, err
 	}
 
 	// Update attempt with charge result
-	attempt.Status = status
+	attempt.Status = chargeResult.Status
 	attempt.FailureReason = chargeResult.ErrorReason
 	attempt.FailureCode = chargeResult.ErrorCode
-	attempt.CompletedAt = completedAt
-
-	if chargeResult.PspResponse != nil {
-		processorResponse := make(map[string]interface{})
-		for k, v := range chargeResult.PspResponse.(map[string]interface{}) {
-			processorResponse[k] = v
-		}
-		attempt.ProcessorResponse = processorResponse
-	}
+	attempt.CompletedAt = chargeResult.ProcessedAt
+	attempt.ProcessorResponse = chargeResult.RawData
 
 	// Save attempt
 	attempt, err = s.dunningRepository.CreateAttempt(ctx, attempt)
@@ -537,36 +432,12 @@ func (s *DunningService) TriggerManualAttempt(ctx context.Context, input interfa
 		return dunning.DunningAttempt{}, err
 	}
 
-	// Update campaign
-	campaign.TotalAttempts++
-	campaign.LastAttemptAt = attempt.AttemptedAt
-	campaign.UpdatedAt = time.Now().UTC()
-
-	// If payment was successful, update campaign as recovered
-	if status == payments.PaymentStatusSucceeded {
-		campaign.Status = dunning.DunningStatusRecovered
-		campaign.RecoveryMethod = "manual_payment"
-		campaign.RecoveredAmount = campaign.FailedAmount
-		campaign.RecoveredAt = time.Now().UTC()
-		campaign.CompletedAt = time.Now().UTC()
-	}
-
-	// Save campaign
-	campaign, err = s.dunningRepository.UpdateCampaign(ctx, campaign)
-	if err != nil {
-		s.logger.Error("Failed to update dunning campaign", err.Error())
-		// Continue anyway, as the attempt has already been created
-	}
-
 	// Publish event for the attempt result
 	// For manual attempts, we don't suspend the subscription or send a final notice
-	shouldSuspend := false
-	isFinalNotice := false
-
-	event := topic.NewDunningAttemptEvent(attempt, campaign, shouldSuspend, isFinalNotice)
+	event := topic.NewDunningAttemptEvent(attempt, campaign, false, false)
 
 	eventTopic := topic.DunningAttemptFailed
-	if status == payments.PaymentStatusSucceeded {
+	if chargeResult.Status == payments.PaymentStatusSucceeded {
 		eventTopic = topic.DunningAttemptSucceeded
 	}
 
@@ -577,6 +448,187 @@ func (s *DunningService) TriggerManualAttempt(ctx context.Context, input interfa
 	}
 
 	return attempt, nil
+}
+
+// HandleChargeResult creates a Attempt and updates the Dunning Campaign based on the charge result
+func (s *DunningService) HandleChargeResult(
+	ctx context.Context,
+	campaign dunning.DunningCampaign,
+	chargeResult payments.ChargeResult,
+	config dunning.DunningConfig,
+) (dto.HandleChargeResultResponse, error) {
+	var zero = dto.HandleChargeResultResponse{}
+	// Find campaign
+	campaign, err := s.dunningRepository.FindCampaignById(ctx, campaign.OrgId, campaign.Id)
+	if err != nil {
+		s.logger.Error("Failed to find dunning campaign", err.Error())
+		return zero, err
+	}
+
+	// Validate campaign status
+	if campaign.Status != dunning.DunningStatusActive {
+		s.logger.Info("Campaign is not active", "status", campaign.Status)
+		return zero, lib.NewCustomError(lib.BadRequestError, "campaign is not active", nil)
+	}
+
+	// Get the subscription
+	subscription, err := s.subscriptionRepository.FindById(ctx, campaign.OrgId, campaign.SubscriptionId)
+	if err != nil {
+		s.logger.Error("Failed to find subscription", err.Error())
+		return zero, err
+	}
+
+	// Create attempt
+	attempt := dunning.DunningAttempt{
+		OrgId:             campaign.OrgId,
+		Id:                lib.GenerateId("dun"),
+		DunningCampaignId: campaign.Id,
+		SubscriptionId:    campaign.SubscriptionId,
+		AttemptNumber:     campaign.TotalAttempts + 1,
+		AttemptType:       dunning.DunningAttemptTypeProgressive,
+		Amount:            chargeResult.Amount,
+		Currency:          campaign.Currency,
+		PaymentMethodId:   subscription.PaymentMethodId,
+		Status:            chargeResult.Status,
+		FailureReason:     chargeResult.ErrorReason,
+		FailureCode:       chargeResult.ErrorCode,
+		ProcessorResponse: chargeResult.RawData,
+		ProcessingTimeMs:  0,
+		AttemptedAt:       time.Now().UTC(),
+		CompletedAt:       chargeResult.ProcessedAt,
+		TriggeredBy:       string(dunning.DunningAttemptTypeProgressive),
+		Metadata:          nil,
+		CreatedAt:         time.Now().UTC(),
+	}
+	// Save attempt
+	attempt, err = s.dunningRepository.CreateAttempt(ctx, attempt)
+	if err != nil {
+		s.logger.Error("Failed to create dunning attempt", "err", err.Error())
+		return zero, err
+	}
+
+	// Update campaign statistics
+	campaign.LastAttemptAt = attempt.AttemptedAt
+	campaign.TotalAttempts++
+	if attempt.AttemptType == dunning.DunningAttemptTypeProgressive {
+		campaign.ProgressiveAttempts++
+	}
+	campaign.UpdatedAt = time.Now().UTC()
+
+	// Handle successful payment
+	if attempt.Status == payments.PaymentStatusSucceeded {
+		s.logger.Info("Payment attempt succeeded, handling recovery")
+
+		// Mark campaign as recovered
+		campaign.Status = dunning.DunningStatusRecovered
+		campaign.RecoveryMethod = string(attempt.AttemptType)
+		campaign.RecoveredAmount = campaign.FailedAmount
+		campaign.RecoveredAt = time.Now().UTC()
+		campaign.CompletedAt = time.Now().UTC()
+
+		// Update the campaign in the database
+		updatedCampaign, err := s.dunningRepository.UpdateCampaign(ctx, campaign)
+		if err != nil {
+			s.logger.Error("Failed to update campaign", "Error", err.Error())
+			return zero, err
+		}
+
+		// Publish recovery event
+		event := topic.NewDunningCampaignEvent(updatedCampaign)
+		err = s.pubsub.Publish(updatedCampaign.OrgId, topic.DunningCampaignRecovered, event)
+		if err != nil {
+			s.logger.Error("Failed to publish dunning campaign recovered event", "Error", err.Error())
+		}
+
+		return dto.HandleChargeResultResponse{
+			Subscription: subscription,
+			Campaign:     updatedCampaign,
+			Attempt:      attempt,
+		}, nil
+	}
+
+	// Handle failed payment - check escalation rules
+	s.logger.Info("Payment attempt failed, checking escalation rules",
+		"AttemptNumber", attempt.AttemptNumber,
+		"FailureReason", attempt.FailureReason,
+		"FailureCode", attempt.FailureCode)
+
+	// Check if we need to cancel subscription (final failure)
+	shouldCancel := attempt.AttemptNumber >= config.EscalationRules.CancelAfterAttempt &&
+		attempt.AttemptType == dunning.DunningAttemptTypeProgressive
+
+	if shouldCancel {
+		s.logger.Info("Cancelling subscription due to escalation rules", "AttemptNumber", attempt.AttemptNumber)
+		// Mark campaign as failed
+		campaign.Status = dunning.DunningStatusFailed
+		campaign.FinalFailureReason = "max_attempts_reached"
+		campaign.CompletedAt = time.Now().UTC()
+
+		// Update the campaign in the database
+		updatedCampaign, err := s.UpdateCampaign(ctx, attempt.OrgId, campaign)
+		if err != nil {
+			s.logger.Error("Failed to update campaign", "Error", err.Error())
+			return zero, err
+		}
+
+		subscription, err = s.subscriptionService.CancelSubscription(ctx, subscriptions.CancelSubscriptionInput{
+			OrgId:  campaign.OrgId,
+			Id:     campaign.SubscriptionId,
+			Reason: "Max dunning attempts reached",
+		})
+		if err != nil {
+			s.logger.Error("Failed to cancel subscription", "Error", err.Error())
+			return zero, err
+		}
+
+		// Publish failed event
+		event := topic.NewDunningCampaignEvent(updatedCampaign)
+		err = s.pubsub.Publish(updatedCampaign.OrgId, topic.DunningCampaignFailed, event)
+		if err != nil {
+			s.logger.Error("Failed to publish dunning campaign failed event", "Error", err.Error())
+		}
+
+		return dto.HandleChargeResultResponse{
+			Subscription: subscription,
+			Campaign:     updatedCampaign,
+			Attempt:      attempt,
+		}, nil
+	}
+
+	// For regular failures, just update the campaign
+	updatedCampaign, err := s.UpdateCampaign(ctx, attempt.OrgId, campaign)
+	if err != nil {
+		s.logger.Error("Failed to update campaign", "Error", err.Error())
+		return zero, err
+	}
+
+	// Publish attempt failed event
+	event := topic.NewDunningAttemptEvent(attempt, updatedCampaign, false, shouldCancel)
+	err = s.pubsub.Publish(attempt.OrgId, topic.DunningAttemptFailed, event)
+	if err != nil {
+		s.logger.Error("Failed to publish dunning attempt failed event", "Error", err.Error())
+	}
+
+	// Publish event for the attempt result
+	// For manual attempts, we don't suspend the subscription or send a final notice
+	event = topic.NewDunningAttemptEvent(attempt, campaign, false, false)
+
+	eventTopic := topic.DunningAttemptFailed
+	if chargeResult.Status == payments.PaymentStatusSucceeded {
+		eventTopic = topic.DunningAttemptSucceeded
+	}
+
+	err = s.pubsub.Publish(attempt.OrgId, eventTopic, event)
+	if err != nil {
+		s.logger.Error("Failed to publish dunning attempt event", err.Error())
+		// Continue anyway, as the attempt has already been created
+	}
+
+	return dto.HandleChargeResultResponse{
+		Subscription: subscription,
+		Campaign:     updatedCampaign,
+		Attempt:      attempt,
+	}, nil
 }
 
 // ListCommunicationsByCampaign lists dunning communications by campaign ID
@@ -599,7 +651,7 @@ func (s *DunningService) ListCommunicationsByCampaign(ctx context.Context, orgId
 }
 
 // CreatePaymentUpdateToken creates a payment update token
-func (s *DunningService) CreatePaymentUpdateToken(ctx context.Context, input interfaces.CreatePaymentUpdateTokenInput) (dunning.PaymentUpdateToken, error) {
+func (s *DunningService) CreatePaymentUpdateToken(ctx context.Context, input dto.CreatePaymentUpdateTokenInput) (dunning.PaymentUpdateToken, error) {
 	s.logger.Info("Creating payment update token", "orgId", input.OrgId, "subscriptionId", input.SubscriptionId)
 
 	// Validate subscription exists
@@ -730,7 +782,7 @@ func (s *DunningService) VerifyPaymentUpdateToken(ctx context.Context, orgId str
 }
 
 // ActivatePaymentUpdateToken activates a payment update token
-func (s *DunningService) ActivatePaymentUpdateToken(ctx context.Context, input interfaces.ActivatePaymentUpdateTokenInput) (dunning.PaymentUpdateToken, error) {
+func (s *DunningService) ActivatePaymentUpdateToken(ctx context.Context, input dto.ActivatePaymentUpdateTokenInput) (dunning.PaymentUpdateToken, error) {
 	s.logger.Info("Activating payment update token", "orgId", input.OrgId, "tokenId", input.TokenId)
 
 	// Verify token
@@ -806,7 +858,7 @@ func (s *DunningService) RevokePaymentUpdateToken(ctx context.Context, orgId str
 }
 
 // CreateConfiguration creates a dunning configuration
-func (s *DunningService) CreateConfiguration(ctx context.Context, input interfaces.CreateDunningConfigurationInput) (dunning.DunningConfiguration, error) {
+func (s *DunningService) CreateConfiguration(ctx context.Context, input dto.CreateDunningConfigurationInput) (dunning.DunningConfiguration, error) {
 	s.logger.Info("Creating dunning configuration", "orgId", input.OrgId, "name", input.Name)
 
 	// Convert DunningConfig to map[string]interface{} using JSON marshaling
@@ -892,7 +944,7 @@ func (s *DunningService) ListConfigurations(ctx context.Context, orgId string, p
 }
 
 // UpdateConfiguration updates a dunning configuration
-func (s *DunningService) UpdateConfiguration(ctx context.Context, input interfaces.UpdateDunningConfigurationInput) (dunning.DunningConfiguration, error) {
+func (s *DunningService) UpdateConfiguration(ctx context.Context, input dto.UpdateDunningConfigurationInput) (dunning.DunningConfiguration, error) {
 	s.logger.Info("Updating dunning configuration", "orgId", input.OrgId, "id", input.Id)
 
 	// Find configuration

@@ -21,4 +21,6 @@ var Module = fx.Options(
 	fx.Provide(NewPaymentController),
 	fx.Provide(NewSettingsController),
 	fx.Provide(NewDunningController),
+	fx.Provide(NewUsageRecordingController),
+	fx.Provide(NewMeterController),
 )

@@ -7,6 +7,7 @@ import (
 	"payloop/internal/application/dto"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
+	"payloop/internal/testing/mocks"
 	"testing"
 )
 
@@ -103,8 +104,8 @@ func (m *MockMetadataRepository) Delete(ctx context.Context, orgId string, paren
 
 func TestMetadataService(t *testing.T) {
 	mockRepo := NewMockMetadataRepository()
-	logger := MockLogger{}
-	service := NewMetadataService(mockRepo, logger)
+	logger := mocks.MockLogger{}
+	service := NewMetadataService(mockRepo, &logger)
 
 	ctx := context.Background()
 	orgId := "org_123"

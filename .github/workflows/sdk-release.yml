@@ -1,0 +1,46 @@
+name: SDK Release
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'swagger.yml'
+      - 'sdks/typescript/**'
+  workflow_dispatch:
+
+jobs:
+  generate-and-publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Generate SDK
+        run: ./scripts/generate-sdk.sh
+
+      - name: Run tests
+        run: |
+          cd sdks/typescript
+          npm test
+
+      - name: Publish to NPM (Beta)
+        if: github.ref != 'refs/heads/main'
+        run: |
+          cd sdks/typescript/dist
+          npm publish --tag beta
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Publish to NPM (Latest)
+        if: github.ref == 'refs/heads/main'
+        run: |
+          cd sdks/typescript/dist
+          npm publish --tag latest
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

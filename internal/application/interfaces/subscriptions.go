@@ -5,6 +5,7 @@ import (
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/dto"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/payments"
 	"payloop/internal/domain/entities/settings"
 	"payloop/internal/domain/entities/subscriptions"
 )
@@ -14,7 +15,6 @@ import (
 type SubscriptionOrchestrationService interface {
 	SubscriptionService
 	Update(ctx context.Context, input subscriptions.UpdateSubscriptionInput) (entities.Subscription, error)
-	Activate(ctx context.Context, orgId string, id string) (entities.Subscription, error)
 	PauseSubscription(ctx context.Context, input subscriptions.PauseSubscriptionInput) (entities.Subscription, error)
 	ResumeSubscription(ctx context.Context, input subscriptions.ResumeSubscriptionInput) (entities.Subscription, error)
 	CancelSubscription(ctx context.Context, input subscriptions.CancelSubscriptionInput) (entities.Subscription, error)
@@ -23,8 +23,9 @@ type SubscriptionOrchestrationService interface {
 
 type SubscriptionService interface {
 	CreateSubscriptionsForOrder(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error)
+	Create(ctx context.Context, orgId string, input dto.CreateSubscriptionInput) (entities.Subscription, error)
 	FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error)
-	Activate(ctx context.Context, orgId string, id string) (entities.Subscription, error)
+	Activate(ctx context.Context, input subscriptions.ActivateSubscriptionInput) (entities.Subscription, error)
 	PauseSubscription(ctx context.Context, input subscriptions.PauseSubscriptionInput) (entities.Subscription, error)
 	List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Subscription, int, error)
 	FindSubscriptionPayments(ctx context.Context, pk entities.EntityKey, pagination request.Pagination) ([]entities.Payment, int, error)
@@ -37,4 +38,5 @@ type SubscriptionService interface {
 	HandleSubscriptionChargeSuccess(ctx context.Context, input subscriptions.SubscriptionChargeInput) (entities.Subscription, error)
 	HandleSubscriptionChargeFailure(ctx context.Context, input subscriptions.SubscriptionChargeInput) (entities.Subscription, error)
 	GetOrgSubscriptionSettings(ctx context.Context, orgId string) (settings.Subscription, error)
+	ProcessSubscriptionCharge(ctx context.Context, subscription entities.Subscription) (payments.ChargeResult, error)
 }

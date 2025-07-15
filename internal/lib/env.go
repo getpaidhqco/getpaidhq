@@ -9,53 +9,53 @@ import (
 // Env has environment stored
 type Env struct {
 	// Server configuration
-	ServerPort      string `mapstructure:"GETPAIDHQ_SERVER_PORT"`
-	ServerHost      string `mapstructure:"GETPAIDHQ_SERVER_HOST"`
-	McpSsePort      string `mapstructure:"GETPAIDHQ_MCP_SSE_PORT"`
-	TemporalHost    string `mapstructure:"GETPAIDHQ_TEMPORAL_HOST"`
-	Env             string `mapstructure:"GETPAIDHQ_ENV"`
+	ServerPort      string `mapstructure:"GPHQ_SERVER_PORT"`
+	ServerHost      string `mapstructure:"GPHQ_SERVER_HOST"`
+	McpSsePort      string `mapstructure:"GPHQ_MCP_SSE_PORT"`
+	TemporalHost    string `mapstructure:"GPHQ_TEMPORAL_HOST"`
+	Env             string `mapstructure:"GPHQ_ENV"`
 
 	// Logging configuration
-	LogOutput       string `mapstructure:"GETPAIDHQ_LOG_OUTPUT"`
-	LogLevel        string `mapstructure:"GETPAIDHQ_PAYLOOP_LOG_LEVEL"`
-	LogFormat       string `mapstructure:"GETPAIDHQ_LOG_FORMAT"`
+	LogOutput       string `mapstructure:"GPHQ_LOG_OUTPUT"`
+	LogLevel        string `mapstructure:"GPHQ_PAYLOOP_LOG_LEVEL"`
+	LogFormat       string `mapstructure:"GPHQ_LOG_FORMAT"`
 
 	// Database configuration
-	DBUrl           string `mapstructure:"GETPAIDHQ_DATABASE_URL"`
-	CedarPolicyFile string `mapstructure:"GETPAIDHQ_CEDAR_POLICY"`
+	DBUrl           string `mapstructure:"GPHQ_DATABASE_URL"`
+	CedarPolicyFile string `mapstructure:"GPHQ_CEDAR_POLICY"`
 
 	// Auth configuration
-	JWTSecret      string `mapstructure:"GETPAIDHQ_JWT_SECRET"`
-	TokenExpiry    string `mapstructure:"GETPAIDHQ_TOKEN_EXPIRY"`
-	PaystackSecret string `mapstructure:"GETPAIDHQ_PAYSTACK_SECRET"`
+	JWTSecret      string `mapstructure:"GPHQ_JWT_SECRET"`
+	TokenExpiry    string `mapstructure:"GPHQ_TOKEN_EXPIRY"`
+	PaystackSecret string `mapstructure:"GPHQ_PAYSTACK_SECRET"`
 
-	CognitoClientId string `mapstructure:"GETPAIDHQ_COGNITO_CLIENT_ID"`
-	CognitoPoolId   string `mapstructure:"GETPAIDHQ_COGNITO_POOL_ID"`
-	CognitoRegion   string `mapstructure:"GETPAIDHQ_COGNITO_REGION"`
+	CognitoClientId string `mapstructure:"GPHQ_COGNITO_CLIENT_ID"`
+	CognitoPoolId   string `mapstructure:"GPHQ_COGNITO_POOL_ID"`
+	CognitoRegion   string `mapstructure:"GPHQ_COGNITO_REGION"`
 
-	PaystackApiKey string `mapstructure:"GETPAIDHQ_PAYSTACK_API_KEY"`
+	PaystackApiKey string `mapstructure:"GPHQ_PAYSTACK_API_KEY"`
 
-	ClerkSecretKey string `mapstructure:"GETPAIDHQ_CLERK_SECRET"`
+	ClerkSecretKey string `mapstructure:"GPHQ_CLERK_SECRET"`
 
 	// Email configuration
-	EmailProvider   string `mapstructure:"GETPAIDHQ_EMAIL_PROVIDER"`
-	LoopsApiKey     string `mapstructure:"GETPAIDHQ_LOOPS_API_KEY"`
-	LoopsApiEndpoint string `mapstructure:"GETPAIDHQ_LOOPS_API_ENDPOINT"`
-	EmailFromEmail  string `mapstructure:"GETPAIDHQ_EMAIL_FROM_EMAIL"`
-	EmailFromName   string `mapstructure:"GETPAIDHQ_EMAIL_FROM_NAME"`
+	EmailProvider   string `mapstructure:"GPHQ_EMAIL_PROVIDER"`
+	LoopsApiKey     string `mapstructure:"GPHQ_LOOPS_API_KEY"`
+	LoopsApiEndpoint string `mapstructure:"GPHQ_LOOPS_API_ENDPOINT"`
+	EmailFromEmail  string `mapstructure:"GPHQ_EMAIL_FROM_EMAIL"`
+	EmailFromName   string `mapstructure:"GPHQ_EMAIL_FROM_NAME"`
 
 	// Token Vault configuration
-	TokenVaultType      string `mapstructure:"GETPAIDHQ_TOKEN_VAULT_TYPE"`       // "aes" or "aws_secrets_manager"
-	TokenVaultAESKey    string `mapstructure:"GETPAIDHQ_TOKEN_VAULT_AES_KEY"`    // 32-byte AES encryption key
-	TokenVaultAWSRegion string `mapstructure:"GETPAIDHQ_TOKEN_VAULT_AWS_REGION"` // AWS region for Secrets Manager
-	TokenVaultAWSPath   string `mapstructure:"GETPAIDHQ_TOKEN_VAULT_AWS_PATH"`   // Base path for AWS Secrets Manager
+	TokenVaultType      string `mapstructure:"GPHQ_TOKEN_VAULT_TYPE"`       // "aes" or "aws_secrets_manager"
+	TokenVaultAESKey    string `mapstructure:"GPHQ_TOKEN_VAULT_AES_KEY"`    // 32-byte AES encryption key
+	TokenVaultAWSRegion string `mapstructure:"GPHQ_TOKEN_VAULT_AWS_REGION"` // AWS region for Secrets Manager
+	TokenVaultAWSPath   string `mapstructure:"GPHQ_TOKEN_VAULT_AWS_PATH"`   // Base path for AWS Secrets Manager
 
 	// Pubsub configuration
-	PubsubProvider string `mapstructure:"GETPAIDHQ_PUBSUB_PROVIDER"`
+	PubsubProvider string `mapstructure:"GPHQ_PUBSUB_PROVIDER"`
 
 	// S3 Storage configuration
-	S3Bucket string `mapstructure:"GETPAIDHQ_S3_BUCKET"`
-	S3Region string `mapstructure:"GETPAIDHQ_S3_REGION"`
+	S3Bucket string `mapstructure:"GPHQ_S3_BUCKET"`
+	S3Region string `mapstructure:"GPHQ_S3_REGION"`
 }
 
 // NewEnv creates a new environment
@@ -69,78 +69,78 @@ func NewEnv() Env {
 
 	var env Env
 
-	viper.BindEnv("GETPAIDHQ_SERVER_PORT")
-	viper.BindEnv("GETPAIDHQ_SERVER_HOST")
-	viper.BindEnv("GETPAIDHQ_MCP_SSE_PORT")
-	viper.BindEnv("GETPAIDHQ_TEMPORAL_HOST")
-	viper.BindEnv("GETPAIDHQ_ENV")
-	viper.BindEnv("GETPAIDHQ_LOG_OUTPUT")
-	viper.BindEnv("GETPAIDHQ_PAYLOOP_LOG_LEVEL")
-	viper.BindEnv("GETPAIDHQ_LOG_FORMAT")
-	viper.BindEnv("GETPAIDHQ_DATABASE_URL")
-	viper.BindEnv("GETPAIDHQ_CEDAR_POLICY")
-	viper.BindEnv("GETPAIDHQ_JWT_SECRET")
-	viper.BindEnv("GETPAIDHQ_TOKEN_EXPIRY")
-	viper.BindEnv("GETPAIDHQ_PAYSTACK_SECRET")
-	viper.BindEnv("GETPAIDHQ_COGNITO_CLIENT_ID")
-	viper.BindEnv("GETPAIDHQ_COGNITO_POOL_ID")
-	viper.BindEnv("GETPAIDHQ_COGNITO_REGION")
-	viper.BindEnv("GETPAIDHQ_PAYSTACK_API_KEY")
-	viper.BindEnv("GETPAIDHQ_CLERK_SECRET")
-	viper.BindEnv("GETPAIDHQ_EMAIL_PROVIDER")
-	viper.BindEnv("GETPAIDHQ_LOOPS_API_KEY")
-	viper.BindEnv("GETPAIDHQ_LOOPS_API_ENDPOINT")
-	viper.BindEnv("GETPAIDHQ_EMAIL_FROM_EMAIL")
-	viper.BindEnv("GETPAIDHQ_EMAIL_FROM_NAME")
-	viper.BindEnv("GETPAIDHQ_TOKEN_VAULT_TYPE")
-	viper.BindEnv("GETPAIDHQ_TOKEN_VAULT_AES_KEY")
-	viper.BindEnv("GETPAIDHQ_TOKEN_VAULT_AWS_REGION")
-	viper.BindEnv("GETPAIDHQ_TOKEN_VAULT_AWS_PATH")
-	viper.BindEnv("GETPAIDHQ_PUBSUB_PROVIDER")
-	viper.BindEnv("GETPAIDHQ_S3_BUCKET")
-	viper.BindEnv("GETPAIDHQ_S3_REGION")
+	viper.BindEnv("GPHQ_SERVER_PORT")
+	viper.BindEnv("GPHQ_SERVER_HOST")
+	viper.BindEnv("GPHQ_MCP_SSE_PORT")
+	viper.BindEnv("GPHQ_TEMPORAL_HOST")
+	viper.BindEnv("GPHQ_ENV")
+	viper.BindEnv("GPHQ_LOG_OUTPUT")
+	viper.BindEnv("GPHQ_PAYLOOP_LOG_LEVEL")
+	viper.BindEnv("GPHQ_LOG_FORMAT")
+	viper.BindEnv("GPHQ_DATABASE_URL")
+	viper.BindEnv("GPHQ_CEDAR_POLICY")
+	viper.BindEnv("GPHQ_JWT_SECRET")
+	viper.BindEnv("GPHQ_TOKEN_EXPIRY")
+	viper.BindEnv("GPHQ_PAYSTACK_SECRET")
+	viper.BindEnv("GPHQ_COGNITO_CLIENT_ID")
+	viper.BindEnv("GPHQ_COGNITO_POOL_ID")
+	viper.BindEnv("GPHQ_COGNITO_REGION")
+	viper.BindEnv("GPHQ_PAYSTACK_API_KEY")
+	viper.BindEnv("GPHQ_CLERK_SECRET")
+	viper.BindEnv("GPHQ_EMAIL_PROVIDER")
+	viper.BindEnv("GPHQ_LOOPS_API_KEY")
+	viper.BindEnv("GPHQ_LOOPS_API_ENDPOINT")
+	viper.BindEnv("GPHQ_EMAIL_FROM_EMAIL")
+	viper.BindEnv("GPHQ_EMAIL_FROM_NAME")
+	viper.BindEnv("GPHQ_TOKEN_VAULT_TYPE")
+	viper.BindEnv("GPHQ_TOKEN_VAULT_AES_KEY")
+	viper.BindEnv("GPHQ_TOKEN_VAULT_AWS_REGION")
+	viper.BindEnv("GPHQ_TOKEN_VAULT_AWS_PATH")
+	viper.BindEnv("GPHQ_PUBSUB_PROVIDER")
+	viper.BindEnv("GPHQ_S3_BUCKET")
+	viper.BindEnv("GPHQ_S3_REGION")
 	err = viper.Unmarshal(&env)
 	if err != nil {
 		log.Println("☠️ cannot read configuration file, reading from environment")
 		env.CedarPolicyFile = "./policy.cedar"
 
 		// Server configuration
-		env.DBUrl = viper.GetString("GETPAIDHQ_DATABASE_URL")
-		env.ServerPort = viper.GetString("GETPAIDHQ_SERVER_PORT")
-		env.ServerHost = viper.GetString("GETPAIDHQ_SERVER_HOST")
-		env.Env = viper.GetString("GETPAIDHQ_ENV")
-		env.TemporalHost = viper.GetString("GETPAIDHQ_TEMPORAL_HOST")
-		env.McpSsePort = viper.GetString("GETPAIDHQ_MCP_SSE_PORT")
+		env.DBUrl = viper.GetString("GPHQ_DATABASE_URL")
+		env.ServerPort = viper.GetString("GPHQ_SERVER_PORT")
+		env.ServerHost = viper.GetString("GPHQ_SERVER_HOST")
+		env.Env = viper.GetString("GPHQ_ENV")
+		env.TemporalHost = viper.GetString("GPHQ_TEMPORAL_HOST")
+		env.McpSsePort = viper.GetString("GPHQ_MCP_SSE_PORT")
 
 		// Logging configuration
-		env.LogLevel = viper.GetString("GETPAIDHQ_PAYLOOP_LOG_LEVEL")
-		env.LogFormat = viper.GetString("GETPAIDHQ_LOG_FORMAT")
-		env.LogOutput = viper.GetString("GETPAIDHQ_LOG_OUTPUT")
+		env.LogLevel = viper.GetString("GPHQ_PAYLOOP_LOG_LEVEL")
+		env.LogFormat = viper.GetString("GPHQ_LOG_FORMAT")
+		env.LogOutput = viper.GetString("GPHQ_LOG_OUTPUT")
 
 		// Auth configuration
-		env.JWTSecret = viper.GetString("GETPAIDHQ_JWT_SECRET")
-		env.TokenExpiry = viper.GetString("GETPAIDHQ_TOKEN_EXPIRY")
-		env.ClerkSecretKey = viper.GetString("GETPAIDHQ_CLERK_SECRET")
+		env.JWTSecret = viper.GetString("GPHQ_JWT_SECRET")
+		env.TokenExpiry = viper.GetString("GPHQ_TOKEN_EXPIRY")
+		env.ClerkSecretKey = viper.GetString("GPHQ_CLERK_SECRET")
 
 		// Email configuration
-		env.EmailProvider = viper.GetString("GETPAIDHQ_EMAIL_PROVIDER")
-		env.LoopsApiKey = viper.GetString("GETPAIDHQ_LOOPS_API_KEY")
-		env.LoopsApiEndpoint = viper.GetString("GETPAIDHQ_LOOPS_API_ENDPOINT")
-		env.EmailFromEmail = viper.GetString("GETPAIDHQ_EMAIL_FROM_EMAIL")
-		env.EmailFromName = viper.GetString("GETPAIDHQ_EMAIL_FROM_NAME")
+		env.EmailProvider = viper.GetString("GPHQ_EMAIL_PROVIDER")
+		env.LoopsApiKey = viper.GetString("GPHQ_LOOPS_API_KEY")
+		env.LoopsApiEndpoint = viper.GetString("GPHQ_LOOPS_API_ENDPOINT")
+		env.EmailFromEmail = viper.GetString("GPHQ_EMAIL_FROM_EMAIL")
+		env.EmailFromName = viper.GetString("GPHQ_EMAIL_FROM_NAME")
 
 		// Token Vault configuration
-		env.TokenVaultType = viper.GetString("GETPAIDHQ_TOKEN_VAULT_TYPE")
-		env.TokenVaultAESKey = viper.GetString("GETPAIDHQ_TOKEN_VAULT_AES_KEY")
-		env.TokenVaultAWSRegion = viper.GetString("GETPAIDHQ_TOKEN_VAULT_AWS_REGION")
-		env.TokenVaultAWSPath = viper.GetString("GETPAIDHQ_TOKEN_VAULT_AWS_PATH")
+		env.TokenVaultType = viper.GetString("GPHQ_TOKEN_VAULT_TYPE")
+		env.TokenVaultAESKey = viper.GetString("GPHQ_TOKEN_VAULT_AES_KEY")
+		env.TokenVaultAWSRegion = viper.GetString("GPHQ_TOKEN_VAULT_AWS_REGION")
+		env.TokenVaultAWSPath = viper.GetString("GPHQ_TOKEN_VAULT_AWS_PATH")
 
 		// Pubsub configuration
-		env.PubsubProvider = viper.GetString("GETPAIDHQ_PUBSUB_PROVIDER")
+		env.PubsubProvider = viper.GetString("GPHQ_PUBSUB_PROVIDER")
 
 		// S3 Storage configuration
-		env.S3Bucket = viper.GetString("GETPAIDHQ_S3_BUCKET")
-		env.S3Region = viper.GetString("GETPAIDHQ_S3_REGION")
+		env.S3Bucket = viper.GetString("GPHQ_S3_BUCKET")
+		env.S3Region = viper.GetString("GPHQ_S3_REGION")
 
 		return env
 	}
@@ -154,5 +154,5 @@ func NewEnv() Env {
 }
 
 func (e Env) Get(key string) string {
-	return viper.GetString("GETPAIDHQ_" + key)
+	return viper.GetString("GPHQ_" + key)
 }

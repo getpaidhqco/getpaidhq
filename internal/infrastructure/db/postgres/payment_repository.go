@@ -442,7 +442,7 @@ func paymentEntityToNamedArgs(entity entities.Payment) pgx.NamedArgs {
 		"psp":             entity.Psp,
 		"psp_id":          pgtype.Text{String: entity.PspId, Valid: entity.PspId != ""},
 		"reference":       entity.Reference,
-		"order_id":        entity.OrderId,
+		"order_id":        pgtype.Text{String: entity.OrderId, Valid: entity.OrderId != ""},
 		"subscription_id": pgtype.Text{String: entity.SubscriptionId, Valid: entity.SubscriptionId != ""},
 		"invoice_id":      pgtype.Text{String: entity.InvoiceId, Valid: entity.InvoiceId != ""},
 		"status":          entity.Status,

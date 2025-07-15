@@ -14,6 +14,7 @@ const (
 	ValidationError     CustomErrorType = "validation_error"
 	InternalError       CustomErrorType = "internal_error"
 	AuthenticationError CustomErrorType = "auth_error"
+	GatewayError        CustomErrorType = "gateway_error"
 )
 
 // CustomError struct includes additional information about the error

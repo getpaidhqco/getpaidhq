@@ -10,7 +10,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("GETPAIDHQ_DATABASE_URL")
+  url      = env("GPHQ_DATABASE_URL")
 }
 
 enum OrgStatus {
@@ -108,6 +108,9 @@ model Org {
   MetadataStore        MetadataStore[]
   DunningCampaign      DunningCampaign[]
   DunningConfiguration DunningConfiguration[]
+  SubscriptionItem     SubscriptionItem[]
+  PriceTier            PriceTier[]
+  Meter                Meter[]
 
   @@map("orgs")
 }
@@ -119,8 +122,8 @@ model Gateway {
   pspId  String  @map("psp_id")
   active Boolean @default(false)
 
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   @@id([orgId, id])
   @@map("gateways")
@@ -133,8 +136,8 @@ model Setting {
   valueType String @map("value_type")
   value     Json
 
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
@@ -230,6 +233,43 @@ model Variant {
   @@map("variants")
 }
 
+// Meter defines how to measure usage
+model Meter {
+  orgId       String  @map("org_id")
+  id          String
+  name        String
+  description String?
+
+  // Event configuration
+  eventName   String @map("event_name")
+  eventFilter Json?  @map("event_filter")
+
+  // Aggregation configuration
+  aggregationType String  @map("aggregation_type")
+  valueProperty   String? @map("value_property")
+
+  // Display configuration
+  unitType    String @map("unit_type")
+  displayName String @map("display_name")
+
+  // Window configuration
+  windowSize    String? @map("window_size")
+  resetInterval String? @map("reset_interval")
+
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  Org              Org                @relation(fields: [orgId], references: [id])
+  Price            Price[]
+  SubscriptionItem SubscriptionItem[]
+
+  @@id([orgId, id])
+  @@unique([orgId, eventName])
+  @@map("meters")
+}
+
 model Price {
   orgId String @map("org_id")
   id    String @default(cuid())
@@ -257,20 +297,64 @@ model Price {
 
   taxCode String? @map("tax_code")
 
+  // Meter reference (NEW)
+  meterId String? @map("meter_id")
+  Meter   Meter?  @relation(fields: [orgId, meterId], references: [orgId, id])
+
+  // Usage Configuration (Required for usage-based billing)
+  hasUsage        Boolean @default(false) @map("has_usage")
+  usageType       String? @map("usage_type") // "metered"
+  unitType        String? @map("unit_type") // "count", "transactions", "gb_hours", etc.
+  aggregationType String? @map("aggregation_type") // "sum", "max", "average", "last_during_period"
+
+  // Pricing Models (Required for transaction fees & hybrid models)
+  percentageRate   Float? @map("percentage_rate") // 2.9% for payment processing
+  fixedFee         Int?   @map("fixed_fee") // $0.30 per transaction
+  overageUnitPrice Int?   @map("overage_unit_price") // For hybrid models with overage pricing
+
+  // Optional: Future features
+  includedUsage Int? @map("included_usage") // Free tier allowance
+  usageLimit    Int? @map("usage_limit") // Hard limits
+
   metadata Json?
 
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
-  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  org              Org                @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  SubscriptionItem SubscriptionItem[]
+  tiers            PriceTier[]
 
   @@id([orgId, id])
   @@map("prices")
 }
 
+model PriceTier {
+  orgId       String  @map("org_id")
+  priceId     String  @map("price_id")
+  tier        Int // Tier order (1, 2, 3...)
+  fromQty     Int     @map("from_qty") // Starting quantity (inclusive)
+  toQty       Int?    @map("to_qty") // Ending quantity (inclusive, null = unlimited)
+  unitPrice   Int     @map("unit_price") // Price per unit in cents
+  description String? // Human readable description
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  price Price @relation(fields: [orgId, priceId], references: [orgId, id], onDelete: Cascade)
+  org   Org   @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, priceId, tier])
+  @@index([orgId, priceId])
+  @@map("price_tiers")
+}
+
 enum PriceCategory {
   one_time
   subscription
+  usage
+  hybrid
   free
   variable
 }
@@ -428,9 +512,9 @@ model Customer {
 model Cohort {
   orgId     String           @map("org_id")
   id        String           @default(cuid())
-  name      String
-  type      String           @default("signup")
-  metadata  Json?
+  name      String           @map("name")
+  type      String           @default("signup") @map("type")
+  metadata  Json?            @map("metadata")
   createdAt DateTime         @default(now()) @map("created_at")
   updatedAt DateTime         @updatedAt @map("updated_at")
   customers CustomerCohort[]
@@ -461,16 +545,16 @@ model PaymentMethod {
   id    String @default(cuid())
 
   status     PaymentMethodStatus @default(active)
-  psp        String
-  name       String?
+  psp        String              @map("psp")
+  name       String?             @map("name")
   customerId String              @map("customer_id")
   customer   Customer            @relation(name: "pmc", fields: [orgId, customerId], references: [orgId, id], onDelete: Cascade)
 
   billingAddress Json?          @map("billing_address")
-  details        Json?
-  type           String
-  token          String
-  metadata       Json?
+  details        Json?          @map("details")
+  type           String         @map("type")
+  token          String         @map("token")
+  metadata       Json?          @map("metadata")
   expireAt       DateTime?      @map("expire_at")
   createdAt      DateTime       @default(now()) @map("created_at")
   updatedAt      DateTime       @updatedAt @map("updated_at")
@@ -494,11 +578,11 @@ model Subscription {
 
   status SubscriptionStatus
 
-  orderId String @map("order_id")
-  order   Order  @relation(fields: [orgId, orderId], references: [orgId, id])
+  orderId String? @map("order_id")
+  order   Order?  @relation(fields: [orgId, orderId], references: [orgId, id])
 
-  orderItemId String    @map("order_item_id")
-  orderItem   OrderItem @relation(fields: [orgId, orderItemId], references: [orgId, id])
+  orderItemId String?    @map("order_item_id")
+  orderItem   OrderItem? @relation(fields: [orgId, orderItemId], references: [orgId, id])
 
   customerId String   @map("customer_id")
   customer   Customer @relation(fields: [orgId, customerId], references: [orgId, id])
@@ -506,10 +590,9 @@ model Subscription {
   paymentMethodId String?        @map("payment_method_id")
   paymentMethod   PaymentMethod? @relation(fields: [orgId, paymentMethodId], references: [orgId, id])
 
-  // Product, variant and price references
-  productId String? @map("product_id")
-  variantId String? @map("variant_id")
-  priceId   String? @map("price_id")
+  // Optional amount and currency for backward compatibility
+  amount   Int? // Optional for multi-item subscriptions
+  currency String
 
   startDate          DateTime?       @map("start_date")
   endDate            DateTime?       @map("end_date")
@@ -525,9 +608,6 @@ model Subscription {
   currentPeriodStart DateTime?       @map("current_period_start")
   currentPeriodEnd   DateTime?       @map("current_period_end")
 
-  currency String
-  amount   Int
-
   metadata Json
 
   cyclesProcessed Int       @map("cycles_processed")
@@ -535,15 +615,15 @@ model Subscription {
   cancelledAt     DateTime? @map("cancelled_at")
 
   // Dunning-related additions
-  dunningActive           Boolean   @default(false) @map("dunning_active")
-  activeDunningCampaignId String?   @map("active_dunning_campaign_id")
+  dunningActive           Boolean @default(false) @map("dunning_active")
+  activeDunningCampaignId String? @map("active_dunning_campaign_id")
 
   createdAt DateTime  @default(now()) @map("created_at")
   updatedAt DateTime  @updatedAt @map("updated_at")
   payments  Payment[]
 
-  org     Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
-  Invoice Invoice[]
+  org      Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  invoices Invoice[]
 
   // Dunning relationships
   dunningCampaigns DunningCampaign[]
@@ -552,8 +632,76 @@ model Subscription {
   // Relation to subscription plan changes
   planChanges SubscriptionPlanChange[]
 
+  // Relation to subscription items
+  items SubscriptionItem[]
+
   @@id([orgId, id])
   @@map("subscriptions")
+}
+
+model SubscriptionItem {
+  orgId          String @map("org_id")
+  id             String @default(cuid())
+  subscriptionId String @map("subscription_id")
+
+  // Product/Price reference
+  priceId   String  @map("price_id")
+  productId String? @map("product_id")
+  variantId String? @map("variant_id")
+
+  // Meter reference (NEW)
+  meterId String? @map("meter_id")
+  Meter   Meter?  @relation(fields: [orgId, meterId], references: [orgId, id])
+
+  // Item details
+  name        String
+  description String?
+  status      SubscriptionItemStatus @default(active)
+
+  // Quantity for fixed items
+  quantity Int @default(1)
+
+  // Billing
+  amount   Int? // Fixed amount per period (null for pure usage)
+  currency String
+
+  // Pricing configuration (COPIED from Price at creation time for grandfathering)
+  percentageRate   Float? @map("percentage_rate") // For percentage-based charges
+  fixedFee         Int?   @map("fixed_fee") // Fixed fee per unit
+  unitPrice        Int?   @map("unit_price") // Price per unit
+  overageUnitPrice Int?   @map("overage_unit_price") // For hybrid models with overage pricing
+  includedUsage    Int?   @map("included_usage") // Free tier allowance
+  usageLimit       Int?   @map("usage_limit") // Hard limits
+
+  // Price snapshot for comparison/audit (NEW)
+  priceSnapshot Json? @map("price_snapshot")
+
+  // Usage configuration
+  hasUsage        Boolean @default(false) @map("has_usage")
+  usageType       String? @map("usage_type") // "metered", "licensed"
+  aggregationType String? @map("aggregation_type") // "sum", "max", "last_during_period"
+
+  // Metadata
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relationships
+  subscription Subscription @relation(fields: [orgId, subscriptionId], references: [orgId, id])
+  price        Price        @relation(fields: [orgId, priceId], references: [orgId, id])
+  org          Org          @relation(fields: [orgId], references: [id])
+
+  @@id([orgId, id])
+  @@index([orgId, subscriptionId])
+  @@index([orgId, subscriptionId, status])
+  @@map("subscription_items")
+}
+
+enum SubscriptionItemStatus {
+  active
+  paused
+  cancelled
+  pending
 }
 
 model SubscriptionPlanChange {
@@ -609,11 +757,11 @@ model Payment {
   reference String  @default("") @map("reference")
   recurring Boolean @default(false)
 
-  orderId String @map("order_id")
-  order   Order  @relation(fields: [orgId, orderId], references: [orgId, id])
+  orderId String? @map("order_id")
+  order   Order?  @relation(fields: [orgId, orderId], references: [orgId, id])
 
   invoiceId String?  @map("invoice_id")
-  Invoice   Invoice? @relation(fields: [orgId, invoiceId], references: [orgId, id])
+  invoice   Invoice? @relation(fields: [orgId, invoiceId], references: [orgId, id])
 
   subscriptionId String?       @map("subscription_id")
   subscription   Subscription? @relation(fields: [orgId, subscriptionId], references: [orgId, id])
@@ -667,19 +815,19 @@ enum RefundStatus {
 }
 
 model Refund {
-  orgId         String       @map("org_id")
-  id            String       @default(cuid())
-  psp_refund_id String?      @map("psp_refund_id")
-  paymentId     String       @map("payment_id")
-  payment       Payment      @relation(fields: [orgId, paymentId], references: [orgId, id], onDelete: Cascade)
-  amount        Int
-  currency      String
-  reason        String?
-  status        RefundStatus @default(pending)
-  refunded_at   DateTime     @map("refunded_at")
-  completedAt   DateTime?    @map("completed_at")
-  createdAt     DateTime     @default(now()) @map("created_at")
-  updatedAt     DateTime     @updatedAt @map("updated_at")
+  orgId       String       @map("org_id")
+  id          String       @default(cuid())
+  pspRefundId String?      @map("psp_refund_id")
+  paymentId   String       @map("payment_id")
+  payment     Payment      @relation(fields: [orgId, paymentId], references: [orgId, id], onDelete: Cascade)
+  amount      Int
+  currency    String
+  reason      String?
+  status      RefundStatus @default(pending)
+  refundedAt  DateTime     @map("refunded_at")
+  completedAt DateTime?    @map("completed_at")
+  createdAt   DateTime     @default(now()) @map("created_at")
+  updatedAt   DateTime     @updatedAt @map("updated_at")
 
   @@id([orgId, id])
   @@map("refunds")
@@ -962,14 +1110,14 @@ model Document {
   url             String? // Public URL if applicable
 
   // Document type
-  type    String // "pdf", "html", "attachment", "logo"
-  purpose String? // "invoice_pdf", "invoice_html", "company_logo", "attachment"
+  type    String  @map("type") // "pdf", "html", "attachment", "logo"
+  purpose String? @map("purpose") // "invoice_pdf", "invoice_html", "company_logo", "attachment"
 
   // Security
   isPublic    Boolean @default(false) @map("is_public")
   accessToken String? @map("access_token")
 
-  metadata  Json?
+  metadata  Json?    @map("metadata")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
@@ -985,15 +1133,15 @@ model Document {
 }
 
 model DocSequence {
-  org_id     String
-  id         String
-  type       String
-  value      Int
-  created_at DateTime @default(now())
-  updated_at DateTime @updatedAt
+  orgId     String   @map("org_id")
+  id        String
+  type      String   @map("type")
+  value     Int      @map("value")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  @@id([org_id, id])
-  @@index([org_id, type])
+  @@id([orgId, id])
+  @@index([orgId, type])
   @@map("doc_sequences")
 }
 

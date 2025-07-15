@@ -47,6 +47,14 @@ var RespositoryModules = fx.Options(
 		fx.ParamTags(`name:"primaryDb"`),
 	)),
 	fx.Provide(fx.Annotate(
+		NewMeterRepository,
+		fx.ParamTags(`name:"primaryDb"`),
+	)),
+	fx.Provide(fx.Annotate(
+		NewSubscriptionItemRepository,
+		fx.ParamTags(`name:"primaryDb"`),
+	)),
+	fx.Provide(fx.Annotate(
 		NewSubscriptionRepository,
 		fx.ParamTags(`name:"primaryDb"`),
 	)),
@@ -105,6 +113,23 @@ var RespositoryModules = fx.Options(
 	fx.Provide(fx.Annotate(
 		NewDocumentRepository,
 		fx.ParamTags(`name:"primaryDb"`),
+	)),
+	// Usage database repositories
+	fx.Provide(fx.Annotate(
+		NewUsageEventRepository,
+		fx.ParamTags(`name:"usageDb"`),
+	)),
+	fx.Provide(fx.Annotate(
+		NewUsageProcessingStatusRepository,
+		fx.ParamTags(`name:"usageDb"`),
+	)),
+	fx.Provide(fx.Annotate(
+		NewUsageAggregationRepository,
+		fx.ParamTags(`name:"usageDb"`),
+	)),
+	fx.Provide(fx.Annotate(
+		NewUsageEventLogRepository,
+		fx.ParamTags(`name:"usageDb"`),
 	)),
 )
 

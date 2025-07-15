@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"payloop/internal/api/dto/request"
+	"payloop/internal/application/dto"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
@@ -20,7 +21,7 @@ type CustomerService struct {
 	customerRepository      repositories.CustomerRepository
 	paymentMethodRepository repositories.PaymentMethodRepository
 	tokenVault              security.TokenVault
-	pubsub                  events.PubSub
+	notificationPublisher   events.NotificationPublisher
 	logger                  logger.Logger
 }
 
@@ -28,7 +29,7 @@ func NewCustomerService(
 	customerRepository repositories.CustomerRepository,
 	paymentMethodRepository repositories.PaymentMethodRepository,
 	tokenVault security.TokenVault,
-	pubsub events.PubSub,
+	notificationPublisher events.NotificationPublisher,
 	logger logger.Logger,
 	scheduler interfaces.Scheduler,
 ) interfaces.CustomerService {
@@ -36,7 +37,7 @@ func NewCustomerService(
 		customerRepository:      customerRepository,
 		paymentMethodRepository: paymentMethodRepository,
 		tokenVault:              tokenVault,
-		pubsub:                  pubsub,
+		notificationPublisher:   notificationPublisher,
 		logger:                  logger,
 	}
 	// set up the payment method expiry detection
@@ -48,14 +49,14 @@ func NewCustomerService(
 	}
 
 	// subscribe to order events to manage cohorts
-	_, err = pubsub.Subscribe(topic.OrderCompleted, service.HandleOrderEvent)
+	_, err = notificationPublisher.Subscribe(topic.OrderCompleted, service.HandleOrderEvent)
 
 	return service
 }
 
-func (s CustomerService) Create(ctx context.Context, orgId string, customerRequest request.CreateCustomerRequest) (entities.Customer, error) {
+func (s CustomerService) Create(ctx context.Context, orgId string, input dto.CreateCustomerInput) (entities.Customer, error) {
 	// check for existing customer
-	exists, err := s.customerRepository.FindByEmail(ctx, orgId, customerRequest.Email)
+	exists, err := s.customerRepository.FindByEmail(ctx, orgId, input.Email)
 	if err != nil {
 		return entities.Customer{}, lib.NewCustomError(lib.InternalError, "Error creating customer", err)
 	}
@@ -66,12 +67,12 @@ func (s CustomerService) Create(ctx context.Context, orgId string, customerReque
 	customer := entities.Customer{
 		OrgId:          orgId,
 		Id:             lib.GenerateId("cus"),
-		FirstName:      customerRequest.FirstName,
-		LastName:       customerRequest.LastName,
-		Email:          customerRequest.Email,
-		Phone:          customerRequest.Phone,
-		BillingAddress: customerRequest.BillingAddress,
-		Metadata:       customerRequest.Metadata,
+		FirstName:      input.FirstName,
+		LastName:       input.LastName,
+		Email:          input.Email,
+		Phone:          input.Phone,
+		BillingAddress: *input.BillingAddress,
+		Metadata:       input.Metadata,
 		CreatedAt:      time.Time{},
 		UpdatedAt:      time.Time{},
 	}
@@ -82,8 +83,48 @@ func (s CustomerService) Create(ctx context.Context, orgId string, customerReque
 		return entities.Customer{}, err
 	}
 
-	_ = s.pubsub.Publish(orgId, topic.CustomerCreated, newCustomer)
+	_ = s.notificationPublisher.Publish(orgId, topic.CustomerCreated, newCustomer)
 	return newCustomer, nil
+}
+
+func (s CustomerService) Update(ctx context.Context, orgId string, customerId string, input dto.UpdateCustomerInput) (entities.Customer, error) {
+	// Get existing customer
+	customer, err := s.customerRepository.FindById(ctx, orgId, customerId)
+	if err != nil {
+		return entities.Customer{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+	}
+
+	// Update fields if provided
+	if input.Email != nil {
+		customer.Email = *input.Email
+	}
+	if input.FirstName != nil {
+		customer.FirstName = *input.FirstName
+	}
+	if input.LastName != nil {
+		customer.LastName = *input.LastName
+	}
+	if input.Phone != nil {
+		customer.Phone = *input.Phone
+	}
+	if input.BillingAddress != nil {
+		customer.BillingAddress = *input.BillingAddress
+	}
+	if input.Metadata != nil {
+		customer.Metadata = input.Metadata
+	}
+
+	customer.UpdatedAt = time.Now().UTC()
+
+	updatedCustomer, err := s.customerRepository.Update(ctx, customer)
+	if err != nil {
+		s.logger.Error("Failed to update customer: ", err)
+		return entities.Customer{}, lib.MapDatabaseError(err)
+	}
+
+	// Note: Using CustomerCreated topic as CustomerUpdated is not defined
+	_ = s.notificationPublisher.Publish(orgId, topic.CustomerCreated, updatedCustomer)
+	return updatedCustomer, nil
 }
 
 func (s CustomerService) GetPaymentMethod(ctx context.Context, orgId string, id string) (entities.PaymentMethod, error) {
@@ -96,8 +137,7 @@ func (s CustomerService) GetPaymentMethod(ctx context.Context, orgId string, id 
 	return paymentMethod, nil
 }
 
-func (s CustomerService) CreatePaymentMethod(ctx context.Context, orgId string, input interfaces.CreatePaymentMethodInput) (entities.PaymentMethod, error) {
-
+func (s CustomerService) CreatePaymentMethod(ctx context.Context, orgId string, input dto.CreatePaymentMethodInput) (entities.PaymentMethod, error) {
 	customer, err := s.customerRepository.FindById(ctx, orgId, input.CustomerId)
 	if err != nil {
 		s.logger.Error("Failed to get customer: ", err)
@@ -105,21 +145,21 @@ func (s CustomerService) CreatePaymentMethod(ctx context.Context, orgId string, 
 	}
 
 	var billingAddress = customer.BillingAddress
-	if !input.BillingAddress.IsEmpty() {
-		billingAddress = input.BillingAddress
+	if input.BillingAddress != nil && !input.BillingAddress.IsEmpty() {
+		billingAddress = *input.BillingAddress
 	}
 	if billingAddress.IsEmpty() {
 		return entities.PaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Either specify billing address or add a default billing address to the customer.", nil)
 	}
 
 	var expireAt time.Time
-	if input.Details != "" {
-		details, err := payment_methods.ParseDetails(input.Type, input.Details)
+	if details, ok := input.Details.(string); ok && details != "" {
+		parsedDetails, err := payment_methods.ParseDetails(input.Type, details)
 		if err != nil {
 			return entities.PaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Invalid card details", err)
 		}
 
-		expireAt = details.GetExpiryDate()
+		expireAt = parsedDetails.GetExpiryDate()
 		s.logger.Debugf("This payment method expires at: %v", expireAt)
 	}
 
@@ -158,54 +198,46 @@ func (s CustomerService) CreatePaymentMethod(ctx context.Context, orgId string, 
 		}
 	}
 
-	_ = s.pubsub.Publish(orgId, topic.PaymentMethodCreated, newPaymentMethod)
+	_ = s.notificationPublisher.Publish(orgId, topic.PaymentMethodCreated, newPaymentMethod)
 	return newPaymentMethod, nil
 }
 
-func (s CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string, input interfaces.UpdatePaymentMethodInput) (entities.PaymentMethod, error) {
-
-	customer, err := s.customerRepository.FindById(ctx, orgId, input.CustomerId)
-	if err != nil {
-		s.logger.Error("Failed to get customer: ", err)
-		return entities.PaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
-	}
-
-	paymentMethod, err := s.paymentMethodRepository.FindById(ctx, orgId, input.PaymentMethodId)
+func (s CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string, paymentMethodId string, input dto.UpdatePaymentMethodInput) (entities.PaymentMethod, error) {
+	paymentMethod, err := s.paymentMethodRepository.FindById(ctx, orgId, paymentMethodId)
 	if err != nil {
 		return entities.PaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Payment method not found", err)
 	}
 
-	if !input.BillingAddress.IsEmpty() {
-		paymentMethod.BillingAddress = input.BillingAddress
+	// Update fields if provided
+	if input.Name != nil {
+		paymentMethod.Name = *input.Name
+	}
+	if input.BillingAddress != nil {
+		paymentMethod.BillingAddress = *input.BillingAddress
+	}
+	if input.Metadata != nil {
+		paymentMethod.Metadata = input.Metadata
 	}
 
-	if input.Details != "" {
-		details, err := payment_methods.ParseDetails(input.Type, input.Details)
-		if err != nil {
-			return entities.PaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Invalid card details", err)
-		}
+	paymentMethod.UpdatedAt = time.Now().UTC()
 
-		paymentMethod.ExpireAt = details.GetExpiryDate()
-		s.logger.Debugf("This payment method expires at: %v", paymentMethod.ExpireAt)
-	}
-
-	if input.Token != "" {
-		paymentMethod.Token = input.Token
-	}
-	if input.Details != "" {
-		paymentMethod.Details = input.Details
-	}
-
-	newPaymentMethod, err := s.paymentMethodRepository.Update(ctx, paymentMethod)
+	updatedPaymentMethod, err := s.paymentMethodRepository.Update(ctx, paymentMethod)
 	if err != nil {
 		s.logger.Error("Failed to update payment method: ", "err", err)
 		return entities.PaymentMethod{}, lib.MapDatabaseError(err)
 	}
 
-	if input.IsDefault {
+	if input.IsDefault != nil && *input.IsDefault {
+		// Get customer
+		customer, err := s.customerRepository.FindById(ctx, orgId, paymentMethod.CustomerId)
+		if err != nil {
+			s.logger.Error("Failed to get customer: ", err)
+			return entities.PaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+		}
+
 		// update the customer's default payment method
-		s.logger.Debugf("Updating customer %s default payment method to %s", customer.Id, newPaymentMethod.Id)
-		customer.DefaultPaymentMethodId = newPaymentMethod.Id
+		s.logger.Debugf("Updating customer %s default payment method to %s", customer.Id, updatedPaymentMethod.Id)
+		customer.DefaultPaymentMethodId = updatedPaymentMethod.Id
 		_, err = s.customerRepository.Update(ctx, customer)
 		if err != nil {
 			s.logger.Error("Failed to update customer: ", "err", err)
@@ -213,8 +245,8 @@ func (s CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string, 
 		}
 	}
 
-	_ = s.pubsub.Publish(orgId, topic.PaymentMethodUpdated, newPaymentMethod)
-	return newPaymentMethod, nil
+	_ = s.notificationPublisher.Publish(orgId, topic.PaymentMethodUpdated, updatedPaymentMethod)
+	return updatedPaymentMethod, nil
 }
 
 // GetSecurePaymentMethod retrieves a payment method with secure token handling
@@ -229,7 +261,7 @@ func (s CustomerService) GetSecurePaymentMethod(ctx context.Context, orgId strin
 }
 
 // CreateSecurePaymentMethod creates a payment method with encrypted token storage
-func (s CustomerService) CreateSecurePaymentMethod(ctx context.Context, orgId string, input interfaces.CreatePaymentMethodInput) (entities.SecurePaymentMethod, error) {
+func (s CustomerService) CreateSecurePaymentMethod(ctx context.Context, orgId string, input dto.CreatePaymentMethodInput) (entities.SecurePaymentMethod, error) {
 	customer, err := s.customerRepository.FindById(ctx, orgId, input.CustomerId)
 	if err != nil {
 		s.logger.Error("Failed to get customer: ", err)
@@ -237,21 +269,21 @@ func (s CustomerService) CreateSecurePaymentMethod(ctx context.Context, orgId st
 	}
 
 	var billingAddress = customer.BillingAddress
-	if !input.BillingAddress.IsEmpty() {
-		billingAddress = input.BillingAddress
+	if input.BillingAddress != nil && !input.BillingAddress.IsEmpty() {
+		billingAddress = *input.BillingAddress
 	}
 	if billingAddress.IsEmpty() {
 		return entities.SecurePaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Either specify billing address or add a default billing address to the customer.", nil)
 	}
 
 	var expireAt time.Time
-	if input.Details != "" {
-		details, err := payment_methods.ParseDetails(input.Type, input.Details)
+	if details, ok := input.Details.(string); ok && details != "" {
+		parsedDetails, err := payment_methods.ParseDetails(input.Type, details)
 		if err != nil {
 			return entities.SecurePaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Invalid card details", err)
 		}
 
-		expireAt = details.GetExpiryDate()
+		expireAt = parsedDetails.GetExpiryDate()
 		s.logger.Debugf("This payment method expires at: %v", expireAt)
 	}
 
@@ -267,6 +299,8 @@ func (s CustomerService) CreateSecurePaymentMethod(ctx context.Context, orgId st
 		Details:        input.Details,
 		Metadata:       input.Metadata,
 		ExpireAt:       expireAt,
+		CreatedAt:      time.Now().UTC(),
+		UpdatedAt:      time.Now().UTC(),
 	}
 
 	// Create secure payment method using the security service
@@ -299,46 +333,26 @@ func (s CustomerService) CreateSecurePaymentMethod(ctx context.Context, orgId st
 		}
 	}
 
-	_ = s.pubsub.Publish(orgId, topic.PaymentMethodCreated, savedSecurePaymentMethod.ToEntity())
+	_ = s.notificationPublisher.Publish(orgId, topic.PaymentMethodCreated, savedSecurePaymentMethod.ToEntity())
 	return savedSecurePaymentMethod, nil
 }
 
 // UpdateSecurePaymentMethod updates a payment method with encrypted token storage
-func (s CustomerService) UpdateSecurePaymentMethod(ctx context.Context, orgId string, input interfaces.UpdatePaymentMethodInput) (entities.SecurePaymentMethod, error) {
-	customer, err := s.customerRepository.FindById(ctx, orgId, input.CustomerId)
-	if err != nil {
-		s.logger.Error("Failed to get customer: ", err)
-		return entities.SecurePaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
-	}
-
-	securePaymentMethod, err := s.paymentMethodRepository.FindSecureById(ctx, orgId, input.PaymentMethodId, s.tokenVault)
+func (s CustomerService) UpdateSecurePaymentMethod(ctx context.Context, orgId string, paymentMethodId string, input dto.UpdatePaymentMethodInput) (entities.SecurePaymentMethod, error) {
+	securePaymentMethod, err := s.paymentMethodRepository.FindSecureById(ctx, orgId, paymentMethodId, s.tokenVault)
 	if err != nil {
 		return entities.SecurePaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Payment method not found", err)
 	}
 
-	if !input.BillingAddress.IsEmpty() {
-		securePaymentMethod.BillingAddress = input.BillingAddress
+	// Update fields if provided
+	if input.Name != nil {
+		securePaymentMethod.Name = *input.Name
 	}
-
-	if input.Details != "" {
-		details, err := payment_methods.ParseDetails(input.Type, input.Details)
-		if err != nil {
-			return entities.SecurePaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Invalid card details", err)
-		}
-
-		securePaymentMethod.ExpireAt = details.GetExpiryDate()
-		s.logger.Debugf("This payment method expires at: %v", securePaymentMethod.ExpireAt)
+	if input.BillingAddress != nil {
+		securePaymentMethod.BillingAddress = *input.BillingAddress
 	}
-
-	if input.Token != "" {
-		err = (&securePaymentMethod).SetToken(ctx, input.Token)
-		if err != nil {
-			s.logger.Error("Failed to update secure token: ", "err", err)
-			return entities.SecurePaymentMethod{}, lib.NewCustomError(lib.InternalError, "Failed to update token", err)
-		}
-	}
-	if input.Details != "" {
-		securePaymentMethod.Details = input.Details
+	if input.Metadata != nil {
+		securePaymentMethod.Metadata = input.Metadata
 	}
 
 	securePaymentMethod.UpdatedAt = time.Now().UTC()
@@ -349,7 +363,14 @@ func (s CustomerService) UpdateSecurePaymentMethod(ctx context.Context, orgId st
 		return entities.SecurePaymentMethod{}, lib.MapDatabaseError(err)
 	}
 
-	if input.IsDefault {
+	if input.IsDefault != nil && *input.IsDefault {
+		// Get customer
+		customer, err := s.customerRepository.FindById(ctx, orgId, securePaymentMethod.CustomerId)
+		if err != nil {
+			s.logger.Error("Failed to get customer: ", err)
+			return entities.SecurePaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+		}
+
 		// update the customer's default payment method
 		s.logger.Debugf("Updating customer %s default payment method to %s", customer.Id, updatedSecurePaymentMethod.Id)
 		customer.DefaultPaymentMethodId = updatedSecurePaymentMethod.Id
@@ -360,7 +381,7 @@ func (s CustomerService) UpdateSecurePaymentMethod(ctx context.Context, orgId st
 		}
 	}
 
-	_ = s.pubsub.Publish(orgId, topic.PaymentMethodUpdated, updatedSecurePaymentMethod.ToEntity())
+	_ = s.notificationPublisher.Publish(orgId, topic.PaymentMethodUpdated, updatedSecurePaymentMethod.ToEntity())
 	return updatedSecurePaymentMethod, nil
 }
 
@@ -375,12 +396,11 @@ func (s CustomerService) DetectExpiringPaymentMethods() {
 	for _, paymentMethod := range expiring {
 		// send notification to customer
 		s.logger.Infof("Payment method %s is expiring", paymentMethod.Id)
-		_ = s.pubsub.Publish(paymentMethod.OrgId, topic.PaymentMethodExpired, paymentMethod)
+		_ = s.notificationPublisher.Publish(paymentMethod.OrgId, topic.PaymentMethodExpired, paymentMethod)
 	}
 }
 
 func (s CustomerService) HandleOrderEvent(eventTopic string, data []byte) {
-
 	var payload events.Payload
 	err := json.Unmarshal(data, &payload)
 	if err != nil {
@@ -427,12 +447,31 @@ func (s CustomerService) Get(ctx context.Context, orgId string, id string) (enti
 	return customer, nil
 }
 
-func (s CustomerService) List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Customer, int, error) {
-	customers, total, err := s.customerRepository.List(ctx, orgId, pagination)
-	if err != nil {
-		s.logger.Error("Failed to list customers: ", err)
-		return nil, 0, lib.NewCustomError(lib.InternalError, "Error listing customers", err)
+func (s CustomerService) List(ctx context.Context, orgId string, pagination dto.Pagination) (dto.PaginatedResult[entities.Customer], error) {
+	// Convert application DTO pagination to request pagination
+	requestPagination := request.Pagination{
+		Page:          pagination.Page,
+		Limit:         pagination.Limit,
+		Offset:        pagination.Offset,
+		SortDirection: pagination.SortDirection,
+		SortBy:        pagination.SortBy,
 	}
 
-	return customers, total, nil
+	customers, total, err := s.customerRepository.List(ctx, orgId, requestPagination)
+	if err != nil {
+		s.logger.Error("Failed to list customers: ", err)
+		return dto.PaginatedResult[entities.Customer]{}, lib.NewCustomError(lib.InternalError, "Error listing customers", err)
+	}
+
+	hasMore := (pagination.Page+1)*pagination.Limit < total
+
+	result := dto.PaginatedResult[entities.Customer]{
+		Items:      customers,
+		TotalCount: total,
+		Page:       pagination.Page,
+		PageSize:   pagination.Limit,
+		HasMore:    hasMore,
+	}
+
+	return result, nil
 }

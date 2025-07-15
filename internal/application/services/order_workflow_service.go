@@ -29,7 +29,7 @@ type OrderWorkflowService struct {
 	orderItemRepository     repositories.OrderItemRepository
 	paymentRepository       repositories.PaymentRepository
 	gatewayFactory          factories.GatewayFactory
-	pubsub                  events.PubSub
+	pubsub                  events.NotificationPublisher
 	tokenVault              security.TokenVault
 	logger                  logger.Logger
 }
@@ -45,7 +45,7 @@ func NewOrderWorkflowService(
 	subscriptionRepository repositories.SubscriptionRepository,
 	paymentRepository repositories.PaymentRepository,
 	gatewayFactory factories.GatewayFactory,
-	pubsub events.PubSub,
+	pubsub events.NotificationPublisher,
 	tokenVault security.TokenVault,
 	logger logger.Logger,
 ) interfaces.OrderWorkflowService {

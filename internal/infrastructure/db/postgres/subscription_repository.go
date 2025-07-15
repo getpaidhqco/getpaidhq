@@ -16,35 +16,36 @@ import (
 
 type SubscriptionRepository struct {
 	*PgDatabase
-	logger logger.Logger
+	logger                     logger.Logger
+	subscriptionItemRepository repositories.SubscriptionItemRepository
 }
 
-func NewSubscriptionRepository(primaryDb lib.Database, logger logger.Logger) repositories.SubscriptionRepository {
+func NewSubscriptionRepository(primaryDb lib.Database, logger logger.Logger, subscriptionItemRepository repositories.SubscriptionItemRepository) repositories.SubscriptionRepository {
 	pgDatabase, ok := primaryDb.(*PgDatabase)
 	if !ok {
 		panic("database is not of type *db.PgDatabase")
 	}
 	return SubscriptionRepository{
-		PgDatabase: pgDatabase,
-		logger:     logger,
+		PgDatabase:                 pgDatabase,
+		logger:                     logger,
+		subscriptionItemRepository: subscriptionItemRepository,
 	}
 }
 
-func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
+func (r SubscriptionRepository) FindByIdWithoutItems(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
 	tx := r.getTransactionFromContext(ctx)
 
 	var subscription models.Subscription
 	var customer models.Customer
-	query := `SELECT s.org_id, s.id, s.psp_id, s.order_id, s.order_item_id, s.customer_id, s.status, s.payment_method_id, 
-       s.product_id, s.variant_id, s.price_id,
-       s.start_date, s.end_date,
+	query := `SELECT s.org_id, s.id, s.psp_id, s.order_id, s.order_item_id, s.customer_id, s.status, 
+       s.payment_method_id, 
+       s.amount, s.currency, s.start_date, s.end_date,
        s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at,
        s.last_charge, 
        s.renews_at,
        s.current_period_start,
        s.current_period_end,
-       s.dunning_active, s.active_dunning_campaign_id,
-       s.currency, s.amount, s.metadata, s.cycles_processed,
+       s.dunning_active, s.active_dunning_campaign_id, s.metadata, s.cycles_processed,
        s.total_revenue, s.cancelled_at, s.created_at, s.updated_at,
        c.org_id, c.id, c.first_name, c.last_name, c.email, c.created_at, c.updated_at
    FROM subscriptions s
@@ -63,13 +64,10 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 		&subscription.CustomerId,
 		&subscription.Status,
 		&subscription.PaymentMethodId,
-
-		&subscription.ProductId,
-		&subscription.VariantId,
-		&subscription.PriceId,
+		&subscription.Amount,
+		&subscription.Currency,
 		&subscription.StartDate,
 		&subscription.EndDate,
-
 		&subscription.BillingInterval,
 		&subscription.BillingIntervalQty,
 		&subscription.Cycles,
@@ -77,15 +75,12 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 		&subscription.TrialEndsAt,
 		&subscription.CancelAt,
 		&subscription.EndsAt,
-
 		&subscription.LastCharge,
 		&subscription.RenewsAt,
 		&subscription.CurrentPeriodStart,
 		&subscription.CurrentPeriodEnd,
 		&subscription.DunningActive,
 		&subscription.ActiveDunningCampaignId,
-		&subscription.Currency,
-		&subscription.Amount,
 		&subscription.Metadata,
 		&subscription.CyclesProcessed,
 		&subscription.TotalRevenue,
@@ -109,11 +104,17 @@ func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id s
 	return subscription.ToEntity(), nil
 }
 
+// FindById always loads subscription with items - similar to Invoice/LineItems pattern
+func (r SubscriptionRepository) FindById(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
+	// Always load with items
+	return r.findWithItems(ctx, orgId, id)
+}
+
 func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string, orderId string) ([]entities.Subscription, error) {
 	tx := r.getTransactionFromContext(ctx)
 	var subscriptions = make([]entities.Subscription, 0)
 	query := `SELECT s.org_id, s.id, s.psp_id, s.order_id, s.order_item_id, s.customer_id, 
-       s.status, s.payment_method_id, s.product_id, s.variant_id, s.price_id, s.start_date, s.end_date, 
+       s.status, s.payment_method_id, s.start_date, s.end_date, 
        s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at, 
        s.last_charge, s.renews_at, 
        s.current_period_start,
@@ -146,9 +147,6 @@ func (r SubscriptionRepository) FindByOrderId(ctx context.Context, orgId string,
 			&subscription.CustomerId,
 			&subscription.Status,
 			&subscription.PaymentMethodId,
-			&subscription.ProductId,
-			&subscription.VariantId,
-			&subscription.PriceId,
 			&subscription.StartDate,
 			&subscription.EndDate,
 			&subscription.BillingInterval,
@@ -201,19 +199,15 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 	tx := r.getTransactionFromContext(ctx)
 
 	query := `INSERT INTO subscriptions (org_id, id, psp_id, payment_method_id, order_id, order_item_id, customer_id, status, 
-                           product_id, variant_id, price_id,
                            start_date, end_date, billing_interval, billing_interval_qty, cycles, billing_anchor, 
                            trial_ends_at, cancel_at, ends_at, last_charge, renews_at, 
                            current_period_start, current_period_end, 
-                           dunning_active, active_dunning_campaign_id,
                            currency, amount, metadata, cycles_processed, total_revenue, cancelled_at, 
                            created_at, updated_at) 
 			  VALUES (@org_id, @id, @psp_id, @payment_method_id, @order_id, @order_item_id, @customer_id, @status, 
-			          @product_id, @variant_id, @price_id,
 			          @start_date, @end_date, @billing_interval, @billing_interval_qty, @cycles, @billing_anchor, 
 			          @trial_ends_at, @cancel_at, @ends_at, @last_charge, @renews_at, 
-			          @current_period_start, @current_period_end,
-			          @dunning_active, @active_dunning_campaign_id,
+			          @current_period_start, @current_period_end, 
 			          @currency, @amount, @metadata, @cycles_processed, @total_revenue, @cancelled_at,
 			          NOW(), NOW())
 `
@@ -221,21 +215,35 @@ func (r SubscriptionRepository) Create(ctx context.Context, entity entities.Subs
 	_, err := tx.Exec(ctx, query, args)
 
 	if err != nil {
-		r.logger.Error(`failed to insert Subscription`, err.Error())
+		r.logger.Error(`failed to insert Subscription`, "err", err.Error())
 		return entities.Subscription{}, err
+	}
+
+	// Create subscription items if they are provided
+	if len(entity.Items) > 0 {
+		for i := range entity.Items {
+			// Ensure the item has the correct subscription ID
+			entity.Items[i].SubscriptionId = entity.Id
+			entity.Items[i].OrgId = entity.OrgId
+
+			// Use the subscription item repository to create the item
+			_, err := r.subscriptionItemRepository.Create(ctx, entity.Items[i])
+			if err != nil {
+				r.logger.Error(`failed to insert SubscriptionItem`, err.Error())
+				return entities.Subscription{}, err
+			}
+		}
 	}
 
 	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
+// Update updates an existing subscription. It doesn't update items
 func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subscription) (entities.Subscription, error) {
 	tx := r.getTransactionFromContext(ctx)
 	query := `UPDATE subscriptions
 			  SET status=@status, 
 			      payment_method_id=@payment_method_id, 
-			      product_id=@product_id,
-			      variant_id=@variant_id,
-			      price_id=@price_id,
 			      start_date=@start_date, end_date=@end_date, 
 			      billing_interval=@billing_interval,
 			      billing_interval_qty=@billing_interval_qty, 
@@ -248,8 +256,6 @@ func (r SubscriptionRepository) Update(ctx context.Context, entity entities.Subs
 			      renews_at=@renews_at, 
 			      current_period_start=@current_period_start, 
 			      current_period_end=@current_period_end, 
-			      dunning_active=@dunning_active, 
-			      active_dunning_campaign_id=@active_dunning_campaign_id, 
 			      currency=@currency, 
 			      amount=@amount, 
 			      metadata=@metadata, 
@@ -277,7 +283,7 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
 	var subscriptions = make([]entities.Subscription, 0)
 	var count int
 	query := `SELECT s.org_id, s.id, s.order_id, s.order_item_id, s.customer_id, s.status, s.payment_method_id, 
-       s.product_id, s.variant_id, s.price_id, s.start_date, s.end_date,
+       s.start_date, s.end_date,
        s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at,
        s.last_charge, s.renews_at, s.dunning_active, s.active_dunning_campaign_id, s.currency, s.amount, s.metadata, s.cycles_processed,
        s.total_revenue, s.cancelled_at, s.created_at, s.updated_at,
@@ -338,9 +344,6 @@ func (r SubscriptionRepository) Find(ctx context.Context, orgId string, p reques
 			&subscription.CustomerId,
 			&subscription.Status,
 			&subscription.PaymentMethodId,
-			&subscription.ProductId,
-			&subscription.VariantId,
-			&subscription.PriceId,
 			&subscription.StartDate,
 			&subscription.EndDate,
 			&subscription.BillingInterval,
@@ -524,13 +527,12 @@ func entityToNamedArgs(entity entities.Subscription) pgx.NamedArgs {
 		"id":                         entity.Id,
 		"payment_method_id":          pgtype.Text{String: entity.PaymentMethodId, Valid: entity.PaymentMethodId != ""},
 		"psp_id":                     entity.PspId,
-		"order_id":                   entity.OrderId,
-		"order_item_id":              entity.OrderItemId,
+		"order_id":                   pgtype.Text{String: entity.OrderId, Valid: entity.OrderId != ""},
+		"order_item_id":              pgtype.Text{String: entity.OrderItemId, Valid: entity.OrderItemId != ""},
 		"customer_id":                entity.CustomerId,
 		"status":                     entity.Status,
-		"product_id":                 pgtype.Text{String: entity.ProductId, Valid: entity.ProductId != ""},
-		"variant_id":                 pgtype.Text{String: entity.VariantId, Valid: entity.VariantId != ""},
-		"price_id":                   pgtype.Text{String: entity.PriceId, Valid: entity.PriceId != ""},
+		"amount":                     pgtype.Int8{Int64: entity.Amount, Valid: entity.Amount >= 0},
+		"currency":                   entity.Currency,
 		"start_date":                 pgtype.Date{Time: entity.StartDate, Valid: !entity.StartDate.IsZero()},
 		"end_date":                   pgtype.Date{Time: entity.EndDate, Valid: !entity.EndDate.IsZero()},
 		"billing_interval":           entity.BillingInterval,
@@ -546,11 +548,31 @@ func entityToNamedArgs(entity entities.Subscription) pgx.NamedArgs {
 		"current_period_end":         pgtype.Date{Time: entity.CurrentPeriodEnd, Valid: !entity.CurrentPeriodEnd.IsZero()},
 		"dunning_active":             entity.DunningActive,
 		"active_dunning_campaign_id": pgtype.Text{String: entity.ActiveDunningCampaignId, Valid: entity.ActiveDunningCampaignId != ""},
-		"currency":                   entity.Currency,
-		"amount":                     entity.Amount,
 		"metadata":                   metaJson,
 		"cycles_processed":           entity.CyclesProcessed,
 		"total_revenue":              entity.TotalRevenue,
 		"cancelled_at":               pgtype.Date{Time: entity.CancelledAt, Valid: !entity.CancelledAt.IsZero()},
+		"created_at":                 pgtype.Date{Time: entity.CreatedAt, Valid: !entity.CreatedAt.IsZero()},
+		"updated_at":                 pgtype.Date{Time: entity.UpdatedAt, Valid: !entity.UpdatedAt.IsZero()},
 	}
+}
+
+// findWithItems finds a subscription by ID and includes its subscription items
+// This is a private method used internally by FindById
+func (r SubscriptionRepository) findWithItems(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
+	// First, get the subscription without items
+	subscription, err := r.FindByIdWithoutItems(ctx, orgId, id)
+	if err != nil {
+		return entities.Subscription{}, err
+	}
+
+	// Then, get the subscription items using the subscription item repository
+	items, err := r.subscriptionItemRepository.FindBySubscriptionId(ctx, orgId, id)
+	if err != nil {
+		r.logger.Error(`failed to find SubscriptionItems by subscription_id`, err.Error())
+		return entities.Subscription{}, err
+	}
+
+	subscription.Items = items
+	return subscription, nil
 }
