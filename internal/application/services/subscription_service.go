@@ -11,6 +11,7 @@ import (
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/payments"
 	"payloop/internal/domain/entities/settings"
@@ -248,19 +249,44 @@ func (s SubscriptionService) FindById(ctx context.Context, orgId string, id stri
 	return subscription, nil
 }
 
-func (s SubscriptionService) Activate(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
-	s.logger.Info("Marking subscription active", "orgId", orgId, "id", id)
+func (s SubscriptionService) Activate(ctx context.Context, input subscriptions.ActivateSubscriptionInput) (entities.Subscription, error) {
+	s.logger.Info("Marking subscription active", "orgId", input.OrgId, "id", input.Id)
 
-	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, id)
+	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
 		s.logger.Error("Failed to find subscriptions", err.Error())
 		return entities.Subscription{}, err
+	}
+
+	// If PaymentMethodId is provided in the input, update the subscription
+	if input.PaymentMethodId != "" {
+		s.logger.Debug("Updating payment method", "paymentMethodId", input.PaymentMethodId)
+
+		// Validate that payment method exists and belongs to customer
+		paymentMethod, err := s.customerRepository.FindPaymentMethodById(ctx, input.OrgId, input.PaymentMethodId)
+		if err != nil {
+			s.logger.Error("Payment method not found", "paymentMethodId", input.PaymentMethodId, "error", err.Error())
+			return entities.Subscription{}, lib.NewCustomError(lib.BadRequestError, "invalid payment method", err)
+		}
+
+		if paymentMethod.CustomerId != subscription.CustomerId {
+			s.logger.Error("Payment method does not belong to customer", "customerId", subscription.CustomerId)
+			return entities.Subscription{}, lib.NewCustomError(lib.BadRequestError, "payment method does not belong to customer", nil)
+		}
+
+		subscription.PaymentMethodId = input.PaymentMethodId
+		subscription.PspId = common.Gateway(paymentMethod.Psp)
 	}
 
 	s.logger.Debug("Checking payment method", "paymentMethodId", subscription.PaymentMethodId)
 	if subscription.PaymentMethodId == "" {
 		s.logger.Error("No payment method attached to subscription")
 		return entities.Subscription{}, lib.NewCustomError(lib.BadRequestError, "subscription must have a payment method attached", nil)
+	}
+
+	if subscription.Status == entities.SubscriptionStatusActive {
+		s.logger.Info("Subscription is already active")
+		return subscription, lib.NewCustomError(lib.BadRequestError, "subscription is already active", nil)
 	}
 
 	subscription.Status = entities.SubscriptionStatusActive

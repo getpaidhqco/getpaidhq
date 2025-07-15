@@ -57,5 +57,6 @@ type ChangePlanRequest struct {
 
 // ActivateSubscriptionRequest handles subscription activation
 type ActivateSubscriptionRequest struct {
+	PaymentMethodId string `json:"payment_method_id,omitempty"`
 	Reason string `json:"reason"`
 }

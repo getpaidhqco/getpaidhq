@@ -408,7 +408,11 @@ func (a *DunningActivities) updateSubscriptionForRecovery(ctx context.Context, o
 	logger.Info("Updating subscription for recovery", "OrgId", orgId, "SubscriptionId", subscriptionId)
 
 	// Update subscription
-	_, err := a.subscriptionService.Activate(ctx, orgId, subscriptionId)
+	activateInput := subscriptions.ActivateSubscriptionInput{
+		OrgId: orgId,
+		Id:    subscriptionId,
+	}
+	_, err := a.subscriptionService.Activate(ctx, activateInput)
 	if err != nil {
 		logger.Error("Failed to update subscription", "err", err.Error())
 		return err
@@ -442,7 +446,11 @@ func (a *DunningActivities) MarkCampaignRecovered(ctx context.Context, orgId str
 		logger.Error("Failed to find subscription", "Error", err.Error())
 	} else {
 		// Update subscription
-		_, err = a.subscriptionService.Activate(ctx, orgId, subscription.Id)
+		activateInput := subscriptions.ActivateSubscriptionInput{
+			OrgId: orgId,
+			Id:    subscription.Id,
+		}
+		_, err = a.subscriptionService.Activate(ctx, activateInput)
 		if err != nil {
 			logger.Error("Failed to update subscription", "err", err.Error())
 		}
@@ -530,7 +538,11 @@ func (a *DunningActivities) ReactivateSubscription(ctx context.Context, orgId st
 	logger.Info("Reactivating subscription", "OrgId", orgId, "SubscriptionId", subscriptionId)
 
 	// Update subscription
-	_, err := a.subscriptionService.Activate(ctx, orgId, subscriptionId)
+	activateInput := subscriptions.ActivateSubscriptionInput{
+		OrgId: orgId,
+		Id:    subscriptionId,
+	}
+	_, err := a.subscriptionService.Activate(ctx, activateInput)
 	if err != nil {
 		logger.Error("Failed to update subscription", "err", err.Error())
 		return err

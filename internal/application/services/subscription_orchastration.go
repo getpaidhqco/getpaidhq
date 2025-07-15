@@ -123,16 +123,16 @@ func (s SubscriptionOrchestrationService) Update(ctx context.Context, input subs
 }
 
 // Activate a subscription and update the Entity Workflow
-func (s SubscriptionOrchestrationService) Activate(ctx context.Context, orgId string, id string) (entities.Subscription, error) {
-	s.logger.Info("Marking subscription active", "orgId", orgId, "id", id)
+func (s SubscriptionOrchestrationService) Activate(ctx context.Context, input subscriptions.ActivateSubscriptionInput) (entities.Subscription, error) {
+	s.logger.Info("Marking subscription active", "orgId", input.OrgId, "id", input.Id)
 
-	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, id)
+	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
 		s.logger.Error("Failed to find subscriptions", err.Error())
 		return entities.Subscription{}, err
 	}
 
-	subscription, err = s.SubscriptionService.Activate(ctx, orgId, id)
+	subscription, err = s.SubscriptionService.Activate(ctx, input)
 	if err != nil {
 		s.logger.Error("Failed to activate subscription", err.Error())
 		var serr lib.CustomError

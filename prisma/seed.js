@@ -79,6 +79,25 @@ async function seedOrganization(orgId) {
             valueType: 'CheckoutDotComConfig',
             createdAt: now,
             updatedAt: now,
+        },
+        {
+            orgId,
+            parentId: orgId,
+            id: 'subscriptions',
+            value: {
+                email_reminders: true,
+                reminder_days: 3,
+                cancel_on_failure: false,
+                retry_policy: {
+                    attempts: 3,
+                    interval: "day",
+                    retry_period: 5,
+                    failure_action: "past_due"
+                }
+            },
+            valueType: 'Subscription',
+            createdAt: now,
+            updatedAt: now,
         }
     ];
 

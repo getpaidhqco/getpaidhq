@@ -365,7 +365,14 @@ func (s SubscriptionController) Activate(c *gin.Context) {
 		return
 	}
 
-	subscription, err := s.subsOrchastration.Activate(c.Request.Context(), orgId, id)
+	activateInput := subscriptions.ActivateSubscriptionInput{
+		OrgId:          orgId,
+		Id:             id,
+		PaymentMethodId: input.PaymentMethodId,
+		Reason:         input.Reason,
+	}
+
+	subscription, err := s.subsOrchastration.Activate(c.Request.Context(), activateInput)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
