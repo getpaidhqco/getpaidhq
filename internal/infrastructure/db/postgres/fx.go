@@ -12,7 +12,7 @@ var Module = fx.Options(
 	fx.Provide(
 		fx.Annotate(
 			func(env lib.Env, logger logger.Logger) lib.Database {
-				return NewDatabase(env.Get("DATABASE_URL"), logger)
+				return NewDatabase(env.Get("GPHQ_DATABASE_URL"), logger)
 			},
 			fx.ResultTags(`name:"primaryDb"`),
 		),
@@ -20,7 +20,7 @@ var Module = fx.Options(
 	fx.Provide(
 		fx.Annotate(
 			func(env lib.Env, logger logger.Logger) lib.Database {
-				return NewDatabase(env.Get("REPORTING_DATABASE_URL"), logger)
+				return NewDatabase(env.Get("GPHQ_REPORTING_DATABASE_URL"), logger)
 			},
 			fx.ResultTags(`name:"reportingDb"`),
 		),
@@ -28,7 +28,7 @@ var Module = fx.Options(
 	fx.Provide(
 		fx.Annotate(
 			func(env lib.Env, logger logger.Logger) lib.Database {
-				return NewDatabase(env.Get("USAGE_DATABASE_URL"), logger)
+				return NewDatabase(env.Get("GPHQ_USAGE_DATABASE_URL"), logger)
 			},
 			fx.ResultTags(`name:"usageDb"`),
 		),
@@ -36,7 +36,7 @@ var Module = fx.Options(
 	fx.Provide(
 		fx.Annotate(
 			func(env lib.Env, logger logger.Logger) CdcStream {
-				return NewCdcStream(env.Get("DATABASE_URL"), logger)
+				return NewCdcStream(env.Get("GPHQ_DATABASE_URL"), logger)
 			},
 		),
 	),
