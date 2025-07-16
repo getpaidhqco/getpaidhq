@@ -176,7 +176,7 @@ func (s ReportService) ProcessDataChange(event dto.DataChangeEvent) {
 
 		err = s.reportRepository.UpsertSubscription(context.Background(), subscription)
 		if err != nil {
-			s.logger.Errorf("Failed to upsert subscription: %v", err)
+			s.logger.Errorf("ReportService failed to upsert subscription: %v", err)
 			return
 		}
 	case "payments":

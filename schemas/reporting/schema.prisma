@@ -116,11 +116,11 @@ model Subscription {
   currentPeriodStart DateTime?       @map("current_period_start")
   currentPeriodEnd   DateTime?       @map("current_period_end")
 
-  retries   Int?
-  nextRetry DateTime? @map("next_retry")
-
   currency String
   amount   Int
+
+  dunningActive           Boolean @default(false) @map("dunning_active")
+  activeDunningCampaignId String? @map("active_dunning_campaign_id")
 
   cyclesProcessed Int       @map("cycles_processed")
   totalRevenue    Int       @map("total_revenue")
