@@ -2,6 +2,10 @@ package services
 
 import (
 	"go.uber.org/fx"
+	"payloop/internal/application/interfaces"
+	"payloop/internal/application/lib/logger"
+	"payloop/internal/domain/repositories"
+	"payloop/internal/domain/security"
 )
 
 // Module exports services present
@@ -29,7 +33,19 @@ var Module = fx.Options(
 	fx.Provide(NewPspService),
 	fx.Provide(NewMetadataService),
 	fx.Provide(NewPaymentService),
-	fx.Provide(NewSettingsService),
+	// Add the settings registry provider
+	fx.Provide(
+		func(vault security.TokenVault) SettingsRegistryInterface {
+			return NewSettingsRegistry(vault)
+		},
+	),
+
+	// Update the SettingsService provider to include the registry
+	fx.Provide(
+		func(repo repositories.SettingRepository, registry SettingsRegistryInterface, logger logger.Logger) interfaces.SettingsService {
+			return NewSettingsService(repo, registry, logger)
+		},
+	),
 	fx.Provide(NewDocumentService),
 	fx.Provide(NewDunningService),
 	fx.Provide(NewDunningOrchestrationService),

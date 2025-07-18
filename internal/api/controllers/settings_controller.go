@@ -97,10 +97,6 @@ func (s SettingsController) Update(c *gin.Context) {
 	id := c.Param("id")
 
 	var input interface{}
-	if id == "subscriptions" {
-		input = &request.UpdateSubscriptionSettingRequest{}
-	}
-
 	if err := c.ShouldBindJSON(&input); err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
