@@ -42,7 +42,7 @@ func NewAuthService(
 // ExtractAuthFromMCPRequest extracts authentication information from MCP request arguments
 func (s *AuthService) ExtractAuthFromMCPRequest(ctx context.Context, arguments map[string]any) (*AuthContext, error) {
 	// Check for authorization token in arguments
-	authTokenVal, exists := arguments["authorization"]
+	authTokenVal, exists := arguments["x-api-key"]
 	if !exists {
 		return nil, errors.New("authentication required: authorization parameter missing")
 	}

@@ -25,24 +25,24 @@ func (s *ServeCommand) Run() lib.CommandRunner {
 	return func(
 		params struct {
 			fx.In
-			Middlewares         middlewares.Middlewares
-			Env                 lib.Env
-			Mcp                 mcp.MCPServer
-			Router              lib.RequestHandler
-			Route               routes.Routes
-			Logger              logger.Logger
-			Queue               interfaces.QueueService
-			WorkflowService     interfaces.WorkflowService
-			PrimaryDb           lib.Database `name:"primaryDb"`
-			ReportingDb         lib.Database `name:"reportingDb"`
-			Reporter            lib.ErrorReporter
+			Middlewares          middlewares.Middlewares
+			Env                  lib.Env
+			Mcp                  mcp.MCPServer
+			Router               lib.RequestHandler
+			Route                routes.Routes
+			Logger               logger.Logger
+			Queue                interfaces.QueueService
+			WorkflowService      interfaces.WorkflowService
+			PrimaryDb            lib.Database `name:"primaryDb"`
+			ReportingDb          lib.Database `name:"reportingDb"`
+			Reporter             lib.ErrorReporter
 			EventConsumerManager interfaces.EventConsumerManager
 		},
 	) {
 
 		params.Middlewares.Setup()
 		params.Route.Setup()
-		
+
 		// Start event consumers
 		go func() {
 			ctx := context.Background()
@@ -50,10 +50,16 @@ func (s *ServeCommand) Run() lib.CommandRunner {
 				params.Logger.Error("Failed to start event consumers", "error", err)
 			}
 		}()
-		
+
 		go func() {
 			params.Logger.Info("Running MCP server on port server", "port", params.Env.McpSsePort)
-			_ = params.Mcp.SSEServer.Start(":" + params.Env.McpSsePort)
+			err := params.Mcp.SSEServer.Start(":" + params.Env.McpSsePort)
+			if err != nil {
+				params.Logger.Error("Failed to start MCP server", "error", err)
+			} else {
+				params.Logger.Info("MCP server started successfully")
+			}
+
 		}()
 
 		if params.Env.ServerPort == "" {

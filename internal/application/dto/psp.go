@@ -8,3 +8,14 @@ type CreateGatewayInput struct {
 	Name     string            `json:"name" `
 	Settings map[string]string `json:"settings" validate:"required"`
 }
+
+type UpdateGatewayInput struct {
+	OrgId    string            `json:"org_id" validate:"required"`
+	Id       string            `json:"id" validate:"required"`
+	Name     string            `json:"name" `
+	Settings map[string]string `json:"settings" validate:"required"`
+}
+
+type GatewayFilter struct {
+	OrgId string `json:"org_id" validate:"required"`
+}

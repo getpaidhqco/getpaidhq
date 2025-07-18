@@ -23,6 +23,10 @@ func (s PspRoutes) Setup() {
 	api := s.handler.Gin.Group("/api")
 	{
 		api.POST("/gateways", s.checkAuthz(authz.CreatePaymentServiceProvider), s.pspController.Create)
+		api.GET("/gateways", s.checkAuthz(authz.GetPaymentServiceProvider), s.pspController.List)
+		api.GET("/gateways/:id", s.checkAuthz(authz.GetPaymentServiceProvider), s.pspController.Get)
+		api.PUT("/gateways/:id", s.checkAuthz(authz.UpdatePaymentServiceProvider), s.pspController.Update)
+		api.DELETE("/gateways/:id", s.checkAuthz(authz.DeletePaymentServiceProvider), s.pspController.Delete)
 	}
 }
 

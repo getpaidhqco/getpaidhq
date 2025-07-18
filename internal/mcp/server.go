@@ -42,7 +42,7 @@ func NewServer(
 	s := server.NewMCPServer(
 		"payloop-mcp 🚀",
 		"1.0.0",
-		server.WithToolCapabilities(false),
+		server.WithToolCapabilities(true),
 	)
 
 	// Create authentication service

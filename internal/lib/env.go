@@ -9,16 +9,16 @@ import (
 // Env has environment stored
 type Env struct {
 	// Server configuration
-	ServerPort      string `mapstructure:"GPHQ_SERVER_PORT"`
-	ServerHost      string `mapstructure:"GPHQ_SERVER_HOST"`
-	McpSsePort      string `mapstructure:"GPHQ_MCP_SSE_PORT"`
-	TemporalHost    string `mapstructure:"GPHQ_TEMPORAL_HOST"`
-	Env             string `mapstructure:"GPHQ_ENV"`
+	ServerPort   string `mapstructure:"GPHQ_SERVER_PORT"`
+	ServerHost   string `mapstructure:"GPHQ_SERVER_HOST"`
+	McpSsePort   string `mapstructure:"GPHQ_MCP_SSE_PORT"`
+	TemporalHost string `mapstructure:"GPHQ_TEMPORAL_HOST"`
+	Env          string `mapstructure:"GPHQ_ENV"`
 
 	// Logging configuration
-	LogOutput       string `mapstructure:"GPHQ_LOG_OUTPUT"`
-	LogLevel        string `mapstructure:"GPHQ_PAYLOOP_LOG_LEVEL"`
-	LogFormat       string `mapstructure:"GPHQ_LOG_FORMAT"`
+	LogOutput string `mapstructure:"GPHQ_LOG_OUTPUT"`
+	LogLevel  string `mapstructure:"GPHQ_PAYLOOP_LOG_LEVEL"`
+	LogFormat string `mapstructure:"GPHQ_LOG_FORMAT"`
 
 	// Database configuration
 	DBUrl           string `mapstructure:"GPHQ_DATABASE_URL"`
@@ -38,11 +38,11 @@ type Env struct {
 	ClerkSecretKey string `mapstructure:"GPHQ_CLERK_SECRET"`
 
 	// Email configuration
-	EmailProvider   string `mapstructure:"GPHQ_EMAIL_PROVIDER"`
-	LoopsApiKey     string `mapstructure:"GPHQ_LOOPS_API_KEY"`
+	EmailProvider    string `mapstructure:"GPHQ_EMAIL_PROVIDER"`
+	LoopsApiKey      string `mapstructure:"GPHQ_LOOPS_API_KEY"`
 	LoopsApiEndpoint string `mapstructure:"GPHQ_LOOPS_API_ENDPOINT"`
-	EmailFromEmail  string `mapstructure:"GPHQ_EMAIL_FROM_EMAIL"`
-	EmailFromName   string `mapstructure:"GPHQ_EMAIL_FROM_NAME"`
+	EmailFromEmail   string `mapstructure:"GPHQ_EMAIL_FROM_EMAIL"`
+	EmailFromName    string `mapstructure:"GPHQ_EMAIL_FROM_NAME"`
 
 	// Token Vault configuration
 	TokenVaultType      string `mapstructure:"GPHQ_TOKEN_VAULT_TYPE"`       // "aes" or "aws_secrets_manager"
@@ -70,6 +70,7 @@ func NewEnv() Env {
 	var env Env
 
 	viper.BindEnv("GPHQ_SERVER_PORT")
+	viper.BindEnv("GPHQ_SERVER_PORT")
 	viper.BindEnv("GPHQ_SERVER_HOST")
 	viper.BindEnv("GPHQ_MCP_SSE_PORT")
 	viper.BindEnv("GPHQ_TEMPORAL_HOST")
@@ -78,6 +79,8 @@ func NewEnv() Env {
 	viper.BindEnv("GPHQ_PAYLOOP_LOG_LEVEL")
 	viper.BindEnv("GPHQ_LOG_FORMAT")
 	viper.BindEnv("GPHQ_DATABASE_URL")
+	viper.BindEnv("GPHQ_USAGE_DATABASE_URL")
+	viper.BindEnv("GPHQ_REPORTING_DATABASE_URL")
 	viper.BindEnv("GPHQ_CEDAR_POLICY")
 	viper.BindEnv("GPHQ_JWT_SECRET")
 	viper.BindEnv("GPHQ_TOKEN_EXPIRY")
@@ -149,10 +152,15 @@ func NewEnv() Env {
 	if err != nil {
 		log.Fatal("☠️ environment can't be loaded: ", err)
 	}
-
+	a := env.Get("GPHQ_DATABASE_URL")
+	log.Println(a)
 	return env
 }
 
 func (e Env) Get(key string) string {
+	// Check if the key already has the GPHQ_ prefix
+	if len(key) >= 5 && key[:5] == "GPHQ_" {
+		return viper.GetString(key)
+	}
 	return viper.GetString("GPHQ_" + key)
 }
