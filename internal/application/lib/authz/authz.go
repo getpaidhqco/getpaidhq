@@ -52,6 +52,9 @@ const (
 	// webhook subscriptions
 	CreateWebhookSubscription Action = "CreateWebhookSubscription"
 	ListWebhookSubscriptions  Action = "ListWebhookSubscriptions"
+	GetWebhookSubscription    Action = "GetWebhookSubscription"
+	UpdateWebhookSubscription Action = "UpdateWebhookSubscription"
+	DeleteWebhookSubscription Action = "DeleteWebhookSubscription"
 
 	// Invoice actions
 	CreateInvoice   Action = "CreateInvoice"

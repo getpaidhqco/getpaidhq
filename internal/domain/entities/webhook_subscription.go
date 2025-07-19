@@ -5,7 +5,7 @@ import (
 )
 
 type WebhookSubscription struct {
-	OrgID     string    `json:"org_id"`
+	OrgId     string    `json:"org_id"`
 	Id        string    `json:"id"`
 	Events    []string  `json:"events"`
 	URL       string    `json:"url"`

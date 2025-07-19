@@ -18,6 +18,7 @@ func (s OrgsRoutes) Setup() {
 	api := s.handler.Gin.Group("/api")
 	{
 		api.POST("/organizations", s.controller.Create)
+ 	api.GET("/organizations/api-keys", s.controller.GetApiKeys)
 	}
 }
 

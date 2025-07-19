@@ -23,7 +23,10 @@ func (s WebhookSubscriptionRoutes) Setup() {
 	api := s.handler.Gin.Group("/api")
 	{
 		api.POST("/webhooks", s.checkAuthz(authz.CreateWebhookSubscription), s.webhookSubscriptionController.Create)
-		api.GET("/webhooks", s.checkAuthz(authz.ListWebhookSubscriptions), s.webhookSubscriptionController.Create)
+		api.GET("/webhooks", s.checkAuthz(authz.ListWebhookSubscriptions), s.webhookSubscriptionController.List)
+		api.GET("/webhooks/:id", s.checkAuthz(authz.GetWebhookSubscription), s.webhookSubscriptionController.Get)
+		api.PUT("/webhooks/:id", s.checkAuthz(authz.UpdateWebhookSubscription), s.webhookSubscriptionController.Update)
+		api.DELETE("/webhooks/:id", s.checkAuthz(authz.DeleteWebhookSubscription), s.webhookSubscriptionController.Delete)
 	}
 }
 

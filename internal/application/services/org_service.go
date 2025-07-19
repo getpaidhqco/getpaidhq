@@ -46,6 +46,18 @@ func NewOrgService(
 	}
 }
 
+func (s OrgService) GetApiKeys(ctx context.Context, orgId string) ([]entities.ApiKey, error) {
+	s.logger.Debug("Getting API keys for org", "org_id", orgId)
+
+	apiKeys, err := s.apiKeyRepository.FindByOrgId(ctx, orgId)
+	if err != nil {
+		s.logger.Error("Failed to get API keys", "org_id", orgId, "err", err)
+		return nil, err
+	}
+
+	return apiKeys, nil
+}
+
 func (s OrgService) Create(ctx context.Context, input dto.CreateOrgInput) (entities.Org, error) {
 	s.logger.Debug("Creating tenant", "input", input)
 

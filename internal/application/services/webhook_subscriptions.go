@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
+	"payloop/internal/api/dto/request"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
@@ -46,7 +47,7 @@ func NewWebhookSubscriptionService(
 
 func (s WebhookSubscriptionService) Create(ctx context.Context, input webhooks.CreateWebhookSubscriptionInput) (entities.WebhookSubscription, error) {
 	webhook, err := s.whsRepo.Create(ctx, entities.WebhookSubscription{
-		OrgID:     input.OrgId,
+		OrgId:     input.OrgId,
 		Id:        lib.GenerateId("webhook"),
 		Events:    input.Events,
 		URL:       input.Url,
@@ -61,6 +62,59 @@ func (s WebhookSubscriptionService) Create(ctx context.Context, input webhooks.C
 	_ = s.pubsub.Publish(input.OrgId, topic.WebhookSubscriptionCreated, webhook)
 
 	return webhook, nil
+}
+
+func (s WebhookSubscriptionService) List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.WebhookSubscription, int, error) {
+	subscriptions, total, err := s.whsRepo.List(ctx, orgId, pagination)
+	if err != nil {
+		s.logger.Errorf("Failed to list webhook subscriptions: %v", err)
+		return nil, 0, err
+	}
+
+	return subscriptions, total, nil
+}
+
+func (s WebhookSubscriptionService) GetByID(ctx context.Context, orgId string, id string) (entities.WebhookSubscription, error) {
+	subscription, err := s.whsRepo.GetByID(ctx, orgId, id)
+	if err != nil {
+		s.logger.Errorf("Failed to get webhook subscription by ID: %v", err)
+		return entities.WebhookSubscription{}, err
+	}
+
+	return subscription, nil
+}
+
+func (s WebhookSubscriptionService) Update(ctx context.Context, subscription entities.WebhookSubscription) (entities.WebhookSubscription, error) {
+	subscription.UpdatedAt = time.Now().UTC()
+
+	updatedSubscription, err := s.whsRepo.Update(ctx, subscription)
+	if err != nil {
+		s.logger.Errorf("Failed to update webhook subscription: %v", err)
+		return entities.WebhookSubscription{}, err
+	}
+
+	_ = s.pubsub.Publish(subscription.OrgId, topic.WebhookSubscriptionUpdated, updatedSubscription)
+
+	return updatedSubscription, nil
+}
+
+func (s WebhookSubscriptionService) Delete(ctx context.Context, orgId string, id string) error {
+	// First get the subscription to ensure it exists and belongs to the org
+	subscription, err := s.whsRepo.GetByID(ctx, orgId, id)
+	if err != nil {
+		s.logger.Errorf("Failed to get webhook subscription for deletion: %v", err)
+		return err
+	}
+
+	err = s.whsRepo.Delete(ctx, id)
+	if err != nil {
+		s.logger.Errorf("Failed to delete webhook subscription: %v", err)
+		return err
+	}
+
+	_ = s.pubsub.Publish(orgId, topic.WebhookSubscriptionDeleted, subscription)
+
+	return nil
 }
 
 func (s WebhookSubscriptionService) SendWebhook(ctx context.Context, input workflow.OutgoingWebhookPayload) error {

@@ -105,3 +105,38 @@ func (r ApiKeyRepository) Delete(ctx context.Context, orgId string, id string) e
 
 	return nil
 }
+
+func (r ApiKeyRepository) FindByOrgId(ctx context.Context, orgId string) ([]entities.ApiKey, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	rows, err := tx.Query(ctx, `SELECT org_id, id, key, created_at, updated_at FROM api_keys WHERE org_id=$1`, orgId)
+	if err != nil {
+		r.logger.Error(`failed to find ApiKeys for org`, "org_id", orgId, "err", err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+
+	var apiKeys []entities.ApiKey
+	for rows.Next() {
+		var apiKey entities.ApiKey
+		err := rows.Scan(
+			&apiKey.OrgId,
+			&apiKey.Id,
+			&apiKey.Key,
+			&apiKey.CreatedAt,
+			&apiKey.UpdatedAt,
+		)
+		if err != nil {
+			r.logger.Error(`failed to scan ApiKey`, "err", err.Error())
+			return nil, err
+		}
+		apiKeys = append(apiKeys, apiKey)
+	}
+
+	if err := rows.Err(); err != nil {
+		r.logger.Error(`error iterating over ApiKeys`, "err", err.Error())
+		return nil, err
+	}
+
+	return apiKeys, nil
+}

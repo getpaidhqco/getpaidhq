@@ -62,6 +62,8 @@ const (
 	SubscriptionWorkflowEnded         = "subscription.workflow.ended"
 
 	WebhookSubscriptionCreated = "webhook.created"
+	WebhookSubscriptionUpdated = "webhook.updated"
+	WebhookSubscriptionDeleted = "webhook.deleted"
 
 	SessionCreated = "session.created"
 
