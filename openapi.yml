@@ -8,16 +8,16 @@ info:
   version: 2.0.0
   contact:
     name: GetPaidHQ Support
-    url: https://getpaidhq.com
-    email: support@getpaidhq.com
+    url: https://getpaidhq.co
+    email: support@getpaidhq.co
   license:
     name: Proprietary
     url: https://getpaidhq.com/terms
 
 servers:
-  - url: https://api.getpaidhq.com
+  - url: https://api.getpaidhq.co
     description: Production server
-  - url: https://api.test.getpaidhq.com
+  - url: https://api-test.getpaidhq.co
     description: Test server
 
 security:
