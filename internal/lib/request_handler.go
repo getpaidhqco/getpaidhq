@@ -37,6 +37,11 @@ func NewRequestHandler(logger logger.Logger, reporter ErrorReporter) RequestHand
 		if err != nil {
 			logger.Errorf("Failed to register custom validator: %v", err)
 		}
+
+		err = v.RegisterValidation("e164", request_validator.ValidatePhone)
+		if err != nil {
+			logger.Errorf("Failed to register custom validator: %v", err)
+		}
 	}
 
 	return RequestHandler{Gin: engine}

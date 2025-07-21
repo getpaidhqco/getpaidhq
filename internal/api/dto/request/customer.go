@@ -6,11 +6,11 @@ import (
 )
 
 type CreateCustomerRequest struct {
-	Email          string            `json:"email" binding:"required"`
+	Email          string            `json:"email" binding:"required,email"`
 	FirstName      string            `json:"first_name"`
 	LastName       string            `json:"last_name"`
 	BillingAddress entities.Address  `json:"billing_address"`
-	Phone          string            `json:"phone"`
+	Phone          string            `json:"phone" binding:"omitempty,e164"`
 	Metadata       map[string]string `json:"metadata"`
 }
 
