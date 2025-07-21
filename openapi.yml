@@ -2763,7 +2763,7 @@ components:
     ApiKeyAuth:
       type: apiKey
       in: header
-      name: X-API-Key
+      name: x-api-key
       description: API key authentication
     BearerAuth:
       type: http
