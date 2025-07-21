@@ -7,12 +7,29 @@ import (
     "payloop/internal/domain/entities"
 )
 
+// ToEntityAddress converts request Address DTO to domain entity Address
+func ToEntityAddress(address request.Address) entities.Address {
+    return entities.Address{
+        FirstName:  address.FirstName,
+        LastName:   address.LastName,
+        Email:      address.Email,
+        Phone:      address.Phone,
+        Line1:      address.Line1,
+        Line2:      address.Line2,
+        City:       address.City,
+        State:      address.State,
+        PostalCode: address.PostalCode,
+        Country:    address.Country,
+    }
+}
+
 // ToCreateCustomerInput converts API request to application input
 func ToCreateCustomerInput(req request.CreateCustomerRequest) dto.CreateCustomerInput {
     // Create a pointer to the billing address
     var billingAddressPtr *entities.Address
-    if (req.BillingAddress != entities.Address{}) {
-        billingAddressPtr = &req.BillingAddress
+    if !req.BillingAddress.IsEmpty() {
+        entityAddress := ToEntityAddress(req.BillingAddress)
+        billingAddressPtr = &entityAddress
     }
 
     return dto.CreateCustomerInput{
@@ -29,8 +46,9 @@ func ToCreateCustomerInput(req request.CreateCustomerRequest) dto.CreateCustomer
 func ToCreatePaymentMethodInput(req request.CreatePaymentMethodRequest, customerId string) dto.CreatePaymentMethodInput {
     // Create a pointer to the billing address
     var billingAddressPtr *entities.Address
-    if (req.BillingAddress != entities.Address{}) {
-        billingAddressPtr = &req.BillingAddress
+    if !req.BillingAddress.IsEmpty() {
+        entityAddress := ToEntityAddress(req.BillingAddress)
+        billingAddressPtr = &entityAddress
     }
 
     return dto.CreatePaymentMethodInput{
@@ -59,8 +77,9 @@ func ToUpdatePaymentMethodInput(req request.UpdatePaymentMethodRequest) dto.Upda
 
     isDefaultPtr = &req.IsDefault
 
-    if (req.BillingAddress != entities.Address{}) {
-        billingAddressPtr = &req.BillingAddress
+    if !req.BillingAddress.IsEmpty() {
+        entityAddress := ToEntityAddress(req.BillingAddress)
+        billingAddressPtr = &entityAddress
     }
 
     return dto.UpdatePaymentMethodInput{

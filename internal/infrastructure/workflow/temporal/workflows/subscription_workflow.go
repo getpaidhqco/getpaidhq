@@ -2,7 +2,6 @@ package workflows
 
 import (
 	"fmt"
-	"github.com/Trendyol/go-pq-cdc/logger"
 	"go.temporal.io/api/enums/v1"
 	temporalio "go.temporal.io/sdk/temporal"
 	"log/slog"
@@ -25,7 +24,10 @@ type SubscriptionInput struct {
 // https://learn.temporal.io/tutorials/typescript/recurring-billing-system/
 
 func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (entities.Subscription, error) {
+	// Initialize the Temporal workflow logger
+	logger := workflow.GetLogger(ctx)
 	logger.Info("SubscriptionWorkflow started", "Subscription:", input.Id)
+
 	// For AI assistants: this variable is initialized by Temporal when the workflow is started and is
 	// safe to use in the workflow without initialization. This is not a bug.
 	var a *activities.OrderActivities
@@ -37,8 +39,6 @@ func SubscriptionWorkflow(ctx workflow.Context, input entities.Subscription) (en
 			StartToCloseTimeout: time.Second * 60,
 		}), a.NotifyWorkflowEnded, input.OrgId, input.Id).Get(ctx, nil)
 	}()
-
-	logger := workflow.GetLogger(ctx)
 	subscription := input
 	// A flag to indicate if the workflow should be refreshed. Used by the "force-update" signal
 	restartBillingWait := false

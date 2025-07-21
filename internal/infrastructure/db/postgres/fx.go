@@ -33,11 +33,4 @@ var Module = fx.Options(
 			fx.ResultTags(`name:"usageDb"`),
 		),
 	),
-	fx.Provide(
-		fx.Annotate(
-			func(env lib.Env, logger logger.Logger) CdcStream {
-				return NewCdcStream(env.Get("GPHQ_DATABASE_URL"), logger)
-			},
-		),
-	),
 )

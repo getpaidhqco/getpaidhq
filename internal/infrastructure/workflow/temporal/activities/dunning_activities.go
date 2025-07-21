@@ -90,6 +90,20 @@ func (a *DunningActivities) CreateDunningCampaign(ctx context.Context, input Dun
 	return campaign, nil
 }
 
+// GetSubscriptionForDunning fetches a subscription by ID
+func (a *DunningActivities) GetSubscriptionForDunning(ctx context.Context, orgId string, subscriptionId string) (entities.Subscription, error) {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Getting subscription", "OrgId", orgId, "SubscriptionId", subscriptionId)
+
+	subscription, err := a.subscriptionService.FindById(ctx, orgId, subscriptionId)
+	if err != nil {
+		logger.Error("Failed to find subscription", "Error", err.Error())
+		return entities.Subscription{}, err
+	}
+
+	return subscription, nil
+}
+
 // ResolveDunningConfig resolves the dunning configuration for an organization
 func (a *DunningActivities) ResolveDunningConfig(ctx context.Context, orgId string) (dunning.DunningConfig, error) {
 	logger := activity.GetLogger(ctx)

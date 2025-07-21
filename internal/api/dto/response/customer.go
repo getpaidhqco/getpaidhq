@@ -12,7 +12,7 @@ type Customer struct {
 	FirstName      string            `json:"first_name,omitempty"`
 	LastName       string            `json:"last_name,omitempty"`
 	Phone          string            `json:"phone,omitempty"`
-	BillingAddress entities.Address  `json:"billing_address,omitempty"`
+	BillingAddress Address           `json:"billing_address,omitempty"`
 	Metadata       map[string]string `json:"metadata,omitempty"`
 	CreatedAt      time.Time         `json:"created_at,omitempty"`
 	UpdatedAt      time.Time         `json:"updated_at,omitempty"`
@@ -24,7 +24,7 @@ func NewCustomerFromEntity(entity entities.Customer) Customer {
 		Email:          entity.Email,
 		FirstName:      entity.FirstName,
 		LastName:       entity.LastName,
-		BillingAddress: entity.BillingAddress,
+		BillingAddress: NewAddressFromEntity(entity.BillingAddress),
 		Metadata:       entity.Metadata,
 		CreatedAt:      entity.CreatedAt,
 		UpdatedAt:      entity.UpdatedAt,

@@ -78,6 +78,21 @@ func DunningWorkflow(ctx workflow.Context, input DunningWorkflowInput) (dunning.
 		config = dunning.DefaultDunningConfig()
 	}
 
+	// Get the subscription that needs to be charged
+	err = workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+		StartToCloseTimeout: time.Minute * 5,
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval:    time.Second * 1,
+			BackoffCoefficient: 2.0,
+			MaximumInterval:    time.Minute * 5,
+			MaximumAttempts:    5,
+		},
+	}), a.GetSubscriptionForDunning, input.OrgId, input.SubscriptionId).Get(ctx, &subscription)
+	if err != nil {
+		logger.Error("Failed to get subscription", "Error", err.Error())
+		return dunning.DunningCampaign{}, err
+	}
+
 	// Register query handler for campaign details
 	err = workflow.SetQueryHandler(ctx, "get-campaign", func() (dunning.DunningCampaign, error) {
 		return campaign, nil
@@ -296,27 +311,6 @@ func DunningWorkflow(ctx workflow.Context, input DunningWorkflowInput) (dunning.
 
 		campaign = handleChargeResult.Campaign
 		subscription = handleChargeResult.Subscription
-
-		// Activity: HandleDunningChargeResult
-		// This updates the Campaign and creates a DunningAttempt based on the charge result.
-		var result activities.HandleChargeAttemptResult
-		err = workflow.ExecuteActivity(
-			workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-				StartToCloseTimeout: time.Minute * 5,
-				RetryPolicy: &temporal.RetryPolicy{
-					InitialInterval:    time.Minute * 2,
-					BackoffCoefficient: 1.2,
-				},
-			}),
-			a.HandleDunningChargeResult, campaign, chargeResult, config).
-			Get(ctx, &result)
-		if err != nil {
-			logger.Error("Error calling HandleDunningChargeResult", "Error", err.Error())
-			continue
-		}
-
-		campaign = result.Campaign
-		subscription = result.Subscription
 
 		// Check if the campaign is completed (recovered or failed)
 		if campaign.Status == dunning.DunningStatusRecovered {

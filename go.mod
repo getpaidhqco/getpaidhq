@@ -29,7 +29,6 @@ require (
 
 require (
 	github.com/IBM/sarama v1.45.2
-	github.com/Trendyol/go-pq-cdc v0.0.12
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.70
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.82.0
 	github.com/aws/aws-sdk-go-v2/service/secretsmanager v1.35.7

@@ -11,17 +11,16 @@ import (
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/domain/values"
-	"payloop/internal/infrastructure/db/postgres"
 	"time"
 )
 
+// ReportService handles reporting functionality
 type ReportService struct {
 	logger           logger.Logger
 	reportRepository repositories.ReportRepository
 	pubsub           events.NotificationPublisher
 	queueClient      events.QueueClient
 	orgRepository    repositories.OrgRepository
-	cdcStream        postgres.CdcStream
 }
 
 func NewReportService(
@@ -29,7 +28,6 @@ func NewReportService(
 	reportRepository repositories.ReportRepository,
 	pubsub events.NotificationPublisher,
 	queueClient events.QueueClient,
-	cdcStream postgres.CdcStream,
 	scheduler interfaces.Scheduler,
 	orgRepository repositories.OrgRepository,
 ) interfaces.ReportService {
@@ -38,7 +36,6 @@ func NewReportService(
 		reportRepository: reportRepository,
 		pubsub:           pubsub,
 		queueClient:      queueClient,
-		cdcStream:        cdcStream,
 		orgRepository:    orgRepository,
 	}
 
@@ -50,8 +47,7 @@ func NewReportService(
 		panic(err)
 	}
 
-	cdcStream.Start(context.Background(), service.MapCdcStream)
-
+	// Subscribe to events for reporting
 	_, err = pubsub.Subscribe(">", service.HandlePublishedEvent)
 	if err != nil {
 		logger.Error("Failed to subscribe to topic", err.Error())
@@ -122,10 +118,10 @@ func (s ReportService) GetCustomerChurnRates(ctx context.Context, orgId string, 
 	return mrr, nil
 }
 
-// HandlePublishedEvent handles the published event from the notificationPublisher and processes it
-// either via the queue or directly.  Which one to use depends on the deployment, simple
-// deployments will call the service directly, while more complex deployments will use the queue.
-// it will eventually end up in the reporting service HandleDataChangeEvent
+// HandlePublishedEvent handles the published event from the notificationPublisher
+// This method processes real-time notifications for immediate updates
+// Note: The main reporting database synchronization now happens through domain event consumers
+// (Kafka/NATS) which provide durability and reliability
 func (s ReportService) HandlePublishedEvent(_ string, data []byte) {
 	var payload events.Payload
 	err := json.Unmarshal(data, &payload)
@@ -134,30 +130,17 @@ func (s ReportService) HandlePublishedEvent(_ string, data []byte) {
 		return
 	}
 
-	//err = s.queueClient.SendMessage(context.Background(), events.QueueMessage{
-	//	Type: events.ReportingDataChange,
-	//	Data: payload,
-	//})
-	//if err != nil {
-	//	s.logger.Errorf("Failed to send message to queue: %v", err)
-	//	return
-	//}
+	// For immediate processing of critical events
+	// Most data synchronization is now handled by the domain event consumers
+	s.logger.Debug("Received notification event", "topic", payload.Topic)
 
-	//s.ProcessDataChange(data)
-
+	// Optional: Process specific high-priority events that need immediate handling
+	// This is a supplement to the main event processing done by the domain event consumers
 }
 
-func (s ReportService) MapCdcStream(op string, entity string, new interface{}, old interface{}) {
-
-	event := dto.DataChangeEvent{
-		Operation: common.Operation(op),
-		Entity:    common.Entity(entity),
-		NewObject: new,
-		OldObject: old,
-	}
-	s.ProcessDataChange(event)
-}
-
+// ProcessDataChange processes data change events
+// This method is now used by domain event consumers rather than CDC
+// It's kept for backward compatibility and will be refactored in future updates
 func (s ReportService) ProcessDataChange(event dto.DataChangeEvent) {
 	s.logger.Debugf("ProcessDataChange: %s->%s", event.Operation, event.Entity)
 	switch event.Entity {

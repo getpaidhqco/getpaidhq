@@ -2,12 +2,15 @@ package services
 
 import (
 	"context"
+	"encoding/json"
 	"payloop/internal/application/dto"
 	"payloop/internal/application/lib/authn"
 	pubsub "payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/settings"
+	"payloop/internal/domain/entities/subscriptions"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 	"time"
@@ -120,6 +123,39 @@ func (s OrgService) Create(ctx context.Context, input dto.CreateOrgInput) (entit
 		})
 		if err != nil {
 			s.logger.Warn("Failed to create cohort", "org_id", org.Id, "cohort", cohort, "err", err)
+		}
+	}
+
+	// Create default subscription settings
+	s.logger.Debug("Creating default subscription settings")
+	defaultSubscriptionSettings := settings.Subscription{
+		EmailReminders:  true,
+		ReminderDays:    3,
+		CancelOnFailure: false,
+		RetryPolicy: subscriptions.RetryPolicy{
+			RetryAttempts: 3,
+			RetryInterval: subscriptions.RetryIntervalDay,
+			RetryPeriod:   10,
+			FailureAction: subscriptions.FailureActionLeavePastDue,
+		},
+	}
+
+	// Serialize the settings to JSON
+	settingsJson, err := json.Marshal(defaultSubscriptionSettings)
+	if err != nil {
+		s.logger.Error("Failed to marshal subscription settings", "org_id", org.Id, "err", err)
+	} else {
+		_, err = s.settingRepository.Create(ctx, entities.Setting{
+			OrgId:     org.Id,
+			ParentId:  org.Id,
+			Id:        "subscriptions",
+			Type:      "json",
+			Value:     string(settingsJson),
+			CreatedAt: time.Now().UTC(),
+			UpdatedAt: time.Now().UTC(),
+		})
+		if err != nil {
+			s.logger.Error("Failed to create subscription settings", "org_id", org.Id, "err", err)
 		}
 	}
 
