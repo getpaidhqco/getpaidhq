@@ -29,8 +29,8 @@ WORKDIR /root/
 
 # Copy the Pre-built binary file from the previous stage
 COPY --from=builder /app/main .
-COPY --from=builder assets/templates/invoices/one.liquid assets/templates/invoices/one.liquid
-COPY --from=builder assets/templates/invoices/two.liquid assets/templates/invoices/two.liquid
+COPY --from=builder /app/assets/templates/invoices/one.liquid ./assets/templates/invoices/one.liquid
+COPY --from=builder /app/assets/templates/invoices/two.liquid ./assets/templates/invoices/two.liquid
 
 # Copy the .env file
 COPY policy.cedar .
