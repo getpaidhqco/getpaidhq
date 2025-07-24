@@ -59,6 +59,10 @@ tags:
     description: Analytics and reporting
   - name: Settings
     description: Organization settings
+  - name: Discounts
+    description: Discount management and coupon codes
+  - name: Payment Links
+    description: Payment link management and usage tracking
 
 paths:
   # Health
@@ -1987,6 +1991,437 @@ paths:
                     type: string
                     example: "processed"
 
+  # Discounts
+  /api/discounts:
+    get:
+      tags: [Discounts]
+      summary: List discounts
+      operationId: listDiscounts
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: active
+          in: query
+          schema:
+            type: boolean
+          description: Filter by active status
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [fixed, percentage]
+          description: Filter by discount type
+        - name: recurring
+          in: query
+          schema:
+            type: string
+            enum: [once, forever, cycles]
+          description: Filter by recurring type
+      responses:
+        '200':
+          description: List of discounts
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Discount'
+    post:
+      tags: [Discounts]
+      summary: Create discount
+      operationId: createDiscount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDiscountRequest'
+      responses:
+        '201':
+          description: Created discount
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Discount'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/discounts/{id}:
+    get:
+      tags: [Discounts]
+      summary: Get discount by ID
+      operationId: getDiscount
+      parameters:
+        - $ref: '#/components/parameters/DiscountId'
+      responses:
+        '200':
+          description: Discount details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Discount'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Discounts]
+      summary: Update discount
+      operationId: updateDiscount
+      parameters:
+        - $ref: '#/components/parameters/DiscountId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDiscountRequest'
+      responses:
+        '200':
+          description: Updated discount
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Discount'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+    delete:
+      tags: [Discounts]
+      summary: Delete discount
+      operationId: deleteDiscount
+      parameters:
+        - $ref: '#/components/parameters/DiscountId'
+      responses:
+        '204':
+          description: Discount deleted
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/discounts/validate:
+    post:
+      tags: [Discounts]
+      summary: Validate discount code
+      operationId: validateDiscountCode
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateDiscountRequest'
+      responses:
+        '200':
+          description: Discount code validation result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscountValidationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Discount code not found or invalid
+
+  /api/discounts/apply:
+    post:
+      tags: [Discounts]
+      summary: Apply discount
+      operationId: applyDiscount
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplyDiscountRequest'
+      responses:
+        '200':
+          description: Discount applied successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscountApplicationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          description: Discount not found or invalid
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /api/discounts/{id}/redemptions:
+    get:
+      tags: [Discounts]
+      summary: List discount redemptions
+      operationId: listDiscountRedemptions
+      parameters:
+        - $ref: '#/components/parameters/DiscountId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: customer_id
+          in: query
+          schema:
+            type: string
+          description: Filter by customer ID
+        - name: resource_type
+          in: query
+          schema:
+            type: string
+            enum: [subscription, invoice, payment, checkout_session]
+          description: Filter by resource type
+      responses:
+        '200':
+          description: List of discount redemptions
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/DiscountRedemption'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/customers/{id}/discount-redemptions:
+    get:
+      tags: [Customers]
+      summary: List customer discount redemptions
+      operationId: listCustomerDiscountRedemptions
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: List of customer discount redemptions
+          content:
+            application/json:
+              schema:
+                allOf:
+                  - $ref: '#/components/schemas/ListResponse'
+                  - type: object
+                    properties:
+                      data:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/DiscountRedemption'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # Payment Links
+  /api/payment-links:
+    get:
+      tags: [Payment Links]
+      summary: List payment links
+      operationId: listPaymentLinks
+      parameters:
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: status
+          in: query
+          description: Filter by payment link status
+          schema:
+            type: string
+            enum: [active, inactive, expired, used]
+        - name: slug
+          in: query
+          description: Filter by slug (partial match)
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of payment links
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLinkListResponse'
+    post:
+      tags: [Payment Links]
+      summary: Create payment link
+      operationId: createPaymentLink
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePaymentLinkRequest'
+      responses:
+        '201':
+          description: Payment link created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLinkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Payment link with this slug already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /api/payment-links/{id}:
+    get:
+      tags: [Payment Links]
+      summary: Get payment link by ID
+      operationId: getPaymentLink
+      parameters:
+        - $ref: '#/components/parameters/PaymentLinkId'
+      responses:
+        '200':
+          description: Payment link details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLinkResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    put:
+      tags: [Payment Links]
+      summary: Update payment link
+      operationId: updatePaymentLink
+      parameters:
+        - $ref: '#/components/parameters/PaymentLinkId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdatePaymentLinkRequest'
+      responses:
+        '200':
+          description: Payment link updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLinkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+    delete:
+      tags: [Payment Links]
+      summary: Delete payment link
+      operationId: deletePaymentLink
+      parameters:
+        - $ref: '#/components/parameters/PaymentLinkId'
+      responses:
+        '204':
+          description: Payment link deleted successfully
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/payment-links/slug/{slug}:
+    get:
+      tags: [Payment Links]
+      summary: Get payment link by slug
+      operationId: getPaymentLinkBySlug
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: The payment link slug
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Payment link details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLinkResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/payment-links/{id}/usage:
+    get:
+      tags: [Payment Links]
+      summary: List payment link usage records
+      operationId: listPaymentLinkUsages
+      parameters:
+        - $ref: '#/components/parameters/PaymentLinkId'
+        - $ref: '#/components/parameters/Page'
+        - $ref: '#/components/parameters/Limit'
+        - name: event_type
+          in: query
+          description: Filter by event type
+          schema:
+            type: string
+        - name: start_date
+          in: query
+          description: Filter from this date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+        - name: end_date
+          in: query
+          description: Filter to this date (ISO 8601)
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: List of payment link usage records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLinkUsageListResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /api/payment-links/usage:
+    post:
+      tags: [Payment Links]
+      summary: Record payment link usage
+      operationId: recordPaymentLinkUsage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RecordPaymentLinkUsageRequest'
+      responses:
+        '201':
+          description: Usage recorded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLinkUsageResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/payment-links/usage/{id}:
+    get:
+      tags: [Payment Links]
+      summary: Get payment link usage record
+      operationId: getPaymentLinkUsage
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: The usage record ID
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Usage record details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLinkUsageResponse'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
   # Reports & Analytics
   /api/reports/revenue/mrr:
     get:
@@ -2858,6 +3293,20 @@ components:
       schema:
         type: string
       description: Invoice ID
+    DiscountId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Discount ID
+    PaymentLinkId:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Payment Link ID
 
   responses:
     BadRequest:
@@ -2975,6 +3424,473 @@ components:
           type: string
           pattern: '^[A-Z]{2}$'
           description: ISO 3166-1 alpha-2 country code
+
+    # Discount schemas
+    Discount:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique discount identifier
+        org_id:
+          type: string
+          description: Organization identifier
+        name:
+          type: string
+          description: Discount name
+        type:
+          type: string
+          enum: [fixed, percentage]
+          description: Discount type
+        value:
+          type: integer
+          description: Discount value (amount in smallest currency unit for fixed, percentage 0-100 for percentage)
+        code:
+          type: string
+          description: Discount code (optional)
+        starts_at:
+          type: string
+          format: date-time
+          description: Discount validity start date
+        ends_at:
+          type: string
+          format: date-time
+          description: Discount validity end date
+        max_redemptions:
+          type: integer
+          description: Maximum number of redemptions allowed
+        recurring:
+          type: string
+          enum: [once, forever, cycles]
+          description: Discount recurring behavior
+        cycles:
+          type: integer
+          description: Number of billing cycles (for recurring=cycles)
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 currency code (required for fixed discounts)
+        active:
+          type: boolean
+          description: Whether the discount is active
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+
+    DiscountRedemption:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique redemption identifier
+        org_id:
+          type: string
+          description: Organization identifier
+        discount_id:
+          type: string
+          description: Associated discount ID
+        customer_id:
+          type: string
+          description: Customer who redeemed the discount
+        resource_type:
+          type: string
+          enum: [subscription, invoice, payment, checkout_session]
+          description: Type of resource the discount was applied to
+        resource_id:
+          type: string
+          description: ID of the resource the discount was applied to
+        discount_amount:
+          type: integer
+          description: Amount saved in smallest currency unit
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 currency code
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+
+    CreateDiscountRequest:
+      type: object
+      required: [name, type, value, recurring]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Discount name
+        type:
+          type: string
+          enum: [fixed, percentage]
+          description: Discount type
+        value:
+          type: integer
+          minimum: 1
+          description: Discount value (amount in smallest currency unit for fixed, percentage 0-100 for percentage)
+        code:
+          type: string
+          pattern: '^[A-Z0-9_-]+$'
+          minLength: 1
+          maxLength: 50
+          description: Discount code (optional, will be normalized to uppercase)
+        starts_at:
+          type: string
+          format: date-time
+          description: Discount validity start date
+        ends_at:
+          type: string
+          format: date-time
+          description: Discount validity end date
+        max_redemptions:
+          type: integer
+          minimum: 1
+          description: Maximum number of redemptions allowed
+        recurring:
+          type: string
+          enum: [once, forever, cycles]
+          description: Discount recurring behavior
+        cycles:
+          type: integer
+          minimum: 1
+          description: Number of billing cycles (required when recurring=cycles)
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 currency code (required for fixed discounts)
+        active:
+          type: boolean
+          default: true
+          description: Whether the discount is active
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+
+    UpdateDiscountRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+          description: Discount name
+        code:
+          type: string
+          pattern: '^[A-Z0-9_-]+$'
+          minLength: 1
+          maxLength: 50
+          description: Discount code (will be normalized to uppercase)
+        starts_at:
+          type: string
+          format: date-time
+          description: Discount validity start date
+        ends_at:
+          type: string
+          format: date-time
+          description: Discount validity end date
+        max_redemptions:
+          type: integer
+          minimum: 1
+          description: Maximum number of redemptions allowed
+        active:
+          type: boolean
+          description: Whether the discount is active
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+
+    ValidateDiscountRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          description: Discount code to validate
+        customer_id:
+          type: string
+          description: Customer ID for validation context
+        amount:
+          type: integer
+          minimum: 1
+          description: Amount to apply discount to (in smallest currency unit)
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 currency code
+
+    DiscountValidationResponse:
+      type: object
+      properties:
+        valid:
+          type: boolean
+          description: Whether the discount code is valid
+        discount:
+          $ref: '#/components/schemas/Discount'
+        discount_amount:
+          type: integer
+          description: Amount that would be saved (in smallest currency unit)
+        final_amount:
+          type: integer
+          description: Final amount after discount (in smallest currency unit)
+        error:
+          type: string
+          description: Error message if validation failed
+
+    ApplyDiscountRequest:
+      type: object
+      required: [customer_id, resource_type, resource_id, amount, currency]
+      properties:
+        discount_id:
+          type: string
+          description: Discount ID to apply (use this OR code)
+        code:
+          type: string
+          description: Discount code to apply (use this OR discount_id)
+        customer_id:
+          type: string
+          description: Customer ID
+        resource_type:
+          type: string
+          enum: [subscription, invoice, payment, checkout_session]
+          description: Type of resource to apply discount to
+        resource_id:
+          type: string
+          description: ID of resource to apply discount to
+        amount:
+          type: integer
+          minimum: 1
+          description: Amount to apply discount to (in smallest currency unit)
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+          description: ISO 4217 currency code
+
+    DiscountApplicationResponse:
+      type: object
+      properties:
+        discount:
+          $ref: '#/components/schemas/Discount'
+        redemption:
+          $ref: '#/components/schemas/DiscountRedemption'
+        discount_amount:
+          type: integer
+          description: Amount saved (in smallest currency unit)
+        final_amount:
+          type: integer
+          description: Final amount after discount (in smallest currency unit)
+
+    # Payment Link schemas
+    PaymentLink:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique payment link identifier
+        slug:
+          type: string
+          description: URL-friendly identifier
+        data:
+          type: object
+          additionalProperties: true
+          description: Payment link data configuration
+        config:
+          type: object
+          additionalProperties: true
+          description: Payment link configuration
+        single_use:
+          type: boolean
+          description: Whether this link can only be used once
+        status:
+          type: string
+          enum: [active, inactive, expired, used]
+          description: Current status of the payment link
+        created_at:
+          type: string
+          format: date-time
+          description: Creation timestamp
+        updated_at:
+          type: string
+          format: date-time
+          description: Last update timestamp
+        used_at:
+          type: string
+          format: date-time
+          description: Timestamp when the link was used (if applicable)
+        expires_at:
+          type: string
+          format: date-time
+          description: Expiration timestamp (if applicable)
+
+    PaymentLinkUsage:
+      type: object
+      properties:
+        id:
+          type: string
+          description: Unique usage record identifier
+        payment_link_id:
+          type: string
+          description: Associated payment link ID
+        session_id:
+          type: string
+          description: Session identifier (if applicable)
+        customer_id:
+          type: string
+          description: Customer identifier (if applicable)
+        event_type:
+          type: string
+          description: Type of usage event
+        ip_address:
+          type: string
+          description: IP address of the user
+        user_agent:
+          type: string
+          description: User agent string
+        referer:
+          type: string
+          description: HTTP referer
+        country:
+          type: string
+          description: Country code derived from IP
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+        timestamp:
+          type: string
+          format: date-time
+          description: Event timestamp
+
+    CreatePaymentLinkRequest:
+      type: object
+      required: [slug, config]
+      properties:
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[a-zA-Z0-9_-]+$'
+          description: URL-friendly identifier (must be unique within organization)
+        data:
+          type: object
+          additionalProperties: true
+          description: Payment link data configuration
+        config:
+          type: object
+          additionalProperties: true
+          description: Payment link configuration
+        single_use:
+          type: boolean
+          default: false
+          description: Whether this link can only be used once
+        expires_at:
+          type: string
+          format: date-time
+          description: Optional expiration timestamp
+
+    UpdatePaymentLinkRequest:
+      type: object
+      properties:
+        slug:
+          type: string
+          minLength: 1
+          maxLength: 100
+          pattern: '^[a-zA-Z0-9_-]+$'
+          description: URL-friendly identifier
+        data:
+          type: object
+          additionalProperties: true
+          description: Payment link data configuration
+        config:
+          type: object
+          additionalProperties: true
+          description: Payment link configuration
+        single_use:
+          type: boolean
+          description: Whether this link can only be used once
+        status:
+          type: string
+          enum: [active, inactive, expired, used]
+          description: Payment link status
+        expires_at:
+          type: string
+          format: date-time
+          description: Expiration timestamp
+
+    RecordPaymentLinkUsageRequest:
+      type: object
+      required: [payment_link_id, event_type]
+      properties:
+        payment_link_id:
+          type: string
+          description: Payment link ID
+        session_id:
+          type: string
+          description: Session identifier
+        customer_id:
+          type: string
+          description: Customer identifier
+        event_type:
+          type: string
+          description: Type of usage event (e.g., 'view', 'click', 'conversion')
+        ip_address:
+          type: string
+          description: IP address of the user
+        user_agent:
+          type: string
+          description: User agent string
+        referer:
+          type: string
+          description: HTTP referer
+        country:
+          type: string
+          description: Country code
+        metadata:
+          type: object
+          additionalProperties: true
+          description: Additional metadata
+
+    PaymentLinkResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaymentLink'
+
+    PaymentLinkUsageResponse:
+      allOf:
+        - $ref: '#/components/schemas/PaymentLinkUsage'
+
+    PaymentLinkListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ListResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/PaymentLinkResponse'
+
+    PaymentLinkUsageListResponse:
+      allOf:
+        - $ref: '#/components/schemas/ListResponse'
+        - type: object
+          properties:
+            data:
+              type: array
+              items:
+                $ref: '#/components/schemas/PaymentLinkUsageResponse'
 
     # Request schemas
     CreateOrganizationRequest:

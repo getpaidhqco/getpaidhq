@@ -30,3 +30,4 @@ go.work
 docker/.env
 
 node_modules
+.serena/cache

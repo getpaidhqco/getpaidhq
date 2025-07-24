@@ -24,6 +24,8 @@ var Module = fx.Options(
 	fx.Provide(NewDunningRoutes),
 	fx.Provide(NewUsageRecordingRoutes),
 	fx.Provide(NewMeterRoutes),
+	fx.Provide(NewPaymentLinkRoutes),
+	fx.Provide(NewDiscountRoutes),
 	fx.Provide(NewRoutes),
 )
 
@@ -57,6 +59,8 @@ func NewRoutes(
 	dunningRoutes DunningRoutes,
 	usageRecordingRoutes UsageRecordingRoutes,
 	meterRoutes MeterRoutes,
+	paymentLinkRoutes PaymentLinkRoutes,
+	discountRoutes DiscountRoutes,
 ) Routes {
 	return Routes{
 		userRoutes,
@@ -79,6 +83,8 @@ func NewRoutes(
 		dunningRoutes,
 		usageRecordingRoutes,
 		meterRoutes,
+		paymentLinkRoutes,
+		discountRoutes,
 	}
 }
 

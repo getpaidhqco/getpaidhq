@@ -65,6 +65,28 @@ const (
 
 	// Payment actions
 	RefundPayment   Action = "RefundPayment"
+
+	// Payment Link actions
+	ListPaymentLinks       Action = "ListPaymentLinks"
+	GetPaymentLink         Action = "GetPaymentLink"
+	CreatePaymentLink      Action = "CreatePaymentLink"
+	UpdatePaymentLink      Action = "UpdatePaymentLink"
+	DeletePaymentLink      Action = "DeletePaymentLink"
+	RecordPaymentLinkUsage Action = "RecordPaymentLinkUsage"
+	GetPaymentLinkUsage    Action = "GetPaymentLinkUsage"
+	ListPaymentLinkUsages  Action = "ListPaymentLinkUsages"
+
+	// Discount actions
+	ListDiscounts           Action = "ListDiscounts"
+	GetDiscount             Action = "GetDiscount"
+	CreateDiscount          Action = "CreateDiscount"
+	UpdateDiscount          Action = "UpdateDiscount"
+	DeleteDiscount          Action = "DeleteDiscount"
+	ValidateDiscountCode    Action = "ValidateDiscountCode"
+	ApplyDiscount           Action = "ApplyDiscount"
+	GetDiscountRedemption   Action = "GetDiscountRedemption"
+	ListDiscountRedemptions Action = "ListDiscountRedemptions"
+	ListCustomerRedemptions Action = "ListCustomerRedemptions"
 )
 
 type Authz interface {

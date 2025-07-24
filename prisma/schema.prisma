@@ -111,6 +111,8 @@ model Org {
   SubscriptionItem     SubscriptionItem[]
   PriceTier            PriceTier[]
   Meter                Meter[]
+  PaymentLinkUsage     PaymentLinkUsage[]
+  PaymentLink          PaymentLink[]
 
   @@map("orgs")
 }
@@ -380,17 +382,54 @@ model Session {
   orgId String @map("org_id")
   id    String @default(cuid())
 
-  cartId String? @map("cart_id")
+  // Relationships
+  customerId    String? @map("customer_id")
+  paymentLinkId String? @map("payment_link_id")
+  orderId       String? @map("order_id")
 
-  metadata Json?
+  // Session details
+  type   SessionType
+  status SessionStatus @default(started)
 
-  createdAt DateTime @default(now()) @map("created_at")
-  updatedAt DateTime @updatedAt @map("updated_at")
+  // Session data and metadata
+  data     Json? // Checkout state, items, form data, etc.
+  metadata Json? // Additional tracking data
 
-  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // Timestamps
+  startedAt   DateTime  @default(now()) @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  abandonedAt DateTime? @map("abandoned_at")
+  expiresAt   DateTime? @map("expires_at")
+  updatedAt   DateTime  @updatedAt @map("updated_at")
+
+  // Relationships
+  org         Org          @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  customer    Customer?    @relation(fields: [orgId, customerId], references: [orgId, id])
+  paymentLink PaymentLink? @relation(fields: [orgId, paymentLinkId], references: [orgId, id])
+  order       Order?       @relation(fields: [orgId, orderId], references: [orgId, id])
+
+  // Usage tracking back-reference
+  usageRecords PaymentLinkUsage[]
 
   @@id([orgId, id])
+  @@index([paymentLinkId, status])
+  @@index([customerId, status])
+  @@index([startedAt])
   @@map("sessions")
+}
+
+enum SessionType {
+  checkout
+  customer_portal
+}
+
+enum SessionStatus {
+  started
+  in_progress
+  completed
+  abandoned
+  expired
+  cancelled
 }
 
 model Order {
@@ -421,6 +460,7 @@ model Order {
 
   org     Org       @relation(fields: [orgId], references: [id], onDelete: Cascade)
   Invoice Invoice[]
+  Session Session[]
 
   @@id([orgId, id])
   @@map("orders")
@@ -502,6 +542,8 @@ model Customer {
   dunningCommunications DunningCommunication[]
   paymentTokens         PaymentUpdateToken[]
   dunningHistory        CustomerDunningHistory?
+  Session               Session[]
+  PaymentLinkUsage      PaymentLinkUsage[]
 
   @@id([orgId, id], map: "customer_primary_key")
   @@unique([orgId, email])
@@ -1518,4 +1560,95 @@ model CustomerDunningHistory {
 
   @@id([orgId, customerId])
   @@map("customer_dunning_history")
+}
+
+model PaymentLinkUsage {
+  id    String @id @default(cuid())
+  orgId String @map("org_id")
+
+  // Core relationships
+  paymentLinkId String  @map("payment_link_id")
+  sessionId     String? @map("session_id")
+  customerId    String? @map("customer_id")
+
+  // Event details
+  eventType PaymentLinkEventType @map("event_type")
+
+  // Session data
+  ipAddress String? @map("ip_address")
+  userAgent String? @map("user_agent") @db.Text
+  referer   String? @db.Text
+  country   String? // From GeoIP lookup
+
+  // Metadata
+  metadata  Json? // Additional context data
+  timestamp DateTime @default(now())
+
+  // Relationships
+  org         Org         @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  paymentLink PaymentLink @relation(fields: [orgId, paymentLinkId], references: [orgId, id], onDelete: Cascade)
+  session     Session?    @relation(fields: [orgId, sessionId], references: [orgId, id], onDelete: Cascade)
+  customer    Customer?   @relation(fields: [orgId, customerId], references: [orgId, id], onDelete: Cascade)
+
+  @@index([paymentLinkId, eventType])
+  @@index([paymentLinkId, timestamp])
+  @@index([sessionId])
+  @@index([timestamp])
+  @@index([orgId, timestamp])
+  @@map("payment_link_usage")
+}
+
+enum PaymentLinkEventType {
+  viewed // Anonymous page view
+  form_started // User started filling checkout form
+  form_field_changed // Form interaction
+  form_validation_error // Form validation failed
+  payment_method_selected // User selected payment method
+  payment_attempted // Payment processing started
+  payment_succeeded // Payment completed successfully
+  payment_failed // Payment failed
+  checkout_abandoned // User left during checkout
+  session_expired // Session timed out
+  error_encountered // Any error occurred
+}
+
+model PaymentLink {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  // Core fields
+  slug String @unique
+
+  // Checkout context
+  data   Json? // Invoice ID, dunning flow, auth token, etc.
+  config Json  @map("config") // Checkout configuration (payment methods, UI options, etc.)
+
+  // Usage and lifecycle
+  singleUse Boolean           @default(false) @map("single_use")
+  status    PaymentLinkStatus @default(active)
+
+  // Timestamps
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+  usedAt    DateTime? @map("used_at")
+  expiresAt DateTime? @map("expires_at")
+
+  // Relationships
+  org          Org                @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  sessions     Session[] // Checkout sessions started from this link
+  usageRecords PaymentLinkUsage[] // Usage analytics
+
+  @@id([orgId, id])
+  @@index([slug])
+  @@index([status])
+  @@index([orgId, status])
+  @@index([expiresAt])
+  @@map("payment_links")
+}
+
+enum PaymentLinkStatus {
+  active
+  used // For single-use links
+  expired
+  disabled
 }

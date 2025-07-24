@@ -99,4 +99,11 @@ const (
 	DunningCommunicationFailed      = "dunning.communication_failed"
 	DunningConfigurationCreated     = "dunning.configuration_created"
 	DunningConfigurationUpdated     = "dunning.configuration_updated"
+
+	// Discount
+	DiscountCreated = "discount.created"
+	DiscountUpdated = "discount.updated"
+	DiscountDeleted = "discount.deleted"
+	DiscountApplied = "discount.applied"
+	DiscountExpired = "discount.expired"
 )
