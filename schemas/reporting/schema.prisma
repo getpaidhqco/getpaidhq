@@ -204,3 +204,42 @@ model Refund {
   @@id([orgId, id])
   @@map("refunds")
 }
+
+model DiscountRedemption {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  // Discount data (denormalized)
+  discountId String  @map("discount_id")
+  name       String
+  type       String // "fixed" or "percentage"
+  value      Int
+  code       String?
+  currency   String?
+  recurring  String // "once", "forever", "cycles"
+  cycles     Int?
+
+  // Customer data (denormalized)
+  customerId    String  @map("customer_id")
+  customerEmail String? @map("customer_email")
+  customerName  String? @map("customer_name")
+
+  // Redemption data
+  resourceType       String   @map("resource_type") // "subscription", "invoice", "payment", "checkout_session"
+  resourceId         String   @map("resource_id")
+  amount             Int // Amount saved in smallest currency unit
+  redemptionCurrency String   @map("redemption_currency")
+  appliedAt          DateTime @map("applied_at")
+
+  // Timestamps
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([orgId, id])
+  @@index([orgId, discountId])
+  @@index([orgId, customerId])
+  @@index([orgId, appliedAt])
+  @@index([orgId, code])
+  @@index([orgId, resourceType, resourceId])
+  @@map("discount_redemptions")
+}

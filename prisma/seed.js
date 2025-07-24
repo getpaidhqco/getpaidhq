@@ -173,6 +173,99 @@ async function seedOrganization(orgId) {
         },
     });
 
+    // Create a default product
+    const productId = `prod_${faker.string.alphanumeric(8)}`;
+    await prisma.product.upsert({
+        where: {
+            orgId_id: {
+                orgId,
+                id: productId
+            }
+        },
+        update: {},
+        create: {
+            orgId,
+            id: productId,
+            name: 'Default Product',
+            description: 'A default product created during seeding',
+            metadata: null,
+            createdAt: now,
+            updatedAt: now,
+        },
+    });
+
+    // Create a default variant for the product
+    const variantId = `var_${faker.string.alphanumeric(8)}`;
+    await prisma.variant.upsert({
+        where: {
+            orgId_id: {
+                orgId,
+                id: variantId
+            }
+        },
+        update: {},
+        create: {
+            orgId,
+            id: variantId,
+            productId: productId,
+            name: 'Default Variant',
+            description: 'A default variant created during seeding',
+            metadata: null,
+            createdAt: now,
+            updatedAt: now,
+        },
+    });
+
+    // Create a default price for the variant
+    await prisma.price.upsert({
+        where: {
+            orgId_id: {
+                orgId,
+                id: `price_${faker.string.alphanumeric(8)}`
+            }
+        },
+        update: {},
+        create: {
+            orgId,
+            id: `price_${faker.string.alphanumeric(8)}`,
+            variantId: variantId,
+            category: 'one_time',
+            scheme: 'fixed',
+            currency: 'USD',
+            unitPrice: 1000, // $10.00
+            label: 'Default Price',
+            createdAt: now,
+            updatedAt: now,
+        },
+    });
+
+    // Create a default payment link
+    const paymentLinkSlug = `pay-${faker.string.alphanumeric(8)}`;
+    await prisma.paymentLink.upsert({
+        where: {
+            slug: paymentLinkSlug
+        },
+        update: {},
+        create: {
+            orgId,
+            id: `pl_${faker.string.alphanumeric(8)}`,
+            slug: paymentLinkSlug,
+            data: null,
+            config: {
+                title: 'Default Payment Link',
+                description: 'A default payment link created during seeding',
+                productId: productId,
+                variantId: variantId
+            },
+            singleUse: false,
+            status: 'active',
+            createdAt: now,
+            updatedAt: now,
+        },
+    });
+
+
+
     console.log(`Organization ${orgId} seeded successfully!`);
 }
 

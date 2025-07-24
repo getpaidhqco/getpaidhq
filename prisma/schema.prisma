@@ -1652,3 +1652,50 @@ enum PaymentLinkStatus {
   expired
   disabled
 }
+
+// ===== DISCOUNTS =====
+model Discount {
+  id             String    @id @default(cuid())
+  orgId          String    @map("org_id")
+  name           String
+  type           String // "fixed" or "percentage"
+  value          Int // For fixed: amount in smallest currency unit. For percentage: 0-100 (e.g., 20 = 20%)
+  code           String?
+  startsAt       DateTime? @map("starts_at")
+  endsAt         DateTime? @map("ends_at")
+  maxRedemptions Int?      @map("max_redemptions")
+  recurring      String // "once", "forever", "cycles"
+  cycles         Int? // Number of billing cycles when recurring is "cycles"
+  currency       String? // Required for fixed discounts
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+  metadata       Json?
+
+  redemptions DiscountRedemption[]
+
+  @@unique([orgId, code])
+  @@index([orgId, active])
+  @@index([orgId, code])
+  @@map("discounts")
+}
+
+model DiscountRedemption {
+  id             String   @id @default(cuid())
+  orgId          String   @map("org_id")
+  discountId     String   @map("discount_id")
+  customerId     String   @map("customer_id")
+  resourceType   String   @map("resource_type") // "subscription", "invoice", "payment", "checkout_session"
+  resourceId     String   @map("resource_id")
+  discountAmount Int      @map("discount_amount") // Amount saved in smallest currency unit
+  currency       String
+  createdAt      DateTime @default(now()) @map("created_at")
+  metadata       Json?
+
+  discount Discount @relation(fields: [discountId], references: [id])
+
+  @@index([orgId, discountId])
+  @@index([orgId, customerId])
+  @@index([orgId, resourceType, resourceId])
+  @@map("discount_redemptions")
+}

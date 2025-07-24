@@ -29,6 +29,10 @@ func (d DiscountRoutes) Setup() {
 		api.PUT("/discounts/:id", d.checkAuthz(authz.UpdateDiscount), d.discountController.UpdateDiscount)
 		api.DELETE("/discounts/:id", d.checkAuthz(authz.DeleteDiscount), d.discountController.DeleteDiscount)
 
+		// Discount code validation and application
+		api.POST("/discounts/validate-code", d.checkAuthz(authz.ValidateDiscountCode), d.discountController.ValidateDiscountCode)
+		api.POST("/discounts/apply", d.checkAuthz(authz.ApplyDiscount), d.discountController.ApplyDiscount)
+
 		// Discount redemption routes
 		api.GET("/discounts/redemptions/:id", d.checkAuthz(authz.GetDiscountRedemption), d.discountController.GetDiscountRedemption)
 		api.GET("/discounts/:id/redemptions", d.checkAuthz(authz.ListDiscountRedemptions), d.discountController.ListDiscountRedemptions)
