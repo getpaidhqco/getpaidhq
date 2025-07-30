@@ -10,3 +10,7 @@ type RemoveItemRequest struct {
 	OrgId string `json:"org_id"`
 	Id    string `json:"id"`
 }
+
+type ValidateCouponRequest struct {
+	Code string `json:"code" binding:"required"`
+}

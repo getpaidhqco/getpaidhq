@@ -19,6 +19,7 @@ func (s CartsRoutes) Setup() {
 	{
 		api.POST("/carts/:id/add", s.cartsController.AddProduct)
 		api.POST("/carts/:id/remove", s.cartsController.RemoveItem)
+		api.POST("/carts/:id/validate-coupon", s.cartsController.ValidateCoupon)
 	}
 }
 

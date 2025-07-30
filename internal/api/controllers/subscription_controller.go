@@ -91,13 +91,12 @@ func (s SubscriptionController) Update(c *gin.Context) {
 		Metadata:             input.Metadata,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
-	c.JSON(200, subscription)
+	c.JSON(200, response.NewSubscriptionFromEntity(subscription))
 }
 
 func (s SubscriptionController) Pause(c *gin.Context) {
@@ -123,7 +122,7 @@ func (s SubscriptionController) Pause(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, subscription)
+	c.JSON(200, response.NewSubscriptionFromEntity(subscription))
 }
 
 func (s SubscriptionController) Resume(c *gin.Context) {
@@ -149,7 +148,7 @@ func (s SubscriptionController) Resume(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, subscription)
+	c.JSON(200, response.NewSubscriptionFromEntity(subscription))
 }
 
 // Cancel a subscription

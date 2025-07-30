@@ -74,7 +74,7 @@ func (s ProductController) Create(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, response.NewProductFromEntity(product))
+	c.JSON(201, response.NewProductFromEntity(product))
 }
 
 // List all subscriptions
@@ -158,7 +158,7 @@ func (s ProductController) Delete(c *gin.Context) {
 		return
 	}
 
-	c.JSON(204, nil)
+	c.Status(204)
 }
 
 // CreatePrice creates a new price for a variant
@@ -329,7 +329,7 @@ func (s ProductController) DeletePrice(c *gin.Context) {
 		return
 	}
 
-	c.JSON(204, nil)
+	c.Status(204)
 }
 
 // CreateVariant creates a new variant for a product
@@ -431,5 +431,5 @@ func (s ProductController) DeleteVariant(c *gin.Context) {
 		return
 	}
 
-	c.JSON(204, nil)
+	c.Status(204)
 }

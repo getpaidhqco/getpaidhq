@@ -105,7 +105,7 @@ func (c InvoiceController) Create(ctx *gin.Context) {
 	invoiceResponse := response.NewInvoiceFromEntity(invoice)
 	invoiceResponse.LineItems = lineItemResponses
 
-	ctx.JSON(http.StatusOK, invoiceResponse)
+	ctx.JSON(http.StatusCreated, invoiceResponse)
 }
 
 // Get handles retrieving an invoice by ID

@@ -48,7 +48,7 @@ func (cc CustomerController) Create(c *gin.Context) {
 
 	// Convert domain entity to API response
 	response := mappers.ToCustomerResponse(customer)
-	c.JSON(http.StatusOK, response)
+	c.JSON(http.StatusCreated, response)
 }
 
 // CreateCustomerPaymentMethod handles the creation of a new payment method for a customer

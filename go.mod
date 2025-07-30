@@ -21,8 +21,8 @@ require (
 	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
-	go.temporal.io/api v1.45.0
-	go.temporal.io/sdk v1.32.1
+	go.temporal.io/api v1.49.1
+	go.temporal.io/sdk v1.35.0
 	go.uber.org/fx v1.23.0
 	go.uber.org/zap v1.27.0
 )
@@ -150,7 +150,6 @@ require (
 	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/osteele/tuesday v1.0.3 // indirect
-	github.com/pborman/uuid v1.2.1 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
 	github.com/pierrec/lz4/v4 v4.1.22 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
