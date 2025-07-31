@@ -49,14 +49,11 @@ func (s *DiscountService) ListDiscounts(ctx context.Context, orgId string, pagin
 		return dto.PaginatedResult[entities.Discount]{}, lib.NewCustomError(lib.InternalError, "Error listing discounts", err)
 	}
 
-	hasMore := (pagination.Page+1)*pagination.Limit < total
-
 	result := dto.PaginatedResult[entities.Discount]{
 		Items:      discounts,
 		TotalCount: total,
 		Page:       pagination.Page,
 		PageSize:   pagination.Limit,
-		HasMore:    hasMore,
 	}
 
 	return result, nil
@@ -442,14 +439,11 @@ func (s *DiscountService) ListDiscountRedemptions(ctx context.Context, orgId str
 		return dto.PaginatedResult[entities.DiscountRedemption]{}, lib.NewCustomError(lib.InternalError, "Error listing discount redemptions", err)
 	}
 
-	hasMore := (pagination.Page+1)*pagination.Limit < total
-
 	result := dto.PaginatedResult[entities.DiscountRedemption]{
 		Items:      redemptions,
 		TotalCount: total,
 		Page:       pagination.Page,
 		PageSize:   pagination.Limit,
-		HasMore:    hasMore,
 	}
 
 	return result, nil
@@ -462,14 +456,11 @@ func (s *DiscountService) ListCustomerRedemptions(ctx context.Context, orgId str
 		return dto.PaginatedResult[entities.DiscountRedemption]{}, lib.NewCustomError(lib.InternalError, "Error listing customer redemptions", err)
 	}
 
-	hasMore := (pagination.Page+1)*pagination.Limit < total
-
 	result := dto.PaginatedResult[entities.DiscountRedemption]{
 		Items:      redemptions,
 		TotalCount: total,
 		Page:       pagination.Page,
 		PageSize:   pagination.Limit,
-		HasMore:    hasMore,
 	}
 
 	return result, nil

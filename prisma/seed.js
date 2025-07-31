@@ -234,6 +234,7 @@ async function seedOrganization(orgId) {
             currency: 'USD',
             unitPrice: 1000, // $10.00
             label: 'Default Price',
+            billingInterval: 'none',
             createdAt: now,
             updatedAt: now,
         },

@@ -63,14 +63,11 @@ func (s PaymentLinkService) ListPaymentLinks(ctx context.Context, orgId string, 
 		return dto.PaginatedResult[entities.PaymentLink]{}, lib.NewCustomError(lib.InternalError, "Error listing payment links", err)
 	}
 
-	hasMore := (pagination.Page+1)*pagination.Limit < total
-
 	result := dto.PaginatedResult[entities.PaymentLink]{
 		Items:      paymentLinks,
 		TotalCount: total,
 		Page:       pagination.Page,
 		PageSize:   pagination.Limit,
-		HasMore:    hasMore,
 	}
 
 	return result, nil

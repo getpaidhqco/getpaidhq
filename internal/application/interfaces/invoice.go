@@ -29,4 +29,7 @@ type InvoiceService interface {
 
 	// PDF generation
 	GeneratePDF(ctx context.Context, orgId string, invoiceId string, options pdf.GenerateOptions) ([]byte, error)
+
+	// Payment link generation
+	CreatePaymentLink(ctx context.Context, orgId string, invoiceId string, input dto.CreateInvoicePaymentLinkInput) (entities.PaymentLink, error)
 }

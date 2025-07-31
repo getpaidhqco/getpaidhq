@@ -16,29 +16,29 @@ type Price struct {
 	Cycles             int                    `json:"cycles"`
 	Currency           common.Currency        `json:"currency"`
 	UnitPrice          int64                  `json:"unit_price"`
-	MinPrice           int64                  `json:"min_price"`
-	SuggestedPrice     int64                  `json:"suggested_price"`
-	BillingInterval    prices.BillingInterval `json:"billing_interval"`
-	BillingIntervalQty int                    `json:"billing_interval_qty"`
-	TrialInterval      prices.BillingInterval `json:"trial_interval"`
-	TrialIntervalQty   int                    `json:"trial_interval_qty"`
-	TaxCode            string                 `json:"tax_code"`
+	MinPrice           int64                  `json:"min_price,omitempty"`
+	SuggestedPrice     int64                  `json:"suggested_price,omitempty"`
+	BillingInterval    prices.BillingInterval `json:"billing_interval,omitempty"`
+	BillingIntervalQty int                    `json:"billing_interval_qty,omitempty"`
+	TrialInterval      prices.BillingInterval `json:"trial_interval,omitempty"`
+	TrialIntervalQty   int                    `json:"trial_interval_qty,omitempty"`
+	TaxCode            string                 `json:"tax_code,omitempty"`
 
 	// Usage-based billing fields
-	HasUsage           bool                   `json:"has_usage"`
-	MeterId            string                 `json:"meter_id,omitempty"`
-	PercentageRate     float64                `json:"percentage_rate,omitempty"`
-	FixedFee           int64                  `json:"fixed_fee,omitempty"`
-	OverageUnitPrice   int64                  `json:"overage_unit_price,omitempty"`
-	IncludedUsage      int64                  `json:"included_usage,omitempty"`
-	UsageLimit         int64                  `json:"usage_limit,omitempty"`
+	HasUsage         bool    `json:"has_usage"`
+	MeterId          string  `json:"meter_id,omitempty"`
+	PercentageRate   float64 `json:"percentage_rate,omitempty"`
+	FixedFee         int64   `json:"fixed_fee,omitempty"`
+	OverageUnitPrice int64   `json:"overage_unit_price,omitempty"`
+	IncludedUsage    int64   `json:"included_usage,omitempty"`
+	UsageLimit       int64   `json:"usage_limit,omitempty"`
 
 	// Tier configuration
-	Tiers              []PriceTier            `json:"tiers,omitempty"`
+	Tiers []PriceTier `json:"tiers,omitempty"`
 
-	Metadata           map[string]string      `json:"metadata"`
-	CreatedAt          time.Time              `json:"created_at"`
-	UpdatedAt          time.Time              `json:"updated_at"`
+	Metadata  map[string]string `json:"metadata"`
+	CreatedAt time.Time         `json:"created_at"`
+	UpdatedAt time.Time         `json:"updated_at"`
 }
 
 func NewPriceFromEntity(entity entities.Price) Price {
@@ -60,19 +60,19 @@ func NewPriceFromEntity(entity entities.Price) Price {
 		TaxCode:            entity.TaxCode,
 
 		// Usage-based billing fields
-		HasUsage:           entity.HasUsage,
-		MeterId:            entity.MeterId,
-		PercentageRate:     entity.PercentageRate,
-		FixedFee:           entity.FixedFee,
-		OverageUnitPrice:   entity.OverageUnitPrice,
-		IncludedUsage:      entity.IncludedUsage,
-		UsageLimit:         entity.UsageLimit,
+		HasUsage:         entity.HasUsage,
+		MeterId:          entity.MeterId,
+		PercentageRate:   entity.PercentageRate,
+		FixedFee:         entity.FixedFee,
+		OverageUnitPrice: entity.OverageUnitPrice,
+		IncludedUsage:    entity.IncludedUsage,
+		UsageLimit:       entity.UsageLimit,
 
 		// Tier configuration
-		Tiers:              NewPriceTiersFromEntities(entity.Tiers),
+		Tiers: NewPriceTiersFromEntities(entity.Tiers),
 
-		Metadata:           entity.Metadata,
-		CreatedAt:          entity.CreatedAt,
-		UpdatedAt:          entity.UpdatedAt,
+		Metadata:  entity.Metadata,
+		CreatedAt: entity.CreatedAt,
+		UpdatedAt: entity.UpdatedAt,
 	}
 }

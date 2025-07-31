@@ -24,16 +24,14 @@ func ToApiPaginatedResult[T any, R any](result dto.PaginatedResult[T], itemConve
     }
     
     return struct {
-        Items      []R  `json:"items"`
-        TotalCount int  `json:"total_count"`
-        Page       int  `json:"page"`
-        PageSize   int  `json:"page_size"`
-        HasMore    bool `json:"has_more"`
+        Items      []R `json:"items"`
+        TotalCount int `json:"total_count"`
+        Page       int `json:"page"`
+        PageSize   int `json:"page_size"`
     }{
         Items:      items,
         TotalCount: result.TotalCount,
         Page:       result.Page,
         PageSize:   result.PageSize,
-        HasMore:    result.HasMore,
     }
 }

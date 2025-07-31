@@ -12,6 +12,7 @@ import (
 	"payloop/internal/application/lib/pdf"
 	"payloop/internal/domain/email_providers"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/payment_links"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
 	"payloop/internal/lib/apperrors"
@@ -31,6 +32,7 @@ type InvoiceService struct {
 	transactionService    interfaces.TransactionService
 	emailProvider         email_providers.Provider
 	documentService       interfaces.DocumentService
+	paymentLinkService    interfaces.PaymentLinkService
 }
 
 func NewInvoiceService(
@@ -46,6 +48,7 @@ func NewInvoiceService(
 	transactionService interfaces.TransactionService,
 	emailProvider email_providers.Provider,
 	documentService interfaces.DocumentService,
+	paymentLinkService interfaces.PaymentLinkService,
 ) interfaces.InvoiceService {
 	service := InvoiceService{
 		invoiceRepository:     invoiceRepository,
@@ -60,6 +63,7 @@ func NewInvoiceService(
 		transactionService:    transactionService,
 		emailProvider:         emailProvider,
 		documentService:       documentService,
+		paymentLinkService:    paymentLinkService,
 	}
 
 	// subscribe to order events to manage cohorts
@@ -898,6 +902,80 @@ func (s InvoiceService) GenerateAndStorePDF(ctx context.Context, orgId string, i
 
 	s.logger.Info("Invoice PDF generated and stored successfully", "invoice_id", invoiceId, "document_id", document.Id)
 	return document, nil
+}
+
+// CreatePaymentLink creates a single-use payment link for an invoice
+func (s InvoiceService) CreatePaymentLink(ctx context.Context, orgId string, invoiceId string, input dto.CreateInvoicePaymentLinkInput) (entities.PaymentLink, error) {
+	// Get the invoice to validate it exists and extract details
+	invoice, err := s.invoiceRepository.FindById(ctx, orgId, invoiceId)
+	if err != nil {
+		s.logger.Error("Failed to get invoice for payment link creation", err)
+		return entities.PaymentLink{}, lib.NewCustomError(lib.NotFoundError, "Invoice not found", err)
+	}
+
+	// Validate invoice can have a payment link
+	if invoice.Status == entities.InvoiceStatusPaid || invoice.Status == entities.InvoiceStatusCancelled {
+		return entities.PaymentLink{}, lib.NewCustomError(lib.ValidationError, "Cannot create payment link for paid or cancelled invoice", nil)
+	}
+
+	// Generate unique slug for the payment link
+	slug := fmt.Sprintf("invoice-%s-%d", invoice.DocNumber, time.Now().Unix())
+
+	// Set default expiration to invoice due date if not provided
+	expiresAt := input.ExpiresAt
+	if expiresAt == "" && !invoice.DueAt.IsZero() {
+		expiresAt = invoice.DueAt.Format(time.RFC3339)
+	}
+
+	// Prepare payment link data with invoice details
+	paymentLinkData := map[string]interface{}{
+		"invoice_id":   invoice.Id,
+		"amount":       invoice.Total,
+		"currency":     invoice.Currency,
+		"customer_id":  invoice.CustomerId,
+		"type":         "invoice_payment",
+		"description":  fmt.Sprintf("Payment for Invoice %s", invoice.DocNumber),
+	}
+
+	// Prepare default config with optional overrides
+	paymentLinkConfig := map[string]interface{}{
+		"payment_provider": "paystack", // default provider
+		"success_url":      fmt.Sprintf("/invoices/%s/success", invoiceId),
+		"cancel_url":       fmt.Sprintf("/invoices/%s/cancel", invoiceId),
+	}
+
+	// Apply user-provided config overrides
+	if input.Config != nil {
+		for key, value := range input.Config {
+			paymentLinkConfig[key] = value
+		}
+	}
+
+	// Override success/cancel URLs if provided in input
+	if input.SuccessUrl != "" {
+		paymentLinkConfig["success_url"] = input.SuccessUrl
+	}
+	if input.CancelUrl != "" {
+		paymentLinkConfig["cancel_url"] = input.CancelUrl
+	}
+
+	// Create payment link using payment link service
+	createInput := payment_links.CreatePaymentLinkInput{
+		Slug:      slug,
+		Data:      paymentLinkData,
+		Config:    paymentLinkConfig,
+		SingleUse: true, // Always single-use for invoices
+		ExpiresAt: expiresAt,
+	}
+
+	paymentLink, err := s.paymentLinkService.CreatePaymentLink(ctx, orgId, createInput)
+	if err != nil {
+		s.logger.Error("Failed to create payment link for invoice", err)
+		return entities.PaymentLink{}, lib.NewCustomError(lib.InternalError, "Error creating payment link", err)
+	}
+
+	s.logger.Info("Payment link created for invoice", "invoice_id", invoiceId, "payment_link_id", paymentLink.Id)
+	return paymentLink, nil
 }
 
 // Helper function to recalculate invoice totals based on line items

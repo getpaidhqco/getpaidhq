@@ -565,3 +565,38 @@ func (c InvoiceController) GeneratePDF(ctx *gin.Context) {
 	ctx.Header("Cache-Control", "no-cache")
 	ctx.Data(http.StatusOK, "application/pdf", pdfBytes)
 }
+
+// CreatePaymentLink handles creating a payment link for an invoice
+func (c InvoiceController) CreatePaymentLink(ctx *gin.Context) {
+	var input request.CreateInvoicePaymentLinkRequest
+	user, _ := ctx.Get("user")
+	authUser := user.(authn.User)
+	invoiceId := ctx.Param("id")
+
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	// Convert API DTO to application DTO
+	appInput := dto.CreateInvoicePaymentLinkInput{
+		ExpiresAt:  input.ExpiresAt,
+		SuccessUrl: input.SuccessUrl,
+		CancelUrl:  input.CancelUrl,
+		Config:     input.Config,
+	}
+
+	// Create payment link
+	paymentLink, err := c.invoiceService.CreatePaymentLink(ctx.Request.Context(), authUser.OrgId, invoiceId, appInput)
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	// Convert to response DTO
+	response := mappers.ToPaymentLinkResponse(paymentLink)
+
+	ctx.JSON(http.StatusCreated, response)
+}

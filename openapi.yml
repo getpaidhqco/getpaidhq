@@ -5,7 +5,7 @@ info:
     Comprehensive subscription billing platform API supporting traditional subscriptions, 
     usage-based billing, and hybrid models with advanced features like dunning management, 
     multi-currency support, and enterprise-grade security.
-  version: 1.0.1
+  version: 1.0.2
   contact:
     name: GetPaidHQ Support
     url: https://getpaidhq.co
@@ -41,6 +41,8 @@ tags:
     description: Subscription lifecycle management
   - name: Orders
     description: Order processing and management
+  - name: Carts
+    description: Shopping cart management
   - name: Payments
     description: Payment processing and refunds
   - name: Invoices
@@ -1256,7 +1258,7 @@ paths:
   # Shopping Cart
   /api/carts/{id}/add:
     post:
-      tags: [Orders]
+      tags: [Carts]
       summary: Add item to cart
       operationId: addCartItem
       parameters:
@@ -1278,15 +1280,13 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  status:
-                    type: string
-                    example: "added"
+                $ref: '#/components/schemas/CartResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
 
   /api/carts/{id}/remove:
     post:
-      tags: [Orders]
+      tags: [Carts]
       summary: Remove item from cart
       operationId: removeCartItem
       parameters:
@@ -1308,11 +1308,49 @@ paths:
           content:
             application/json:
               schema:
+                $ref: '#/components/schemas/CartResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+
+  /api/carts/{id}/validate-coupon:
+    post:
+      tags: [Carts]
+      summary: Validate coupon code for cart
+      description: Validates a coupon code and applies it to the cart if valid
+      operationId: validateCartCoupon
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Cart ID
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ValidateCouponRequest'
+      responses:
+        '200':
+          description: Coupon validated and applied to cart
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CartResponse'
+        '400':
+          description: Invalid coupon code
+          content:
+            application/json:
+              schema:
                 type: object
                 properties:
-                  status:
+                  error:
                     type: string
-                    example: "removed"
+                    example: "Invalid coupon code"
+                  message:
+                    type: string
+                    example: "Coupon code has expired"
 
   # Payments
   /api/payments:
@@ -1632,6 +1670,32 @@ paths:
               schema:
                 type: string
                 format: binary
+
+  /api/invoices/{id}/payment-link:
+    post:
+      tags: [Invoices]
+      summary: Create payment link for invoice
+      description: Creates a single-use payment link for a specific invoice with optional customization
+      operationId: createInvoicePaymentLink
+      parameters:
+        - $ref: '#/components/parameters/InvoiceId'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateInvoicePaymentLinkRequest'
+      responses:
+        '201':
+          description: Payment link created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentLinkResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   # Dunning Management
   /api/dunning/campaigns:
@@ -2106,7 +2170,7 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/discounts/validate:
+  /api/discounts/validate-code:
     post:
       tags: [Discounts]
       summary: Validate discount code
@@ -2153,6 +2217,28 @@ paths:
           description: Discount not found or invalid
         '422':
           $ref: '#/components/responses/ValidationError'
+
+  /api/discounts/redemptions/{id}:
+    get:
+      tags: [Discounts]
+      summary: Get discount redemption by ID
+      operationId: getDiscountRedemption
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Discount redemption ID
+      responses:
+        '200':
+          description: Discount redemption details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DiscountRedemption'
+        '404':
+          $ref: '#/components/responses/NotFound'
 
   /api/discounts/{id}/redemptions:
     get:
@@ -2979,9 +3065,6 @@ components:
         limit:
           type: integer
           description: Items per page
-        has_more:
-          type: boolean
-          description: Whether there are more pages
 
     ApiError:
       type: object
@@ -3434,6 +3517,26 @@ components:
           type: string
           format: date-time
           description: Expiration timestamp
+
+    CreateInvoicePaymentLinkRequest:
+      type: object
+      properties:
+        expires_at:
+          type: string
+          format: date-time
+          description: Optional expiration timestamp (defaults to invoice due date)
+        success_url:
+          type: string
+          format: uri
+          description: URL to redirect to after successful payment
+        cancel_url:
+          type: string
+          format: uri
+          description: URL to redirect to after cancelled payment
+        config:
+          type: object
+          additionalProperties: true
+          description: Additional payment link configuration overrides
 
     RecordPaymentLinkUsageRequest:
       type: object
@@ -4022,7 +4125,7 @@ components:
 
     AddCartItemRequest:
       type: object
-      required: [product_id, price_id, quantity]
+      required: [product_id, price_id]
       properties:
         product_id:
           type: string
@@ -4031,13 +4134,66 @@ components:
         quantity:
           type: integer
           minimum: 1
+          default: 1
 
     RemoveCartItemRequest:
       type: object
-      required: [product_id]
+      required: [id]
       properties:
-        product_id:
+        org_id:
           type: string
+        id:
+          type: string
+
+    ValidateCouponRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          description: Coupon code to validate
+
+    CartResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              product_id:
+                type: string
+              price_id:
+                type: string
+              quantity:
+                type: integer
+              unit_price:
+                type: integer
+              total_price:
+                type: integer
+        subtotal:
+          type: integer
+        discounts:
+          type: array
+          items:
+            type: object
+            properties:
+              discount_id:
+                type: string
+              discount_amount:
+                type: integer
+        total:
+          type: integer
+        currency:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
 
     CreateInvoiceRequest:
       type: object

@@ -463,14 +463,11 @@ func (s CustomerService) List(ctx context.Context, orgId string, pagination dto.
 		return dto.PaginatedResult[entities.Customer]{}, lib.NewCustomError(lib.InternalError, "Error listing customers", err)
 	}
 
-	hasMore := (pagination.Page+1)*pagination.Limit < total
-
 	result := dto.PaginatedResult[entities.Customer]{
 		Items:      customers,
 		TotalCount: total,
 		Page:       pagination.Page,
 		PageSize:   pagination.Limit,
-		HasMore:    hasMore,
 	}
 
 	return result, nil

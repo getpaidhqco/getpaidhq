@@ -41,6 +41,9 @@ func (s InvoiceRoutes) Setup() {
 		// Invoice PDF generation
 		api.POST("/invoices/:id/pdf", s.checkAuthz(authz.DownloadInvoice), s.invoiceController.GeneratePDF)
 
+		// Invoice payment link generation
+		api.POST("/invoices/:id/payment-link", s.checkAuthz(authz.UpdateInvoice), s.invoiceController.CreatePaymentLink)
+
 		// Customer invoices
 		api.GET("/customers/:id/invoices", s.invoiceController.ListByCustomer)
 	}

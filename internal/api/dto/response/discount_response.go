@@ -30,7 +30,6 @@ type DiscountListResponse struct {
 	TotalCount int                `json:"total_count"`
 	Page       int                `json:"page"`
 	PageSize   int                `json:"page_size"`
-	HasMore    bool               `json:"has_more"`
 }
 
 // DiscountRedemptionResponse represents a discount redemption in API responses
@@ -53,7 +52,6 @@ type DiscountRedemptionListResponse struct {
 	TotalCount int                          `json:"total_count"`
 	Page       int                          `json:"page"`
 	PageSize   int                          `json:"page_size"`
-	HasMore    bool                         `json:"has_more"`
 }
 
 // DiscountValidationResponse represents the result of validating a discount code

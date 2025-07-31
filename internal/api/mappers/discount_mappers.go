@@ -115,7 +115,6 @@ func ToDiscountListResponse(result dto.PaginatedResult[entities.Discount]) respo
 		TotalCount: result.TotalCount,
 		Page:       result.Page,
 		PageSize:   result.PageSize,
-		HasMore:    result.HasMore,
 	}
 }
 
@@ -152,7 +151,6 @@ func ToDiscountRedemptionListResponse(result dto.PaginatedResult[entities.Discou
 		TotalCount: result.TotalCount,
 		Page:       result.Page,
 		PageSize:   result.PageSize,
-		HasMore:    result.HasMore,
 	}
 }
 

@@ -70,3 +70,11 @@ type GenerateInvoicePDFRequest struct {
 	TemplateName string `json:"template_name" binding:"required"`
 	OutputPath   string `json:"output_path,omitempty"`
 }
+
+// CreateInvoicePaymentLinkRequest represents the request to create a payment link for an invoice
+type CreateInvoicePaymentLinkRequest struct {
+	ExpiresAt  string                 `json:"expires_at,omitempty"`
+	SuccessUrl string                 `json:"success_url,omitempty"`
+	CancelUrl  string                 `json:"cancel_url,omitempty"`
+	Config     map[string]interface{} `json:"config,omitempty"`
+}

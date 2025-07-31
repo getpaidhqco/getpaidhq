@@ -355,14 +355,11 @@ func (r MeterRepository) List(ctx context.Context, orgId string, pagination dto.
 	}
 
 	// Calculate pagination metadata
-	hasMore := (pagination.Page+1)*pagination.Limit < totalCount
-
 	return dto.PaginatedResult[entities.Meter]{
 		Items:      meters,
 		TotalCount: totalCount,
 		Page:       pagination.Page,
 		PageSize:   pagination.Limit,
-		HasMore:    hasMore,
 	}, nil
 }
 

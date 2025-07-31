@@ -159,14 +159,11 @@ func (s *UsageRecordingService) ListUsageRecords(
 	}
 
 	// 3. Create paginated result
-	hasMore := (pagination.Page+1)*pagination.Limit < total
-
 	return dto.PaginatedResult[entities.UsageEvent]{
 		Items:      paginatedEvents,
 		TotalCount: total,
 		Page:       pagination.Page,
 		PageSize:   pagination.Limit,
-		HasMore:    hasMore,
 	}, nil
 }
 
