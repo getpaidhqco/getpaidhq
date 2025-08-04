@@ -25,4 +25,5 @@ var Module = fx.Options(
 	fx.Provide(NewMeterController),
 	fx.Provide(NewPaymentLinkController),
 	fx.Provide(NewDiscountController),
+	fx.Provide(NewOAuthController),
 )

@@ -127,7 +127,49 @@ func NewServer(
 		return handlers.DeletePriceHandler(ctx, request, productService, authService, logger)
 	})
 
+	// === INVOICE TOOLS ===
+	s.AddTool(tools.NewCreateInvoiceTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handlers.CreateInvoiceHandler(ctx, request, invoiceService, authService, logger)
+	})
+	s.AddTool(tools.NewGetInvoiceTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handlers.GetInvoiceHandler(ctx, request, invoiceService, authService, logger)
+	})
+	s.AddTool(tools.NewListInvoicesTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handlers.ListInvoicesHandler(ctx, request, invoiceService, authService, logger)
+	})
+	s.AddTool(tools.NewUpdateInvoiceTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handlers.UpdateInvoiceHandler(ctx, request, invoiceService, authService, logger)
+	})
+	s.AddTool(tools.NewPerformInvoiceActionTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handlers.PerformInvoiceActionHandler(ctx, request, invoiceService, authService, logger)
+	})
+	s.AddTool(tools.NewListInvoiceLineItemsTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handlers.ListInvoiceLineItemsHandler(ctx, request, invoiceService, authService, logger)
+	})
+	s.AddTool(tools.NewAddInvoiceLineItemTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handlers.AddInvoiceLineItemHandler(ctx, request, invoiceService, authService, logger)
+	})
+	s.AddTool(tools.NewUpdateInvoiceLineItemTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handlers.UpdateInvoiceLineItemHandler(ctx, request, invoiceService, authService, logger)
+	})
+	s.AddTool(tools.NewDeleteInvoiceLineItemTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handlers.DeleteInvoiceLineItemHandler(ctx, request, invoiceService, authService, logger)
+	})
+	s.AddTool(tools.NewListInvoiceHistoryTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handlers.ListInvoiceHistoryHandler(ctx, request, invoiceService, authService, logger)
+	})
+	s.AddTool(tools.NewGenerateInvoicePDFTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handlers.GenerateInvoicePDFHandler(ctx, request, invoiceService, authService, logger)
+	})
+	s.AddTool(tools.NewCreateInvoicePaymentLinkTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handlers.CreateInvoicePaymentLinkHandler(ctx, request, invoiceService, authService, logger)
+	})
+	s.AddTool(tools.NewListCustomerInvoicesTool(), func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		return handlers.ListCustomerInvoicesHandler(ctx, request, invoiceService, authService, logger)
+	})
+
 	// Start the SSE server
+	logger.Info("Starting SSE server", "port", env.McpSsePort)
 	sse := server.NewSSEServer(s,
 		server.WithBaseURL(":"+env.McpSsePort),
 	)

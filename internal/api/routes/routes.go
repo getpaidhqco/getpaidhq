@@ -26,6 +26,7 @@ var Module = fx.Options(
 	fx.Provide(NewMeterRoutes),
 	fx.Provide(NewPaymentLinkRoutes),
 	fx.Provide(NewDiscountRoutes),
+	fx.Provide(NewOAuthRoutes),
 	fx.Provide(NewRoutes),
 )
 
@@ -61,6 +62,7 @@ func NewRoutes(
 	meterRoutes MeterRoutes,
 	paymentLinkRoutes PaymentLinkRoutes,
 	discountRoutes DiscountRoutes,
+	oauthRoutes OAuthRoutes,
 ) Routes {
 	return Routes{
 		userRoutes,
@@ -85,6 +87,7 @@ func NewRoutes(
 		meterRoutes,
 		paymentLinkRoutes,
 		discountRoutes,
+		oauthRoutes,
 	}
 }
 

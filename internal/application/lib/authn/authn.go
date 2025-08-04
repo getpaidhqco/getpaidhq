@@ -6,7 +6,7 @@ import (
 	"payloop/internal/domain/entities"
 )
 
-var PublicPaths = []string{"/api/health", "/api/notify", "/api/notify/cdc"}
+var PublicPaths = []string{"/api/health", "/api/notify", "/.well-known/oauth-authorization-server", "/.well-known/openid_configuration"}
 
 func IsPublicPath(path string) bool {
 	for _, publicPath := range PublicPaths {

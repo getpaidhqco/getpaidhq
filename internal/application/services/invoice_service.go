@@ -929,12 +929,12 @@ func (s InvoiceService) CreatePaymentLink(ctx context.Context, orgId string, inv
 
 	// Prepare payment link data with invoice details
 	paymentLinkData := map[string]interface{}{
-		"invoice_id":   invoice.Id,
-		"amount":       invoice.Total,
-		"currency":     invoice.Currency,
-		"customer_id":  invoice.CustomerId,
-		"type":         "invoice_payment",
-		"description":  fmt.Sprintf("Payment for Invoice %s", invoice.DocNumber),
+		"invoice_id":  invoice.Id,
+		"amount":      invoice.Total,
+		"currency":    invoice.Currency,
+		"customer_id": invoice.CustomerId,
+		"type":        "invoice_payment",
+		"description": fmt.Sprintf("Payment for Invoice %s", invoice.DocNumber),
 	}
 
 	// Prepare default config with optional overrides

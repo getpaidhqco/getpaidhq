@@ -375,6 +375,39 @@ GETPAIDHQ_EMAIL_FROM_EMAIL=invoices@yourdomain.com
 GETPAIDHQ_EMAIL_FROM_NAME=Your Company Name
 ```
 
+### Authentication Configuration
+
+Payloop supports multiple authentication providers including Clerk, Cognito, and API keys.
+
+#### Clerk Authentication & OAuth 2.1
+```bash
+# Clerk Authentication Configuration
+GPHQ_CLERK_SECRET=your_clerk_secret_key
+GPHQ_CLERK_DOMAIN=your-app.clerk.accounts.dev
+
+# Example domains:
+# For development: your-app.clerk.accounts.dev
+# For production: clerk.yourdomain.com
+```
+
+The `GPHQ_CLERK_DOMAIN` is required for:
+- OAuth 2.1 discovery endpoints (`/.well-known/oauth-authorization-server`)
+- JWKS token validation for MCP authentication
+- Proper redirection to Clerk's authorization server
+
+#### API Key Authentication
+```bash
+# API keys are generated automatically and stored in the database
+# No additional configuration required
+```
+
+#### AWS Cognito Authentication
+```bash
+GPHQ_COGNITO_CLIENT_ID=your_cognito_client_id
+GPHQ_COGNITO_POOL_ID=your_cognito_pool_id
+GPHQ_COGNITO_REGION=us-east-1
+```
+
 ### PDF Generation System
 
 The system uses ChromeDP (headless Chrome) for high-quality PDF generation:

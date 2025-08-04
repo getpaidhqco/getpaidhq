@@ -36,6 +36,7 @@ type Env struct {
 	PaystackApiKey string `mapstructure:"GPHQ_PAYSTACK_API_KEY"`
 
 	ClerkSecretKey string `mapstructure:"GPHQ_CLERK_SECRET"`
+	ClerkDomain    string `mapstructure:"GPHQ_CLERK_DOMAIN"`
 
 	// Email configuration
 	EmailProvider    string `mapstructure:"GPHQ_EMAIL_PROVIDER"`
@@ -90,6 +91,7 @@ func NewEnv() Env {
 	viper.BindEnv("GPHQ_COGNITO_REGION")
 	viper.BindEnv("GPHQ_PAYSTACK_API_KEY")
 	viper.BindEnv("GPHQ_CLERK_SECRET")
+	viper.BindEnv("GPHQ_CLERK_DOMAIN")
 	viper.BindEnv("GPHQ_EMAIL_PROVIDER")
 	viper.BindEnv("GPHQ_LOOPS_API_KEY")
 	viper.BindEnv("GPHQ_LOOPS_API_ENDPOINT")
@@ -124,6 +126,7 @@ func NewEnv() Env {
 		env.JWTSecret = viper.GetString("GPHQ_JWT_SECRET")
 		env.TokenExpiry = viper.GetString("GPHQ_TOKEN_EXPIRY")
 		env.ClerkSecretKey = viper.GetString("GPHQ_CLERK_SECRET")
+		env.ClerkDomain = viper.GetString("GPHQ_CLERK_DOMAIN")
 
 		// Email configuration
 		env.EmailProvider = viper.GetString("GPHQ_EMAIL_PROVIDER")

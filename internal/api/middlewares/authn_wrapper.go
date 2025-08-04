@@ -36,6 +36,10 @@ func NewAuthnWrapperMiddleware(
 func (m AuthnWrapperMiddleware) Setup() {
 	m.logger.Info("Setting up authn wrapper middleware")
 	m.handler.Gin.Use(func(c *gin.Context) {
+		if authn.IsPublicPath(c.Request.URL.Path) {
+			c.Next()
+			return
+		}
 		// Create a flag to track if authentication is successful
 		isAuthenticated := false
 
