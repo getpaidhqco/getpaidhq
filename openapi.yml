@@ -958,28 +958,6 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
-  /api/meters/slug/{slug}:
-    get:
-      tags: [Meters]
-      summary: Get meter by slug
-      description: Get a specific meter by its slug
-      operationId: getMeterBySlug
-      parameters:
-        - name: slug
-          in: path
-          required: true
-          schema:
-            type: string
-          description: Meter slug
-      responses:
-        '200':
-          description: Meter details
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/Meter'
-        '404':
-          $ref: '#/components/responses/NotFound'
 
   # Usage-Based Billing
   /api/usage-events:
