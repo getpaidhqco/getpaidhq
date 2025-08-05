@@ -10,9 +10,9 @@ type InternalError struct {
 // Error implements the error interface for InternalError
 func (e InternalError) Error() string {
 	if e.Err != nil {
-		return fmt.Sprintf("%s: %s - %v", e.Message, e.Err)
+		return fmt.Sprintf("%s - %v", e.Message, e.Err)
 	}
-	return fmt.Sprintf("%s: %s", e.Message)
+	return e.Message
 }
 
 func NewInternalError(message string, err error) InternalError {

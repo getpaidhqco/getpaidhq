@@ -44,6 +44,9 @@ func (s InvoiceRoutes) Setup() {
 		// Invoice payment link generation
 		api.POST("/invoices/:id/payment-link", s.checkAuthz(authz.UpdateInvoice), s.invoiceController.CreatePaymentLink)
 
+		// Invoice payment initiation
+		api.POST("/invoices/:id/initiate-payment", s.checkAuthz(authz.UpdateInvoice), s.invoiceController.InitiatePayment)
+
 		// Customer invoices
 		api.GET("/customers/:id/invoices", s.invoiceController.ListByCustomer)
 	}

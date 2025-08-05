@@ -78,3 +78,12 @@ type CreateInvoicePaymentLinkRequest struct {
 	CancelUrl  string                 `json:"cancel_url,omitempty"`
 	Config     map[string]interface{} `json:"config,omitempty"`
 }
+
+// InitiateInvoicePaymentRequest represents the request to initiate payment for an invoice
+type InitiateInvoicePaymentRequest struct {
+	PaymentProcessor string                 `json:"payment_processor" binding:"required"`
+	BillingAddress   entities.Address       `json:"billing_address,omitempty"`
+	SuccessUrl       string                 `json:"success_url,omitempty"`
+	CancelUrl        string                 `json:"cancel_url,omitempty"`
+	Metadata         map[string]string      `json:"metadata,omitempty"`
+}

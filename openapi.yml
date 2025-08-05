@@ -1697,6 +1697,46 @@ paths:
         '404':
           $ref: '#/components/responses/NotFound'
 
+  /api/invoices/{id}/initiate-payment:
+    post:
+      tags: [Invoices]
+      summary: Initiate payment for invoice
+      description: Initiates payment for an invoice using a specified payment processor. Creates an order from the invoice and returns payment initialization details.
+      operationId: initiateInvoicePayment
+      parameters:
+        - $ref: '#/components/parameters/InvoiceId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitiateInvoicePaymentRequest'
+      responses:
+        '200':
+          description: Payment initiation successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InitiatePaymentResponse'
+        '400':
+          description: Bad request - invalid payment processor, invoice already paid, or cancelled invoice
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '404':
+          description: Invoice not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal error during payment initiation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
   # Dunning Management
   /api/dunning/campaigns:
     get:
@@ -3405,6 +3445,30 @@ components:
           additionalProperties: true
           description: Additional payment link configuration overrides
 
+    InitiateInvoicePaymentRequest:
+      type: object
+      required: [payment_processor]
+      properties:
+        payment_processor:
+          type: string
+          enum: [paystack, checkout_com]
+          description: Payment processor to use for payment initiation
+        billing_address:
+          $ref: '#/components/schemas/Address'
+        success_url:
+          type: string
+          format: uri
+          description: URL to redirect to after successful payment
+        cancel_url:
+          type: string
+          format: uri
+          description: URL to redirect to after cancelled payment
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: Additional metadata for the payment
+
     RecordPaymentLinkUsageRequest:
       type: object
       required: [payment_link_id, event_type]
@@ -3441,6 +3505,42 @@ components:
     PaymentLinkResponse:
       allOf:
         - $ref: '#/components/schemas/PaymentLink'
+
+    InitiatePaymentResponse:
+      type: object
+      required: [order_id, payment_processor, amount, currency, status, reference]
+      properties:
+        order_id:
+          type: string
+          description: Unique order identifier
+        payment_processor:
+          type: string
+          enum: [paystack, checkout_com]
+          description: Payment processor used
+        redirect_url:
+          type: string
+          format: uri
+          description: Redirect URL for Paystack payments
+        client_secret:
+          type: string
+          description: Client secret for Stripe-like processors
+        session_id:
+          type: string
+          description: Session ID for other processors
+        amount:
+          type: integer
+          format: int64
+          description: Payment amount in cents
+        currency:
+          type: string
+          description: Payment currency code (e.g., USD, NGN)
+        status:
+          type: string
+          enum: [pending]
+          description: Payment status (always pending for initiation)
+        reference:
+          type: string
+          description: Payment reference identifier
 
     PaymentLinkUsageResponse:
       allOf:

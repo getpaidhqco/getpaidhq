@@ -17,10 +17,10 @@ import (
 )
 
 type DiscountService struct {
-	discountRepository          repositories.DiscountRepository
+	discountRepository           repositories.DiscountRepository
 	discountRedemptionRepository repositories.DiscountRedemptionRepository
-	pubsub                      events.NotificationPublisher
-	logger                      logger.Logger
+	pubsub                       events.NotificationPublisher
+	logger                       logger.Logger
 }
 
 func NewDiscountService(
@@ -30,10 +30,10 @@ func NewDiscountService(
 	logger logger.Logger,
 ) interfaces.DiscountService {
 	return &DiscountService{
-		discountRepository:          discountRepository,
+		discountRepository:           discountRepository,
 		discountRedemptionRepository: discountRedemptionRepository,
-		pubsub:                      pubsub,
-		logger:                      logger,
+		pubsub:                       pubsub,
+		logger:                       logger,
 	}
 }
 
@@ -114,7 +114,7 @@ func (s *DiscountService) CreateDiscount(ctx context.Context, orgId string, inpu
 		Id:             lib.GenerateId("disc"),
 		OrgId:          orgId,
 		Name:           input.Name,
-		Type:           input.Type,
+		Type:           entities.DiscountType(input.Type),
 		Value:          input.Value,
 		Code:           code,
 		StartsAt:       startsAt,
@@ -152,7 +152,7 @@ func (s *DiscountService) UpdateDiscount(ctx context.Context, orgId string, id s
 	}
 
 	if input.Type != "" {
-		discount.Type = input.Type
+		discount.Type = entities.DiscountType(input.Type)
 	}
 
 	if input.Value != nil {
@@ -377,7 +377,7 @@ func (s *DiscountService) ApplyDiscount(ctx context.Context, orgId string, input
 
 	// For fixed discounts, check currency match
 	if discount.IsFixedAmount() && discount.Currency != input.Currency {
-		return dto.DiscountRedemptionResult{}, lib.NewCustomError(lib.ValidationError, 
+		return dto.DiscountRedemptionResult{}, lib.NewCustomError(lib.ValidationError,
 			fmt.Sprintf("Discount currency (%s) does not match transaction currency (%s)", discount.Currency, input.Currency), nil)
 	}
 

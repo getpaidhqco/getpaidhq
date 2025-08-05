@@ -10,9 +10,9 @@ type NotFound struct {
 // Error implements the error interface for CustomError
 func (e NotFound) Error() string {
 	if e.Err != nil {
-		return fmt.Sprintf("%s: %s - %v", e.Message, e.Err)
+		return fmt.Sprintf("%s - %v", e.Message, e.Err)
 	}
-	return fmt.Sprintf("%s: %s", e.Message)
+	return e.Message
 }
 
 // NewNotFound creates a new NotFound error

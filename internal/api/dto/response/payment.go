@@ -50,3 +50,18 @@ func NewPaymentFromEntity(entity entities.Payment) Payment {
 		UpdatedAt:      entity.UpdatedAt,
 	}
 }
+
+type InitiatePaymentResponse struct {
+	OrderId          string `json:"order_id"`
+	PaymentProcessor string `json:"payment_processor"`
+	// For redirect-based flows (Paystack)
+	RedirectUrl      string `json:"redirect_url,omitempty"`
+	// For client-side integration (others)
+	ClientSecret     string `json:"client_secret,omitempty"`
+	SessionId        string `json:"session_id,omitempty"`
+	// Common fields
+	Amount           int64  `json:"amount"`
+	Currency         string `json:"currency"`
+	Status           string `json:"status"`
+	Reference        string `json:"reference"`
+}

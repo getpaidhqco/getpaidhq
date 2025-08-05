@@ -1,8 +1,12 @@
 package mappers
 
 import (
+    "encoding/json"
     "payloop/internal/api/dto/request"
+    "payloop/internal/api/dto/response"
+    "payloop/internal/application/dto"
     "payloop/internal/domain/entities"
+    "payloop/internal/domain/entities/orders"
 )
 
 // ToCreateInvoiceInput converts API request to domain input
@@ -90,4 +94,58 @@ func ToGenerateInvoicePDFInput(req request.GenerateInvoicePDFRequest) entities.G
         TemplateName: req.TemplateName,
         OutputPath:   req.OutputPath,
     }
+}
+
+// ToInitiatePaymentInput converts API request to application DTO
+func ToInitiatePaymentInput(req request.InitiateInvoicePaymentRequest) dto.InitiatePaymentInput {
+    return dto.InitiatePaymentInput{
+        PaymentProcessor: req.PaymentProcessor,
+        BillingAddress:   req.BillingAddress,
+        SuccessUrl:       req.SuccessUrl,
+        CancelUrl:        req.CancelUrl,
+        Metadata:         req.Metadata,
+    }
+}
+
+// ToInitiatePaymentResponse converts order and PSP response to API response
+func ToInitiatePaymentResponse(order entities.Order, pspResponse orders.CreateOrderResponse, paymentProcessor string) response.InitiatePaymentResponse {
+    resp := response.InitiatePaymentResponse{
+        OrderId:          order.Id,
+        PaymentProcessor: paymentProcessor,
+        Amount:           order.Total,
+        Currency:         order.Currency,
+        Status:           "pending",
+        Reference:        order.Reference,
+    }
+
+    // Extract PSP-specific data from the response (stored as JSON in the PSP response)
+    if pspResponse.Psp.PspResponse != nil {
+        // Try to convert to JSON first to handle different PSP response structures
+        if jsonData, err := json.Marshal(pspResponse.Psp.PspResponse); err == nil {
+            var pspData map[string]interface{}
+            if json.Unmarshal(jsonData, &pspData) == nil {
+                // For Paystack - extract authorization_url
+                if authUrl, exists := pspData["authorization_url"]; exists {
+                    if url, ok := authUrl.(string); ok {
+                        resp.RedirectUrl = url
+                    }
+                }
+
+                // For other PSPs - extract client_secret, session_id etc.
+                if clientSecret, exists := pspData["client_secret"]; exists {
+                    if secret, ok := clientSecret.(string); ok {
+                        resp.ClientSecret = secret
+                    }
+                }
+
+                if sessionId, exists := pspData["session_id"]; exists {
+                    if id, ok := sessionId.(string); ok {
+                        resp.SessionId = id
+                    }
+                }
+            }
+        }
+    }
+
+    return resp
 }

@@ -10,8 +10,10 @@ import (
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/application/lib/pdf"
+	"payloop/internal/domain/common"
 	"payloop/internal/domain/email_providers"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/entities/payment_links"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -33,6 +35,7 @@ type InvoiceService struct {
 	emailProvider         email_providers.Provider
 	documentService       interfaces.DocumentService
 	paymentLinkService    interfaces.PaymentLinkService
+	orderService          interfaces.OrderService
 }
 
 func NewInvoiceService(
@@ -49,6 +52,7 @@ func NewInvoiceService(
 	emailProvider email_providers.Provider,
 	documentService interfaces.DocumentService,
 	paymentLinkService interfaces.PaymentLinkService,
+	orderService interfaces.OrderService,
 ) interfaces.InvoiceService {
 	service := InvoiceService{
 		invoiceRepository:     invoiceRepository,
@@ -64,6 +68,7 @@ func NewInvoiceService(
 		emailProvider:         emailProvider,
 		documentService:       documentService,
 		paymentLinkService:    paymentLinkService,
+		orderService:          orderService,
 	}
 
 	// subscribe to order events to manage cohorts
@@ -315,10 +320,18 @@ func (s InvoiceService) Create(ctx context.Context, orgId string, input dto.Crea
 		s.logger.Error("Failed to generate PDF for invoice: ", err)
 	}
 
+	_, err = s.CreatePaymentLink(ctx, orgId, createdInvoice.Id, dto.CreateInvoicePaymentLinkInput{
+		Config: nil,
+	})
+	if err != nil {
+		s.logger.Error("Failed to create payment link for invoice: ", err)
+		return entities.Invoice{}, lib.NewCustomError(lib.InternalError, "Error creating payment link", err)
+	}
+
 	// Publish event
 	_ = s.pubsub.Publish(orgId, topic.InvoiceCreated, createdInvoice)
 
-	return createdInvoice, nil
+	return s.Get(ctx, orgId, createdInvoice.Id)
 }
 
 func (s InvoiceService) Get(ctx context.Context, orgId string, id string) (entities.Invoice, error) {
@@ -904,7 +917,7 @@ func (s InvoiceService) GenerateAndStorePDF(ctx context.Context, orgId string, i
 	return document, nil
 }
 
-// CreatePaymentLink creates a single-use payment link for an invoice
+// CreatePaymentLink creates a single-use payment link for an invoice. the default expiry date is 30 days from the invoice due date.
 func (s InvoiceService) CreatePaymentLink(ctx context.Context, orgId string, invoiceId string, input dto.CreateInvoicePaymentLinkInput) (entities.PaymentLink, error) {
 	// Get the invoice to validate it exists and extract details
 	invoice, err := s.invoiceRepository.FindById(ctx, orgId, invoiceId)
@@ -922,9 +935,8 @@ func (s InvoiceService) CreatePaymentLink(ctx context.Context, orgId string, inv
 	slug := fmt.Sprintf("invoice-%s-%d", invoice.DocNumber, time.Now().Unix())
 
 	// Set default expiration to invoice due date if not provided
-	expiresAt := input.ExpiresAt
-	if expiresAt == "" && !invoice.DueAt.IsZero() {
-		expiresAt = invoice.DueAt.Format(time.RFC3339)
+	if input.ExpiresAt.IsZero() && !invoice.DueAt.IsZero() {
+		input.ExpiresAt = invoice.DueAt.Add(30 * 24 * time.Hour)
 	}
 
 	// Prepare payment link data with invoice details
@@ -965,7 +977,7 @@ func (s InvoiceService) CreatePaymentLink(ctx context.Context, orgId string, inv
 		Data:      paymentLinkData,
 		Config:    paymentLinkConfig,
 		SingleUse: true, // Always single-use for invoices
-		ExpiresAt: expiresAt,
+		ExpiresAt: input.ExpiresAt.Format(time.RFC3339),
 	}
 
 	paymentLink, err := s.paymentLinkService.CreatePaymentLink(ctx, orgId, createInput)
@@ -997,4 +1009,98 @@ func (s InvoiceService) recalculateInvoiceTotals(ctx context.Context, orgId stri
 	}
 
 	return updatedInvoice, nil
+}
+
+// InitiatePayment creates an order from the invoice and initiates payment with the specified PSP
+func (s InvoiceService) InitiatePayment(ctx context.Context, orgId string, invoiceId string, input dto.InitiatePaymentInput) (entities.Order, orders.CreateOrderResponse, error) {
+	// 1. Fetch and validate invoice
+	invoice, err := s.invoiceRepository.FindById(ctx, orgId, invoiceId)
+	if err != nil {
+		s.logger.Error("Failed to fetch invoice for payment initiation", err)
+		return entities.Order{}, orders.CreateOrderResponse{}, apperrors.NotFound{Message: "Invoice not found", Err: err}
+	}
+
+	// Check if invoice is payable
+	if invoice.Status == entities.InvoiceStatusPaid {
+		return entities.Order{}, orders.CreateOrderResponse{}, apperrors.NewInvalidOperation("Invoice is already fully paid", nil)
+	}
+
+	if invoice.Status == entities.InvoiceStatusCancelled {
+		return entities.Order{}, orders.CreateOrderResponse{}, apperrors.NewInvalidOperation("Cannot pay cancelled invoice", nil)
+	}
+
+	// 2. Get invoice line items to build cart items
+	lineItems, err := s.invoiceRepository.ListLineItems(ctx, orgId, invoiceId)
+	if err != nil {
+		s.logger.Error("Failed to fetch invoice line items for payment", err)
+		return entities.Order{}, orders.CreateOrderResponse{}, apperrors.InternalError{Message: "Error fetching invoice details", Err: err}
+	}
+
+	// 3. Get customer
+	customer, err := s.customerRepository.FindById(ctx, orgId, invoice.CustomerId)
+	if err != nil {
+		s.logger.Error("Failed to fetch customer for payment", err)
+		return entities.Order{}, orders.CreateOrderResponse{}, apperrors.NotFound{Message: "Customer not found", Err: err}
+	}
+
+	// 4. Convert invoice line items to cart items
+	cartItems := make([]orders.CartItem, len(lineItems))
+	for i, item := range lineItems {
+		cartItems[i] = orders.CartItem{
+			ProductId: item.ProductId,
+			PriceId:   item.PriceId,
+			Quantity:  int(item.Quantity),
+		}
+	}
+
+	// 5. Convert payment processor string to gateway enum
+	var pspId common.Gateway
+	switch input.PaymentProcessor {
+	case "paystack":
+		pspId = common.Paystack
+	case "checkout_com":
+		pspId = common.CheckoutDotCom
+	default:
+		return entities.Order{}, orders.CreateOrderResponse{}, apperrors.InvalidArgument{Message: "Unsupported payment processor", Err: nil}
+	}
+
+	// 6. Build order creation input
+	orderInput := orders.CreateOrderInput{
+		OrgId:     orgId,
+		Customer: orders.CreateOrderCommandCustomer{
+			Id:        customer.Id,
+			Email:     customer.Email,
+			FirstName: customer.FirstName,
+			LastName:  customer.LastName,
+			Phone:     customer.Phone,
+			Metadata:  customer.Metadata,
+		},
+		Currency:  invoice.Currency,
+		CartItems: cartItems,
+		PspId:     pspId,
+		Metadata: map[string]string{
+			"invoice_id": invoiceId,
+			"source":     "invoice_payment",
+		},
+		Options: map[string]string{
+			"success_url": input.SuccessUrl,
+			"cancel_url":  input.CancelUrl,
+		},
+	}
+
+	// Merge any additional metadata from input
+	for k, v := range input.Metadata {
+		orderInput.Metadata[k] = v
+	}
+
+	// 7. Create order using OrderService (this handles PSP InitPayment automatically)
+	orderResponse, err := s.orderService.CreateOrder(ctx, orderInput)
+	if err != nil {
+		s.logger.Error("Failed to create order for invoice payment", err)
+		return entities.Order{}, orders.CreateOrderResponse{}, apperrors.InternalError{Message: "Error initiating payment", Err: err}
+	}
+
+	s.logger.Info("Payment initiated for invoice", "invoice_id", invoiceId, "order_id", orderResponse.Order.Id, "psp", input.PaymentProcessor)
+	
+	return orderResponse.Order, orderResponse, nil
 }

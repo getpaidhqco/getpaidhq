@@ -5,6 +5,7 @@ import (
 	"payloop/internal/application/dto"
 	"payloop/internal/application/lib/pdf"
 	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/orders"
 )
 
 type InvoiceService interface {
@@ -32,4 +33,7 @@ type InvoiceService interface {
 
 	// Payment link generation
 	CreatePaymentLink(ctx context.Context, orgId string, invoiceId string, input dto.CreateInvoicePaymentLinkInput) (entities.PaymentLink, error)
+
+	// Payment initiation
+	InitiatePayment(ctx context.Context, orgId string, invoiceId string, input dto.InitiatePaymentInput) (entities.Order, orders.CreateOrderResponse, error)
 }

@@ -25,10 +25,10 @@ type CreateInvoiceInput struct {
 
 // UpdateInvoiceRequest represents the request to update an existing invoice
 type UpdateInvoiceRequest struct {
-	Notes         string                        `json:"notes,omitempty"`
-	CustomerNotes string                        `json:"customer_notes,omitempty"`
-	DueAt         time.Time                     `json:"due_at,omitempty"`
-	Metadata      map[string]string             `json:"metadata,omitempty"`
+	Notes         string                         `json:"notes,omitempty"`
+	CustomerNotes string                         `json:"customer_notes,omitempty"`
+	DueAt         time.Time                      `json:"due_at,omitempty"`
+	Metadata      map[string]string              `json:"metadata,omitempty"`
 	LineItems     []UpdateInvoiceLineItemRequest `json:"line_items,omitempty"`
 }
 
@@ -81,8 +81,17 @@ type GenerateInvoicePDFRequest struct {
 
 // CreateInvoicePaymentLinkInput represents the application input to create a payment link for an invoice
 type CreateInvoicePaymentLinkInput struct {
-	ExpiresAt  string                 `json:"expires_at,omitempty"`
+	ExpiresAt  time.Time              `json:"expires_at,omitempty,omitzero"`
 	SuccessUrl string                 `json:"success_url,omitempty"`
 	CancelUrl  string                 `json:"cancel_url,omitempty"`
 	Config     map[string]interface{} `json:"config,omitempty"`
+}
+
+// InitiatePaymentInput represents the application input to initiate payment for an invoice
+type InitiatePaymentInput struct {
+	PaymentProcessor string                 `json:"payment_processor"`
+	BillingAddress   entities.Address       `json:"billing_address,omitempty"`
+	SuccessUrl       string                 `json:"success_url,omitempty"`
+	CancelUrl        string                 `json:"cancel_url,omitempty"`
+	Metadata         map[string]string      `json:"metadata,omitempty"`
 }

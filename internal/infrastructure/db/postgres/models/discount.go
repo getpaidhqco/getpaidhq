@@ -33,7 +33,7 @@ func (d Discount) ToEntity() entities.Discount {
 		Id:             d.Id,
 		OrgId:          d.OrgId,
 		Name:           d.Name,
-		Type:           d.Type,
+		Type:           entities.DiscountType(d.Type),
 		Value:          d.Value,
 		MaxRedemptions: d.MaxRedemptions,
 		Recurring:      d.Recurring,

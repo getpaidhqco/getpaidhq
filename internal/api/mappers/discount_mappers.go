@@ -87,7 +87,7 @@ func ToDiscountResponse(discount entities.Discount) response.DiscountResponse {
 		Id:             discount.Id,
 		OrgId:          discount.OrgId,
 		Name:           discount.Name,
-		Type:           discount.Type,
+		Type:           string(discount.Type),
 		Value:          discount.Value,
 		Code:           discount.Code,
 		StartsAt:       startsAt,

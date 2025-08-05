@@ -570,7 +570,9 @@ func CreateInvoicePaymentLinkHandler(ctx context.Context, request mcp.CallToolRe
 
 	// Extract optional parameters
 	if val, _ := request.RequireString("expires_at"); val != "" {
-		input.ExpiresAt = val
+		if parsedTime, err := time.Parse(time.RFC3339, val); err == nil {
+			input.ExpiresAt = parsedTime
+		}
 	}
 	if val, _ := request.RequireString("success_url"); val != "" {
 		input.SuccessUrl = val

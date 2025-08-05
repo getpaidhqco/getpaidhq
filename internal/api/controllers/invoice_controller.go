@@ -14,6 +14,7 @@ import (
 	"payloop/internal/application/lib/pdf"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
+	"time"
 )
 
 type InvoiceController struct {
@@ -580,8 +581,9 @@ func (c InvoiceController) CreatePaymentLink(ctx *gin.Context) {
 	}
 
 	// Convert API DTO to application DTO
+	t, _ := time.Parse(time.RFC3339, input.ExpiresAt)
 	appInput := dto.CreateInvoicePaymentLinkInput{
-		ExpiresAt:  input.ExpiresAt,
+		ExpiresAt:  t,
 		SuccessUrl: input.SuccessUrl,
 		CancelUrl:  input.CancelUrl,
 		Config:     input.Config,
@@ -599,4 +601,34 @@ func (c InvoiceController) CreatePaymentLink(ctx *gin.Context) {
 	response := mappers.ToPaymentLinkResponse(paymentLink)
 
 	ctx.JSON(http.StatusCreated, response)
+}
+
+// InitiatePayment handles initiating payment for an invoice
+func (c InvoiceController) InitiatePayment(ctx *gin.Context) {
+	var input request.InitiateInvoicePaymentRequest
+	user, _ := ctx.Get("user")
+	authUser := user.(authn.User)
+	invoiceId := ctx.Param("id")
+
+	if err := ctx.ShouldBindJSON(&input); err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	// Convert API DTO to application DTO
+	appInput := mappers.ToInitiatePaymentInput(input)
+
+	// Initiate payment
+	order, orderResponse, err := c.invoiceService.InitiatePayment(ctx.Request.Context(), authUser.OrgId, invoiceId, appInput)
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	// Convert to response DTO
+	paymentResponse := mappers.ToInitiatePaymentResponse(order, orderResponse, input.PaymentProcessor)
+
+	ctx.JSON(http.StatusOK, paymentResponse)
 }
