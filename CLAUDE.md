@@ -4,6 +4,8 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Always examine existing files and project structure when generating files. Use the same coding style, dependencies, layout, file structure etc. for the DDD project. Follow the Domain-Driven Design (DDD) principles and clean architecture patterns used in this project.
 
+ALWAYS give the best solution, even if it requires more code or database changes. The goal is to maintain a clean, maintainable, and scalable codebase.
+
 ## Core Development Principles
 
 ### Domain-Driven Design (DDD) Adherence
