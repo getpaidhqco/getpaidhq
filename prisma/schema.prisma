@@ -1618,6 +1618,7 @@ model PaymentLink {
 
   // Core fields
   slug String @unique
+  tokenHash String? @unique @map("token_hash") @db.VarChar(64)
 
   // Checkout context
   data   Json? // Invoice ID, dunning flow, auth token, etc.
@@ -1643,6 +1644,7 @@ model PaymentLink {
   @@index([status])
   @@index([orgId, status])
   @@index([expiresAt])
+  @@index([tokenHash])
   @@map("payment_links")
 }
 
