@@ -2398,7 +2398,8 @@ paths:
       summary: Get payment details
       description: |
         Retrieve payment details for a payment link by slug. This endpoint is publicly accessible
-        and requires a valid token query parameter for access validation.
+        and requires a valid token query parameter for access validation. Returns enhanced
+        organization information including actual organization names fetched from the organization service.
       operationId: getPublicPaymentDetails
       security: []
       parameters:
@@ -2470,7 +2471,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PublicOrderResponse'
+                $ref: '#/components/schemas/CreateOrderResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -6198,6 +6199,8 @@ components:
       required:
         - type
         - config
+        - customer
+        - org
       properties:
         type:
           type: string
@@ -6208,7 +6211,7 @@ components:
           description: Invoice details (only present when type is 'invoice')
         customer:
           $ref: '#/components/schemas/PublicCustomer'
-          description: Customer information for public payment details
+          description: Customer information for public payment details (always present as struct, empty struct when customer data unavailable)
         checkout_items:
           type: object
           description: Checkout items (only present when type is 'checkout')
@@ -6217,7 +6220,7 @@ components:
           description: Payment configuration for this payment link
         org:
           $ref: '#/components/schemas/PublicOrgResponse'
-          description: Organization details
+          description: Organization details with actual organization name fetched from organization service
 
     PublicOrgResponse:
       type: object
@@ -6230,7 +6233,7 @@ components:
           description: Organization ID
         name:
           type: string
-          description: Organization name
+          description: Organization name (fetched from organization service, falls back to organization ID if unavailable)
         logo_url:
           type: string
           format: uri
@@ -6238,17 +6241,14 @@ components:
 
     PublicCustomer:
       type: object
-      required:
-        - id
-        - email
       properties:
         id:
           type: string
-          description: Customer ID
+          description: Customer ID (empty string when customer data unavailable)
         email:
           type: string
           format: email
-          description: Customer's email address
+          description: Customer's email address (empty string when customer data unavailable)
         first_name:
           type: string
           description: Customer's first name
@@ -6374,6 +6374,28 @@ components:
           additionalProperties:
             type: string
           description: Additional metadata for the order
+
+    CreateOrderResponse:
+      type: object
+      required:
+        - order
+        - psp
+      properties:
+        order:
+          $ref: '#/components/schemas/Order'
+          description: Created order details
+        psp:
+          $ref: '#/components/schemas/InitPaymentResponse'
+          description: Payment service provider response containing payment initialization data
+      description: Response from creating an order, containing both order details and PSP payment initialization response
+
+    InitPaymentResponse:
+      type: object
+      properties:
+        psp_response:
+          type: object
+          description: Payment service provider specific response data (varies by provider)
+      description: Payment initialization response from the payment service provider
 
     PublicOrderResponse:
       type: object
