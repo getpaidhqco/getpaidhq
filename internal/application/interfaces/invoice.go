@@ -32,8 +32,8 @@ type InvoiceService interface {
 	GeneratePDF(ctx context.Context, orgId string, invoiceId string, options pdf.GenerateOptions) ([]byte, error)
 
 	// Payment link generation
-	CreatePaymentLink(ctx context.Context, orgId string, invoiceId string, input dto.CreateInvoicePaymentLinkInput) (entities.PaymentLink, error)
+	CreatePaymentLink(ctx context.Context, orgId string, invoiceId string, input dto.CreateInvoicePaymentLinkInput) (dto.InvoicePaymentLinkCreationResult, error)
 
 	// Payment initiation
-	InitiatePayment(ctx context.Context, orgId string, invoiceId string, input dto.InitiatePaymentInput) (entities.Order, orders.CreateOrderResponse, error)
+	InitiatePayment(ctx context.Context, orgId string, invoiceId string, input dto.InitiatePaymentInput) (orders.CreateOrderResponse, error)
 }

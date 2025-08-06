@@ -7,34 +7,34 @@ import (
 
 // Invoice represents the response for an invoice
 type Invoice struct {
-	Id             string                `json:"id"`
-	CustomerId     string                `json:"customer_id,omitempty"`
-	OrderId        string                `json:"order_id,omitempty"`
-	SubscriptionId string                `json:"subscription_id,omitempty"`
-	SequenceId     string                `json:"sequence_id"`
-	DocNumber      string                `json:"doc_number"`
-	Type           entities.DocumentType `json:"type"`
-	InvoiceType    entities.InvoiceType  `json:"invoice_type"`
+	Id             string                 `json:"id"`
+	CustomerId     string                 `json:"customer_id,omitempty"`
+	OrderId        string                 `json:"order_id,omitempty"`
+	SubscriptionId string                 `json:"subscription_id,omitempty"`
+	SequenceId     string                 `json:"sequence_id"`
+	DocNumber      string                 `json:"doc_number"`
+	Type           entities.DocumentType  `json:"type"`
+	InvoiceType    entities.InvoiceType   `json:"invoice_type"`
 	Status         entities.InvoiceStatus `json:"status"`
-	IsImmutable    bool                  `json:"is_immutable"`
-	Currency       string                `json:"currency"`
-	SubTotal       int                   `json:"sub_total"`
-	TaxTotal       int                   `json:"tax_total"`
-	DiscountTotal  int                   `json:"discount_total"`
-	Total          int                   `json:"total"`
-	AmountPaid     int                   `json:"amount_paid"`
-	AmountDue      int                   `json:"amount_due"`
-	TaxProvider    string                `json:"tax_provider,omitempty"`
-	IssuedAt       time.Time             `json:"issued_at,omitempty"`
-	DueAt          time.Time             `json:"due_at,omitempty"`
-	PaidAt         time.Time             `json:"paid_at,omitempty"`
-	Notes          string                `json:"notes,omitempty"`
-	CustomerNotes  string                `json:"customer_notes,omitempty"`
-	Metadata       map[string]string     `json:"metadata,omitempty"`
-	CreatedAt      time.Time             `json:"created_at"`
-	UpdatedAt      time.Time             `json:"updated_at"`
-	LineItems      []InvoiceLineItem     `json:"line_items,omitempty"`
-	Payments       []Payment             `json:"payments,omitempty"`
+	IsImmutable    bool                   `json:"is_immutable"`
+	Currency       string                 `json:"currency"`
+	SubTotal       int                    `json:"sub_total"`
+	TaxTotal       int                    `json:"tax_total"`
+	DiscountTotal  int                    `json:"discount_total"`
+	Total          int                    `json:"total"`
+	AmountPaid     int                    `json:"amount_paid"`
+	AmountDue      int                    `json:"amount_due"`
+	TaxProvider    string                 `json:"tax_provider,omitempty"`
+	IssuedAt       time.Time              `json:"issued_at,omitempty"`
+	DueAt          time.Time              `json:"due_at,omitempty"`
+	PaidAt         time.Time              `json:"paid_at,omitempty"`
+	Notes          string                 `json:"notes,omitempty"`
+	CustomerNotes  string                 `json:"customer_notes,omitempty"`
+	Metadata       map[string]string      `json:"metadata,omitempty"`
+	CreatedAt      time.Time              `json:"created_at"`
+	UpdatedAt      time.Time              `json:"updated_at"`
+	LineItems      []InvoiceLineItem      `json:"line_items,omitempty"`
+	Payments       []Payment              `json:"payments,omitempty"`
 }
 
 // InvoiceLineItem represents the response for an invoice line item
@@ -60,18 +60,24 @@ type InvoiceLineItem struct {
 
 // InvoiceHistory represents the response for an invoice history entry
 type InvoiceHistory struct {
-	Id        string                   `json:"id"`
+	Id        string                        `json:"id"`
 	Action    entities.InvoiceHistoryAction `json:"action"`
-	Field     string                   `json:"field,omitempty"`
-	OldValue  interface{}              `json:"old_value,omitempty"`
-	NewValue  interface{}              `json:"new_value,omitempty"`
-	UserEmail string                   `json:"user_email,omitempty"`
-	Reason    string                   `json:"reason,omitempty"`
-	Timestamp time.Time                `json:"timestamp"`
+	Field     string                        `json:"field,omitempty"`
+	OldValue  interface{}                   `json:"old_value,omitempty"`
+	NewValue  interface{}                   `json:"new_value,omitempty"`
+	UserEmail string                        `json:"user_email,omitempty"`
+	Reason    string                        `json:"reason,omitempty"`
+	Timestamp time.Time                     `json:"timestamp"`
 }
 
 // NewInvoiceFromEntity creates a new Invoice response from an entity
 func NewInvoiceFromEntity(entity entities.Invoice) Invoice {
+
+	lineItems := make([]InvoiceLineItem, len(entity.LineItems))
+	for i, item := range entity.LineItems {
+		lineItems[i] = NewInvoiceLineItemFromEntity(item)
+	}
+
 	return Invoice{
 		Id:             entity.Id,
 		CustomerId:     entity.CustomerId,
@@ -99,6 +105,7 @@ func NewInvoiceFromEntity(entity entities.Invoice) Invoice {
 		Metadata:       entity.Metadata,
 		CreatedAt:      entity.CreatedAt,
 		UpdatedAt:      entity.UpdatedAt,
+		LineItems:      lineItems,
 	}
 }
 

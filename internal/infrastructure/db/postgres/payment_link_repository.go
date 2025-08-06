@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
@@ -34,7 +35,7 @@ func (r PaymentLinkRepository) FindById(ctx context.Context, orgId string, id st
 
 	var paymentLink models.PaymentLink
 
-	query := `SELECT org_id, id, slug, data, config, single_use, status, created_at, updated_at, used_at, expires_at
+	query := `SELECT org_id, id, slug, data, config, single_use, status, token_hash, created_at, updated_at, used_at, expires_at
 			  FROM payment_links
 			  WHERE org_id = @org_id AND id = @id`
 
@@ -49,6 +50,7 @@ func (r PaymentLinkRepository) FindById(ctx context.Context, orgId string, id st
 		&paymentLink.Config,
 		&paymentLink.SingleUse,
 		&paymentLink.Status,
+		&paymentLink.TokenHash,
 		&paymentLink.CreatedAt,
 		&paymentLink.UpdatedAt,
 		&paymentLink.UsedAt,
@@ -67,7 +69,7 @@ func (r PaymentLinkRepository) FindBySlug(ctx context.Context, slug string) (ent
 
 	var paymentLink models.PaymentLink
 
-	query := `SELECT org_id, id, slug, data, config, single_use, status, created_at, updated_at, used_at, expires_at
+	query := `SELECT org_id, id, slug, data, config, single_use, status, token_hash, created_at, updated_at, used_at, expires_at
 			  FROM payment_links
 			  WHERE slug = @slug`
 
@@ -81,6 +83,7 @@ func (r PaymentLinkRepository) FindBySlug(ctx context.Context, slug string) (ent
 		&paymentLink.Config,
 		&paymentLink.SingleUse,
 		&paymentLink.Status,
+		&paymentLink.TokenHash,
 		&paymentLink.CreatedAt,
 		&paymentLink.UpdatedAt,
 		&paymentLink.UsedAt,
@@ -100,7 +103,7 @@ func (r PaymentLinkRepository) List(ctx context.Context, orgId string, p request
 	var paymentLinks = make([]entities.PaymentLink, 0)
 	var count int
 
-	query := `SELECT org_id, id, slug, data, config, single_use, status, created_at, updated_at, used_at, expires_at, count(*) OVER()
+	query := `SELECT org_id, id, slug, data, config, single_use, status, token_hash, created_at, updated_at, used_at, expires_at, count(*) OVER()
 			  FROM payment_links
 			  WHERE org_id = @org_id
 			  ORDER BY
@@ -157,6 +160,7 @@ func (r PaymentLinkRepository) List(ctx context.Context, orgId string, p request
 			&paymentLink.Config,
 			&paymentLink.SingleUse,
 			&paymentLink.Status,
+			&paymentLink.TokenHash,
 			&paymentLink.CreatedAt,
 			&paymentLink.UpdatedAt,
 			&paymentLink.UsedAt,
@@ -182,19 +186,31 @@ func (r PaymentLinkRepository) Create(ctx context.Context, input entities.Paymen
 	tx := r.getTransactionFromContext(ctx)
 
 	var paymentLink models.PaymentLink
+	
+	// Marshal JSON data and config
+	dataJson, err := json.Marshal(input.Data)
+	if err != nil {
+		return entities.PaymentLink{}, fmt.Errorf("failed to marshal data: %w", err)
+	}
+	
+	configJson, err := json.Marshal(input.Config)
+	if err != nil {
+		return entities.PaymentLink{}, fmt.Errorf("failed to marshal config: %w", err)
+	}
 
-	query := `INSERT INTO payment_links (org_id, id, slug, data, config, single_use, status, created_at, updated_at, used_at, expires_at)
-			  VALUES (@org_id, @id, @slug, @data, @config, @single_use, @status, NOW(), NOW(), @used_at, @expires_at)
-			  RETURNING org_id, id, slug, data, config, single_use, status, created_at, updated_at, used_at, expires_at`
+	query := `INSERT INTO payment_links (org_id, id, slug, data, config, single_use, status, token_hash, created_at, updated_at, used_at, expires_at)
+		  VALUES (@org_id, @id, @slug, @data, @config, @single_use, @status, @token_hash, NOW(), NOW(), @used_at, @expires_at)
+		  RETURNING org_id, id, slug, data, config, single_use, status, token_hash, created_at, updated_at, used_at, expires_at`
 
-	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
+	err = tx.QueryRow(ctx, query, pgx.NamedArgs{
 		"org_id":     input.OrgId,
 		"id":         input.Id,
 		"slug":       input.Slug,
-		"data":       input.Data,
-		"config":     input.Config,
+		"data":       dataJson,
+		"config":     configJson,
 		"single_use": input.SingleUse,
 		"status":     input.Status,
+		"token_hash": input.TokenHash,
 		"used_at":    input.UsedAt,
 		"expires_at": input.ExpiresAt,
 	}).Scan(
@@ -205,6 +221,7 @@ func (r PaymentLinkRepository) Create(ctx context.Context, input entities.Paymen
 		&paymentLink.Config,
 		&paymentLink.SingleUse,
 		&paymentLink.Status,
+		&paymentLink.TokenHash,
 		&paymentLink.CreatedAt,
 		&paymentLink.UpdatedAt,
 		&paymentLink.UsedAt,
@@ -223,21 +240,33 @@ func (r PaymentLinkRepository) Update(ctx context.Context, input entities.Paymen
 	tx := r.getTransactionFromContext(ctx)
 
 	var paymentLink models.PaymentLink
+	
+	// Marshal JSON data and config
+	dataJson, err := json.Marshal(input.Data)
+	if err != nil {
+		return entities.PaymentLink{}, fmt.Errorf("failed to marshal data: %w", err)
+	}
+	
+	configJson, err := json.Marshal(input.Config)
+	if err != nil {
+		return entities.PaymentLink{}, fmt.Errorf("failed to marshal config: %w", err)
+	}
 
 	query := `UPDATE payment_links
-			  SET slug = @slug, data = @data, config = @config, single_use = @single_use, status = @status, 
-			      updated_at = NOW(), used_at = @used_at, expires_at = @expires_at
-			  WHERE org_id = @org_id AND id = @id
-			  RETURNING org_id, id, slug, data, config, single_use, status, created_at, updated_at, used_at, expires_at`
+		  SET slug = @slug, data = @data, config = @config, single_use = @single_use, status = @status, 
+		      token_hash = @token_hash, updated_at = NOW(), used_at = @used_at, expires_at = @expires_at
+		  WHERE org_id = @org_id AND id = @id
+		  RETURNING org_id, id, slug, data, config, single_use, status, token_hash, created_at, updated_at, used_at, expires_at`
 
-	err := tx.QueryRow(ctx, query, pgx.NamedArgs{
+	err = tx.QueryRow(ctx, query, pgx.NamedArgs{
 		"org_id":     input.OrgId,
 		"id":         input.Id,
 		"slug":       input.Slug,
-		"data":       input.Data,
-		"config":     input.Config,
+		"data":       dataJson,
+		"config":     configJson,
 		"single_use": input.SingleUse,
 		"status":     input.Status,
+		"token_hash": input.TokenHash,
 		"used_at":    input.UsedAt,
 		"expires_at": input.ExpiresAt,
 	}).Scan(
@@ -248,6 +277,7 @@ func (r PaymentLinkRepository) Update(ctx context.Context, input entities.Paymen
 		&paymentLink.Config,
 		&paymentLink.SingleUse,
 		&paymentLink.Status,
+		&paymentLink.TokenHash,
 		&paymentLink.CreatedAt,
 		&paymentLink.UpdatedAt,
 		&paymentLink.UsedAt,

@@ -14,6 +14,7 @@ import (
 	"payloop/internal/application/lib/pdf"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
+	"payloop/internal/lib"
 	"time"
 )
 
@@ -149,7 +150,7 @@ func (c InvoiceController) Get(ctx *gin.Context) {
 	})
 	if err != nil {
 		c.logger.Error("Failed to get payments for invoice: ", err)
-		// Continue even if payments retrieval fails
+		// Continue even if payment retrieval fails
 	} else {
 		// Convert payment entities to response DTOs
 		payments = make([]response.Payment, len(paymentEntities))
@@ -222,7 +223,7 @@ func (c InvoiceController) Update(ctx *gin.Context) {
 	})
 	if err != nil {
 		c.logger.Error("Failed to get payments for invoice: ", err)
-		// Continue even if payments retrieval fails
+		// Continue even if payment retrieval fails
 	} else {
 		// Convert payment entities to response DTOs
 		payments = make([]response.Payment, len(paymentEntities))
@@ -370,7 +371,7 @@ func (c InvoiceController) PerformAction(ctx *gin.Context) {
 	})
 	if err != nil {
 		c.logger.Error("Failed to get payments for invoice: ", err)
-		// Continue even if payments retrieval fails
+		// Continue even if payment retrieval fails
 	} else {
 		// Convert payment entities to response DTOs
 		payments = make([]response.Payment, len(paymentEntities))
@@ -581,7 +582,17 @@ func (c InvoiceController) CreatePaymentLink(ctx *gin.Context) {
 	}
 
 	// Convert API DTO to application DTO
-	t, _ := time.Parse(time.RFC3339, input.ExpiresAt)
+	var t time.Time
+	var err error
+	if input.ExpiresAt != "" {
+		t, err = time.Parse(time.RFC3339, input.ExpiresAt)
+		if err != nil {
+			apiErr := api.NewApiError(lib.BadRequestError, "Invalid expires_at format", "Must be RFC3339 format")
+			ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
+			return
+		}
+	}
+
 	appInput := dto.CreateInvoicePaymentLinkInput{
 		ExpiresAt:  t,
 		SuccessUrl: input.SuccessUrl,
@@ -589,18 +600,27 @@ func (c InvoiceController) CreatePaymentLink(ctx *gin.Context) {
 		Config:     input.Config,
 	}
 
-	// Create payment link
-	paymentLink, err := c.invoiceService.CreatePaymentLink(ctx.Request.Context(), authUser.OrgId, invoiceId, appInput)
+	// Create a payment link
+	result, err := c.invoiceService.CreatePaymentLink(ctx.Request.Context(), authUser.OrgId, invoiceId, appInput)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
-	// Convert to response DTO
-	response := mappers.ToPaymentLinkResponse(paymentLink)
+	// Convert to API response DTO including the token
+	baseResponse := mappers.ToPaymentLinkResponse(result.PaymentLink)
 
-	ctx.JSON(http.StatusCreated, response)
+	// Create a custom response that includes the token
+	paymentLinkResponse := struct {
+		response.PaymentLinkResponse
+		Token string `json:"token"`
+	}{
+		PaymentLinkResponse: baseResponse,
+		Token:               result.Token,
+	}
+
+	ctx.JSON(http.StatusCreated, paymentLinkResponse)
 }
 
 // InitiatePayment handles initiating payment for an invoice
@@ -620,7 +640,7 @@ func (c InvoiceController) InitiatePayment(ctx *gin.Context) {
 	appInput := mappers.ToInitiatePaymentInput(input)
 
 	// Initiate payment
-	order, orderResponse, err := c.invoiceService.InitiatePayment(ctx.Request.Context(), authUser.OrgId, invoiceId, appInput)
+	orderResponse, err := c.invoiceService.InitiatePayment(ctx.Request.Context(), authUser.OrgId, invoiceId, appInput)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -628,7 +648,5 @@ func (c InvoiceController) InitiatePayment(ctx *gin.Context) {
 	}
 
 	// Convert to response DTO
-	paymentResponse := mappers.ToInitiatePaymentResponse(order, orderResponse, input.PaymentProcessor)
-
-	ctx.JSON(http.StatusOK, paymentResponse)
+	ctx.JSON(http.StatusOK, orderResponse)
 }

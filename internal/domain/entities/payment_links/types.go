@@ -1,5 +1,7 @@
 package payment_links
 
+import "payloop/internal/domain/entities"
+
 type CreatePaymentLinkInput struct {
 	Slug      string                 `json:"slug" binding:"required"`
 	Data      map[string]interface{} `json:"data"`
@@ -71,6 +73,18 @@ type PaymentLinkResponse struct {
 	UpdatedAt string                 `json:"updated_at"`
 	UsedAt    string                 `json:"used_at,omitempty"`
 	ExpiresAt string                 `json:"expires_at,omitempty"`
+}
+
+// PaymentLinkCreationResponse includes the secure token only on creation
+type PaymentLinkCreationResponse struct {
+	PaymentLinkResponse
+	Token string `json:"token"` // Only returned on creation, never stored or returned again
+}
+
+// PaymentLinkCreationResult contains both the payment link and the generated token
+type PaymentLinkCreationResult struct {
+	PaymentLink entities.PaymentLink
+	Token       string // The generated token for accessing the payment link
 }
 
 type PaymentLinkUsageResponse struct {

@@ -2,19 +2,15 @@ package controllers
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
-	"net/http"
-	"time"
-
 	"github.com/gin-gonic/gin"
+	"net/http"
 	"payloop/internal/api"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/api/dto/response"
-	"payloop/internal/api/mappers"
 	"payloop/internal/application/dto"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/application/services"
 	"payloop/internal/domain/entities"
 	"payloop/internal/lib"
 )
@@ -23,20 +19,26 @@ type PublicPaymentController struct {
 	paymentLinkService interfaces.PaymentLinkService
 	orderService       interfaces.OrderService
 	invoiceService     interfaces.InvoiceService
-	logger            logger.Logger
+	customerService    interfaces.CustomerService
+	orgService         services.OrgService
+	logger             logger.Logger
 }
 
 func NewPublicPaymentController(
 	paymentLinkService interfaces.PaymentLinkService,
 	orderService interfaces.OrderService,
 	invoiceService interfaces.InvoiceService,
+	customerService interfaces.CustomerService,
+	orgService services.OrgService,
 	logger logger.Logger,
 ) PublicPaymentController {
 	return PublicPaymentController{
 		paymentLinkService: paymentLinkService,
-		orderService:      orderService,
-		invoiceService:    invoiceService,
-		logger:            logger,
+		orderService:       orderService,
+		invoiceService:     invoiceService,
+		customerService:    customerService,
+		orgService:         orgService,
+		logger:             logger,
 	}
 }
 
@@ -46,32 +48,25 @@ func (c PublicPaymentController) extractToken(ctx *gin.Context) string {
 }
 
 // validatePaymentLinkAccess validates token access to a payment link
-func (c PublicPaymentController) validatePaymentLinkAccess(ctx context.Context, slug, token string) (*entities.PaymentLink, error) {
-	// 1. Find payment link by slug
-	paymentLink, err := c.paymentLinkService.GetPaymentLinkBySlug(ctx, slug)
+func (c PublicPaymentController) validatePaymentLinkAccess(ctx context.Context, slug, token string) (entities.PaymentLink, error) {
+	// Use the service method for validation
+	paymentLink, err := c.paymentLinkService.ValidatePaymentLinkAccess(ctx, slug, token)
 	if err != nil {
-		return nil, fmt.Errorf("payment link not found")
+		return entities.PaymentLink{}, err
 	}
 
-	// TODO: Token validation will be implemented once PaymentLink entity is updated with TokenHash field
-	// For now, we'll proceed without token validation as a placeholder
+	return paymentLink, nil
+}
 
-	// 2. Check payment link status (using string comparison for now)
-	if paymentLink.Status != "active" {
-		return nil, fmt.Errorf("payment link not active")
+// getOrgName fetches the organization name, falling back to orgId if fetch fails
+func (c PublicPaymentController) getOrgName(ctx context.Context, orgId string) string {
+	org, err := c.orgService.Get(ctx, orgId)
+	if err != nil {
+		c.logger.Warn("Failed to fetch organization details", "error", err, "orgId", orgId)
+		// Fall back to orgId if we can't fetch the organization name
+		return orgId
 	}
-
-	// 3. Check expiration (ExpiresAt is time.Time, check if zero value)
-	if !paymentLink.ExpiresAt.IsZero() && time.Now().After(paymentLink.ExpiresAt) {
-		return nil, fmt.Errorf("payment link expired")
-	}
-
-	// 4. Check single use (UsedAt is time.Time, check if zero value)
-	if paymentLink.SingleUse && !paymentLink.UsedAt.IsZero() {
-		return nil, fmt.Errorf("payment link already used")
-	}
-
-	return &paymentLink, nil
+	return org.Name
 }
 
 // GetPaymentDetails handles GET /api/pay/:slug
@@ -87,26 +82,21 @@ func (c PublicPaymentController) GetPaymentDetails(ctx *gin.Context) {
 		return
 	}
 
-	// Extract data based on payment link type - Data is stored as JSON bytes
-	var data map[string]interface{}
-	if err := json.Unmarshal(paymentLink.Data, &data); err != nil {
-		apiErr := api.NewApiError(lib.InternalError, "Invalid payment link data", err.Error())
-		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
-	}
-
-	linkType, ok := data["type"].(string)
+	linkType, ok := paymentLink.Data["type"].(string)
 	if !ok {
 		apiErr := api.NewApiError(lib.InternalError, "Payment link type not specified", nil)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
+	// Fetch organization name
+	orgName := c.getOrgName(ctx.Request.Context(), paymentLink.OrgId)
+
 	var responseData response.PublicPaymentDetailsResponse
 
 	switch linkType {
 	case "invoice":
-		invoiceId, ok := data["invoiceId"].(string)
+		invoiceId, ok := paymentLink.Data["invoice_id"].(string)
 		if !ok {
 			apiErr := api.NewApiError(lib.InternalError, "Invoice ID not found in payment link", nil)
 			ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -121,19 +111,38 @@ func (c PublicPaymentController) GetPaymentDetails(ctx *gin.Context) {
 			return
 		}
 
+		// Fetch customer data if customer ID is present in the invoice
+		var customerData response.PublicCustomer
+		if invoice.CustomerId != "" {
+			customer, err := c.customerService.Get(ctx.Request.Context(), paymentLink.OrgId, invoice.CustomerId)
+			if err != nil {
+				c.logger.Warn("Failed to fetch customer details", "error", err, "customerId", invoice.CustomerId)
+				// Continue without customer data rather than failing the whole request
+			} else {
+				customerResponse := response.NewPublicCustomerFromEntity(customer)
+				customerData = customerResponse
+			}
+		}
+
 		responseData = response.PublicPaymentDetailsResponse{
-			Type:          "invoice",
-			Invoice:       mappers.ToPublicInvoiceResponse(invoice),
-			PaymentConfig: paymentLink.Config,
-			OrgId:         paymentLink.OrgId,
+			Type:     "invoice",
+			Invoice:  response.NewInvoiceFromEntity(invoice),
+			Customer: customerData,
+			Config:   paymentLink.Config,
+			Org: response.PublicOrgResponse{
+				Id:   paymentLink.OrgId,
+				Name: orgName,
+			},
 		}
 
 	case "checkout":
 		responseData = response.PublicPaymentDetailsResponse{
-			Type:          "checkout",
-			CheckoutItems: data["items"],
-			PaymentConfig: paymentLink.Config,
-			OrgId:         paymentLink.OrgId,
+			Type:   "checkout",
+			Config: paymentLink.Config,
+			Org: response.PublicOrgResponse{
+				Id:   paymentLink.OrgId,
+				Name: orgName,
+			},
 		}
 
 	default:
@@ -165,15 +174,7 @@ func (c PublicPaymentController) CreateOrder(ctx *gin.Context) {
 		return
 	}
 
-	// Extract payment link data - Data is stored as JSON bytes
-	var data map[string]interface{}
-	if err := json.Unmarshal(paymentLink.Data, &data); err != nil {
-		apiErr := api.NewApiError(lib.InternalError, "Invalid payment link data", err.Error())
-		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
-	}
-
-	linkType, ok := data["type"].(string)
+	linkType, ok := paymentLink.Data["type"].(string)
 	if !ok {
 		apiErr := api.NewApiError(lib.InternalError, "Payment link type not specified", nil)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -183,7 +184,7 @@ func (c PublicPaymentController) CreateOrder(ctx *gin.Context) {
 	// Handle different payment link types
 	switch linkType {
 	case "invoice":
-		invoiceId, ok := data["invoiceId"].(string)
+		invoiceId, ok := paymentLink.Data["invoice_id"].(string)
 		if !ok {
 			apiErr := api.NewApiError(lib.InternalError, "Invoice ID not found in payment link", nil)
 			ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -199,12 +200,12 @@ func (c PublicPaymentController) CreateOrder(ctx *gin.Context) {
 		appInput := dto.InitiatePaymentInput{
 			PaymentProcessor: input.PaymentProcessor,
 			BillingAddress:   billingAddress,
-			SuccessUrl:      input.SuccessUrl,
-			CancelUrl:       input.CancelUrl,
-			Metadata:        input.Metadata,
+			SuccessUrl:       input.SuccessUrl,
+			CancelUrl:        input.CancelUrl,
+			Metadata:         input.Metadata,
 		}
 
-		order, orderResponse, err := c.invoiceService.InitiatePayment(
+		orderResponse, err := c.invoiceService.InitiatePayment(
 			ctx.Request.Context(),
 			paymentLink.OrgId,
 			invoiceId,
@@ -224,11 +225,10 @@ func (c PublicPaymentController) CreateOrder(ctx *gin.Context) {
 		}
 
 		// Convert to public response
-		publicResponse := mappers.ToPublicOrderResponse(order, orderResponse, input.PaymentProcessor)
-		ctx.JSON(http.StatusOK, publicResponse)
+		ctx.JSON(http.StatusOK, orderResponse)
 
 	default:
-		apiErr := api.NewApiError(lib.BadRequestError, "Unsupported payment link type", nil)
+		apiErr := api.NewApiError(lib.BadRequestError, "Unsupported payment link type "+linkType, nil)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}

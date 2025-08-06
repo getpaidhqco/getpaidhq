@@ -161,16 +161,25 @@ func (c PaymentLinkController) CreatePaymentLink(ctx *gin.Context) {
 		ExpiresAt: req.ExpiresAt,
 	}
 
-	paymentLink, err := c.paymentLinkService.CreatePaymentLink(ctx.Request.Context(), authUser.OrgId, input)
+	result, err := c.paymentLinkService.CreatePaymentLink(ctx.Request.Context(), authUser.OrgId, input)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
-	// Convert to response DTO
-	response := mapPaymentLinkToResponse(paymentLink)
-	ctx.JSON(201, response)
+	// Convert to API response DTO including the token
+	baseResponse := mapPaymentLinkToResponse(result.PaymentLink)
+	
+	// Create a custom response that includes the token
+	paymentLinkResponse := struct {
+		response.PaymentLinkResponse
+		Token string `json:"token"`
+	}{
+		PaymentLinkResponse: baseResponse,
+		Token:               result.Token,
+	}
+	ctx.JSON(201, paymentLinkResponse)
 }
 
 // UpdatePaymentLink godoc
@@ -359,17 +368,6 @@ func (c PaymentLinkController) ListPaymentLinkUsages(ctx *gin.Context) {
 
 // Helper functions to map entities to response DTOs
 func mapPaymentLinkToResponse(paymentLink entities.PaymentLink) response.PaymentLinkResponse {
-	var data map[string]interface{}
-	var config map[string]interface{}
-
-	// Unmarshal JSON data
-	if paymentLink.Data != nil {
-		_ = json.Unmarshal(paymentLink.Data, &data)
-	}
-	if paymentLink.Config != nil {
-		_ = json.Unmarshal(paymentLink.Config, &config)
-	}
-
 	// Format timestamps
 	createdAt := paymentLink.CreatedAt.Format(time.RFC3339)
 	updatedAt := paymentLink.UpdatedAt.Format(time.RFC3339)
@@ -387,8 +385,8 @@ func mapPaymentLinkToResponse(paymentLink entities.PaymentLink) response.Payment
 	return response.PaymentLinkResponse{
 		Id:        paymentLink.Id,
 		Slug:      paymentLink.Slug,
-		Data:      data,
-		Config:    config,
+		Data:      paymentLink.Data,
+		Config:    paymentLink.Config,
 		SingleUse: paymentLink.SingleUse,
 		Status:    paymentLink.Status,
 		CreatedAt: createdAt,

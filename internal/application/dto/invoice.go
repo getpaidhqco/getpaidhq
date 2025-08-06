@@ -87,6 +87,12 @@ type CreateInvoicePaymentLinkInput struct {
 	Config     map[string]interface{} `json:"config,omitempty"`
 }
 
+// InvoicePaymentLinkCreationResult contains both the payment link and the generated token
+type InvoicePaymentLinkCreationResult struct {
+	PaymentLink entities.PaymentLink
+	Token       string // The generated token for accessing the payment link
+}
+
 // InitiatePaymentInput represents the application input to initiate payment for an invoice
 type InitiatePaymentInput struct {
 	PaymentProcessor string                 `json:"payment_processor"`

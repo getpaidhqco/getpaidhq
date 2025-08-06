@@ -49,6 +49,18 @@ func NewOrgService(
 	}
 }
 
+func (s OrgService) Get(ctx context.Context, orgId string) (entities.Org, error) {
+	s.logger.Debug("Getting organization", "org_id", orgId)
+
+	org, err := s.orgRepository.FindById(ctx, orgId)
+	if err != nil {
+		s.logger.Error("Failed to get organization", "org_id", orgId, "err", err)
+		return entities.Org{}, err
+	}
+
+	return org, nil
+}
+
 func (s OrgService) GetApiKeys(ctx context.Context, orgId string) ([]entities.ApiKey, error) {
 	s.logger.Debug("Getting API keys for org", "org_id", orgId)
 

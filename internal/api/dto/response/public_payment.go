@@ -1,44 +1,30 @@
 package response
 
-import (
-	"payloop/internal/domain/entities"
-)
+import "payloop/internal/domain/entities"
 
 // PublicPaymentDetailsResponse represents payment link details for customers
 type PublicPaymentDetailsResponse struct {
-	Type          string                 `json:"type"`           // "invoice" or "checkout"
-	Invoice       *PublicInvoiceResponse `json:"invoice,omitempty"`
-	CheckoutItems interface{}            `json:"checkout_items,omitempty"`
-	PaymentConfig interface{}            `json:"payment_config"`
-	OrgId         string                 `json:"org_id"`
+	Type     string            `json:"type"` // "invoice" or "checkout"
+	Invoice  Invoice           `json:"invoice,omitempty"`
+	Customer PublicCustomer    `json:"customer,omitempty"`
+	Org      PublicOrgResponse `json:"org,omitempty"`
+	Config   interface{}       `json:"config"`
+}
+
+// PublicCustomer represents customer data for public payment display
+type PublicCustomer struct {
+	Id             string            `json:"id"`
+	Email          string            `json:"email"`
+	FirstName      string            `json:"first_name,omitempty"`
+	LastName       string            `json:"last_name,omitempty"`
+	BillingAddress entities.Address  `json:"billing_address,omitempty"`
 }
 
 // PublicInvoiceResponse represents invoice data for customer display
-type PublicInvoiceResponse struct {
-	Id            string                      `json:"id"`
-	DocNumber     string                      `json:"doc_number"`
-	Total         int                         `json:"total"`
-	AmountDue     string                      `json:"amount_due"`
-	Currency      string                      `json:"currency"`
-	DueAt         *string                     `json:"due_at,omitempty"`
-	LineItems     []PublicInvoiceLineItem     `json:"line_items"`
-	Customer      *PublicCustomerResponse     `json:"customer,omitempty"`
-}
-
-// PublicInvoiceLineItem represents line item for customer display
-type PublicInvoiceLineItem struct {
-	Description   string  `json:"description"`
-	Quantity      string  `json:"quantity"`
-	UnitPrice     int     `json:"unit_price"`
-	LineTotal     int     `json:"line_total"`
-}
-
-// PublicCustomerResponse represents customer data for invoice display
-type PublicCustomerResponse struct {
-	Email          string             `json:"email"`
-	FirstName      string             `json:"first_name,omitempty"`
-	LastName       string             `json:"last_name,omitempty"`
-	BillingAddress *entities.Address  `json:"billing_address,omitempty"`
+type PublicOrgResponse struct {
+	Id      string `json:"id"`
+	Name    string `json:"name"`
+	LogoUrl string `json:"logo_url,omitempty"`
 }
 
 // PublicOrderResponse represents order creation response for customers
@@ -61,4 +47,15 @@ type PublicOrderStatusResponse struct {
 	PaymentStatus string `json:"payment_status,omitempty"`
 	Amount        int    `json:"amount"`
 	Currency      string `json:"currency"`
+}
+
+// NewPublicCustomerFromEntity creates a new PublicCustomer response from an entity
+func NewPublicCustomerFromEntity(entity entities.Customer) PublicCustomer {
+	return PublicCustomer{
+		Id:             entity.Id,
+		Email:          entity.Email,
+		FirstName:      entity.FirstName,
+		LastName:       entity.LastName,
+		BillingAddress: entity.BillingAddress, // Use struct directly, omitempty handles empty values
+	}
 }

@@ -2,6 +2,9 @@ package services
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"payloop/internal/api/dto/request"
@@ -36,6 +39,26 @@ func NewPaymentLinkService(
 		pubsub:                     pubsub,
 		logger:                     logger,
 	}
+}
+
+// generateSecureToken generates a cryptographically secure 32-byte token
+func (s PaymentLinkService) generateSecureToken() (string, string, error) {
+	// Generate 32 random bytes
+	tokenBytes := make([]byte, 32)
+	_, err := rand.Read(tokenBytes)
+	if err != nil {
+		return "", "", fmt.Errorf("failed to generate secure token: %w", err)
+	}
+
+	// Convert to hex string for the token
+	token := hex.EncodeToString(tokenBytes)
+
+	// Generate SHA256 hash for storage
+	hasher := sha256.New()
+	hasher.Write([]byte(token))
+	tokenHash := hex.EncodeToString(hasher.Sum(nil))
+
+	return token, tokenHash, nil
 }
 
 // Payment Link CRUD operations
@@ -73,48 +96,53 @@ func (s PaymentLinkService) ListPaymentLinks(ctx context.Context, orgId string, 
 	return result, nil
 }
 
-func (s PaymentLinkService) CreatePaymentLink(ctx context.Context, orgId string, input payment_links.CreatePaymentLinkInput) (entities.PaymentLink, error) {
-	// Convert data and config to JSON
-	dataJson, err := json.Marshal(input.Data)
-	if err != nil {
-		return entities.PaymentLink{}, fmt.Errorf("failed to marshal data: %w", err)
-	}
-
-	configJson, err := json.Marshal(input.Config)
-	if err != nil {
-		return entities.PaymentLink{}, fmt.Errorf("failed to marshal config: %w", err)
-	}
-
+func (s PaymentLinkService) CreatePaymentLink(ctx context.Context, orgId string, input payment_links.CreatePaymentLinkInput) (payment_links.PaymentLinkCreationResult, error) {
 	// Parse expires_at if provided
 	var expiresAt time.Time
 	if input.ExpiresAt != "" {
-		expiresAt, err = time.Parse(time.RFC3339, input.ExpiresAt)
+		parsedExpiresAt, err := time.Parse(time.RFC3339, input.ExpiresAt)
 		if err != nil {
-			return entities.PaymentLink{}, fmt.Errorf("invalid expires_at format: %w", err)
+			return payment_links.PaymentLinkCreationResult{}, fmt.Errorf("invalid expires_at format: %w", err)
 		}
+		expiresAt = parsedExpiresAt
+	}
+
+	// Generate secure token and hash for token-protected access
+	token, tokenHash, err := s.generateSecureToken()
+	if err != nil {
+		s.logger.Error("failed to generate secure token", err)
+		return payment_links.PaymentLinkCreationResult{}, fmt.Errorf("failed to generate secure token: %w", err)
 	}
 
 	// Create payment link
 	paymentLink, err := s.paymentLinkRepository.Create(ctx, entities.PaymentLink{
 		OrgId:     orgId,
-		Id:        lib.GenerateId("plink"),
+		Id:        lib.GenerateId("pay"),
 		Slug:      input.Slug,
-		Data:      dataJson,
-		Config:    configJson,
+		Data:      input.Data,
+		Config:    input.Config,
 		SingleUse: input.SingleUse,
 		Status:    "active", // Default status
+		TokenHash: tokenHash,
 		ExpiresAt: expiresAt,
 	})
 
 	if err != nil {
 		s.logger.Error("failed to create payment link", err)
-		return entities.PaymentLink{}, err
+		return payment_links.PaymentLinkCreationResult{}, err
 	}
+
+	// Log the generated token for the user (in production, this should be returned to the client)
+	s.logger.Info("Payment link created with secure token", "payment_link_id", paymentLink.Id, "token", token)
 
 	// Publish event
 	_ = s.pubsub.Publish(orgId, topic.PaymentLinkCreated, paymentLink)
 
-	return paymentLink, nil
+	// Return both the payment link and the token
+	return payment_links.PaymentLinkCreationResult{
+		PaymentLink: paymentLink,
+		Token:       token,
+	}, nil
 }
 
 func (s PaymentLinkService) UpdatePaymentLink(ctx context.Context, orgId string, id string, input payment_links.UpdatePaymentLinkInput) (entities.PaymentLink, error) {
@@ -130,19 +158,11 @@ func (s PaymentLinkService) UpdatePaymentLink(ctx context.Context, orgId string,
 	}
 
 	if input.Data != nil {
-		dataJson, err := json.Marshal(input.Data)
-		if err != nil {
-			return entities.PaymentLink{}, fmt.Errorf("failed to marshal data: %w", err)
-		}
-		paymentLink.Data = dataJson
+		paymentLink.Data = input.Data
 	}
 
 	if input.Config != nil {
-		configJson, err := json.Marshal(input.Config)
-		if err != nil {
-			return entities.PaymentLink{}, fmt.Errorf("failed to marshal config: %w", err)
-		}
-		paymentLink.Config = configJson
+		paymentLink.Config = input.Config
 	}
 
 	paymentLink.SingleUse = input.SingleUse
@@ -192,6 +212,54 @@ func (s PaymentLinkService) DeletePaymentLink(ctx context.Context, orgId string,
 	return nil
 }
 
+// Public Access operations
+func (s PaymentLinkService) ValidatePaymentLinkAccess(ctx context.Context, slug, token string) (entities.PaymentLink, error) {
+	// Get payment link by slug
+	paymentLink, err := s.paymentLinkRepository.FindBySlug(ctx, slug)
+	if err != nil {
+		s.logger.Error("payment link not found", err)
+		return entities.PaymentLink{}, lib.NewCustomError(lib.NotFoundError, "Payment link not found", err)
+	}
+
+	// Validate payment link status
+	if paymentLink.Status != "active" {
+		s.logger.Warn("payment link is not active", "slug", slug, "status", paymentLink.Status)
+		return entities.PaymentLink{}, lib.NewCustomError(lib.ValidationError, "Payment link is not active", nil)
+	}
+
+	// Validate expiration
+	if !paymentLink.ExpiresAt.IsZero() && time.Now().After(paymentLink.ExpiresAt) {
+		s.logger.Warn("payment link is expired", "slug", slug, "expires_at", paymentLink.ExpiresAt)
+		return entities.PaymentLink{}, lib.NewCustomError(lib.ValidationError, "Payment link has expired", nil)
+	}
+
+	// Validate single use
+	if paymentLink.SingleUse && !paymentLink.UsedAt.IsZero() {
+		s.logger.Warn("payment link has already been used", "slug", slug, "used_at", paymentLink.UsedAt)
+		return entities.PaymentLink{}, lib.NewCustomError(lib.ValidationError, "Payment link has already been used", nil)
+	}
+
+	// Validate token if TokenHash is present
+	if paymentLink.TokenHash != "" {
+		if token == "" {
+			s.logger.Warn("token required for payment link access", "slug", slug)
+			return entities.PaymentLink{}, lib.NewCustomError(lib.ValidationError, "Token required for payment link access", nil)
+		}
+
+		// Hash the provided token and compare with stored hash
+		hasher := sha256.New()
+		hasher.Write([]byte(token))
+		tokenHash := hex.EncodeToString(hasher.Sum(nil))
+
+		if tokenHash != paymentLink.TokenHash {
+			s.logger.Warn("invalid token for payment link", "slug", slug)
+			return entities.PaymentLink{}, lib.NewCustomError(lib.ValidationError, "Invalid token", nil)
+		}
+	}
+
+	return paymentLink, nil
+}
+
 // Payment Link Usage operations
 func (s PaymentLinkService) RecordPaymentLinkUsage(ctx context.Context, orgId string, input payment_links.RecordPaymentLinkUsageInput) (entities.PaymentLinkUsage, error) {
 	// Convert metadata to JSON
@@ -206,18 +274,18 @@ func (s PaymentLinkService) RecordPaymentLinkUsage(ctx context.Context, orgId st
 
 	// Create payment link usage
 	usage, err := s.paymentLinkUsageRepository.Create(ctx, entities.PaymentLinkUsage{
-		Id:           lib.GenerateId("usage"),
-		OrgId:        orgId,
+		Id:            lib.GenerateId("usage"),
+		OrgId:         orgId,
 		PaymentLinkId: input.PaymentLinkId,
-		SessionId:    input.SessionId,
-		CustomerId:   input.CustomerId,
-		EventType:    input.EventType,
-		IpAddress:    input.IpAddress,
-		UserAgent:    input.UserAgent,
-		Referer:      input.Referer,
-		Country:      input.Country,
-		Metadata:     metadataJson,
-		Timestamp:    time.Now(),
+		SessionId:     input.SessionId,
+		CustomerId:    input.CustomerId,
+		EventType:     input.EventType,
+		IpAddress:     input.IpAddress,
+		UserAgent:     input.UserAgent,
+		Referer:       input.Referer,
+		Country:       input.Country,
+		Metadata:      metadataJson,
+		Timestamp:     time.Now(),
 	})
 
 	if err != nil {
