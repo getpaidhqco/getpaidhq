@@ -134,12 +134,70 @@ func ToCustomerResponse(customer entities.Customer) response.CustomerResponse {
 - When creating new features: Create application DTOs first, then API DTOs, then mappers
 
 ### Function Design Guidelines
-- Function calls should return structs, not pointers (when possible)
+- **Function calls should return structs, not pointers (when possible)**
+- **ALWAYS prefer structs over pointers for data structures**
+  - Use structs for DTOs, response objects, and data containers
+  - Only use pointers when necessary for performance (large structs) or when nil semantics are required
+  - For optional fields in structs, use zero values and omitempty tags instead of pointers
+  - Examples:
+    ```go
+    // ✅ CORRECT - Use struct
+    type PublicCustomer struct {
+        Email     string `json:"email"`
+        FirstName string `json:"first_name,omitempty"` // Empty string for optional
+    }
+    
+    // ❌ WRONG - Avoid pointers unless necessary
+    type PublicCustomer struct {
+        Email     *string `json:"email"`
+        FirstName *string `json:"first_name,omitempty"`
+    }
+    ```
 - Reference adjacent files for examples of implementation patterns
 - Use existing codebase patterns as templates for new features
 - Prefer composition over inheritance
 - Keep functions focused on single responsibilities
-- prefer structs over pointers for data structures
+
+### Struct vs Pointer Usage Guidelines
+
+**Default Rule: ALWAYS use structs over pointers unless there's a specific need for pointers**
+
+#### When to Use Structs (Preferred):
+- **DTOs and Response Objects**: All API response DTOs should use structs
+- **Optional Fields**: Use `omitempty` JSON tags with zero values instead of pointers
+- **Configuration Objects**: Structs with default zero values
+- **Small to Medium Data Structures**: Most business data structures
+- **Function Parameters**: Pass structs by value for small-medium structures
+
+#### When Pointers Are Acceptable:
+- **Large Structs**: When copying would be expensive (>1KB as rough guideline)
+- **Nil Semantics Required**: When you need to distinguish between "not set" and "zero value"
+- **Interface Implementation**: When required for interface satisfaction
+- **Receiver Methods**: Use pointer receivers for methods that modify the struct
+- **Database Models**: When ORM requires pointer fields
+
+#### Examples:
+
+```go
+// ✅ PREFERRED - Struct with omitempty for optional fields
+type CreateCustomerRequest struct {
+    Email     string `json:"email" binding:"required"`
+    FirstName string `json:"first_name,omitempty"`
+    LastName  string `json:"last_name,omitempty"`
+}
+
+// ✅ ACCEPTABLE - Pointer when nil semantics needed
+type UpdateCustomerRequest struct {
+    Email     *string `json:"email,omitempty"` // nil = don't update, "" = set empty
+    FirstName *string `json:"first_name,omitempty"`
+}
+
+// ❌ AVOID - Unnecessary pointers for simple fields
+type BadCustomerRequest struct {
+    Email     *string `json:"email"`
+    FirstName *string `json:"first_name"`
+}
+```
 
 ## Docs and Specs
 - Documentation is in `docs/`
