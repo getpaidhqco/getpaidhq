@@ -5,7 +5,7 @@ info:
     Comprehensive subscription billing platform API supporting traditional subscriptions, 
     usage-based billing, and hybrid models with advanced features like dunning management, 
     multi-currency support, and enterprise-grade security.
-  version: 1.0.6
+  version: 1.0.7
   contact:
     name: GetPaidHQ Support
     url: https://getpaidhq.co
@@ -6385,8 +6385,9 @@ components:
           $ref: '#/components/schemas/Order'
           description: Created order details
         psp:
-          $ref: '#/components/schemas/InitPaymentResponse'
-          description: Payment service provider response containing payment initialization data
+          type: object
+          additionalProperties: true
+          description: Payment service provider response data - structure varies by provider (Paystack, Checkout.com, etc.)
       description: Response from creating an order, containing both order details and PSP payment initialization response
 
     InitPaymentResponse:
@@ -6394,6 +6395,7 @@ components:
       properties:
         psp_response:
           type: object
+          additionalProperties: true
           description: Payment service provider specific response data (varies by provider)
       description: Payment initialization response from the payment service provider
 
