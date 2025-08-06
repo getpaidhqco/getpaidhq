@@ -5,7 +5,7 @@ info:
     Comprehensive subscription billing platform API supporting traditional subscriptions, 
     usage-based billing, and hybrid models with advanced features like dunning management, 
     multi-currency support, and enterprise-grade security.
-  version: 1.0.3
+  version: 1.0.5
   contact:
     name: GetPaidHQ Support
     url: https://getpaidhq.co
@@ -1703,19 +1703,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/ApiError'
         '404':
           description: Invoice not found
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/ApiError'
         '500':
           description: Internal error during payment initiation
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Error'
+                $ref: '#/components/schemas/ApiError'
 
   # Dunning Management
   /api/dunning/campaigns:
@@ -3630,6 +3630,11 @@ components:
     PaymentLinkResponse:
       allOf:
         - $ref: '#/components/schemas/PaymentLink'
+        - type: object
+          properties:
+            token:
+              type: string
+              description: Access token for the payment link (returned when creating payment links)
 
     InitiatePaymentResponse:
       type: object
@@ -6192,25 +6197,67 @@ components:
       type: object
       required:
         - type
-        - payment_config
-        - org_id
+        - config
       properties:
         type:
           type: string
           enum: [invoice, checkout]
           description: Type of payment link
         invoice:
-          $ref: '#/components/schemas/PublicInvoiceResponse'
+          $ref: '#/components/schemas/Invoice'
           description: Invoice details (only present when type is 'invoice')
+        customer:
+          $ref: '#/components/schemas/PublicCustomer'
+          description: Customer information for public payment details
         checkout_items:
           type: object
           description: Checkout items (only present when type is 'checkout')
-        payment_config:
+        config:
           type: object
           description: Payment configuration for this payment link
-        org_id:
+        org:
+          $ref: '#/components/schemas/PublicOrgResponse'
+          description: Organization details
+
+    PublicOrgResponse:
+      type: object
+      required:
+        - id
+        - name
+      properties:
+        id:
           type: string
           description: Organization ID
+        name:
+          type: string
+          description: Organization name
+        logo_url:
+          type: string
+          format: uri
+          description: URL to the organization's logo
+
+    PublicCustomer:
+      type: object
+      required:
+        - id
+        - email
+      properties:
+        id:
+          type: string
+          description: Customer ID
+        email:
+          type: string
+          format: email
+          description: Customer's email address
+        first_name:
+          type: string
+          description: Customer's first name
+        last_name:
+          type: string
+          description: Customer's last name
+        billing_address:
+          $ref: '#/components/schemas/Address'
+          description: Customer's billing address
 
     PublicInvoiceResponse:
       type: object
@@ -6239,9 +6286,9 @@ components:
           description: Currency code (ISO 4217)
         due_at:
           type: string
-          format: date-time
+          format: date
           nullable: true
-          description: Due date for the invoice
+          description: Due date for the invoice (YYYY-MM-DD format)
         line_items:
           type: array
           items:
@@ -6249,7 +6296,8 @@ components:
           description: Invoice line items
         customer:
           $ref: '#/components/schemas/PublicCustomerResponse'
-          description: Customer information
+          nullable: true
+          description: Customer information (may be null if not available)
 
     PublicInvoiceLineItem:
       type: object
@@ -6275,8 +6323,12 @@ components:
     PublicCustomerResponse:
       type: object
       required:
+        - id
         - email
       properties:
+        id:
+          type: string
+          description: Customer ID
         email:
           type: string
           format: email
