@@ -224,8 +224,11 @@ func (c PublicPaymentController) CreateOrder(ctx *gin.Context) {
 			c.logger.Info("Single-use payment link used", "paymentLinkId", paymentLink.Id)
 		}
 
+		publicOrderResponse := response.PublicOrderResponse{
+			CreateOrderResponse: orderResponse,
+		}
 		// Convert to public response
-		ctx.JSON(http.StatusOK, orderResponse)
+		ctx.JSON(http.StatusOK, publicOrderResponse)
 
 	default:
 		apiErr := api.NewApiError(lib.BadRequestError, "Unsupported payment link type "+linkType, nil)

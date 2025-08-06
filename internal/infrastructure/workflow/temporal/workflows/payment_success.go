@@ -57,9 +57,26 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload interfaces.WorkflowPay
 	})
 	err = temporal.ExecuteActivity(ctx2, a.GetOrderSubscriptions, paymentWebhookContext.OrgId, paymentWebhookContext.OrderId).
 		Get(ctx2, &subscriptions)
+	if err != nil {
+		logger.Error("[Get Order Subscriptions] failed with error: ", "Error", err.Error())
+		return interfaces.Result{}, temporalio.NewApplicationError("Get Order Subscriptions failed", "", err)
+	}
 
 	// ACTIVITY
 	// process the subscriptions
+	if len(subscriptions) == 0 {
+		logger.Warn("No subscriptions found for order", "orderId", paymentWebhookContext.OrderId, "orgId", paymentWebhookContext.OrgId)
+		return interfaces.Result{
+			Success: true,
+			Message: "Payment success workflow completed - no subscriptions to process",
+		}, nil
+	}
+
+	if len(subscriptions) > 1 {
+		logger.Warn("Multiple subscriptions found for order, processing only the first one", 
+			"orderId", paymentWebhookContext.OrderId, "subscriptionCount", len(subscriptions))
+	}
+
 	subscription := subscriptions[0]
 	logger.Info("Spawning child workflow for subscription", "subscription", subscription.Id)
 	childCtx := temporal.WithChildOptions(ctx, temporal.ChildWorkflowOptions{

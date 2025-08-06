@@ -1,6 +1,9 @@
 package response
 
-import "payloop/internal/domain/entities"
+import (
+	"payloop/internal/domain/entities"
+	"payloop/internal/domain/entities/orders"
+)
 
 // PublicPaymentDetailsResponse represents payment link details for customers
 type PublicPaymentDetailsResponse struct {
@@ -13,11 +16,11 @@ type PublicPaymentDetailsResponse struct {
 
 // PublicCustomer represents customer data for public payment display
 type PublicCustomer struct {
-	Id             string            `json:"id"`
-	Email          string            `json:"email"`
-	FirstName      string            `json:"first_name,omitempty"`
-	LastName       string            `json:"last_name,omitempty"`
-	BillingAddress entities.Address  `json:"billing_address,omitempty"`
+	Id             string           `json:"id"`
+	Email          string           `json:"email"`
+	FirstName      string           `json:"first_name,omitempty"`
+	LastName       string           `json:"last_name,omitempty"`
+	BillingAddress entities.Address `json:"billing_address,omitempty"`
 }
 
 // PublicInvoiceResponse represents invoice data for customer display
@@ -29,15 +32,7 @@ type PublicOrgResponse struct {
 
 // PublicOrderResponse represents order creation response for customers
 type PublicOrderResponse struct {
-	OrderId          string `json:"order_id"`
-	PaymentProcessor string `json:"payment_processor"`
-	RedirectUrl      string `json:"redirect_url,omitempty"`
-	ClientSecret     string `json:"client_secret,omitempty"`
-	SessionId        string `json:"session_id,omitempty"`
-	Reference        string `json:"reference"`
-	Amount           int    `json:"amount"`
-	Currency         string `json:"currency"`
-	Status           string `json:"status"`
+	orders.CreateOrderResponse
 }
 
 // PublicOrderStatusResponse represents order status for customers

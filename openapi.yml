@@ -5,7 +5,7 @@ info:
     Comprehensive subscription billing platform API supporting traditional subscriptions, 
     usage-based billing, and hybrid models with advanced features like dunning management, 
     multi-currency support, and enterprise-grade security.
-  version: 1.0.7
+  version: 1.0.8
   contact:
     name: GetPaidHQ Support
     url: https://getpaidhq.co
@@ -2471,7 +2471,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/CreateOrderResponse'
+                $ref: '#/components/schemas/PublicOrderResponse'
         '400':
           $ref: '#/components/responses/BadRequest'
         '401':
@@ -6392,6 +6392,8 @@ components:
 
     InitPaymentResponse:
       type: object
+      required:
+        - psp_response
       properties:
         psp_response:
           type: object
@@ -6400,43 +6402,9 @@ components:
       description: Payment initialization response from the payment service provider
 
     PublicOrderResponse:
-      type: object
-      required:
-        - order_id
-        - payment_processor
-        - reference
-        - amount
-        - currency
-        - status
-      properties:
-        order_id:
-          type: string
-          description: Created order ID
-        payment_processor:
-          type: string
-          description: Payment processor being used
-        redirect_url:
-          type: string
-          format: uri
-          description: URL to redirect customer for payment (when using hosted payment pages)
-        client_secret:
-          type: string
-          description: Client secret for client-side payment processing
-        session_id:
-          type: string
-          description: Payment session ID
-        reference:
-          type: string
-          description: Payment reference number
-        amount:
-          type: integer
-          description: Order amount in cents
-        currency:
-          type: string
-          description: Currency code (ISO 4217)
-        status:
-          type: string
-          description: Order status
+      allOf:
+        - $ref: '#/components/schemas/CreateOrderResponse'
+      description: Public order response that embeds CreateOrderResponse for customer-facing order creation
 
     PublicOrderStatusResponse:
       type: object
