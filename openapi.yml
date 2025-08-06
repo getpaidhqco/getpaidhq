@@ -5,7 +5,7 @@ info:
     Comprehensive subscription billing platform API supporting traditional subscriptions, 
     usage-based billing, and hybrid models with advanced features like dunning management, 
     multi-currency support, and enterprise-grade security.
-  version: 1.0.2
+  version: 1.0.3
   contact:
     name: GetPaidHQ Support
     url: https://getpaidhq.co
