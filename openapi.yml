@@ -65,6 +65,8 @@ tags:
     description: Discount management and coupon codes
   - name: Payment Links
     description: Payment link management and usage tracking
+  - name: Public Payments
+    description: Public payment endpoints accessible via payment links (no authentication required)
 
 paths:
   # Health
@@ -2388,6 +2390,151 @@ paths:
                 $ref: '#/components/schemas/PaymentLinkUsageResponse'
         '404':
           $ref: '#/components/responses/NotFound'
+
+  # Public Payments (no authentication required)
+  /api/pay/{slug}:
+    get:
+      tags: [Public Payments]
+      summary: Get payment details
+      description: |
+        Retrieve payment details for a payment link by slug. This endpoint is publicly accessible
+        and requires a valid token query parameter for access validation.
+      operationId: getPublicPaymentDetails
+      security: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: The payment link slug identifier
+          schema:
+            type: string
+        - name: token
+          in: query
+          required: true
+          description: Access token for payment link validation
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Payment details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicPaymentDetailsResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Payment link not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/pay/{slug}/create-order:
+    post:
+      tags: [Public Payments]
+      summary: Create order from payment link
+      description: |
+        Create a new order from a payment link. This endpoint handles both invoice payments
+        and checkout scenarios. It requires a valid token for access validation.
+      operationId: createPublicPaymentOrder
+      security: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: The payment link slug identifier
+          schema:
+            type: string
+        - name: token
+          in: query
+          required: true
+          description: Access token for payment link validation
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicCreateOrderRequest'
+      responses:
+        '200':
+          description: Order created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicOrderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Payment link not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+
+  /api/pay/{slug}/order/{orderId}/status:
+    get:
+      tags: [Public Payments]
+      summary: Get order status
+      description: |
+        Retrieve the current status of an order created through a payment link.
+        This endpoint is publicly accessible with token validation.
+      operationId: getPublicOrderStatus
+      security: []
+      parameters:
+        - name: slug
+          in: path
+          required: true
+          description: The payment link slug identifier
+          schema:
+            type: string
+        - name: orderId
+          in: path
+          required: true
+          description: The order ID
+          schema:
+            type: string
+        - name: token
+          in: query
+          required: true
+          description: Access token for payment link validation
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order status retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicOrderStatusResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+        '404':
+          description: Order not found or payment link not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
 
   # Reports & Analytics
   /api/reports/revenue/mrr:
@@ -6039,3 +6186,202 @@ components:
         billing_period:
           type: string
           description: Current billing period
+
+    # Public Payment Schemas
+    PublicPaymentDetailsResponse:
+      type: object
+      required:
+        - type
+        - payment_config
+        - org_id
+      properties:
+        type:
+          type: string
+          enum: [invoice, checkout]
+          description: Type of payment link
+        invoice:
+          $ref: '#/components/schemas/PublicInvoiceResponse'
+          description: Invoice details (only present when type is 'invoice')
+        checkout_items:
+          type: object
+          description: Checkout items (only present when type is 'checkout')
+        payment_config:
+          type: object
+          description: Payment configuration for this payment link
+        org_id:
+          type: string
+          description: Organization ID
+
+    PublicInvoiceResponse:
+      type: object
+      required:
+        - id
+        - doc_number
+        - total
+        - amount_due
+        - currency
+        - line_items
+      properties:
+        id:
+          type: string
+          description: Invoice ID
+        doc_number:
+          type: string
+          description: Invoice document number
+        total:
+          type: integer
+          description: Total invoice amount in cents
+        amount_due:
+          type: string
+          description: Amount due as formatted string
+        currency:
+          type: string
+          description: Currency code (ISO 4217)
+        due_at:
+          type: string
+          format: date-time
+          nullable: true
+          description: Due date for the invoice
+        line_items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicInvoiceLineItem'
+          description: Invoice line items
+        customer:
+          $ref: '#/components/schemas/PublicCustomerResponse'
+          description: Customer information
+
+    PublicInvoiceLineItem:
+      type: object
+      required:
+        - description
+        - quantity
+        - unit_price
+        - line_total
+      properties:
+        description:
+          type: string
+          description: Line item description
+        quantity:
+          type: string
+          description: Quantity as formatted string
+        unit_price:
+          type: integer
+          description: Unit price in cents
+        line_total:
+          type: integer
+          description: Line total in cents
+
+    PublicCustomerResponse:
+      type: object
+      required:
+        - email
+      properties:
+        email:
+          type: string
+          format: email
+          description: Customer email address
+        first_name:
+          type: string
+          description: Customer first name
+        last_name:
+          type: string
+          description: Customer last name
+        billing_address:
+          $ref: '#/components/schemas/Address'
+          description: Customer billing address
+
+    PublicCreateOrderRequest:
+      type: object
+      required:
+        - payment_processor
+      properties:
+        payment_processor:
+          type: string
+          description: Payment processor to use (e.g., 'paystack', 'checkout')
+        customer_email:
+          type: string
+          format: email
+          description: Customer email address
+        customer_name:
+          type: string
+          description: Customer name
+        billing_address:
+          $ref: '#/components/schemas/Address'
+          description: Billing address for the order
+        success_url:
+          type: string
+          format: uri
+          description: URL to redirect to on successful payment
+        cancel_url:
+          type: string
+          format: uri
+          description: URL to redirect to on cancelled payment
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+          description: Additional metadata for the order
+
+    PublicOrderResponse:
+      type: object
+      required:
+        - order_id
+        - payment_processor
+        - reference
+        - amount
+        - currency
+        - status
+      properties:
+        order_id:
+          type: string
+          description: Created order ID
+        payment_processor:
+          type: string
+          description: Payment processor being used
+        redirect_url:
+          type: string
+          format: uri
+          description: URL to redirect customer for payment (when using hosted payment pages)
+        client_secret:
+          type: string
+          description: Client secret for client-side payment processing
+        session_id:
+          type: string
+          description: Payment session ID
+        reference:
+          type: string
+          description: Payment reference number
+        amount:
+          type: integer
+          description: Order amount in cents
+        currency:
+          type: string
+          description: Currency code (ISO 4217)
+        status:
+          type: string
+          description: Order status
+
+    PublicOrderStatusResponse:
+      type: object
+      required:
+        - order_id
+        - status
+        - amount
+        - currency
+      properties:
+        order_id:
+          type: string
+          description: Order ID
+        status:
+          type: string
+          description: Order status
+        payment_status:
+          type: string
+          description: Payment status (when available)
+        amount:
+          type: integer
+          description: Order amount in cents
+        currency:
+          type: string
+          description: Currency code (ISO 4217)

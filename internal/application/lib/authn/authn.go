@@ -4,13 +4,19 @@ import (
 	"context"
 	"payloop/internal/api/authn"
 	"payloop/internal/domain/entities"
+	"strings"
 )
 
-var PublicPaths = []string{"/api/health", "/api/notify", "/.well-known/oauth-authorization-server", "/.well-known/openid_configuration"}
+var PublicPaths = []string{
+	"/api/health",
+	"/api/notify",
+	"/.well-known/oauth-authorization-server",
+	"/.well-known/openid_configuration",
+	"/api/pay"}
 
 func IsPublicPath(path string) bool {
 	for _, publicPath := range PublicPaths {
-		if path == publicPath {
+		if path == publicPath || strings.HasPrefix(path, publicPath+"/") {
 			return true
 		}
 	}
