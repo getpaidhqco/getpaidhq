@@ -31,3 +31,5 @@ docker/.env
 
 node_modules
 .serena/cache
+.DS_Store
+.vscode
