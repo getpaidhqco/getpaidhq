@@ -65,7 +65,7 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload interfaces.WorkflowPay
 	// ACTIVITY
 	// process the subscriptions
 	if len(subscriptions) == 0 {
-		logger.Warn("No subscriptions found for order", "orderId", paymentWebhookContext.OrderId, "orgId", paymentWebhookContext.OrgId)
+		logger.Info("No subscriptions found for order, completing workflow", "orderId", paymentWebhookContext.OrderId, "orgId", paymentWebhookContext.OrgId)
 		return interfaces.Result{
 			Success: true,
 			Message: "Payment success workflow completed - no subscriptions to process",
@@ -73,7 +73,7 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload interfaces.WorkflowPay
 	}
 
 	if len(subscriptions) > 1 {
-		logger.Warn("Multiple subscriptions found for order, processing only the first one", 
+		logger.Warn("Multiple subscriptions found for order, processing only the first one",
 			"orderId", paymentWebhookContext.OrderId, "subscriptionCount", len(subscriptions))
 	}
 
