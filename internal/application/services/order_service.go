@@ -87,10 +87,6 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 	var currency = input.Currency
 
 	var createPspSession = true
-	if input.SessionId == "" {
-		// no session, so we need to have a payment method set before we can activate the order
-		createPspSession = false
-	}
 
 	// check if the cart exists
 	if input.SessionId != "" {
@@ -270,7 +266,7 @@ func (s OrderService) CreateOrder(ctx context.Context, input orders.CreateOrderI
 
 	return orders.CreateOrderResponse{
 		Order: newOrder,
-		Psp:   pspResponse,
+		Psp:   pspResponse.PspResponse,
 	}, nil
 }
 

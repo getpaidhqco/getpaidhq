@@ -27,8 +27,8 @@ type CreateOrderInput struct {
 }
 
 type CreateOrderResponse struct {
-	Order entities.Order                        `json:"order"`
-	Psp   payment_providers.InitPaymentResponse `json:"psp"`
+	Order entities.Order `json:"order"`
+	Psp   interface{}    `json:"psp"`
 }
 
 type CompleteCheckoutSessionInput struct {

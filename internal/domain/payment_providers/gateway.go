@@ -77,7 +77,7 @@ type ChargePaymentResponse struct {
 }
 
 type InitPaymentResponse struct {
-	PspResponse interface{}
+	PspResponse interface{} `json:"psp_response"`
 }
 
 type RefundPaymentResponse struct {

@@ -25,18 +25,18 @@ async function seedOrganization(orgId) {
     const gateways = [
         {
             orgId,
-            id: 'Paystack',
-            name: 'Paystack',
-            pspId: 'Paystack',
+            id: 'paystack',
+            name: 'paystack',
+            pspId: 'paystack',
             active: true,
             createdAt: now,
             updatedAt: now,
         },
         {
             orgId,
-            id: 'CheckoutDotCom',
-            name: 'CheckoutDotCom',
-            pspId: 'CheckoutDotCom',
+            id: 'checkoutdotcom',
+            name: 'checkoutdotcom',
+            pspId: 'checkoutdotcom',
             active: true,
             createdAt: now,
             updatedAt: now,
@@ -60,12 +60,12 @@ async function seedOrganization(orgId) {
     const settings = [
         {
             orgId,
-            parentId: 'Paystack',
+            parentId: 'paystack',
             id: 'settings',
             value: {
                 api_key: "sk_test_e39ce23869e6e677121a5e6ef691a8c3d835f0bb"
             },
-            valueType: 'PaystackConfig',
+            valueType: 'paystackConfig',
             createdAt: now,
             updatedAt: now,
         },
