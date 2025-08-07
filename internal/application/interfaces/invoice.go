@@ -38,13 +38,14 @@ type InvoiceService interface {
 	// Invoice payment workflow methods
 	FindByOrderId(ctx context.Context, orgId string, orderId string) ([]entities.Invoice, int, error)
 	MarkAsPaid(ctx context.Context, orgId string, invoiceId string) (entities.Invoice, error)
+	ProcessInvoicePayment(ctx context.Context, orgId string, invoiceId string, paymentId string) (entities.Invoice, error)
 	SendInvoiceEmail(ctx context.Context, orgId, invoiceId string, customer entities.Customer, invoice entities.Invoice, pdfBytes []byte) error
 }
 
 // InvoiceOrchestrationService extends InvoiceService with workflow orchestration capabilities
 type InvoiceOrchestrationService interface {
 	InvoiceService
-	
+
 	// Payment initiation methods that require OrderService
 	InitiatePayment(ctx context.Context, orgId string, invoiceId string, input dto.InitiatePaymentInput) (orders.CreateOrderResponse, error)
 	CreateOrderFromInvoice(ctx context.Context, orgId string, invoiceId string, input dto.CreateOrderFromInvoiceInput) (orders.CreateOrderResponse, error)

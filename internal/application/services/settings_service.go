@@ -9,7 +9,6 @@ import (
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
-	"payloop/internal/domain/settings/validators"
 	"time"
 )
 
@@ -153,16 +152,15 @@ func (s *SettingsService) DeleteSetting(ctx context.Context, orgId string, paren
 
 // getSecureTypeForValidator returns the appropriate type for a given setting type
 func (s *SettingsService) getSecureTypeForValidator(settingType string) interface{} {
-	switch settingType {
-	case "subscriptions":
-		return &validators.SubscriptionSettings{}
-	case "organization":
-		return &validators.OrganizationSettings{}
-	case "loops_config":
-		return &validators.LoopsSettings{}
-	default:
+	// Try to get validator from registry
+	validator, err := s.registry.GetValidator(settingType)
+	if err != nil {
+		// If no validator is found, return a generic map
 		return &map[string]interface{}{}
 	}
+
+	// Use the validator's default value as the type template
+	return validator.GetDefaultValue()
 }
 
 func (s *SettingsService) UpsertSetting(ctx context.Context, orgId string, parentId string, id string, value interface{}) (entities.Setting, error) {

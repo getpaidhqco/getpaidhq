@@ -1055,6 +1055,89 @@ func (s InvoiceService) MarkAsPaid(ctx context.Context, orgId string, invoiceId 
 	return updatedInvoice, nil
 }
 
+// ProcessInvoicePayment processes a payment for an invoice, handling partial payments correctly
+func (s InvoiceService) ProcessInvoicePayment(ctx context.Context, orgId string, invoiceId string, paymentId string) (entities.Invoice, error) {
+	// Get current invoice
+	invoice, err := s.invoiceRepository.FindById(ctx, orgId, invoiceId)
+	if err != nil {
+		return entities.Invoice{}, apperrors.NotFound{Message: "Invoice not found", Err: err}
+	}
+
+	// Check if already paid (idempotency)
+	if invoice.Status == entities.InvoiceStatusPaid {
+		s.logger.Infof("Invoice %s is already paid", invoiceId)
+		return invoice, nil
+	}
+
+	// Get the payment information
+	payment, err := s.paymentRepository.FindById(ctx, orgId, paymentId)
+	if err != nil {
+		return entities.Invoice{}, apperrors.NotFound{Message: "Payment not found", Err: err}
+	}
+
+	// Ensure payment is linked to the invoice
+	if payment.InvoiceId != invoiceId {
+		// Link the payment to the invoice if not already linked
+		payment.InvoiceId = invoiceId
+		_, err = s.paymentRepository.Update(ctx, payment)
+		if err != nil {
+			return entities.Invoice{}, apperrors.InternalError{Message: "Failed to link payment to invoice", Err: err}
+		}
+		s.logger.Infof("Linked payment %s to invoice %s", paymentId, invoiceId)
+	}
+
+	// Get all payments for this invoice to calculate total amount paid
+	payments, _, err := s.paymentRepository.FindByInvoiceId(ctx, orgId, invoiceId, entities.Pagination{
+		Page:  1,
+		Limit: 1000, // Get all payments for this invoice
+	})
+	if err != nil {
+		return entities.Invoice{}, apperrors.InternalError{Message: "Failed to get invoice payments", Err: err}
+	}
+
+	// Calculate total amount paid from all successful payments
+	var totalAmountPaid int64 = 0
+	for _, p := range payments {
+		// Only count successful payments
+		if p.Status == "completed" || p.Status == "succeeded" {
+			totalAmountPaid += p.Amount
+		}
+	}
+
+	// Update invoice with payment information
+	invoice.AmountPaid = int(totalAmountPaid)
+	invoice.AmountDue = invoice.Total - int(totalAmountPaid)
+
+	// If invoice is fully paid or overpaid, mark as paid
+	if totalAmountPaid >= int64(invoice.Total) {
+		invoice.Status = entities.InvoiceStatusPaid
+		invoice.PaidAt = time.Now()
+		invoice.AmountDue = 0
+		s.logger.Infof("Invoice %s is fully paid with total payments of %d", invoiceId, totalAmountPaid)
+	} else {
+		// Partial payment - keep as open but update amounts
+		s.logger.Infof("Invoice %s partially paid: %d of %d", invoiceId, totalAmountPaid, invoice.Total)
+	}
+
+	// Update the invoice
+	updatedInvoice, err := s.invoiceRepository.Update(ctx, invoice)
+	if err != nil {
+		return entities.Invoice{}, apperrors.InternalError{Message: "Failed to update invoice with payment", Err: err}
+	}
+
+	// Publish event only if invoice is fully paid
+	if invoice.Status == entities.InvoiceStatusPaid {
+		err = s.pubsub.Publish(orgId, topic.InvoicePaid, invoice)
+		if err != nil {
+			s.logger.Error("Failed to publish invoice paid event: ", err)
+			return entities.Invoice{}, apperrors.InternalError{Message: "Failed to publish invoice paid event", Err: err}
+		}
+		s.logger.Infof("Successfully marked invoice %s as paid", invoiceId)
+	}
+
+	return updatedInvoice, nil
+}
+
 // SendInvoiceEmail sends an email to the customer with invoice PDF attachment using existing email provider
 func (s InvoiceService) SendInvoiceEmail(ctx context.Context, orgId, invoiceId string, customer entities.Customer, invoice entities.Invoice, pdfBytes []byte) error {
 	// Use orgId as organization name (can be enhanced later to fetch org details)

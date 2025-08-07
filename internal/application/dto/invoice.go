@@ -113,7 +113,8 @@ type CreateOrderFromInvoiceInput struct {
 
 // InvoicePaymentWorkflowInput represents the input for the InvoicePaymentWorkflow
 type InvoicePaymentWorkflowInput struct {
-	OrgId    string            `json:"org_id"`
-	OrderId  string            `json:"order_id"`
-	Metadata map[string]string `json:"metadata,omitempty"`
+	OrgId     string            `json:"org_id"`
+	OrderId   string            `json:"order_id"`
+	PaymentId string            `json:"payment_id"` // The payment that was processed
+	Metadata  map[string]string `json:"metadata,omitempty"`
 }

@@ -14,6 +14,7 @@ import (
 type InvoiceActivities struct {
 	invoiceService  interfaces.InvoiceService
 	customerService interfaces.CustomerService
+	paymentService  interfaces.PaymentService
 	pubsub          events.NotificationPublisher
 	errorReporter   lib.ErrorReporter
 }
@@ -21,12 +22,14 @@ type InvoiceActivities struct {
 func NewInvoiceActivities(
 	invoiceService interfaces.InvoiceService,
 	customerService interfaces.CustomerService,
+	paymentService interfaces.PaymentService,
 	pubsub events.NotificationPublisher,
 	errorReporter lib.ErrorReporter,
 ) InvoiceActivities {
 	return InvoiceActivities{
 		invoiceService:  invoiceService,
 		customerService: customerService,
+		paymentService:  paymentService,
 		pubsub:          pubsub,
 		errorReporter:   errorReporter,
 	}
@@ -50,6 +53,20 @@ func (a *InvoiceActivities) FindInvoicesByOrderId(ctx context.Context, orgId, or
 
 	logger.Info("Found invoices for order", "count", count, "orgId", orgId, "orderId", orderId)
 	return invoices, nil
+}
+
+// FindPaymentByOrderId finds the payment associated with a completed order
+func (a *InvoiceActivities) FindPaymentByOrderId(ctx context.Context, orgId, orderId string) (string, error) {
+	logger := activity.GetLogger(ctx)
+	logger.Info("FindPaymentByOrderId", "orgId", orgId, "orderId", orderId)
+
+	// Note: We need to find payments by OrderId, but the current PaymentService interface
+	// might not have this method. For now, we'll return empty string and let the workflow
+	// handle the case where PaymentId is not found.
+	// TODO: Add FindByOrderId method to PaymentService interface
+
+	logger.Info("Payment lookup by OrderId not yet implemented, returning empty PaymentId", "orgId", orgId, "orderId", orderId)
+	return "", nil
 }
 
 // MarkInvoiceAsPaid updates invoice status to paid with proper timestamps and amounts
@@ -79,6 +96,35 @@ func (a *InvoiceActivities) MarkInvoiceAsPaid(ctx context.Context, orgId, invoic
 	}
 
 	logger.Info("Successfully marked invoice as paid", "orgId", orgId, "invoiceId", invoiceId)
+	return updatedInvoice, nil
+}
+
+// ProcessInvoicePayment processes a payment for an invoice, handling partial payments correctly
+func (a *InvoiceActivities) ProcessInvoicePayment(ctx context.Context, orgId, invoiceId, paymentId string) (entities.Invoice, error) {
+	logger := activity.GetLogger(ctx)
+	logger.Info("ProcessInvoicePayment", "orgId", orgId, "invoiceId", invoiceId, "paymentId", paymentId)
+
+	// Get current invoice
+	invoice, err := a.invoiceService.Get(ctx, orgId, invoiceId)
+	if err != nil {
+		logger.Error("Failed to get invoice", "error", err.Error(), "orgId", orgId, "invoiceId", invoiceId)
+		return entities.Invoice{}, temporal.NewNonRetryableApplicationError("Invoice not found", "invoice_not_found", err)
+	}
+
+	// Check if already paid (idempotency)
+	if invoice.Status == entities.InvoiceStatusPaid {
+		logger.Info("Invoice already paid, skipping", "orgId", orgId, "invoiceId", invoiceId)
+		return invoice, nil
+	}
+
+	// Delegate to service to process invoice payment with payment information
+	updatedInvoice, err := a.invoiceService.ProcessInvoicePayment(ctx, orgId, invoiceId, paymentId)
+	if err != nil {
+		logger.Error("Failed to process invoice payment", "error", err.Error(), "orgId", orgId, "invoiceId", invoiceId, "paymentId", paymentId)
+		return entities.Invoice{}, temporal.NewApplicationError("Failed to process invoice payment", "", false, err)
+	}
+
+	logger.Info("Successfully processed invoice payment", "orgId", orgId, "invoiceId", invoiceId, "paymentId", paymentId, "status", updatedInvoice.Status)
 	return updatedInvoice, nil
 }
 

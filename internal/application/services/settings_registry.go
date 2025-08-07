@@ -37,9 +37,6 @@ func (r *SettingsRegistry) registerDefaultValidators() {
     // Core application settings validators
     r.Register("subscriptions", validators.NewSubscriptionValidator())
     r.Register("organization", validators.NewOrganizationValidator())
-    
-    // Email provider settings validators
-    r.Register("loops_config", validators.NewLoopsValidator())
 }
 
 // Register adds a new validator to the registry

@@ -83,8 +83,9 @@ func (s InvoiceOrchestrationService) HandleOrderCompletedEvent(t string, data []
 
 	// Start the invoice payment workflow
 	workflowId, runId, err := s.workflowEngine.StartInvoicePaymentWorkflow(context.Background(), dto.InvoicePaymentWorkflowInput{
-		OrgId:   order.OrgId,
-		OrderId: order.Id,
+		OrgId:     order.OrgId,
+		OrderId:   order.Id,
+		PaymentId: "", // Will be found by the workflow
 		Metadata: map[string]string{
 			"triggered_by": "order_completed",
 			"order_id":     order.Id,
