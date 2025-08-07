@@ -19,12 +19,12 @@ import (
 )
 
 type InvoiceController struct {
-	invoiceService    interfaces.InvoiceService
+	invoiceService    interfaces.InvoiceOrchestrationService
 	paymentRepository repositories.PaymentRepository
 	logger            logger.Logger
 }
 
-func NewInvoiceController(invoiceService interfaces.InvoiceService, paymentRepository repositories.PaymentRepository, logger logger.Logger) InvoiceController {
+func NewInvoiceController(invoiceService interfaces.InvoiceOrchestrationService, paymentRepository repositories.PaymentRepository, logger logger.Logger) InvoiceController {
 	return InvoiceController{
 		invoiceService:    invoiceService,
 		paymentRepository: paymentRepository,

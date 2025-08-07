@@ -7,7 +7,7 @@ import (
 	"payloop/internal/api"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/api/dto/response"
-	"payloop/internal/application/dto"
+	"payloop/internal/api/mappers"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/application/services"
@@ -18,7 +18,7 @@ import (
 type PublicPaymentController struct {
 	paymentLinkService interfaces.PaymentLinkService
 	orderService       interfaces.OrderService
-	invoiceService     interfaces.InvoiceService
+	invoiceService     interfaces.InvoiceOrchestrationService
 	customerService    interfaces.CustomerService
 	orgService         services.OrgService
 	logger             logger.Logger
@@ -27,7 +27,7 @@ type PublicPaymentController struct {
 func NewPublicPaymentController(
 	paymentLinkService interfaces.PaymentLinkService,
 	orderService interfaces.OrderService,
-	invoiceService interfaces.InvoiceService,
+	invoiceService interfaces.InvoiceOrchestrationService,
 	customerService interfaces.CustomerService,
 	orgService services.OrgService,
 	logger logger.Logger,
@@ -191,37 +191,22 @@ func (c PublicPaymentController) CreateOrder(ctx *gin.Context) {
 			return
 		}
 
-		// Use existing InvoiceService.InitiatePayment method
-		var billingAddress entities.Address
-		if input.BillingAddress != nil {
-			billingAddress = *input.BillingAddress
-		}
+		// Convert API request to application DTO
+		appInput := mappers.ToCreateOrderFromInvoiceInput(input)
 
-		appInput := dto.InitiatePaymentInput{
-			PaymentProcessor: input.PaymentProcessor,
-			BillingAddress:   billingAddress,
-			SuccessUrl:       input.SuccessUrl,
-			CancelUrl:        input.CancelUrl,
-			Metadata:         input.Metadata,
-		}
-
-		orderResponse, err := c.invoiceService.InitiatePayment(
+		// Call the new service method
+		orderResponse, err := c.invoiceService.CreateOrderFromInvoice(
 			ctx.Request.Context(),
 			paymentLink.OrgId,
 			invoiceId,
 			appInput,
 		)
 		if err != nil {
-			c.logger.Error("Failed to create order", "error", err, "invoiceId", invoiceId)
-			apiErr := api.NewApiError(lib.InternalError, "Failed to create order", err.Error())
+			c.logger.Error("Failed to create order from invoice", "error", err, "invoiceId", invoiceId)
+
+			apiErr := api.NewApiErrorFromError(err)
 			ctx.JSON(apiErr.GetHttpErrorCode(), apiErr)
 			return
-		}
-
-		// Mark payment link as used if single-use
-		if paymentLink.SingleUse {
-			// Note: PaymentLinkService would need a MarkAsUsed method
-			c.logger.Info("Single-use payment link used", "paymentLinkId", paymentLink.Id)
 		}
 
 		publicOrderResponse := response.PublicOrderResponse{

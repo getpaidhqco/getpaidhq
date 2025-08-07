@@ -155,7 +155,7 @@ func ToCustomerResponse(customer entities.Customer) response.CustomerResponse {
     ```
 - Reference adjacent files for examples of implementation patterns
 - Use existing codebase patterns as templates for new features
-- Prefer composition over inheritance
+- Prefer composition to inheritance
 - Keep functions focused on single responsibilities
 
 ### Struct vs Pointer Usage Guidelines

@@ -2,6 +2,7 @@ package loops
 
 import (
 	"go.uber.org/fx"
+	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/email_providers"
 	"payloop/internal/lib"
@@ -13,7 +14,7 @@ var Module = fx.Provide(
 )
 
 // NewLoopsProviderFromConfig creates a new Loops email provider from configuration
-func NewLoopsProviderFromConfig(logger logger.Logger, env lib.Env) (email_providers.Provider, error) {
+func NewLoopsProviderFromConfig(logger logger.Logger, env lib.Env, settingsService interfaces.SettingsService) (email_providers.Provider, error) {
 	// Check if email provider is configured
 	if env.EmailProvider == "" {
 		logger.Warn("Email provider not configured, using no-op provider")
@@ -32,28 +33,9 @@ func NewLoopsProviderFromConfig(logger logger.Logger, env lib.Env) (email_provid
 		return nil, nil
 	}
 
-	// Check if Loops API endpoint is configured
-	if env.LoopsApiEndpoint == "" {
-		logger.Warn("Loops API endpoint not specified, using no-op provider")
-		return nil, nil
-	}
-
-	// Check if from email is configured
-	if env.EmailFromEmail == "" {
-		logger.Warn("From email not specified, using no-op provider")
-		return nil, nil
-	}
-
-	// Check if from name is configured
-	if env.EmailFromName == "" {
-		logger.Warn("From name not specified, using no-op provider")
-		return nil, nil
-	}
+	logger.Info("Initializing Loops email provider with SDK", "api_key_set", env.LoopsApiKey != "")
 
 	return NewLoopsProvider(logger, LoopsConfig{
-		APIKey:      env.LoopsApiKey,
-		APIEndpoint: env.LoopsApiEndpoint,
-		FromEmail:   env.EmailFromEmail,
-		FromName:    env.EmailFromName,
-	})
+		APIKey: env.LoopsApiKey,
+	}, settingsService)
 }

@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"payloop/internal/api/dto/response"
 	"payloop/internal/lib"
+	"payloop/internal/lib/apperrors"
 )
 
 // swagger:response apiError
@@ -47,12 +48,31 @@ func NewApiError(code lib.CustomErrorType, message string, details interface{}) 
 }
 
 func NewApiErrorFromError(err error) ApiError {
-	var serr lib.CustomError
+	// Check for validation errors
 	if errs, ok := err.(validator.ValidationErrors); ok {
 		msg := response.FormatValidationErrors(errs)
 		return NewApiError(lib.BadRequestError, "Input validation failed", msg)
 	}
 
+	// Check for domain apperrors
+	var notFound apperrors.NotFound
+	var invalidOp apperrors.InvalidOperation
+	var invalidArg apperrors.InvalidArgument
+	var internalErr apperrors.InternalError
+	
+	switch {
+	case errors.As(err, &notFound):
+		return NewApiError(lib.NotFoundError, notFound.Message, nil)
+	case errors.As(err, &invalidOp):
+		return NewApiError(lib.BadRequestError, invalidOp.Message, nil)
+	case errors.As(err, &invalidArg):
+		return NewApiError(lib.BadRequestError, invalidArg.Message, nil)
+	case errors.As(err, &internalErr):
+		return NewApiError(lib.InternalError, internalErr.Message, internalErr.Err.Error())
+	}
+
+	// Check for legacy CustomError
+	var serr lib.CustomError
 	if errors.As(err, &serr) {
 		if serr.Err == nil {
 			return NewApiError(serr.Type, serr.Message, nil)
@@ -60,5 +80,6 @@ func NewApiErrorFromError(err error) ApiError {
 		return NewApiError(serr.Type, serr.Message, serr.Err.Error())
 	}
 
-	return NewApiError("bad_request", err.Error(), err.Error())
+	// Default to bad request with the error message
+	return NewApiError(lib.BadRequestError, err.Error(), err.Error())
 }

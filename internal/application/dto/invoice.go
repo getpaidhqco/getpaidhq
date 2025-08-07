@@ -101,3 +101,19 @@ type InitiatePaymentInput struct {
 	CancelUrl        string                 `json:"cancel_url,omitempty"`
 	Metadata         map[string]string      `json:"metadata,omitempty"`
 }
+
+// CreateOrderFromInvoiceInput represents the application input to create an order from an invoice via payment link
+type CreateOrderFromInvoiceInput struct {
+	PaymentProcessor string            `json:"payment_processor"`
+	BillingAddress   entities.Address  `json:"billing_address,omitempty"`
+	SuccessUrl       string            `json:"success_url,omitempty"`
+	CancelUrl        string            `json:"cancel_url,omitempty"`
+	Metadata         map[string]string `json:"metadata,omitempty"`
+}
+
+// InvoicePaymentWorkflowInput represents the input for the InvoicePaymentWorkflow
+type InvoicePaymentWorkflowInput struct {
+	OrgId    string            `json:"org_id"`
+	OrderId  string            `json:"order_id"`
+	Metadata map[string]string `json:"metadata,omitempty"`
+}

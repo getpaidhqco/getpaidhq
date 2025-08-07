@@ -24,11 +24,12 @@ import (
 )
 
 type Temporal struct {
-	logger          logger.Logger
-	client          client.Client
-	worker          worker.Worker
-	errorReporter   lib.ErrorReporter
-	orderActivities activities.OrderActivities
+	logger            logger.Logger
+	client            client.Client
+	worker            worker.Worker
+	errorReporter     lib.ErrorReporter
+	orderActivities   activities.OrderActivities
+	invoiceActivities activities.InvoiceActivities
 
 	settingRepository repositories.SettingRepository
 	pubsub            events.NotificationPublisher
@@ -39,6 +40,7 @@ func NewTemporalEngine(
 	env lib.Env,
 	orderActivities activities.OrderActivities,
 	dunningActivities activities.DunningActivities,
+	invoiceActivities activities.InvoiceActivities,
 	errorReporter lib.ErrorReporter,
 	webhookActivities activities.OutgoingWebhookActivities,
 	settingRepository repositories.SettingRepository,
@@ -68,10 +70,12 @@ func NewTemporalEngine(
 	w.RegisterWorkflow(workflows.OutgoingWebhookWorkflow)
 	w.RegisterWorkflow(workflows.PaymentRefunded)
 	w.RegisterWorkflow(workflows.DunningWorkflow)
+	w.RegisterWorkflow(workflows.InvoicePaymentWorkflow)
 
 	w.RegisterActivity(&orderActivities)
 	w.RegisterActivity(&webhookActivities)
 	w.RegisterActivity(&dunningActivities)
+	w.RegisterActivity(&invoiceActivities)
 
 	// Start the worker
 	err = w.Start()
@@ -86,6 +90,7 @@ func NewTemporalEngine(
 		errorReporter:     errorReporter,
 		worker:            w,
 		orderActivities:   orderActivities,
+		invoiceActivities: invoiceActivities,
 		pubsub:            pubsub,
 		settingRepository: settingRepository,
 	}
@@ -339,6 +344,43 @@ func (t Temporal) SignalDunningWorkflow(ctx context.Context, workflowId string, 
 		return err
 	}
 	return nil
+}
+
+// StartInvoicePaymentWorkflow starts an invoice payment workflow for processing invoice payment after order completion
+func (t Temporal) StartInvoicePaymentWorkflow(ctx context.Context, input dto.InvoicePaymentWorkflowInput) (string, string, error) {
+	t.logger.Info("Starting invoice payment workflow", "OrgId", input.OrgId, "OrderId", input.OrderId)
+
+	// Start the workflow
+	workflowId := fmt.Sprintf("invoice_payment_[%s]_[%s]", input.OrgId, input.OrderId)
+	workflowOptions := client.StartWorkflowOptions{
+		ID:        workflowId,
+		TaskQueue: "events",
+		WorkflowExecutionTimeout: time.Minute * 30, // Invoice processing should complete within 30 minutes
+	}
+
+	// Create the workflow input
+	workflowInput := workflows.InvoicePaymentWorkflowInput{
+		OrgId:    input.OrgId,
+		OrderId:  input.OrderId,
+		Metadata: input.Metadata,
+	}
+
+	// Start the workflow
+	we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, workflows.InvoicePaymentWorkflow, workflowInput)
+	if err != nil {
+		t.logger.Error("Failed to start invoice payment workflow", "err", err.Error(), "OrgId", input.OrgId, "OrderId", input.OrderId)
+		// Report critical error since invoice payment workflow failed to start
+		t.errorReporter.ReportError(ctx, err, map[string]interface{}{
+			"org_id":       input.OrgId,
+			"order_id":     input.OrderId,
+			"workflow_id":  workflowId,
+			"workflow_type": "invoice_payment",
+		})
+		return "", "", err
+	}
+
+	t.logger.Info("Started invoice payment workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID(), "OrgId", input.OrgId, "OrderId", input.OrderId)
+	return we.GetID(), we.GetRunID(), nil
 }
 
 func (t Temporal) saveExecution(ctx context.Context, wr client.WorkflowRun, orgId string, parentId string, executionType WorkflowType) error {

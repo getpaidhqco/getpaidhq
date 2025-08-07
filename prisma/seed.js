@@ -167,7 +167,7 @@ async function seedOrganization(orgId) {
             id: `cus_${faker.string.alphanumeric(8)}`,
             firstName: faker.person.firstName(),
             lastName: faker.person.lastName(),
-            email: faker.internet.email(),
+            email: `meiringdewet1+${faker.string.alphanumeric(5)}@gmail.com`,
             createdAt: now,
             updatedAt: now,
         },

@@ -10,10 +10,8 @@ import (
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/application/lib/pdf"
-	"payloop/internal/domain/common"
 	"payloop/internal/domain/email_providers"
 	"payloop/internal/domain/entities"
-	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/entities/payment_links"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/lib"
@@ -35,7 +33,6 @@ type InvoiceService struct {
 	emailProvider         email_providers.Provider
 	documentService       interfaces.DocumentService
 	paymentLinkService    interfaces.PaymentLinkService
-	orderService          interfaces.OrderService
 }
 
 func NewInvoiceService(
@@ -52,23 +49,21 @@ func NewInvoiceService(
 	emailProvider email_providers.Provider,
 	documentService interfaces.DocumentService,
 	paymentLinkService interfaces.PaymentLinkService,
-	orderService interfaces.OrderService,
 ) interfaces.InvoiceService {
 	service := InvoiceService{
+		logger:                logger,
 		invoiceRepository:     invoiceRepository,
-		paymentRepository:     paymentRepository,
 		customerRepository:    customerRepository,
 		docSequenceRepository: docSequenceRepository,
 		orderRepository:       orderRepository,
-		errorReporter:         errorReporter,
+		paymentRepository:     paymentRepository,
 		orderItemRepository:   orderItemRepository,
+		errorReporter:         errorReporter,
 		pubsub:                pubsub,
-		logger:                logger,
 		transactionService:    transactionService,
 		emailProvider:         emailProvider,
 		documentService:       documentService,
 		paymentLinkService:    paymentLinkService,
-		orderService:          orderService,
 	}
 
 	// subscribe to order events to manage cohorts
@@ -77,6 +72,7 @@ func NewInvoiceService(
 		logger.Errorf("Failed to subscribe to topic %s: %v", topic.SubscriptionPaymentChargeSuccess, err)
 		panic(err)
 	}
+
 	return service
 }
 
@@ -890,6 +886,10 @@ func (s InvoiceService) GeneratePDF(ctx context.Context, orgId string, invoiceId
 	pdfGenerator := pdf.NewPDFGenerator(s.logger)
 
 	// Generate PDF with complete invoice aggregate
+	if options.TemplateName == "" {
+		options.TemplateName = "one.liquid"
+	}
+
 	pdfBytes, err := pdfGenerator.Generate(invoice, options)
 	if err != nil {
 		s.logger.Error("Failed to generate PDF: ", err)
@@ -1015,95 +1015,115 @@ func (s InvoiceService) recalculateInvoiceTotals(ctx context.Context, orgId stri
 }
 
 // InitiatePayment creates an order from the invoice and initiates payment with the specified PSP
-func (s InvoiceService) InitiatePayment(ctx context.Context, orgId string, invoiceId string, input dto.InitiatePaymentInput) (orders.CreateOrderResponse, error) {
-	// 1. Fetch and validate invoice
+
+// FindByOrderId finds invoices linked to an order - delegates to repository
+func (s InvoiceService) FindByOrderId(ctx context.Context, orgId string, orderId string) ([]entities.Invoice, int, error) {
+	return s.invoiceRepository.FindByOrderId(ctx, orgId, orderId)
+}
+
+// MarkAsPaid marks an invoice as paid with proper timestamps and amounts
+func (s InvoiceService) MarkAsPaid(ctx context.Context, orgId string, invoiceId string) (entities.Invoice, error) {
+	// Get current invoice
 	invoice, err := s.invoiceRepository.FindById(ctx, orgId, invoiceId)
 	if err != nil {
-		s.logger.Error("Failed to fetch invoice for payment initiation", err)
-		return orders.CreateOrderResponse{}, apperrors.NotFound{Message: "Invoice not found", Err: err}
+		return entities.Invoice{}, apperrors.NotFound{Message: "Invoice not found", Err: err}
 	}
 
-	// Check if invoice is payable
+	// Check if already paid (idempotency)
 	if invoice.Status == entities.InvoiceStatusPaid {
-		return orders.CreateOrderResponse{}, apperrors.NewInvalidOperation("Invoice is already fully paid", nil)
+		s.logger.Infof("Invoice %s is already paid", invoiceId)
+		return invoice, nil
 	}
 
-	if invoice.Status == entities.InvoiceStatusCancelled {
-		return orders.CreateOrderResponse{}, apperrors.NewInvalidOperation("Cannot pay cancelled invoice", nil)
-	}
+	// Update invoice to paid status
+	invoice.Status = entities.InvoiceStatusPaid
+	invoice.PaidAt = time.Now()
+	invoice.AmountPaid = invoice.Total
+	invoice.AmountDue = 0
 
-	// 2. Get invoice line items to build cart items
-	lineItems, err := s.invoiceRepository.ListLineItems(ctx, orgId, invoiceId)
+	updatedInvoice, err := s.invoiceRepository.Update(ctx, invoice)
 	if err != nil {
-		s.logger.Error("Failed to fetch invoice line items for payment", err)
-		return orders.CreateOrderResponse{}, apperrors.InternalError{Message: "Error fetching invoice details", Err: err}
+		return entities.Invoice{}, apperrors.InternalError{Message: "Failed to mark invoice as paid", Err: err}
 	}
 
-	// 3. Get customer
-	customer, err := s.customerRepository.FindById(ctx, orgId, invoice.CustomerId)
+	err = s.pubsub.Publish(orgId, topic.InvoicePaid, invoice)
 	if err != nil {
-		s.logger.Error("Failed to fetch customer for payment", err)
-		return orders.CreateOrderResponse{}, apperrors.NotFound{Message: "Customer not found", Err: err}
+		s.logger.Error("Failed to publish invoice paid event: ", err)
+		return entities.Invoice{}, apperrors.InternalError{Message: "Failed to publish invoice paid event", Err: err}
+	}
+	s.logger.Infof("Successfully marked invoice %s as paid", invoiceId)
+	return updatedInvoice, nil
+}
+
+// SendInvoiceEmail sends an email to the customer with invoice PDF attachment using existing email provider
+func (s InvoiceService) SendInvoiceEmail(ctx context.Context, orgId, invoiceId string, customer entities.Customer, invoice entities.Invoice, pdfBytes []byte) error {
+	// Use orgId as organization name (can be enhanced later to fetch org details)
+	orgName := orgId
+
+	// Prepare invoice email data variables for the template
+	dataVariables := map[string]string{
+		// Customer information
+		"customer_first_name": customer.FirstName,
+		"customer_last_name":  customer.LastName,
+		"customer_email":      customer.Email,
+
+		// Invoice information
+		"invoice_number":      invoice.DocNumber,
+		"invoice_id":          invoice.Id,
+		"invoice_total":       fmt.Sprintf("%.2f", invoice.Total),
+		"invoice_currency":    invoice.Currency,
+		"invoice_due_date":    invoice.DueAt.Format("January 2, 2006"),
+		"invoice_issued_date": invoice.IssuedAt.Format("January 2, 2006"),
+
+		// Organization information
+		"org_name": orgName,
+		"org_id":   invoice.OrgId,
+
+		// Additional metadata
+		"payment_status": string(invoice.Status),
 	}
 
-	// 4. Convert invoice line items to cart items
-	cartItems := make([]orders.CartItem, len(lineItems))
-	for i, item := range lineItems {
-		cartItems[i] = orders.CartItem{
-			ProductId: item.ProductId,
-			PriceId:   item.PriceId,
-			Quantity:  int(item.Quantity),
+	// Add invoice metadata if present
+	if invoice.Metadata != nil {
+		for key, value := range invoice.Metadata {
+			dataVariables["invoice_"+key] = fmt.Sprintf("%v", value)
 		}
 	}
 
-	// 5. Convert payment processor string to gateway enum
-	var pspId common.Gateway
-	switch input.PaymentProcessor {
-	case "paystack":
-		pspId = common.Paystack
-	case "checkout_com":
-		pspId = common.CheckoutDotCom
-	default:
-		return orders.CreateOrderResponse{}, apperrors.InvalidArgument{Message: "Unsupported payment processor", Err: nil}
+	// Add customer metadata if present
+	if customer.Metadata != nil {
+		for key, value := range customer.Metadata {
+			dataVariables["customer_"+key] = fmt.Sprintf("%v", value)
+		}
 	}
 
-	// 6. Build order creation input
-	orderInput := orders.CreateOrderInput{
-		OrgId: orgId,
-		Customer: orders.CreateOrderCommandCustomer{
-			Id:        customer.Id,
-			Email:     customer.Email,
-			FirstName: customer.FirstName,
-			LastName:  customer.LastName,
-			Phone:     customer.Phone,
-			Metadata:  customer.Metadata,
-		},
-		Currency:  invoice.Currency,
-		CartItems: cartItems,
-		PspId:     pspId,
-		Metadata: map[string]string{
-			"invoice_id": invoiceId,
-			"source":     "invoice_payment",
-		},
-		Options: map[string]string{
-			"success_url": input.SuccessUrl,
-			"cancel_url":  input.CancelUrl,
-		},
+	// Create PDF attachment
+	attachments := []email_providers.EmailAttachment{ // TODO: Uncomment when PDF generation is allowed on Loops
+		//{
+		//	Filename:    fmt.Sprintf("invoice_%s.pdf", invoice.DocNumber),
+		//	ContentType: "application/pdf",
+		//	Data:        pdfBytes,
+		//},
 	}
 
-	// Merge any additional metadata from input
-	for k, v := range input.Metadata {
-		orderInput.Metadata[k] = v
-	}
-
-	// 7. Create order using OrderService (this handles PSP InitPayment automatically)
-	orderResponse, err := s.orderService.CreateOrder(ctx, orderInput)
+	// Send invoice email using the new unified method
+	_, err := s.emailProvider.SendEmail(ctx, orgId, email_providers.EmailTypeInvoicePaid, email_providers.SendEmailInput{
+		To:      customer.Email,
+		Subject: fmt.Sprintf("Invoice %s - %s", invoice.DocNumber, orgName),
+		Variables: map[string]interface{}{
+			"name":             customer.FirstName,
+			"invoiceReference": invoice.DocNumber,
+			"replyTo":          "no-reply@getpaidhq.co", // TODO
+			"subject":          fmt.Sprintf("Invoice %s from %s", invoice.DocNumber, orgName),
+			"preview":          fmt.Sprintf("You have received an invoice from %s", orgName),
+		},
+		Attachments: attachments,
+		Metadata:    dataVariables,
+	})
 	if err != nil {
-		s.logger.Error("Failed to create order for invoice payment", err)
-		return orders.CreateOrderResponse{}, apperrors.InternalError{Message: "Error initiating payment", Err: err}
+		return apperrors.InternalError{Message: fmt.Sprintf("Failed to send invoice email to %s", customer.Email), Err: err}
 	}
 
-	s.logger.Info("Payment initiated for invoice", "invoice_id", invoiceId, "order_id", orderResponse.Order.Id, "psp", input.PaymentProcessor)
-
-	return orderResponse, nil
+	s.logger.Infof("Successfully sent invoice email for %s to %s", invoice.DocNumber, customer.Email)
+	return nil
 }

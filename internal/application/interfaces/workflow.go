@@ -19,6 +19,7 @@ type Engine interface {
 	SignalSubscriptionWorkflow(ctx context.Context, signal string, subscription entities.Subscription, payload interface{}) error
 	StartDunningWorkflow(ctx context.Context, input dto.StartDunningWorkflowInput) (string, string, error)
 	SignalDunningWorkflow(ctx context.Context, workflowId string, signal string, payload interface{}) error
+	StartInvoicePaymentWorkflow(ctx context.Context, input dto.InvoicePaymentWorkflowInput) (string, string, error)
 }
 
 type Workflow interface {
@@ -53,4 +54,5 @@ const (
 	PaymentSuccess  WorkflowType = "payment.success"
 	OutgoingWebhook WorkflowType = "webhook"
 	Subscription    WorkflowType = "subscription"
+	InvoicePayment  WorkflowType = "invoice.payment"
 )

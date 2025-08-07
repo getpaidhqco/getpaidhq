@@ -48,9 +48,8 @@ func DunningWorkflow(ctx workflow.Context, input DunningWorkflowInput) (dunning.
 		workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 			StartToCloseTimeout: time.Minute * 5,
 			RetryPolicy: &temporal.RetryPolicy{
-				InitialInterval:    time.Second * 1,
+				InitialInterval:    time.Minute * 1,
 				BackoffCoefficient: 2.0,
-				MaximumInterval:    time.Minute * 5,
 				MaximumAttempts:    5,
 			},
 		}),
@@ -66,9 +65,8 @@ func DunningWorkflow(ctx workflow.Context, input DunningWorkflowInput) (dunning.
 	err = workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: time.Minute * 5,
 		RetryPolicy: &temporal.RetryPolicy{
-			InitialInterval:    time.Second * 1,
+			InitialInterval:    time.Minute * 1,
 			BackoffCoefficient: 2.0,
-			MaximumInterval:    time.Minute * 5,
 			MaximumAttempts:    5,
 		},
 	}), a.ResolveDunningConfig, input.OrgId).Get(ctx, &config)
@@ -82,9 +80,8 @@ func DunningWorkflow(ctx workflow.Context, input DunningWorkflowInput) (dunning.
 	err = workflow.ExecuteActivity(workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: time.Minute * 5,
 		RetryPolicy: &temporal.RetryPolicy{
-			InitialInterval:    time.Second * 1,
+			InitialInterval:    time.Minute * 1,
 			BackoffCoefficient: 2.0,
-			MaximumInterval:    time.Minute * 5,
 			MaximumAttempts:    5,
 		},
 	}), a.GetSubscriptionForDunning, input.OrgId, input.SubscriptionId).Get(ctx, &subscription)

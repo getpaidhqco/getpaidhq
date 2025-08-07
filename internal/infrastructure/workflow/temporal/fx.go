@@ -9,6 +9,7 @@ import (
 var Module = fx.Options(
 	fx.Provide(activities.NewDunningActivities),
 	fx.Provide(activities.NewOrderActivities),
+	fx.Provide(activities.NewInvoiceActivities),
 	fx.Provide(activities.NewOutgoingWebhookActivities),
 	fx.Provide(NewTemporalEngine),
 )

@@ -2,8 +2,20 @@ package email_providers
 
 import (
 	"context"
-	"payloop/internal/domain/entities"
 )
+
+// EmailType represents the type of email being sent
+type EmailType string
+
+const (
+	// EmailTypeInvoicePaid represents an invoice payment confirmation email
+	EmailTypeInvoicePaid EmailType = "invoice_paid"
+)
+
+// String returns the string representation of the EmailType
+func (e EmailType) String() string {
+	return string(e)
+}
 
 // ProviderConfig is an interface for email provider configurations
 type ProviderConfig interface {
@@ -17,12 +29,11 @@ type EmailAttachment struct {
 	Data        []byte
 }
 
-// SendEmailCommand contains the data needed to send an email
-type SendEmailCommand struct {
+// SendEmailInput contains the data needed to send an email
+type SendEmailInput struct {
 	To          string
 	Subject     string
-	HtmlContent string
-	TextContent string
+	Variables   map[string]interface{}
 	Attachments []EmailAttachment
 	Metadata    map[string]string
 }
@@ -37,9 +48,6 @@ type SendEmailResponse struct {
 
 // Provider is the interface that all email providers must implement
 type Provider interface {
-	// SendEmail sends an email with optional attachments
-	SendEmail(ctx context.Context, input SendEmailCommand) (SendEmailResponse, error)
-
-	// SendInvoiceNotification sends an invoice notification email with the invoice PDF attached
-	SendInvoiceNotification(ctx context.Context, customer entities.Customer, invoice entities.Invoice, orgName string, pdfData []byte) (SendEmailResponse, error)
+	// SendEmail sends an email based on the specified email type
+	SendEmail(ctx context.Context, orgId string, emailType EmailType, input SendEmailInput) (SendEmailResponse, error)
 }

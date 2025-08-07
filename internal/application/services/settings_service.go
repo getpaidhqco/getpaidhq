@@ -158,6 +158,8 @@ func (s *SettingsService) getSecureTypeForValidator(settingType string) interfac
 		return &validators.SubscriptionSettings{}
 	case "organization":
 		return &validators.OrganizationSettings{}
+	case "loops_config":
+		return &validators.LoopsSettings{}
 	default:
 		return &map[string]interface{}{}
 	}

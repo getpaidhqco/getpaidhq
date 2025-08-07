@@ -4,7 +4,7 @@ import (
 	"context"
 	"github.com/stretchr/testify/mock"
 	"payloop/internal/api/dto/request"
-	"payloop/internal/application/interfaces"
+	"payloop/internal/application/dto"
 	"payloop/internal/domain/entities/dunning"
 )
 
@@ -14,7 +14,7 @@ type MockDunningService struct {
 }
 
 // CreateCampaign mocks the CreateCampaign method
-func (m *MockDunningService) CreateCampaign(ctx context.Context, input interfaces.CreateDunningCampaignInput) (dunning.DunningCampaign, error) {
+func (m *MockDunningService) CreateCampaign(ctx context.Context, input dto.CreateDunningCampaignInput) (dunning.DunningCampaign, error) {
 	args := m.Called(ctx, input)
 	return args.Get(0).(dunning.DunningCampaign), args.Error(1)
 }
@@ -44,19 +44,19 @@ func (m *MockDunningService) ListCampaignsByCustomer(ctx context.Context, orgId 
 }
 
 // PauseCampaign mocks the PauseCampaign method
-func (m *MockDunningService) PauseCampaign(ctx context.Context, input interfaces.PauseDunningCampaignInput) (dunning.DunningCampaign, error) {
+func (m *MockDunningService) PauseCampaign(ctx context.Context, input dto.PauseDunningCampaignInput) (dunning.DunningCampaign, error) {
 	args := m.Called(ctx, input)
 	return args.Get(0).(dunning.DunningCampaign), args.Error(1)
 }
 
 // ResumeCampaign mocks the ResumeCampaign method
-func (m *MockDunningService) ResumeCampaign(ctx context.Context, input interfaces.ResumeDunningCampaignInput) (dunning.DunningCampaign, error) {
+func (m *MockDunningService) ResumeCampaign(ctx context.Context, input dto.ResumeDunningCampaignInput) (dunning.DunningCampaign, error) {
 	args := m.Called(ctx, input)
 	return args.Get(0).(dunning.DunningCampaign), args.Error(1)
 }
 
 // CancelCampaign mocks the CancelCampaign method
-func (m *MockDunningService) CancelCampaign(ctx context.Context, input interfaces.CancelDunningCampaignInput) (dunning.DunningCampaign, error) {
+func (m *MockDunningService) CancelCampaign(ctx context.Context, input dto.CancelDunningCampaignInput) (dunning.DunningCampaign, error) {
 	args := m.Called(ctx, input)
 	return args.Get(0).(dunning.DunningCampaign), args.Error(1)
 }
@@ -74,7 +74,7 @@ func (m *MockDunningService) ListAttemptsByCampaign(ctx context.Context, orgId s
 }
 
 // TriggerManualAttempt mocks the TriggerManualAttempt method
-func (m *MockDunningService) TriggerManualAttempt(ctx context.Context, input interfaces.TriggerManualAttemptInput) (dunning.DunningAttempt, error) {
+func (m *MockDunningService) TriggerChargeAttempt(ctx context.Context, input dto.TriggerAttemptInput) (dunning.DunningAttempt, error) {
 	args := m.Called(ctx, input)
 	return args.Get(0).(dunning.DunningAttempt), args.Error(1)
 }
@@ -86,7 +86,7 @@ func (m *MockDunningService) ListCommunicationsByCampaign(ctx context.Context, o
 }
 
 // CreatePaymentUpdateToken mocks the CreatePaymentUpdateToken method
-func (m *MockDunningService) CreatePaymentUpdateToken(ctx context.Context, input interfaces.CreatePaymentUpdateTokenInput) (dunning.PaymentUpdateToken, error) {
+func (m *MockDunningService) CreatePaymentUpdateToken(ctx context.Context, input dto.CreatePaymentUpdateTokenInput) (dunning.PaymentUpdateToken, error) {
 	args := m.Called(ctx, input)
 	return args.Get(0).(dunning.PaymentUpdateToken), args.Error(1)
 }
@@ -98,7 +98,7 @@ func (m *MockDunningService) VerifyPaymentUpdateToken(ctx context.Context, orgId
 }
 
 // ActivatePaymentUpdateToken mocks the ActivatePaymentUpdateToken method
-func (m *MockDunningService) ActivatePaymentUpdateToken(ctx context.Context, input interfaces.ActivatePaymentUpdateTokenInput) (dunning.PaymentUpdateToken, error) {
+func (m *MockDunningService) ActivatePaymentUpdateToken(ctx context.Context, input dto.ActivatePaymentUpdateTokenInput) (dunning.PaymentUpdateToken, error) {
 	args := m.Called(ctx, input)
 	return args.Get(0).(dunning.PaymentUpdateToken), args.Error(1)
 }
@@ -110,7 +110,7 @@ func (m *MockDunningService) RevokePaymentUpdateToken(ctx context.Context, orgId
 }
 
 // CreateConfiguration mocks the CreateConfiguration method
-func (m *MockDunningService) CreateConfiguration(ctx context.Context, input interfaces.CreateDunningConfigurationInput) (dunning.DunningConfiguration, error) {
+func (m *MockDunningService) CreateConfiguration(ctx context.Context, input dto.CreateDunningConfigurationInput) (dunning.DunningConfiguration, error) {
 	args := m.Called(ctx, input)
 	return args.Get(0).(dunning.DunningConfiguration), args.Error(1)
 }
@@ -128,7 +128,7 @@ func (m *MockDunningService) ListConfigurations(ctx context.Context, orgId strin
 }
 
 // UpdateConfiguration mocks the UpdateConfiguration method
-func (m *MockDunningService) UpdateConfiguration(ctx context.Context, input interfaces.UpdateDunningConfigurationInput) (dunning.DunningConfiguration, error) {
+func (m *MockDunningService) UpdateConfiguration(ctx context.Context, input dto.UpdateDunningConfigurationInput) (dunning.DunningConfiguration, error) {
 	args := m.Called(ctx, input)
 	return args.Get(0).(dunning.DunningConfiguration), args.Error(1)
 }

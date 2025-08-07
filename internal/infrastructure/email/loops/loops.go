@@ -1,233 +1,161 @@
 package loops
 
 import (
-	"bytes"
 	"context"
-	"encoding/base64"
-	"encoding/json"
 	"fmt"
-	"net/http"
+
+	"github.com/tilebox/loops-go"
+	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/email_providers"
-	"payloop/internal/domain/entities"
-	"time"
 )
 
 // LoopsConfig contains the configuration for the Loops email provider
 type LoopsConfig struct {
-	APIKey      string
-	APIEndpoint string
-	FromEmail   string
-	FromName    string
+	APIKey string
+}
+
+// LoopsSettings contains the template configuration stored in database
+type LoopsSettings struct {
+	InvoicePaidTemplateID string `json:"invoice_paid_template_id"`
+}
+
+// DefaultLoopsSettings returns the default template configuration
+func DefaultLoopsSettings() LoopsSettings {
+	return LoopsSettings{
+		InvoicePaidTemplateID: "cme14n0c048ntyp0ikdz6xn3h", // Must be configured in database or Loops dashboard
+	}
 }
 
 // Validate validates the Loops configuration
 func (c LoopsConfig) Validate() error {
 	if c.APIKey == "" {
-		return fmt.Errorf("Loops API key is required")
-	}
-	if c.APIEndpoint == "" {
-		return fmt.Errorf("Loops API endpoint is required")
-	}
-	if c.FromEmail == "" {
-		return fmt.Errorf("From email is required")
+		return fmt.Errorf("loops API key is required")
 	}
 	return nil
 }
 
-// LoopsProvider implements the email_providers.Provider interface for Loops
+// LoopsProvider implements the email_providers.Provider interface using the loops-go SDK
 type LoopsProvider struct {
-	logger logger.Logger
-	config LoopsConfig
-	client *http.Client
+	logger          logger.Logger
+	config          LoopsConfig
+	client          *loops.Client
+	settingsService interfaces.SettingsService
 }
 
-// NewLoopsProvider creates a new Loops email provider
-func NewLoopsProvider(logger logger.Logger, config LoopsConfig) (*LoopsProvider, error) {
+// NewLoopsProvider creates a new Loops email provider using the loops-go SDK
+func NewLoopsProvider(logger logger.Logger, config LoopsConfig, settingsService interfaces.SettingsService) (*LoopsProvider, error) {
 	if err := config.Validate(); err != nil {
 		return nil, err
 	}
 
-	client := &http.Client{
-		Timeout: 10 * time.Second,
+	// Create the loops client
+	client, err := loops.NewClient(loops.WithAPIKey(config.APIKey))
+	if err != nil {
+		return nil, fmt.Errorf("failed to create loops client: %w", err)
 	}
 
 	return &LoopsProvider{
-		logger: logger,
-		config: config,
-		client: client,
+		logger:          logger,
+		config:          config,
+		client:          client,
+		settingsService: settingsService,
 	}, nil
 }
 
-// loopsEmailRequest represents the request body for the Loops API
-type loopsEmailRequest struct {
-	To          string                 `json:"to"`
-	From        string                 `json:"from"`
-	FromName    string                 `json:"from_name,omitempty"`
-	Subject     string                 `json:"subject"`
-	HTML        string                 `json:"html,omitempty"`
-	Text        string                 `json:"text,omitempty"`
-	Attachments []loopsAttachment      `json:"attachments,omitempty"`
-	Metadata    map[string]string      `json:"metadata,omitempty"`
+// getLoopsSettings retrieves the loops template configuration from the database
+func (p *LoopsProvider) getLoopsSettings(ctx context.Context, orgId string) (LoopsSettings, error) {
+	var settings LoopsSettings
+
+	// Try to get settings from database
+	err := p.settingsService.GetSetting(ctx, orgId, "loops_config", "templates", &settings)
+	if err != nil {
+		p.logger.Warn("No loops settings found in database, using defaults", "org_id", orgId, "error", err.Error())
+		return DefaultLoopsSettings(), nil
+	}
+
+	return settings, nil
 }
 
-// loopsAttachment represents an attachment in the Loops API
-type loopsAttachment struct {
-	Filename    string `json:"filename"`
-	ContentType string `json:"content_type"`
-	Data        string `json:"data"` // Base64 encoded data
+// getTemplateID returns the template ID for the given email type
+func (p *LoopsProvider) getTemplateID(emailType email_providers.EmailType, settings LoopsSettings) (string, error) {
+	switch emailType {
+	case email_providers.EmailTypeInvoicePaid:
+		if settings.InvoicePaidTemplateID == "" {
+			return "", fmt.Errorf("invoice_paid template ID not configured - create template in Loops dashboard and configure in database")
+		}
+		return settings.InvoicePaidTemplateID, nil
+	default:
+		return "", fmt.Errorf("unsupported email type: %s", emailType)
+	}
 }
 
-// loopsEmailResponse represents the response from the Loops API
-type loopsEmailResponse struct {
-	Success   bool   `json:"success"`
-	MessageID string `json:"message_id,omitempty"`
-	Error     string `json:"error,omitempty"`
-}
+// SendEmail sends an email using the Loops transactional email API
+func (p *LoopsProvider) SendEmail(ctx context.Context, orgId string, emailType email_providers.EmailType, input email_providers.SendEmailInput) (email_providers.SendEmailResponse, error) {
+	p.logger.Info("Sending email via Loops SDK", "org_id", orgId, "email_type", emailType, "to", input.To, "subject", input.Subject)
 
-// SendEmail sends an email using the Loops API
-func (p *LoopsProvider) SendEmail(ctx context.Context, input email_providers.SendEmailCommand) (email_providers.SendEmailResponse, error) {
-	p.logger.Info("Sending email via Loops", "to", input.To, "subject", input.Subject)
-
-	// Convert attachments to Loops format
-	loopsAttachments := make([]loopsAttachment, 0, len(input.Attachments))
-	for _, attachment := range input.Attachments {
-		loopsAttachments = append(loopsAttachments, loopsAttachment{
-			Filename:    attachment.Filename,
-			ContentType: attachment.ContentType,
-			Data:        base64.StdEncoding.EncodeToString(attachment.Data),
-		})
-	}
-
-	// Create request body
-	reqBody := loopsEmailRequest{
-		To:          input.To,
-		From:        p.config.FromEmail,
-		FromName:    p.config.FromName,
-		Subject:     input.Subject,
-		HTML:        input.HtmlContent,
-		Text:        input.TextContent,
-		Attachments: loopsAttachments,
-		Metadata:    input.Metadata,
-	}
-
-	// Convert request to JSON
-	jsonData, err := json.Marshal(reqBody)
+	// Get template settings from database
+	settings, err := p.getLoopsSettings(ctx, orgId)
 	if err != nil {
-		p.logger.Error("Failed to marshal email request", "error", err)
-		return email_providers.SendEmailResponse{
-			Success:      false,
-			ErrorMessage: fmt.Sprintf("Failed to marshal request: %v", err),
-		}, err
-	}
-
-	// Create HTTP request
-	req, err := http.NewRequestWithContext(ctx, "POST", p.config.APIEndpoint, bytes.NewBuffer(jsonData))
-	if err != nil {
-		p.logger.Error("Failed to create HTTP request", "error", err)
-		return email_providers.SendEmailResponse{
-			Success:      false,
-			ErrorMessage: fmt.Sprintf("Failed to create request: %v", err),
-		}, err
-	}
-
-	// Set headers
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("Authorization", fmt.Sprintf("Bearer %s", p.config.APIKey))
-
-	// Send request
-	resp, err := p.client.Do(req)
-	if err != nil {
-		p.logger.Error("Failed to send email", "error", err)
-		return email_providers.SendEmailResponse{
-			Success:      false,
-			ErrorMessage: fmt.Sprintf("Failed to send request: %v", err),
-		}, err
-	}
-	defer resp.Body.Close()
-
-	// Parse response
-	var loopsResp loopsEmailResponse
-	if err := json.NewDecoder(resp.Body).Decode(&loopsResp); err != nil {
-		p.logger.Error("Failed to decode response", "error", err)
-		return email_providers.SendEmailResponse{
-			Success:      false,
-			ErrorMessage: fmt.Sprintf("Failed to decode response: %v", err),
-		}, err
-	}
-
-	// Check for errors
-	if !loopsResp.Success {
-		p.logger.Error("Loops API returned error", "error", loopsResp.Error)
 		return email_providers.SendEmailResponse{
 			Success:      false,
 			ProviderID:   "loops",
-			ErrorMessage: loopsResp.Error,
-		}, fmt.Errorf("loops API error: %s", loopsResp.Error)
+			ErrorMessage: fmt.Sprintf("Failed to get template settings: %v", err),
+		}, err
 	}
 
-	p.logger.Info("Email sent successfully", "message_id", loopsResp.MessageID)
+	// Get the template ID based on email type
+	templateID, err := p.getTemplateID(emailType, settings)
+	if err != nil {
+		return email_providers.SendEmailResponse{
+			Success:      false,
+			ProviderID:   "loops",
+			ErrorMessage: fmt.Sprintf("Failed to get template ID: %v", err),
+		}, err
+	}
+
+	// Convert attachments to Loops format
+	var loopsAttachments *[]loops.EmailAttachment
+	if len(input.Attachments) > 0 {
+		attachments := make([]loops.EmailAttachment, 0, len(input.Attachments))
+		for _, attachment := range input.Attachments {
+			attachments = append(attachments, loops.EmailAttachment{
+				Filename:    attachment.Filename,
+				ContentType: attachment.ContentType,
+				Data:        string(attachment.Data), // loops-go expects string, not base64
+			})
+		}
+		loopsAttachments = &attachments
+	}
+
+	// Prepare data variables for the template
+	dataVariables := input.Variables
+
+	// Helper to create boolean pointer
+	addToAudience := false
+
+	// Send the transactional email
+	err = p.client.SendTransactionalEmail(ctx, &loops.TransactionalEmail{
+		TransactionalID: templateID,
+		Email:           input.To,
+		AddToAudience:   &addToAudience, // Don't add to marketing audience
+		DataVariables:   &dataVariables,
+		Attachments:     loopsAttachments,
+	})
+
+	if err != nil {
+		p.logger.Error("Failed to send email via Loops SDK", "error", err, "to", input.To)
+		return email_providers.SendEmailResponse{
+			Success:      false,
+			ProviderID:   "loops",
+			ErrorMessage: fmt.Sprintf("Failed to send email: %v", err),
+		}, err
+	}
+
+	p.logger.Info("Email sent successfully via Loops SDK", "to", input.To)
 	return email_providers.SendEmailResponse{
 		Success:    true,
 		ProviderID: "loops",
-		MessageID:  loopsResp.MessageID,
+		MessageID:  "", // Loops doesn't return message ID in this SDK version
 	}, nil
-}
-
-// SendInvoiceNotification sends an invoice notification email with the invoice PDF attached
-func (p *LoopsProvider) SendInvoiceNotification(ctx context.Context, customer entities.Customer, invoice entities.Invoice, orgName string, pdfData []byte) (email_providers.SendEmailResponse, error) {
-	p.logger.Info("Sending invoice notification email", "customer_id", customer.Id, "invoice_id", invoice.Id)
-
-	// Create PDF attachment
-	attachments := []email_providers.EmailAttachment{
-		{
-			Filename:    fmt.Sprintf("invoice_%s.pdf", invoice.Id),
-			ContentType: "application/pdf",
-			Data:        pdfData,
-		},
-	}
-
-	// Create email content
-	subject := fmt.Sprintf("Invoice #%s from %s", invoice.DocNumber, orgName)
-
-	// Simple HTML template for the email
-	htmlContent := fmt.Sprintf(`
-		<html>
-		<body>
-			<h1>Invoice #%s</h1>
-			<p>Dear %s,</p>
-			<p>Please find attached your invoice #%s for the amount of %s %d.</p>
-			<p>Due date: %s</p>
-			<p>Thank you for your business!</p>
-			<p>Regards,<br>%s</p>
-		</body>
-		</html>
-	`, invoice.DocNumber, customer.FirstName, invoice.DocNumber, 
-	   invoice.Currency, invoice.Total, invoice.DueAt.Format("2006-01-02"), 
-	   orgName)
-
-	// Plain text version
-	textContent := fmt.Sprintf(
-		"Invoice #%s\n\nDear %s,\n\nPlease find attached your invoice #%s for the amount of %s %d.\n\nDue date: %s\n\nThank you for your business!\n\nRegards,\n%s",
-		invoice.DocNumber, customer.FirstName, invoice.DocNumber,
-		invoice.Currency, invoice.Total, invoice.DueAt.Format("2006-01-02"),
-		orgName,
-	)
-
-	// Metadata for tracking
-	metadata := map[string]string{
-		"invoice_id":     invoice.Id,
-		"customer_id":    customer.Id,
-		"organization_id": invoice.OrgId,
-	}
-
-	// Send the email
-	return p.SendEmail(ctx, email_providers.SendEmailCommand{
-		To:          customer.Email,
-		Subject:     subject,
-		HtmlContent: htmlContent,
-		TextContent: textContent,
-		Attachments: attachments,
-		Metadata:    metadata,
-	})
 }
