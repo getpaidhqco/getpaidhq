@@ -13,16 +13,16 @@ import (
 )
 
 // TestLoopsProvider_SendEmail_RealAPI tests sending an actual email via Loops API
-// This requires a valid GPHQ_LOOPS_API_KEY in the environment
+// This requires a valid LOOPS_API_KEY in the environment
 func TestLoopsProvider_SendEmail_RealAPI(t *testing.T) {
 	// Get API key from environment
-	apiKey := os.Getenv("GPHQ_LOOPS_API_KEY")
+	apiKey := os.Getenv("LOOPS_API_KEY")
 	if apiKey == "" {
 		apiKey = "373eea9c7cc048ac7e59e02e9ef7c521"
 	}
 
 	// Note: To run this test, you need to:
-	// 1. Set GPHQ_LOOPS_API_KEY environment variable with a valid Loops API key
+	// 1. Set LOOPS_API_KEY environment variable with a valid Loops API key
 	// 2. Ensure the template ID below exists in your Loops dashboard
 	// 3. The test will send to a test email domain that won't deliver
 	t.Log("Running real Loops API integration test...")

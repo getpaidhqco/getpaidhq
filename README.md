@@ -250,10 +250,10 @@ injection, or remove the FX DI in modules.go.
    ```bash
    # Generate Prisma client
    pnpm dlx prisma generate
-   
+
    # Push schema to development database
    pnpm dlx prisma db push
-   
+
    # Push reporting schema
    pnpm dlx prisma db push --schema=schemas/reporting/schema.prisma
    ```
@@ -369,7 +369,7 @@ Configure Loops for transactional email delivery:
 ```bash
 # Email Service Configuration
 GETPAIDHQ_EMAIL_PROVIDER=loops
-GETPAIDHQ_LOOPS_API_KEY=your_loops_api_key
+LOOPS_API_KEY=your_loops_api_key
 GETPAIDHQ_LOOPS_API_ENDPOINT=https://api.loops.so/v1/transactional
 GETPAIDHQ_EMAIL_FROM_EMAIL=invoices@yourdomain.com
 GETPAIDHQ_EMAIL_FROM_NAME=Your Company Name

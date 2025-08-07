@@ -40,7 +40,7 @@ type Env struct {
 
 	// Email configuration
 	EmailProvider    string `mapstructure:"GPHQ_EMAIL_PROVIDER"`
-	LoopsApiKey      string `mapstructure:"GPHQ_LOOPS_API_KEY"`
+	LoopsApiKey      string `mapstructure:"LOOPS_API_KEY"`
 	LoopsApiEndpoint string `mapstructure:"GPHQ_LOOPS_API_ENDPOINT"`
 	EmailFromEmail   string `mapstructure:"GPHQ_EMAIL_FROM_EMAIL"`
 	EmailFromName    string `mapstructure:"GPHQ_EMAIL_FROM_NAME"`
@@ -64,7 +64,7 @@ func NewEnv() Env {
 
 	err := godotenv.Load()
 	if err != nil {
-		log.Println("Error loading .env file: %v", err)
+		log.Printf("Error loading .env file: %v", err)
 	}
 	viper.AutomaticEnv()
 
@@ -93,7 +93,7 @@ func NewEnv() Env {
 	viper.BindEnv("GPHQ_CLERK_SECRET")
 	viper.BindEnv("GPHQ_CLERK_DOMAIN")
 	viper.BindEnv("GPHQ_EMAIL_PROVIDER")
-	viper.BindEnv("GPHQ_LOOPS_API_KEY")
+	viper.BindEnv("LOOPS_API_KEY")
 	viper.BindEnv("GPHQ_LOOPS_API_ENDPOINT")
 	viper.BindEnv("GPHQ_EMAIL_FROM_EMAIL")
 	viper.BindEnv("GPHQ_EMAIL_FROM_NAME")
@@ -130,7 +130,7 @@ func NewEnv() Env {
 
 		// Email configuration
 		env.EmailProvider = viper.GetString("GPHQ_EMAIL_PROVIDER")
-		env.LoopsApiKey = viper.GetString("GPHQ_LOOPS_API_KEY")
+		env.LoopsApiKey = viper.GetString("LOOPS_API_KEY")
 		env.LoopsApiEndpoint = viper.GetString("GPHQ_LOOPS_API_ENDPOINT")
 		env.EmailFromEmail = viper.GetString("GPHQ_EMAIL_FROM_EMAIL")
 		env.EmailFromName = viper.GetString("GPHQ_EMAIL_FROM_NAME")
