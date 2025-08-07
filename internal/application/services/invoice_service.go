@@ -542,97 +542,196 @@ func (s InvoiceService) PerformAction(ctx context.Context, orgId string, id stri
 		return entities.Invoice{}, lib.NewCustomError(lib.NotFoundError, "Invoice not found", err)
 	}
 
-	// Perform action based on request
+	// Perform action based on request using business logic in service layer
 	switch req.Action {
 	case "finalize":
-		// Finalize invoice (make it immutable)
+		// Finalize invoice (draft -> open) - Business Logic in Service
 		if invoice.Status != entities.InvoiceStatusDraft {
 			return entities.Invoice{}, lib.NewCustomError(lib.BadRequestError, "Only draft invoices can be finalized", nil)
 		}
-		invoice.IsImmutable = true
-		invoice.UpdatedAt = time.Now().UTC()
-
-	case "send":
-		// Send invoice to customer
-		if invoice.Status != entities.InvoiceStatusDraft && invoice.Status != entities.InvoiceStatusOverdue {
-			return entities.Invoice{}, lib.NewCustomError(lib.BadRequestError, "Only draft or overdue invoices can be sent", nil)
-		}
-		invoice.Status = entities.InvoiceStatusSent
+		
+		// Apply business rules
+		invoice.Status = entities.InvoiceStatusOpen
 		invoice.IssuedAt = time.Now().UTC()
 		invoice.IsImmutable = true
 		invoice.UpdatedAt = time.Now().UTC()
 
+		// Persist changes
+		updatedInvoice, err := s.invoiceRepository.Update(ctx, invoice)
+		if err != nil {
+			s.logger.Error("Failed to finalize invoice: ", err)
+			return entities.Invoice{}, lib.NewCustomError(lib.InternalError, "Error finalizing invoice", err)
+		}
+		invoice = updatedInvoice
+
+	case "send":
+		// Mark invoice as delivered (email sent) - Business Logic in Service
+		if !invoice.IsPayable() {
+			return entities.Invoice{}, lib.NewCustomError(lib.BadRequestError, "Only payable invoices can be sent", nil)
+		}
+		
+		// Apply business rules
+		invoice.DeliveredAt = time.Now().UTC()
+		invoice.UpdatedAt = time.Now().UTC()
+
+		// Persist changes
+		updatedInvoice, err := s.invoiceRepository.Update(ctx, invoice)
+		if err != nil {
+			s.logger.Error("Failed to mark invoice as delivered: ", err)
+			return entities.Invoice{}, lib.NewCustomError(lib.InternalError, "Error marking invoice as delivered", err)
+		}
+		invoice = updatedInvoice
+
 	case "mark_paid":
-		// Mark invoice as paid
+		// Mark invoice as paid - Business Logic in Service
 		if invoice.Status == entities.InvoiceStatusPaid {
 			return entities.Invoice{}, lib.NewCustomError(lib.BadRequestError, "Invoice is already paid", nil)
 		}
+		if !invoice.IsPayable() {
+			return entities.Invoice{}, lib.NewCustomError(lib.BadRequestError, "Invoice cannot accept payments in current status", nil)
+		}
+		
+		// Apply business rules
 		invoice.Status = entities.InvoiceStatusPaid
 		invoice.PaidAt = time.Now().UTC()
 		invoice.AmountPaid = invoice.Total
 		invoice.AmountDue = 0
+		invoice.IsImmutable = true
 		invoice.UpdatedAt = time.Now().UTC()
 
-	case "mark_overdue":
-		// Mark invoice as overdue
-		if invoice.Status != entities.InvoiceStatusSent {
-			return entities.Invoice{}, lib.NewCustomError(lib.BadRequestError, "Only sent invoices can be marked as overdue", nil)
+		// Persist changes
+		updatedInvoice, err := s.invoiceRepository.Update(ctx, invoice)
+		if err != nil {
+			s.logger.Error("Failed to update invoice as paid: ", err)
+			return entities.Invoice{}, lib.NewCustomError(lib.InternalError, "Error updating invoice", err)
 		}
+		invoice = updatedInvoice
+
+	case "mark_overdue":
+		// Mark invoice as overdue - Business Logic in Service
+		if invoice.Status != entities.InvoiceStatusOpen {
+			return entities.Invoice{}, lib.NewCustomError(lib.BadRequestError, "Only open invoices can be marked as overdue", nil)
+		}
+		
+		// Apply business rules
 		invoice.Status = entities.InvoiceStatusOverdue
 		invoice.UpdatedAt = time.Now().UTC()
 
-	case "cancel":
-		// Cancel invoice
-		if invoice.Status == entities.InvoiceStatusPaid || invoice.Status == entities.InvoiceStatusRefunded {
-			return entities.Invoice{}, lib.NewCustomError(lib.BadRequestError, "Paid or refunded invoices cannot be cancelled", nil)
+		// Persist changes
+		updatedInvoice, err := s.invoiceRepository.Update(ctx, invoice)
+		if err != nil {
+			s.logger.Error("Failed to mark invoice as overdue: ", err)
+			return entities.Invoice{}, lib.NewCustomError(lib.InternalError, "Error updating invoice", err)
 		}
-		invoice.Status = entities.InvoiceStatusCancelled
+		invoice = updatedInvoice
+
+	case "void":
+		// Void invoice - Business Logic in Service
+		if !invoice.CanVoid() {
+			return entities.Invoice{}, lib.NewCustomError(lib.BadRequestError, "Invoice cannot be voided in current status", nil)
+		}
+		
+		// Apply business rules
+		invoice.Status = entities.InvoiceStatusVoid
+		invoice.VoidedAt = time.Now().UTC()
+		invoice.IsImmutable = true
 		invoice.UpdatedAt = time.Now().UTC()
+
+		// Persist changes
+		updatedInvoice, err := s.invoiceRepository.Update(ctx, invoice)
+		if err != nil {
+			s.logger.Error("Failed to void invoice: ", err)
+			return entities.Invoice{}, lib.NewCustomError(lib.InternalError, "Error voiding invoice", err)
+		}
+		invoice = updatedInvoice
+
+		// Add history record for void action
+		history := entities.InvoiceHistory{
+			OrgId:     orgId,
+			Id:        lib.GenerateId("inh"),
+			InvoiceId: invoice.Id,
+			Action:    entities.InvoiceHistoryActionVoided,
+			Reason:    req.Reason,
+			Timestamp: time.Now().UTC(),
+		}
+		_, err = s.invoiceRepository.AddHistory(ctx, history)
+		if err != nil {
+			s.logger.Error("Failed to add void history: ", err)
+			// Continue even if history creation fails
+		}
+
+	case "mark_uncollectible":
+		// Mark invoice as uncollectible - Business Logic in Service
+		if !invoice.CanMarkUncollectible() {
+			return entities.Invoice{}, lib.NewCustomError(lib.BadRequestError, "Invoice cannot be marked as uncollectible in current status", nil)
+		}
+		
+		// Apply business rules
+		invoice.Status = entities.InvoiceStatusUncollectible
+		invoice.MarkedUncollectibleAt = time.Now().UTC()
+		invoice.IsImmutable = true
+		invoice.UpdatedAt = time.Now().UTC()
+
+		// Persist changes
+		updatedInvoice, err := s.invoiceRepository.Update(ctx, invoice)
+		if err != nil {
+			s.logger.Error("Failed to mark invoice as uncollectible: ", err)
+			return entities.Invoice{}, lib.NewCustomError(lib.InternalError, "Error marking invoice as uncollectible", err)
+		}
+		invoice = updatedInvoice
+
+		// Add history record for uncollectible action
+		history := entities.InvoiceHistory{
+			OrgId:     orgId,
+			Id:        lib.GenerateId("inh"),
+			InvoiceId: invoice.Id,
+			Action:    entities.InvoiceHistoryActionUncollectible,
+			Reason:    req.Reason,
+			Timestamp: time.Now().UTC(),
+		}
+		_, err = s.invoiceRepository.AddHistory(ctx, history)
+		if err != nil {
+			s.logger.Error("Failed to add uncollectible history: ", err)
+			// Continue even if history creation fails
+		}
 
 	default:
 		return entities.Invoice{}, lib.NewCustomError(lib.BadRequestError, "Invalid action", nil)
 	}
 
-	// Update invoice in database
-	updatedInvoice, err := s.invoiceRepository.Update(ctx, invoice)
-	if err != nil {
-		s.logger.Error("Failed to update invoice: ", err)
-		return entities.Invoice{}, lib.NewCustomError(lib.InternalError, "Error updating invoice", err)
-	}
+	// Add invoice history entry for actions that don't already add history
+	if req.Action != "void" && req.Action != "mark_uncollectible" {
+		var action entities.InvoiceHistoryAction
+		switch req.Action {
+		case "finalize":
+			action = entities.InvoiceHistoryActionUpdated
+		case "send":
+			action = entities.InvoiceHistoryActionSent
+		case "mark_paid":
+			action = entities.InvoiceHistoryActionPaid
+		case "mark_overdue":
+			action = entities.InvoiceHistoryActionOverdue
+		}
 
-	// Add invoice history entry
-	var action entities.InvoiceHistoryAction
-	switch req.Action {
-	case "finalize":
-		action = entities.InvoiceHistoryActionUpdated
-	case "send":
-		action = entities.InvoiceHistoryActionSent
-	case "mark_paid":
-		action = entities.InvoiceHistoryActionPaid
-	case "mark_overdue":
-		action = entities.InvoiceHistoryActionOverdue
-	case "cancel":
-		action = entities.InvoiceHistoryActionVoided
-	}
-
-	history := entities.InvoiceHistory{
-		OrgId:     orgId,
-		Id:        lib.GenerateId("inh"),
-		InvoiceId: updatedInvoice.Id,
-		Action:    action,
-		Reason:    req.Reason,
-		Timestamp: time.Now().UTC(),
-	}
-	_, err = s.invoiceRepository.AddHistory(ctx, history)
-	if err != nil {
-		s.logger.Error("Failed to add invoice history: ", err)
-		// Continue even if history creation fails
+		history := entities.InvoiceHistory{
+			OrgId:     orgId,
+			Id:        lib.GenerateId("inh"),
+			InvoiceId: invoice.Id,
+			Action:    action,
+			Reason:    req.Reason,
+			Timestamp: time.Now().UTC(),
+		}
+		_, err = s.invoiceRepository.AddHistory(ctx, history)
+		if err != nil {
+			s.logger.Error("Failed to add invoice history: ", err)
+			// Continue even if history creation fails
+		}
 	}
 
 	// Publish event
-	_ = s.pubsub.Publish(orgId, topic.InvoiceUpdated, updatedInvoice)
+	_ = s.pubsub.Publish(orgId, topic.InvoiceUpdated, invoice)
 
-	return updatedInvoice, nil
+	return invoice, nil
 }
 
 func (s InvoiceService) AddLineItem(ctx context.Context, orgId string, invoiceId string, req dto.CreateInvoiceLineItemInput) (entities.InvoiceLineItem, error) {
@@ -927,8 +1026,8 @@ func (s InvoiceService) CreatePaymentLink(ctx context.Context, orgId string, inv
 	}
 
 	// Validate invoice can have a payment link
-	if invoice.Status == entities.InvoiceStatusPaid || invoice.Status == entities.InvoiceStatusCancelled {
-		return dto.InvoicePaymentLinkCreationResult{}, lib.NewCustomError(lib.ValidationError, "Cannot create payment link for paid or cancelled invoice", nil)
+	if invoice.Status == entities.InvoiceStatusPaid || invoice.Status == entities.InvoiceStatusVoid {
+		return dto.InvoicePaymentLinkCreationResult{}, lib.NewCustomError(lib.ValidationError, "Cannot create payment link for paid or voided invoice", nil)
 	}
 
 	// Generate unique slug for the payment link
@@ -1040,6 +1139,7 @@ func (s InvoiceService) MarkAsPaid(ctx context.Context, orgId string, invoiceId 
 	invoice.PaidAt = time.Now()
 	invoice.AmountPaid = invoice.Total
 	invoice.AmountDue = 0
+	invoice.IsImmutable = true // Paid invoices are immutable
 
 	updatedInvoice, err := s.invoiceRepository.Update(ctx, invoice)
 	if err != nil {
@@ -1113,6 +1213,7 @@ func (s InvoiceService) ProcessInvoicePayment(ctx context.Context, orgId string,
 		invoice.Status = entities.InvoiceStatusPaid
 		invoice.PaidAt = time.Now()
 		invoice.AmountDue = 0
+		invoice.IsImmutable = true // Paid invoices are immutable
 		s.logger.Infof("Invoice %s is fully paid with total payments of %d", invoiceId, totalAmountPaid)
 	} else {
 		// Partial payment - keep as open but update amounts

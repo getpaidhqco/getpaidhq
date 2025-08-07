@@ -122,8 +122,8 @@ func (s InvoiceOrchestrationService) InitiatePayment(ctx context.Context, orgId 
 		return orders.CreateOrderResponse{}, apperrors.NewInvalidOperation("Invoice is already fully paid", nil)
 	}
 
-	if invoice.Status == entities.InvoiceStatusCancelled {
-		return orders.CreateOrderResponse{}, apperrors.NewInvalidOperation("Cannot pay cancelled invoice", nil)
+	if invoice.Status == entities.InvoiceStatusVoid {
+		return orders.CreateOrderResponse{}, apperrors.NewInvalidOperation("Cannot pay voided invoice", nil)
 	}
 
 	// 2. Get invoice line items to build cart items
@@ -216,8 +216,8 @@ func (s InvoiceOrchestrationService) CreateOrderFromInvoice(ctx context.Context,
 		return orders.CreateOrderResponse{}, apperrors.NewInvalidOperation("Invoice is already fully paid", nil)
 	}
 
-	if invoice.Status == entities.InvoiceStatusCancelled {
-		return orders.CreateOrderResponse{}, apperrors.NewInvalidOperation("Cannot pay cancelled invoice", nil)
+	if invoice.Status == entities.InvoiceStatusVoid {
+		return orders.CreateOrderResponse{}, apperrors.NewInvalidOperation("Cannot pay voided invoice", nil)
 	}
 
 	// 2. Get invoice line items to build cart items

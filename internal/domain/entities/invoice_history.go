@@ -16,6 +16,7 @@ const (
 	InvoiceHistoryActionOverdue      InvoiceHistoryAction = "overdue"
 	InvoiceHistoryActionReminded     InvoiceHistoryAction = "reminded"
 	InvoiceHistoryActionVoided       InvoiceHistoryAction = "voided"
+	InvoiceHistoryActionUncollectible InvoiceHistoryAction = "uncollectible"
 	InvoiceHistoryActionCredited     InvoiceHistoryAction = "credited"
 	InvoiceHistoryActionRefunded     InvoiceHistoryAction = "refunded"
 	InvoiceHistoryActionDisputed     InvoiceHistoryAction = "disputed"

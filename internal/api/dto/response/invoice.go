@@ -28,6 +28,9 @@ type Invoice struct {
 	IssuedAt       time.Time              `json:"issued_at,omitempty"`
 	DueAt          time.Time              `json:"due_at,omitempty"`
 	PaidAt         time.Time              `json:"paid_at,omitempty"`
+	DeliveredAt    time.Time              `json:"delivered_at,omitempty"`             // When invoice was emailed to customer
+	VoidedAt       time.Time              `json:"voided_at,omitempty"`                // When invoice was voided
+	MarkedUncollectibleAt time.Time       `json:"marked_uncollectible_at,omitempty"`  // When marked as bad debt
 	Notes          string                 `json:"notes,omitempty"`
 	CustomerNotes  string                 `json:"customer_notes,omitempty"`
 	Metadata       map[string]string      `json:"metadata,omitempty"`
@@ -100,6 +103,9 @@ func NewInvoiceFromEntity(entity entities.Invoice) Invoice {
 		IssuedAt:       entity.IssuedAt,
 		DueAt:          entity.DueAt,
 		PaidAt:         entity.PaidAt,
+		DeliveredAt:    entity.DeliveredAt,
+		VoidedAt:       entity.VoidedAt,
+		MarkedUncollectibleAt: entity.MarkedUncollectibleAt,
 		Notes:          entity.Notes,
 		CustomerNotes:  entity.CustomerNotes,
 		Metadata:       entity.Metadata,

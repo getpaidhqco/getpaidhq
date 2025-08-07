@@ -25,11 +25,11 @@ type CreateInvoiceInput struct {
 
 // UpdateInvoiceInput represents the input for updating an existing invoice
 type UpdateInvoiceInput struct {
-	Notes         string                        `json:"notes,omitempty"`
-	CustomerNotes string                        `json:"customer_notes,omitempty"`
-	DueAt         time.Time                     `json:"due_at,omitempty"`
-	Metadata      map[string]string             `json:"metadata,omitempty"`
-	LineItems     []UpdateInvoiceLineItemInput  `json:"line_items,omitempty"`
+	Notes         string                       `json:"notes,omitempty"`
+	CustomerNotes string                       `json:"customer_notes,omitempty"`
+	DueAt         time.Time                    `json:"due_at,omitempty"`
+	Metadata      map[string]string            `json:"metadata,omitempty"`
+	LineItems     []UpdateInvoiceLineItemInput `json:"line_items,omitempty"`
 }
 
 // CreateInvoiceLineItemInput represents the input for creating a new invoice line item
@@ -83,12 +83,13 @@ type InvoiceStatus string
 type InvoiceType string
 
 const (
-	InvoiceStatusDraft     InvoiceStatus = "draft"
-	InvoiceStatusSent      InvoiceStatus = "sent"
-	InvoiceStatusPaid      InvoiceStatus = "paid"
-	InvoiceStatusOverdue   InvoiceStatus = "overdue"
-	InvoiceStatusCancelled InvoiceStatus = "cancelled"
-	InvoiceStatusRefunded  InvoiceStatus = "refunded"
+	InvoiceStatusDraft         InvoiceStatus = "draft"         // Invoice is being prepared, can be edited
+	InvoiceStatusOpen          InvoiceStatus = "open"          // Finalized invoice awaiting payment
+	InvoiceStatusPaid          InvoiceStatus = "paid"          // Invoice has been fully paid
+	InvoiceStatusOverdue       InvoiceStatus = "overdue"       // Invoice is past the due date
+	InvoiceStatusVoid          InvoiceStatus = "void"          // Invoice has been voided
+	InvoiceStatusUncollectible InvoiceStatus = "uncollectible" // Invoice marked as bad debt
+	InvoiceStatusRefunded      InvoiceStatus = "refunded"      // Invoice has been refunded
 )
 
 const (
@@ -102,38 +103,41 @@ const (
 )
 
 type Invoice struct {
-	OrgId          string            `json:"org_id"`
-	Id             string            `json:"id"`
-	CustomerId     string            `json:"customer_id,omitempty"`
-	OrderId        string            `json:"order_id,omitempty"`
-	SubscriptionId string            `json:"subscription_id,omitempty"`
-	SequenceId     string            `json:"sequence_id"`
-	DocNumber      string            `json:"doc_number"`
-	Type           DocumentType      `json:"type"`
-	InvoiceType    InvoiceType       `json:"invoice_type"`
-	Status         InvoiceStatus     `json:"status"`
-	IsImmutable    bool              `json:"is_immutable"`
-	Currency       string            `json:"currency"`
-	SubTotal       int               `json:"sub_total"`
-	TaxTotal       int               `json:"tax_total"`
-	DiscountTotal  int               `json:"discount_total"`
-	Total          int               `json:"total"`
-	AmountPaid     int               `json:"amount_paid"`
-	AmountDue      int               `json:"amount_due"`
-	TaxProvider    string            `json:"tax_provider,omitempty"`
-	TaxTransactionId string          `json:"tax_transaction_id,omitempty"`
-	TaxBreakdown   map[string]interface{} `json:"tax_breakdown,omitempty"`
-	IssuedAt       time.Time         `json:"issued_at,omitempty"`
-	DueAt          time.Time         `json:"due_at,omitempty"`
-	PaidAt         time.Time         `json:"paid_at,omitempty"`
-	Notes          string            `json:"notes,omitempty"`
-	CustomerNotes  string            `json:"customer_notes,omitempty"`
-	Metadata       map[string]string `json:"metadata,omitempty"`
-	ExchangeRate   int               `json:"exchange_rate,omitempty"`
-	BaseCurrency   string            `json:"base_currency,omitempty"`
-	LineItems      []InvoiceLineItem `json:"line_items,omitempty"`
-	CreatedAt      time.Time         `json:"created_at"`
-	UpdatedAt      time.Time         `json:"updated_at"`
+	OrgId                 string                 `json:"org_id"`
+	Id                    string                 `json:"id"`
+	CustomerId            string                 `json:"customer_id,omitempty"`
+	OrderId               string                 `json:"order_id,omitempty"`
+	SubscriptionId        string                 `json:"subscription_id,omitempty"`
+	SequenceId            string                 `json:"sequence_id"`
+	DocNumber             string                 `json:"doc_number"`
+	Type                  DocumentType           `json:"type"`
+	InvoiceType           InvoiceType            `json:"invoice_type"`
+	Status                InvoiceStatus          `json:"status"`
+	IsImmutable           bool                   `json:"is_immutable"`
+	Currency              string                 `json:"currency"`
+	SubTotal              int                    `json:"sub_total"`
+	TaxTotal              int                    `json:"tax_total"`
+	DiscountTotal         int                    `json:"discount_total"`
+	Total                 int                    `json:"total"`
+	AmountPaid            int                    `json:"amount_paid"`
+	AmountDue             int                    `json:"amount_due"`
+	TaxProvider           string                 `json:"tax_provider,omitempty"`
+	TaxTransactionId      string                 `json:"tax_transaction_id,omitempty"`
+	TaxBreakdown          map[string]interface{} `json:"tax_breakdown,omitempty"`
+	IssuedAt              time.Time              `json:"issued_at,omitempty"`
+	DueAt                 time.Time              `json:"due_at,omitempty"`
+	PaidAt                time.Time              `json:"paid_at,omitempty"`
+	DeliveredAt           time.Time              `json:"delivered_at,omitempty"`            // When invoice was emailed to customer
+	VoidedAt              time.Time              `json:"voided_at,omitempty"`               // When invoice was voided
+	MarkedUncollectibleAt time.Time              `json:"marked_uncollectible_at,omitempty"` // When marked as bad debt
+	Notes                 string                 `json:"notes,omitempty"`
+	CustomerNotes         string                 `json:"customer_notes,omitempty"`
+	Metadata              map[string]string      `json:"metadata,omitempty"`
+	ExchangeRate          int                    `json:"exchange_rate,omitempty"`
+	BaseCurrency          string                 `json:"base_currency,omitempty"`
+	LineItems             []InvoiceLineItem      `json:"line_items,omitempty"`
+	CreatedAt             time.Time              `json:"created_at"`
+	UpdatedAt             time.Time              `json:"updated_at"`
 }
 
 // Business methods for Invoice aggregate
@@ -233,11 +237,6 @@ func (i *Invoice) GetLineItemById(lineItemId string) (InvoiceLineItem, bool) {
 	return InvoiceLineItem{}, false
 }
 
-// IsComplete returns true if the invoice has line items
-func (i *Invoice) IsComplete() bool {
-	return len(i.LineItems) > 0
-}
-
 // GetLineItemCount returns the number of line items
 func (i *Invoice) GetLineItemCount() int {
 	return len(i.LineItems)
@@ -268,4 +267,45 @@ func (i *Invoice) ValidateTotals() error {
 	}
 
 	return nil
+}
+
+// IsPayable returns true if the invoice can accept payments
+func (i *Invoice) IsPayable() bool {
+	return i.Status == InvoiceStatusOpen ||
+		i.Status == InvoiceStatusOverdue ||
+		i.Status == InvoiceStatusUncollectible
+}
+
+// IsFinalized returns true if the invoice cannot be edited
+func (i *Invoice) IsFinalized() bool {
+	return i.IsImmutable
+}
+
+// CanVoid returns true if the invoice can be voided
+func (i *Invoice) CanVoid() bool {
+	return i.Status == InvoiceStatusOpen ||
+		i.Status == InvoiceStatusOverdue ||
+		i.Status == InvoiceStatusUncollectible
+}
+
+// CanMarkUncollectible returns true if the invoice can be marked as bad debt
+func (i *Invoice) CanMarkUncollectible() bool {
+	return i.Status == InvoiceStatusOpen ||
+		i.Status == InvoiceStatusOverdue
+}
+
+// IsDelivered returns true if the invoice has been emailed to the customer
+func (i *Invoice) IsDelivered() bool {
+	return !i.DeliveredAt.IsZero()
+}
+
+// IsVoided returns true if the invoice has been voided
+func (i *Invoice) IsVoided() bool {
+	return i.Status == InvoiceStatusVoid
+}
+
+// IsOverdue returns true if the invoice is past its due date
+func (i *Invoice) IsOverdue() bool {
+	return i.Status == InvoiceStatusOverdue ||
+		(!i.DueAt.IsZero() && time.Now().After(i.DueAt) && i.Status == InvoiceStatusOpen)
 }

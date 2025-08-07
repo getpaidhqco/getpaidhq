@@ -22,12 +22,13 @@ enum OrgStatus {
 }
 
 enum InvoiceStatus {
-  draft // Mutable, can be modified
-  sent // Immutable, delivered to customer
-  paid // Payment received
-  overdue // Past due date
-  cancelled // Cancelled before payment
-  refunded // Fully refunded via credit notes
+  draft          // Invoice being prepared, can be edited when IsImmutable=false
+  open           // Finalized invoice awaiting payment (replaces 'sent')
+  paid           // Invoice has been fully paid
+  overdue        // Invoice is past due date but still payable
+  void           // Invoice has been voided/cancelled (replaces 'cancelled')
+  uncollectible  // Invoice marked as bad debt, may still be payable
+  refunded       // Invoice has been refunded via credit notes
 }
 
 enum CreditNoteReason {
@@ -951,11 +952,14 @@ model Invoice {
   taxBreakdown     Json?   @map("tax_breakdown") // Detailed tax calculation
 
   // Dates
-  issuedAt   DateTime? @map("issued_at") // When sent to customer
-  dueAt      DateTime? @map("due_at")
-  scheduleAt DateTime? @map("schedule_at")
-  finalizeAt DateTime? @map("finalize_at")
-  paidAt     DateTime? @map("paid_at")
+  issuedAt              DateTime? @map("issued_at") // When sent to customer
+  dueAt                 DateTime? @map("due_at")
+  scheduleAt            DateTime? @map("schedule_at")
+  finalizeAt            DateTime? @map("finalize_at")
+  paidAt                DateTime? @map("paid_at")
+  deliveredAt           DateTime? @map("delivered_at") // When invoice was emailed to customer
+  voidedAt              DateTime? @map("voided_at") // When invoice was voided
+  markedUncollectibleAt DateTime? @map("marked_uncollectible_at") // When marked as bad debt
 
   // Customer communication
   notes         String? @db.Text // Internal notes

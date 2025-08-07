@@ -25,4 +25,9 @@ type InvoiceRepository interface {
 	// Invoice history
 	AddHistory(ctx context.Context, history entities.InvoiceHistory) (entities.InvoiceHistory, error)
 	ListHistory(ctx context.Context, orgId string, invoiceId string) ([]entities.InvoiceHistory, error)
+
+
+	// Filtering by status
+	FindByStatus(ctx context.Context, orgId string, status entities.InvoiceStatus, pagination dto.Pagination) ([]entities.Invoice, int, error)
+	FindOverdueInvoices(ctx context.Context, orgId string, pagination dto.Pagination) ([]entities.Invoice, int, error)
 }

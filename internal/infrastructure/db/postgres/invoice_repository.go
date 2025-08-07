@@ -48,8 +48,8 @@ func (r InvoiceRepository) FindById(ctx context.Context, orgId string, id string
 	query := `SELECT org_id, id, customer_id, order_id, subscription_id, sequence_id, doc_number, 
               type, invoice_type, status, is_immutable, currency, sub_total, tax_total, 
               discount_total, total, amount_paid, amount_due, tax_provider, tax_transaction_id, 
-              tax_breakdown, issued_at, due_at, paid_at, notes, customer_notes, metadata, 
-              exchange_rate, base_currency, created_at, updated_at
+              tax_breakdown, issued_at, due_at, paid_at, delivered_at, voided_at, marked_uncollectible_at,
+              notes, customer_notes, metadata, exchange_rate, base_currency, created_at, updated_at
 			  FROM invoices
 			  WHERE org_id = @org_id AND id = @id`
 
@@ -83,6 +83,9 @@ func (r InvoiceRepository) FindById(ctx context.Context, orgId string, id string
 		&invoiceModel.IssuedAt,
 		&invoiceModel.DueAt,
 		&invoiceModel.PaidAt,
+		&invoiceModel.DeliveredAt,
+		&invoiceModel.VoidedAt,
+		&invoiceModel.MarkedUncollectibleAt,
 		&invoiceModel.Notes,
 		&invoiceModel.CustomerNotes,
 		&invoiceModel.Metadata,
@@ -126,13 +129,13 @@ func (r InvoiceRepository) Create(ctx context.Context, entity entities.Invoice) 
 	query := `INSERT INTO invoices (org_id, id, customer_id, order_id, subscription_id, sequence_id, 
               doc_number, type, invoice_type, status, is_immutable, currency, sub_total, tax_total, 
               discount_total, total, amount_paid, amount_due, tax_provider, tax_transaction_id, 
-              tax_breakdown, issued_at, due_at, paid_at, notes, customer_notes, metadata, 
-              exchange_rate, base_currency, created_at, updated_at) 
+              tax_breakdown, issued_at, due_at, paid_at, delivered_at, voided_at, marked_uncollectible_at,
+              notes, customer_notes, metadata, exchange_rate, base_currency, created_at, updated_at) 
 			  VALUES (@org_id, @id, @customer_id, @order_id, @subscription_id, @sequence_id, 
               @doc_number, @type, @invoice_type, @status, @is_immutable, @currency, @sub_total, @tax_total, 
               @discount_total, @total, @amount_paid, @amount_due, @tax_provider, @tax_transaction_id, 
-              @tax_breakdown, @issued_at, @due_at, @paid_at, @notes, @customer_notes, @metadata, 
-              @exchange_rate, @base_currency, NOW(), NOW())`
+              @tax_breakdown, @issued_at, @due_at, @paid_at, @delivered_at, @voided_at, @marked_uncollectible_at,
+              @notes, @customer_notes, @metadata, @exchange_rate, @base_currency, NOW(), NOW())`
 
 	taxBreakdownJson, _ := json.Marshal(entity.TaxBreakdown)
 	metadataJson, _ := json.Marshal(entity.Metadata)
@@ -165,6 +168,24 @@ func (r InvoiceRepository) Create(ctx context.Context, entity entities.Invoice) 
 		paidAtTimestamp.Valid = true
 	}
 
+	deliveredAtTimestamp := pgtype.Timestamptz{}
+	if !entity.DeliveredAt.IsZero() {
+		deliveredAtTimestamp.Time = entity.DeliveredAt
+		deliveredAtTimestamp.Valid = true
+	}
+
+	voidedAtTimestamp := pgtype.Timestamptz{}
+	if !entity.VoidedAt.IsZero() {
+		voidedAtTimestamp.Time = entity.VoidedAt
+		voidedAtTimestamp.Valid = true
+	}
+
+	markedUncollectibleAtTimestamp := pgtype.Timestamptz{}
+	if !entity.MarkedUncollectibleAt.IsZero() {
+		markedUncollectibleAtTimestamp.Time = entity.MarkedUncollectibleAt
+		markedUncollectibleAtTimestamp.Valid = true
+	}
+
 	_, err := tx.Exec(ctx, query, pgx.NamedArgs{
 		"org_id":             entity.OrgId,
 		"id":                 entity.Id,
@@ -190,6 +211,9 @@ func (r InvoiceRepository) Create(ctx context.Context, entity entities.Invoice) 
 		"issued_at":          issuedAtTimestamp,
 		"due_at":             dueAtTimestamp,
 		"paid_at":            paidAtTimestamp,
+		"delivered_at":       deliveredAtTimestamp,
+		"voided_at":          voidedAtTimestamp,
+		"marked_uncollectible_at": markedUncollectibleAtTimestamp,
 		"notes":              notesText,
 		"customer_notes":     customerNotesText,
 		"metadata":           metadataJson,
@@ -294,6 +318,24 @@ func (r InvoiceRepository) Update(ctx context.Context, entity entities.Invoice) 
 		paidAtTimestamp.Valid = true
 	}
 
+	deliveredAtTimestamp := pgtype.Timestamptz{}
+	if !entity.DeliveredAt.IsZero() {
+		deliveredAtTimestamp.Time = entity.DeliveredAt
+		deliveredAtTimestamp.Valid = true
+	}
+
+	voidedAtTimestamp := pgtype.Timestamptz{}
+	if !entity.VoidedAt.IsZero() {
+		voidedAtTimestamp.Time = entity.VoidedAt
+		voidedAtTimestamp.Valid = true
+	}
+
+	markedUncollectibleAtTimestamp := pgtype.Timestamptz{}
+	if !entity.MarkedUncollectibleAt.IsZero() {
+		markedUncollectibleAtTimestamp.Time = entity.MarkedUncollectibleAt
+		markedUncollectibleAtTimestamp.Valid = true
+	}
+
 	_, err = tx.Exec(ctx, query, pgx.NamedArgs{
 		"org_id":             entity.OrgId,
 		"id":                 entity.Id,
@@ -319,6 +361,9 @@ func (r InvoiceRepository) Update(ctx context.Context, entity entities.Invoice) 
 		"issued_at":          issuedAtTimestamp,
 		"due_at":             dueAtTimestamp,
 		"paid_at":            paidAtTimestamp,
+		"delivered_at":       deliveredAtTimestamp,
+		"voided_at":          voidedAtTimestamp,
+		"marked_uncollectible_at": markedUncollectibleAtTimestamp,
 		"notes":              notesText,
 		"customer_notes":     customerNotesText,
 		"metadata":           metadataJson,
@@ -1226,4 +1271,192 @@ func (r InvoiceRepository) findHistoryById(ctx context.Context, orgId string, in
 	// Convert model to entity
 	history := historyModel.ToEntity()
 	return history, nil
+}
+
+
+// FindByStatus finds invoices by status with pagination
+func (r InvoiceRepository) FindByStatus(ctx context.Context, orgId string, status entities.InvoiceStatus, pagination dto.Pagination) ([]entities.Invoice, int, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	// Count query
+	countQuery := `SELECT COUNT(*) FROM invoices WHERE org_id = @org_id AND status = @status`
+	var totalCount int
+	err := tx.QueryRow(ctx, countQuery, pgx.NamedArgs{
+		"org_id": orgId,
+		"status": string(status),
+	}).Scan(&totalCount)
+
+	if err != nil {
+		r.logger.Error("failed to count invoices by status", "err", err.Error())
+		return nil, 0, err
+	}
+
+	// Main query with pagination
+	query := `SELECT org_id, id, customer_id, order_id, subscription_id, sequence_id, doc_number, 
+              type, invoice_type, status, is_immutable, currency, sub_total, tax_total, 
+              discount_total, total, amount_paid, amount_due, tax_provider, tax_transaction_id, 
+              tax_breakdown, issued_at, due_at, paid_at, delivered_at, voided_at, marked_uncollectible_at,
+              notes, customer_notes, metadata, exchange_rate, base_currency, created_at, updated_at
+			  FROM invoices 
+			  WHERE org_id = @org_id AND status = @status
+			  ORDER BY created_at DESC
+			  LIMIT @limit OFFSET @offset`
+
+	rows, err := tx.Query(ctx, query, pgx.NamedArgs{
+		"org_id": orgId,
+		"status": string(status),
+		"limit":  pagination.Limit,
+		"offset": pagination.Offset,
+	})
+
+	if err != nil {
+		r.logger.Error("failed to find invoices by status", "err", err.Error())
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var invoices []entities.Invoice
+	for rows.Next() {
+		var invoiceModel models.Invoice
+		err := rows.Scan(
+			&invoiceModel.OrgId,
+			&invoiceModel.Id,
+			&invoiceModel.CustomerId,
+			&invoiceModel.OrderId,
+			&invoiceModel.SubscriptionId,
+			&invoiceModel.SequenceId,
+			&invoiceModel.DocNumber,
+			&invoiceModel.Type,
+			&invoiceModel.InvoiceType,
+			&invoiceModel.Status,
+			&invoiceModel.IsImmutable,
+			&invoiceModel.Currency,
+			&invoiceModel.SubTotal,
+			&invoiceModel.TaxTotal,
+			&invoiceModel.DiscountTotal,
+			&invoiceModel.Total,
+			&invoiceModel.AmountPaid,
+			&invoiceModel.AmountDue,
+			&invoiceModel.TaxProvider,
+			&invoiceModel.TaxTransactionId,
+			&invoiceModel.TaxBreakdown,
+			&invoiceModel.IssuedAt,
+			&invoiceModel.DueAt,
+			&invoiceModel.PaidAt,
+			&invoiceModel.DeliveredAt,
+			&invoiceModel.VoidedAt,
+			&invoiceModel.MarkedUncollectibleAt,
+			&invoiceModel.Notes,
+			&invoiceModel.CustomerNotes,
+			&invoiceModel.Metadata,
+			&invoiceModel.ExchangeRate,
+			&invoiceModel.BaseCurrency,
+			&invoiceModel.CreatedAt,
+			&invoiceModel.UpdatedAt,
+		)
+
+		if err != nil {
+			r.logger.Error("failed to scan invoice", "err", err.Error())
+			return nil, 0, err
+		}
+
+		invoice := invoiceModel.ToEntity()
+		invoices = append(invoices, invoice)
+	}
+
+	return invoices, totalCount, nil
+}
+
+// FindOverdueInvoices finds all overdue invoices
+func (r InvoiceRepository) FindOverdueInvoices(ctx context.Context, orgId string, pagination dto.Pagination) ([]entities.Invoice, int, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	// Count query
+	countQuery := `SELECT COUNT(*) FROM invoices 
+				   WHERE org_id = @org_id 
+				   AND (status = 'overdue' OR (status = 'open' AND due_at < NOW()))`
+	var totalCount int
+	err := tx.QueryRow(ctx, countQuery, pgx.NamedArgs{
+		"org_id": orgId,
+	}).Scan(&totalCount)
+
+	if err != nil {
+		r.logger.Error("failed to count overdue invoices", "err", err.Error())
+		return nil, 0, err
+	}
+
+	// Main query
+	query := `SELECT org_id, id, customer_id, order_id, subscription_id, sequence_id, doc_number, 
+              type, invoice_type, status, is_immutable, currency, sub_total, tax_total, 
+              discount_total, total, amount_paid, amount_due, tax_provider, tax_transaction_id, 
+              tax_breakdown, issued_at, due_at, paid_at, delivered_at, voided_at, marked_uncollectible_at,
+              notes, customer_notes, metadata, exchange_rate, base_currency, created_at, updated_at
+			  FROM invoices 
+			  WHERE org_id = @org_id 
+			  AND (status = 'overdue' OR (status = 'open' AND due_at < NOW()))
+			  ORDER BY due_at ASC
+			  LIMIT @limit OFFSET @offset`
+
+	rows, err := tx.Query(ctx, query, pgx.NamedArgs{
+		"org_id": orgId,
+		"limit":  pagination.Limit,
+		"offset": pagination.Offset,
+	})
+
+	if err != nil {
+		r.logger.Error("failed to find overdue invoices", "err", err.Error())
+		return nil, 0, err
+	}
+	defer rows.Close()
+
+	var invoices []entities.Invoice
+	for rows.Next() {
+		var invoiceModel models.Invoice
+		err := rows.Scan(
+			&invoiceModel.OrgId,
+			&invoiceModel.Id,
+			&invoiceModel.CustomerId,
+			&invoiceModel.OrderId,
+			&invoiceModel.SubscriptionId,
+			&invoiceModel.SequenceId,
+			&invoiceModel.DocNumber,
+			&invoiceModel.Type,
+			&invoiceModel.InvoiceType,
+			&invoiceModel.Status,
+			&invoiceModel.IsImmutable,
+			&invoiceModel.Currency,
+			&invoiceModel.SubTotal,
+			&invoiceModel.TaxTotal,
+			&invoiceModel.DiscountTotal,
+			&invoiceModel.Total,
+			&invoiceModel.AmountPaid,
+			&invoiceModel.AmountDue,
+			&invoiceModel.TaxProvider,
+			&invoiceModel.TaxTransactionId,
+			&invoiceModel.TaxBreakdown,
+			&invoiceModel.IssuedAt,
+			&invoiceModel.DueAt,
+			&invoiceModel.PaidAt,
+			&invoiceModel.DeliveredAt,
+			&invoiceModel.VoidedAt,
+			&invoiceModel.MarkedUncollectibleAt,
+			&invoiceModel.Notes,
+			&invoiceModel.CustomerNotes,
+			&invoiceModel.Metadata,
+			&invoiceModel.ExchangeRate,
+			&invoiceModel.BaseCurrency,
+			&invoiceModel.CreatedAt,
+			&invoiceModel.UpdatedAt,
+		)
+
+		if err != nil {
+			r.logger.Error("failed to scan overdue invoice", "err", err.Error())
+			return nil, 0, err
+		}
+
+		invoice := invoiceModel.ToEntity()
+		invoices = append(invoices, invoice)
+	}
+
+	return invoices, totalCount, nil
 }

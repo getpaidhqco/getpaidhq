@@ -31,6 +31,9 @@ type Invoice struct {
 	IssuedAt        pgtype.Timestamptz     `json:"issued_at"`
 	DueAt           pgtype.Timestamptz     `json:"due_at"`
 	PaidAt          pgtype.Timestamptz     `json:"paid_at"`
+	DeliveredAt     pgtype.Timestamptz     `json:"delivered_at"`             // When invoice was emailed to customer
+	VoidedAt        pgtype.Timestamptz     `json:"voided_at"`                // When invoice was voided
+	MarkedUncollectibleAt pgtype.Timestamptz `json:"marked_uncollectible_at"` // When marked as bad debt
 	Notes           pgtype.Text            `json:"notes"`
 	CustomerNotes   pgtype.Text            `json:"customer_notes"`
 	Metadata        []byte                 `json:"metadata"`
@@ -78,6 +81,9 @@ func (i *Invoice) ToEntity() entities.Invoice {
 		IssuedAt:        i.IssuedAt.Time,
 		DueAt:           i.DueAt.Time,
 		PaidAt:          i.PaidAt.Time,
+		DeliveredAt:     i.DeliveredAt.Time,
+		VoidedAt:        i.VoidedAt.Time,
+		MarkedUncollectibleAt: i.MarkedUncollectibleAt.Time,
 		Notes:           i.Notes.String,
 		CustomerNotes:   i.CustomerNotes.String,
 		Metadata:        metadata,
