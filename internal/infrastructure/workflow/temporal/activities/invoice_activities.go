@@ -60,13 +60,17 @@ func (a *InvoiceActivities) FindPaymentByOrderId(ctx context.Context, orgId, ord
 	logger := activity.GetLogger(ctx)
 	logger.Info("FindPaymentByOrderId", "orgId", orgId, "orderId", orderId)
 
-	// Note: We need to find payments by OrderId, but the current PaymentService interface
-	// might not have this method. For now, we'll return empty string and let the workflow
-	// handle the case where PaymentId is not found.
-	// TODO: Add FindByOrderId method to PaymentService interface
+	// Find the payment using the PaymentService
+	payment, err := a.paymentService.FindByOrderId(ctx, orgId, orderId)
+	if err != nil {
+		logger.Info("No payment found for order", "orgId", orgId, "orderId", orderId, "error", err.Error())
+		// Return empty string if no payment found - this is not an error condition
+		// as some orders might not have payments yet or might have failed payments
+		return "", nil
+	}
 
-	logger.Info("Payment lookup by OrderId not yet implemented, returning empty PaymentId", "orgId", orgId, "orderId", orderId)
-	return "", nil
+	logger.Info("Found payment for order", "orgId", orgId, "orderId", orderId, "paymentId", payment.Id)
+	return payment.Id, nil
 }
 
 // MarkInvoiceAsPaid updates invoice status to paid with proper timestamps and amounts

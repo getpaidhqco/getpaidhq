@@ -11,6 +11,9 @@ type PaymentService interface {
 	// FindById retrieves a payment by its ID
 	FindById(ctx context.Context, orgId string, id string) (entities.Payment, error)
 
+	// FindByOrderId retrieves a payment by its order ID
+	FindByOrderId(ctx context.Context, orgId string, orderId string) (entities.Payment, error)
+
 	// List retrieves a list of payments for an organization
 	List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Payment, int, error)
 

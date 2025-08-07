@@ -50,6 +50,18 @@ func (s PaymentService) FindById(ctx context.Context, orgId string, id string) (
 	return payment, nil
 }
 
+func (s PaymentService) FindByOrderId(ctx context.Context, orgId string, orderId string) (entities.Payment, error) {
+	s.logger.Info("Fetching payment by order ID", "orgId", orgId, "orderId", orderId)
+
+	payment, err := s.paymentRepository.FindByOrderId(ctx, orgId, orderId)
+	if err != nil {
+		s.logger.Error("Failed to find payment by order ID", err.Error())
+		return entities.Payment{}, err
+	}
+
+	return payment, nil
+}
+
 func (s PaymentService) List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Payment, int, error) {
 	s.logger.Info("Listing payments", "orgId", orgId)
 

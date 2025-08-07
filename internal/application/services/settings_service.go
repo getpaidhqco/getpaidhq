@@ -34,7 +34,6 @@ func (s *SettingsService) GetSetting(ctx context.Context, orgId string, parentId
 	// Retrieve from database
 	setting, err := s.settingRepository.FindById(ctx, orgId, parentId, id)
 	if err != nil {
-		s.logger.Error("Failed to get setting", "err", err.Error())
 		return err
 	}
 
@@ -71,7 +70,6 @@ func (s *SettingsService) GetSetting(ctx context.Context, orgId string, parentId
 func (s *SettingsService) GetSettingRaw(ctx context.Context, orgId string, parentId string, id string) (interface{}, error) {
 	setting, err := s.settingRepository.FindById(ctx, orgId, parentId, id)
 	if err != nil {
-		s.logger.Error("Failed to get setting", "err", err.Error())
 		return entities.Setting{}, err
 	}
 	var value interface{}

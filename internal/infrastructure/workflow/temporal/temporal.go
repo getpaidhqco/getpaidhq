@@ -257,7 +257,7 @@ func (t Temporal) UpdateSubscriptionWorkflow(ctx context.Context, updateName str
 	var oldSub entities.Subscription
 	err = updateHandle.Get(ctx, &oldSub)
 	if err != nil {
-		t.logger.Error("Failed to get setting", "error", err)
+		t.logger.Error("Failed to get UpdateWorkflow handle", "error", err)
 	}
 	return nil
 }
@@ -353,8 +353,8 @@ func (t Temporal) StartInvoicePaymentWorkflow(ctx context.Context, input dto.Inv
 	// Start the workflow
 	workflowId := fmt.Sprintf("invoice_payment_[%s]_[%s]", input.OrgId, input.OrderId)
 	workflowOptions := client.StartWorkflowOptions{
-		ID:        workflowId,
-		TaskQueue: "events",
+		ID:                       workflowId,
+		TaskQueue:                "events",
 		WorkflowExecutionTimeout: time.Minute * 30, // Invoice processing should complete within 30 minutes
 	}
 
@@ -371,9 +371,9 @@ func (t Temporal) StartInvoicePaymentWorkflow(ctx context.Context, input dto.Inv
 		t.logger.Error("Failed to start invoice payment workflow", "err", err.Error(), "OrgId", input.OrgId, "OrderId", input.OrderId)
 		// Report critical error since invoice payment workflow failed to start
 		t.errorReporter.ReportError(ctx, err, map[string]interface{}{
-			"org_id":       input.OrgId,
-			"order_id":     input.OrderId,
-			"workflow_id":  workflowId,
+			"org_id":        input.OrgId,
+			"order_id":      input.OrderId,
+			"workflow_id":   workflowId,
 			"workflow_type": "invoice_payment",
 		})
 		return "", "", err
@@ -406,7 +406,7 @@ func (t Temporal) saveExecution(ctx context.Context, wr client.WorkflowRun, orgI
 func (t Temporal) getExecution(orgId string, parentId string, executionType WorkflowType) (temporal.Execution, error) {
 	setting, err := t.settingRepository.FindById(context.TODO(), orgId, parentId, "temporal-workflow-"+string(executionType))
 	if err != nil {
-		t.logger.Error("Failed to get setting", "error", err)
+		t.logger.Error("Failed to get temporal-workflow execution setting", "error", err)
 		return temporal.Execution{}, err
 	}
 

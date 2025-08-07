@@ -9,6 +9,7 @@ import (
 type PaymentRepository interface {
 	FindById(ctx context.Context, orgId string, id string) (entities.Payment, error)
 	FindByPspId(ctx context.Context, orgId string, id string) (entities.Payment, error)
+	FindByOrderId(ctx context.Context, orgId string, orderId string) (entities.Payment, error)
 	ListByPspId(ctx context.Context, psp common.Gateway, pspId string) ([]entities.Payment, error)
 	FindBySubscriptionId(ctx context.Context, orgId string, id string, p entities.Pagination) ([]entities.Payment, int, error)
 	FindByInvoiceId(ctx context.Context, orgId string, id string, p entities.Pagination) ([]entities.Payment, int, error)

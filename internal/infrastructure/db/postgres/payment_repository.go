@@ -67,6 +67,43 @@ func (r PaymentRepository) FindById(ctx context.Context, orgId string, id string
 
 	return payment.ToEntity(), nil
 }
+
+func (r PaymentRepository) FindByOrderId(ctx context.Context, orgId string, orderId string) (entities.Payment, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	var payment models.Payment
+	query := `SELECT org_id, id,psp,psp_id, reference, order_id, subscription_id, invoice_id, status, currency, amount, psp_fee, platform_fee, net_amount, metadata,completed_at, created_at, updated_at
+		          FROM payments
+		          WHERE org_id = $1 AND order_id = $2`
+
+	err := tx.QueryRow(ctx, query, orgId, orderId).
+		Scan(
+			&payment.OrgId,
+			&payment.Id,
+			&payment.Psp,
+			&payment.PspId,
+			&payment.Reference,
+			&payment.OrderId,
+			&payment.SubscriptionId,
+			&payment.InvoiceId,
+			&payment.Status,
+			&payment.Currency,
+			&payment.Amount,
+			&payment.PspFee,
+			&payment.PlatformFee,
+			&payment.NetAmount,
+			&payment.Metadata,
+			&payment.CompletedAt,
+			&payment.CreatedAt,
+			&payment.UpdatedAt,
+		)
+	if err != nil {
+		r.logger.Error(`failed to find Payment by OrderId`, err.Error())
+		return entities.Payment{}, errors.New("not found")
+	}
+
+	return payment.ToEntity(), nil
+}
 func (r PaymentRepository) FindBySubscriptionId(ctx context.Context, orgId string, id string, p entities.Pagination) ([]entities.Payment, int, error) {
 	tx := r.getTransactionFromContext(ctx)
 
