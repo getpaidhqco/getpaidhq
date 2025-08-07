@@ -18,6 +18,8 @@ import (
 	"payloop/internal/domain/payment_providers"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/domain/security"
+	"payloop/internal/domain/workflow"
+	domainevents "payloop/internal/domain/events"
 	"payloop/internal/infrastructure/cart"
 	"payloop/internal/lib"
 	"time"
@@ -368,6 +370,7 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 		s.logger.Info("no subscriptions to process", err.Error())
 	}
 
+	var payment entities.Payment
 	for _, subscription := range subscriptions {
 		s.logger.Debugf("Setting subscription [%s] to active", subscription.Id)
 
@@ -377,7 +380,6 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 
 		firstPaymentCharged := input.Payment.Amount > 0
 		// Log the payment if it's the first payment
-		var payment entities.Payment
 		if firstPaymentCharged {
 			payment = entities.Payment{
 				OrgId:          input.OrgId,
@@ -426,8 +428,18 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 		}
 	}
 
-	// publish order completed event
-	_ = s.pubsub.Publish(order.OrgId, topic.OrderCompleted, order)
+	// publish order completed event with payment information
+	workflowPayload := workflow.OrderCompletedPayload{
+		Order:   order,
+		Payment: payment,
+	}
+	
+	// Map to event payload for publishing
+	eventPayload := domainevents.OrderCompletedEvent{
+		Order:   workflowPayload.Order,
+		Payment: workflowPayload.Payment,
+	}
+	_ = s.pubsub.Publish(order.OrgId, topic.OrderCompleted, eventPayload)
 
 	return order, nil
 }

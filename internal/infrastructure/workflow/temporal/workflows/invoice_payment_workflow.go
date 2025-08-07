@@ -64,27 +64,6 @@ func InvoicePaymentWorkflow(ctx workflow.Context, input InvoicePaymentWorkflowIn
 
 	// Activity 1.5: Find payment associated with the order if PaymentId is not provided
 	paymentId := input.PaymentId
-	if paymentId == "" {
-		logger.Info("PaymentId not provided, finding payment for order", "OrderId", input.OrderId)
-		err := workflow.ExecuteActivity(
-			workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-				StartToCloseTimeout: time.Minute * 1,
-				RetryPolicy: &temporal.RetryPolicy{
-					InitialInterval:    time.Second * 5,
-					BackoffCoefficient: 2.0,
-					MaximumAttempts:    3,
-				},
-			}),
-			a.FindPaymentByOrderId, input.OrgId, input.OrderId).
-			Get(ctx, &paymentId)
-		if err != nil {
-			logger.Error("Failed to find payment by order ID", "Error", err.Error())
-			// Continue without PaymentId - the ProcessInvoicePayment will handle this case
-			paymentId = ""
-		} else if paymentId != "" {
-			logger.Info("Found payment for order", "OrderId", input.OrderId, "PaymentId", paymentId)
-		}
-	}
 
 	// Process each invoice (typically there should be only one)
 	processedCount := 0
@@ -120,29 +99,6 @@ func InvoicePaymentWorkflow(ctx workflow.Context, input InvoicePaymentWorkflowIn
 					Message: fmt.Sprintf("Failed to process payment for invoice %s", invoice.Id),
 				}, err
 			}
-			logger.Info("Successfully processed invoice payment", "InvoiceId", invoice.Id, "PaymentId", paymentId, "Status", updatedInvoice.Status)
-		} else {
-			// Fallback to old behavior if no payment found
-			logger.Warn("No payment found for order, falling back to MarkAsPaid", "OrderId", input.OrderId, "InvoiceId", invoice.Id)
-			err := workflow.ExecuteActivity(
-				workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-					StartToCloseTimeout: time.Minute * 1,
-					RetryPolicy: &temporal.RetryPolicy{
-						InitialInterval:    time.Minute * 1,
-						BackoffCoefficient: 2.0,
-						MaximumAttempts:    5,
-					},
-				}),
-				a.MarkInvoiceAsPaid, input.OrgId, invoice.Id).
-				Get(ctx, &updatedInvoice)
-			if err != nil {
-				logger.Error("Failed to mark invoice as paid", "InvoiceId", invoice.Id, "Error", err.Error())
-				return interfaces.Result{
-					Success: false,
-					Message: fmt.Sprintf("Failed to mark invoice %s as paid", invoice.Id),
-				}, err
-			}
-			logger.Info("Successfully marked invoice as paid (fallback)", "InvoiceId", invoice.Id, "Status", updatedInvoice.Status)
 		}
 
 		// Activity 3: Generate PDF (non-critical, failures don't stop workflow)

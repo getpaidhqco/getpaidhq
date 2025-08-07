@@ -11,9 +11,11 @@ import (
 	"payloop/internal/domain/entities/orders"
 	"payloop/internal/domain/entities/payment_methods"
 	"payloop/internal/domain/entities/payments"
+	domainevents "payloop/internal/domain/events"
 	"payloop/internal/domain/factories"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/domain/security"
+	"payloop/internal/domain/workflow"
 	"payloop/internal/lib"
 	"time"
 )
@@ -163,8 +165,9 @@ func (s OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, input
 		}
 	}
 
+	var payment entities.Payment
 	if input.PaymentContext.Payment.Amount > 0 {
-		payment := entities.Payment{
+		payment = entities.Payment{
 			OrgId:          orgId,
 			Id:             lib.GenerateId("pmt"),
 			Psp:            input.PaymentContext.Psp,
@@ -184,14 +187,24 @@ func (s OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, input
 			CreatedAt:      time.Now().UTC(),
 			UpdatedAt:      time.Now().UTC(),
 		}
-		payment, err := s.paymentRepository.Create(ctx, payment)
+		payment, err = s.paymentRepository.Create(ctx, payment)
 		if err != nil {
 			s.logger.Error("Failed to create payment", err.Error())
 		}
 	}
 
-	// publish order completed event
-	_ = s.pubsub.Publish(order.OrgId, topic.OrderCompleted, order)
+	// publish order completed event with payment information
+	workflowPayload := workflow.OrderCompletedPayload{
+		Order:   order,
+		Payment: payment,
+	}
+	
+	// Map to event payload for publishing
+	eventPayload := domainevents.OrderCompletedEvent{
+		Order:   workflowPayload.Order,
+		Payment: workflowPayload.Payment,
+	}
+	_ = s.pubsub.Publish(order.OrgId, topic.OrderCompleted, eventPayload)
 
 	return order, nil
 }

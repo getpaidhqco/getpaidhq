@@ -13,18 +13,19 @@ import (
 	"payloop/internal/domain/common"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/orders"
+	domainevents "payloop/internal/domain/events"
 	"payloop/internal/lib/apperrors"
 )
 
 // InvoiceOrchestrationService is an extension of the InvoiceService that orchestrates invoice workflows.
 type InvoiceOrchestrationService struct {
 	interfaces.InvoiceService
-	orderService       interfaces.OrderService
-	customerService    interfaces.CustomerService
-	workflowEngine     interfaces.Engine
-	pubsub             events.NotificationPublisher
-	errorReporter      lib.ErrorReporter
-	logger             logger.Logger
+	orderService    interfaces.OrderService
+	customerService interfaces.CustomerService
+	workflowEngine  interfaces.Engine
+	pubsub          events.NotificationPublisher
+	errorReporter   lib.ErrorReporter
+	logger          logger.Logger
 }
 
 // NewInvoiceOrchestrationService creates a new InvoiceOrchestrationService
@@ -68,24 +69,27 @@ func (s InvoiceOrchestrationService) HandleOrderCompletedEvent(t string, data []
 		return
 	}
 
-	var order entities.Order
+	var orderCompletedEvent domainevents.OrderCompletedEvent
 	payloadBytes, err := json.Marshal(payload.Data)
 	if err != nil {
 		s.logger.Errorf("Failed to marshal payload data: %v", err)
 		return
 	}
 
-	err = json.Unmarshal(payloadBytes, &order)
+	err = json.Unmarshal(payloadBytes, &orderCompletedEvent)
 	if err != nil {
-		s.logger.Errorf("Failed to unmarshal order data: %v", err)
+		s.logger.Errorf("Failed to unmarshal order completed event: %v", err)
 		return
 	}
+
+	order := orderCompletedEvent.Order
+	payment := orderCompletedEvent.Payment
 
 	// Start the invoice payment workflow
 	workflowId, runId, err := s.workflowEngine.StartInvoicePaymentWorkflow(context.Background(), dto.InvoicePaymentWorkflowInput{
 		OrgId:     order.OrgId,
 		OrderId:   order.Id,
-		PaymentId: "", // Will be found by the workflow
+		PaymentId: payment.Id, // Use payment ID from the event
 		Metadata: map[string]string{
 			"triggered_by": "order_completed",
 			"order_id":     order.Id,

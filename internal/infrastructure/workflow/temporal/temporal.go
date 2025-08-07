@@ -360,9 +360,10 @@ func (t Temporal) StartInvoicePaymentWorkflow(ctx context.Context, input dto.Inv
 
 	// Create the workflow input
 	workflowInput := workflows.InvoicePaymentWorkflowInput{
-		OrgId:    input.OrgId,
-		OrderId:  input.OrderId,
-		Metadata: input.Metadata,
+		OrgId:     input.OrgId,
+		OrderId:   input.OrderId,
+		PaymentId: input.PaymentId,
+		Metadata:  input.Metadata,
 	}
 
 	// Start the workflow

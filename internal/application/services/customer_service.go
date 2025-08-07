@@ -13,6 +13,7 @@ import (
 	"payloop/internal/domain/entities/payment_methods"
 	"payloop/internal/domain/repositories"
 	"payloop/internal/domain/security"
+	domainevents "payloop/internal/domain/events"
 	"payloop/internal/lib"
 	"time"
 )
@@ -410,17 +411,18 @@ func (s CustomerService) HandleOrderEvent(eventTopic string, data []byte) {
 
 	switch eventTopic {
 	case topic.OrderCompleted:
-		var order entities.Order
+		var orderCompletedEvent domainevents.OrderCompletedEvent
 		payloadBytes, err := json.Marshal(payload.Data)
 		if err != nil {
 			s.logger.Errorf("Failed to marshal payload data: %v", err)
 			return
 		}
-		err = json.Unmarshal(payloadBytes, &order)
+		err = json.Unmarshal(payloadBytes, &orderCompletedEvent)
 		if err != nil {
 			s.logger.Errorf("Failed to unmarshal event data: %v", err)
 			return
 		}
+		order := orderCompletedEvent.Order
 		// add the customer to the signup_date cohort
 		s.logger.Infof("Adding customer [%s] to the [signup_date] cohort", order.CustomerId)
 		_, err = s.customerRepository.AddToCohort(
