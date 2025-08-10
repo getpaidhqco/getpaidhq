@@ -15,9 +15,9 @@ func TestSendMessageToSQS(t *testing.T) {
 	env := lib.NewEnv()
 	client := NewSQSFifoClient(logger, env)
 
-	queueUrl := env.Get("SQS_QUEUE_URL")
+	queueUrl := env.Get("GPHQ_SQS_QUEUE_URL")
 	if queueUrl == "" {
-		t.Fatal("SQS_QUEUE_URL not set")
+		t.Fatal("GPHQ_SQS_QUEUE_URL not set")
 	}
 
 	err := client.SendMessage(context.TODO(), events.QueueMessage{

@@ -203,6 +203,11 @@ func (s InvoiceService) Create(ctx context.Context, orgId string, input dto.Crea
 		status = input.Status
 	}
 
+	issuedAt := input.IssuedAt
+	if issuedAt.IsZero() {
+		issuedAt = time.Now().UTC()
+	}
+
 	// Create invoice
 	invoice := entities.Invoice{
 		OrgId:          orgId,
@@ -215,7 +220,7 @@ func (s InvoiceService) Create(ctx context.Context, orgId string, input dto.Crea
 		Type:           input.Type,
 		InvoiceType:    input.InvoiceType,
 		Status:         status,
-		IsImmutable:    status != entities.InvoiceStatusDraft,
+		IsImmutable:    false,
 		Currency:       input.Currency,
 		SubTotal:       0, // Will be calculated from line items
 		TaxTotal:       0, // Will be calculated from line items
@@ -223,7 +228,7 @@ func (s InvoiceService) Create(ctx context.Context, orgId string, input dto.Crea
 		Total:          0, // Will be calculated from line items
 		AmountPaid:     0,
 		AmountDue:      0, // Will be calculated
-		IssuedAt:       input.IssuedAt,
+		IssuedAt:       issuedAt,
 		DueAt:          input.DueAt,
 		PaidAt:         input.PaidAt,
 		Notes:          input.Notes,
@@ -304,16 +309,6 @@ func (s InvoiceService) Create(ctx context.Context, orgId string, input dto.Crea
 	if err != nil {
 		s.logger.Error("Failed to add invoice history: ", err)
 		// Continue even if history creation fails
-	}
-
-	// create a PDF for the invoice
-	// TODO this doesn't have to be done here, it can be done in a background job
-	pdfGenerator := pdf.NewPDFGenerator(s.logger)
-	_, err = pdfGenerator.Generate(createdInvoice, pdf.GenerateOptions{
-		TemplateName: "one.liquid",
-	})
-	if err != nil {
-		s.logger.Error("Failed to generate PDF for invoice: ", err)
 	}
 
 	_, err = s.CreatePaymentLink(ctx, orgId, createdInvoice.Id, dto.CreateInvoicePaymentLinkInput{
@@ -549,7 +544,7 @@ func (s InvoiceService) PerformAction(ctx context.Context, orgId string, id stri
 		if invoice.Status != entities.InvoiceStatusDraft {
 			return entities.Invoice{}, lib.NewCustomError(lib.BadRequestError, "Only draft invoices can be finalized", nil)
 		}
-		
+
 		// Apply business rules
 		invoice.Status = entities.InvoiceStatusOpen
 		invoice.IssuedAt = time.Now().UTC()
@@ -569,7 +564,7 @@ func (s InvoiceService) PerformAction(ctx context.Context, orgId string, id stri
 		if !invoice.IsPayable() {
 			return entities.Invoice{}, lib.NewCustomError(lib.BadRequestError, "Only payable invoices can be sent", nil)
 		}
-		
+
 		// Apply business rules
 		invoice.DeliveredAt = time.Now().UTC()
 		invoice.UpdatedAt = time.Now().UTC()
@@ -590,7 +585,7 @@ func (s InvoiceService) PerformAction(ctx context.Context, orgId string, id stri
 		if !invoice.IsPayable() {
 			return entities.Invoice{}, lib.NewCustomError(lib.BadRequestError, "Invoice cannot accept payments in current status", nil)
 		}
-		
+
 		// Apply business rules
 		invoice.Status = entities.InvoiceStatusPaid
 		invoice.PaidAt = time.Now().UTC()
@@ -612,7 +607,7 @@ func (s InvoiceService) PerformAction(ctx context.Context, orgId string, id stri
 		if invoice.Status != entities.InvoiceStatusOpen {
 			return entities.Invoice{}, lib.NewCustomError(lib.BadRequestError, "Only open invoices can be marked as overdue", nil)
 		}
-		
+
 		// Apply business rules
 		invoice.Status = entities.InvoiceStatusOverdue
 		invoice.UpdatedAt = time.Now().UTC()
@@ -630,7 +625,7 @@ func (s InvoiceService) PerformAction(ctx context.Context, orgId string, id stri
 		if !invoice.CanVoid() {
 			return entities.Invoice{}, lib.NewCustomError(lib.BadRequestError, "Invoice cannot be voided in current status", nil)
 		}
-		
+
 		// Apply business rules
 		invoice.Status = entities.InvoiceStatusVoid
 		invoice.VoidedAt = time.Now().UTC()
@@ -665,7 +660,7 @@ func (s InvoiceService) PerformAction(ctx context.Context, orgId string, id stri
 		if !invoice.CanMarkUncollectible() {
 			return entities.Invoice{}, lib.NewCustomError(lib.BadRequestError, "Invoice cannot be marked as uncollectible in current status", nil)
 		}
-		
+
 		// Apply business rules
 		invoice.Status = entities.InvoiceStatusUncollectible
 		invoice.MarkedUncollectibleAt = time.Now().UTC()

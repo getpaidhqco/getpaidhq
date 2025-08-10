@@ -26,8 +26,8 @@ func NewSQSFifoClient(logger logger.Logger, env lib.Env) events.QueueClient {
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithRegion(env.Get("AWS_REGION")),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
-			env.Get("SQS_ACCESS_KEY_ID"),
-			env.Get("SQS_SECRET_ACCESS_KEY"),
+			env.Get("GPHQ_SQS_ACCESS_KEY_ID"),
+			env.Get("GPHQ_SQS_SECRET_ACCESS_KEY"),
 			"",
 		)),
 	)
@@ -36,9 +36,9 @@ func NewSQSFifoClient(logger logger.Logger, env lib.Env) events.QueueClient {
 		panic(err)
 	}
 
-	queueUrl := env.Get("SQS_QUEUE_URL")
+	queueUrl := env.Get("GPHQ_SQS_QUEUE_URL")
 	if queueUrl == "" {
-		panic("SQS_QUEUE_URL not set")
+		panic("GPHQ_SQS_QUEUE_URL not set")
 	}
 
 	client := sqs.NewFromConfig(cfg)
@@ -51,7 +51,7 @@ func NewSQSFifoClient(logger logger.Logger, env lib.Env) events.QueueClient {
 }
 
 func (c SQSFifoClient) Start(handler events.QueueMessageHandler) {
-	queueUrl := c.env.Get("SQS_QUEUE_URL")
+	queueUrl := c.env.Get("GPHQ_SQS_QUEUE_URL")
 	c.logger.Infof("Starting SQS FIFO client for queue [%s]", queueUrl)
 	go func() {
 		for {
@@ -110,7 +110,7 @@ func (c SQSFifoClient) Start(handler events.QueueMessageHandler) {
 }
 
 func (c SQSFifoClient) SendMessage(ctx context.Context, data events.QueueMessage) error {
-	queueUrl := c.env.Get("SQS_QUEUE_URL")
+	queueUrl := c.env.Get("GPHQ_SQS_QUEUE_URL")
 	if queueUrl == "" {
 		return lib.NewCustomError(lib.InternalError, "SQS_QUEUE_URL not set", nil)
 	}
@@ -134,7 +134,7 @@ func (c SQSFifoClient) SendMessage(ctx context.Context, data events.QueueMessage
 }
 
 func (c SQSFifoClient) deleteMessage(id string) error {
-	queueUrl := c.env.Get("SQS_QUEUE_URL")
+	queueUrl := c.env.Get("GPHQ_SQS_QUEUE_URL")
 	// Delete the message after processing
 	_, err := c.client.DeleteMessage(context.TODO(), &sqs.DeleteMessageInput{
 		QueueUrl:      aws.String(queueUrl),
