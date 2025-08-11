@@ -26,4 +26,7 @@ type SubscriptionRepository interface {
 	// Subscription item methods
 	// Only if there's a specific performance need for subscription-only queries
 	FindByIdWithoutItems(ctx context.Context, orgId string, id string) (entities.Subscription, error)
+	
+	// MRR calculation methods
+	FindActiveByCustomerId(ctx context.Context, orgId string, customerId string) ([]entities.Subscription, error)
 }

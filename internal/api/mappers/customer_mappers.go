@@ -111,3 +111,26 @@ func ToCustomerListResponse(result dto.PaginatedResult[entities.Customer]) respo
         },
     }
 }
+
+// ToCustomerMrrResponse converts application MRR data to API response
+func ToCustomerMrrResponse(mrrData dto.CustomerMrrData) response.CustomerMrrResponse {
+    breakdown := make([]response.MrrBreakdownItem, len(mrrData.Breakdown))
+    for i, item := range mrrData.Breakdown {
+        breakdown[i] = response.MrrBreakdownItem{
+            SubscriptionId:    item.SubscriptionId,
+            ProductName:       item.ProductName,
+            MonthlyAmount:     item.MonthlyAmount,
+            BillingInterval:   item.BillingInterval,
+            NormalizedMonthly: item.NormalizedMonthly,
+            NextBilling:       item.NextBilling,
+        }
+    }
+
+    return response.CustomerMrrResponse{
+        CustomerId:             mrrData.CustomerId,
+        TotalMrr:               mrrData.TotalMrr,
+        Currency:               mrrData.Currency,
+        Breakdown:              breakdown,
+        ProjectedAnnualRevenue: mrrData.ProjectedAnnualRevenue,
+    }
+}

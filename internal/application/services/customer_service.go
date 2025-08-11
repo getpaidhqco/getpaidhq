@@ -9,6 +9,7 @@ import (
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/application/lib/mrr"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/entities/payment_methods"
 	"payloop/internal/domain/repositories"
@@ -21,14 +22,17 @@ import (
 type CustomerService struct {
 	customerRepository      repositories.CustomerRepository
 	paymentMethodRepository repositories.PaymentMethodRepository
+	subscriptionRepository  repositories.SubscriptionRepository
 	tokenVault              security.TokenVault
 	notificationPublisher   events.NotificationPublisher
+	mrrCalculator           mrr.Calculator
 	logger                  logger.Logger
 }
 
 func NewCustomerService(
 	customerRepository repositories.CustomerRepository,
 	paymentMethodRepository repositories.PaymentMethodRepository,
+	subscriptionRepository repositories.SubscriptionRepository,
 	tokenVault security.TokenVault,
 	notificationPublisher events.NotificationPublisher,
 	logger logger.Logger,
@@ -37,8 +41,10 @@ func NewCustomerService(
 	service := CustomerService{
 		customerRepository:      customerRepository,
 		paymentMethodRepository: paymentMethodRepository,
+		subscriptionRepository:  subscriptionRepository,
 		tokenVault:              tokenVault,
 		notificationPublisher:   notificationPublisher,
+		mrrCalculator:           mrr.NewCalculator(),
 		logger:                  logger,
 	}
 	// set up the payment method expiry detection
@@ -473,4 +479,32 @@ func (s CustomerService) List(ctx context.Context, orgId string, pagination dto.
 	}
 
 	return result, nil
+}
+
+// CalculateCustomerMrr calculates the monthly recurring revenue for a customer
+func (s CustomerService) CalculateCustomerMrr(ctx context.Context, orgId string, customerId string) (dto.CustomerMrrData, error) {
+	// First verify the customer exists
+	_, err := s.customerRepository.FindById(ctx, orgId, customerId)
+	if err != nil {
+		s.logger.Error("Customer not found for MRR calculation", "customer_id", customerId, "error", err.Error())
+		return dto.CustomerMrrData{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+	}
+
+	// Get all active subscriptions for the customer
+	subscriptions, err := s.subscriptionRepository.FindActiveByCustomerId(ctx, orgId, customerId)
+	if err != nil {
+		s.logger.Error("Failed to fetch active subscriptions for MRR calculation", "customer_id", customerId, "error", err.Error())
+		return dto.CustomerMrrData{}, lib.NewCustomError(lib.InternalError, "Error fetching subscription data", err)
+	}
+
+	// Calculate MRR using the MRR calculator
+	mrrData := s.mrrCalculator.CalculateCustomerMrr(customerId, subscriptions)
+
+	s.logger.Info("Calculated customer MRR", 
+		"customer_id", customerId, 
+		"total_mrr", mrrData.TotalMrr, 
+		"currency", mrrData.Currency, 
+		"subscriptions_count", len(mrrData.Breakdown))
+
+	return mrrData, nil
 }

@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgtype"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
@@ -186,13 +187,13 @@ func (r PaymentLinkRepository) Create(ctx context.Context, input entities.Paymen
 	tx := r.getTransactionFromContext(ctx)
 
 	var paymentLink models.PaymentLink
-	
+
 	// Marshal JSON data and config
 	dataJson, err := json.Marshal(input.Data)
 	if err != nil {
 		return entities.PaymentLink{}, fmt.Errorf("failed to marshal data: %w", err)
 	}
-	
+
 	configJson, err := json.Marshal(input.Config)
 	if err != nil {
 		return entities.PaymentLink{}, fmt.Errorf("failed to marshal config: %w", err)
@@ -210,7 +211,7 @@ func (r PaymentLinkRepository) Create(ctx context.Context, input entities.Paymen
 		"config":     configJson,
 		"single_use": input.SingleUse,
 		"status":     input.Status,
-		"token_hash": input.TokenHash,
+		"token_hash": pgtype.Text{String: input.TokenHash, Valid: true},
 		"used_at":    input.UsedAt,
 		"expires_at": input.ExpiresAt,
 	}).Scan(
@@ -240,13 +241,13 @@ func (r PaymentLinkRepository) Update(ctx context.Context, input entities.Paymen
 	tx := r.getTransactionFromContext(ctx)
 
 	var paymentLink models.PaymentLink
-	
+
 	// Marshal JSON data and config
 	dataJson, err := json.Marshal(input.Data)
 	if err != nil {
 		return entities.PaymentLink{}, fmt.Errorf("failed to marshal data: %w", err)
 	}
-	
+
 	configJson, err := json.Marshal(input.Config)
 	if err != nil {
 		return entities.PaymentLink{}, fmt.Errorf("failed to marshal config: %w", err)
@@ -266,7 +267,7 @@ func (r PaymentLinkRepository) Update(ctx context.Context, input entities.Paymen
 		"config":     configJson,
 		"single_use": input.SingleUse,
 		"status":     input.Status,
-		"token_hash": input.TokenHash,
+		"token_hash": pgtype.Text{String: input.TokenHash, Valid: true},
 		"used_at":    input.UsedAt,
 		"expires_at": input.ExpiresAt,
 	}).Scan(

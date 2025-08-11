@@ -576,3 +576,108 @@ func (r SubscriptionRepository) findWithItems(ctx context.Context, orgId string,
 	subscription.Items = items
 	return subscription, nil
 }
+
+// FindActiveByCustomerId finds all active subscriptions for a customer, with subscription items
+func (r SubscriptionRepository) FindActiveByCustomerId(ctx context.Context, orgId string, customerId string) ([]entities.Subscription, error) {
+	tx := r.getTransactionFromContext(ctx)
+	
+	var subscriptions = make([]entities.Subscription, 0)
+	query := `SELECT s.org_id, s.id, s.psp_id, s.order_id, s.order_item_id, s.customer_id, s.status, 
+       s.payment_method_id, 
+       s.amount, s.currency, s.start_date, s.end_date,
+       s.billing_interval, s.billing_interval_qty, s.cycles, s.billing_anchor, s.trial_ends_at, s.cancel_at, s.ends_at,
+       s.last_charge, 
+       s.renews_at,
+       s.current_period_start,
+       s.current_period_end,
+       s.dunning_active, s.active_dunning_campaign_id, s.metadata, s.cycles_processed,
+       s.total_revenue, s.cancelled_at, s.created_at, s.updated_at,
+       c.org_id, c.id, c.first_name, c.last_name, c.email, c.created_at, c.updated_at
+   FROM subscriptions s
+   JOIN customers c ON s.org_id=c.org_id AND s.customer_id = c.id
+   WHERE s.org_id = @org_id AND s.customer_id = @customer_id 
+     AND s.status IN ('active', 'trialing', 'past_due')
+   ORDER BY s.created_at DESC`
+
+	rows, err := tx.Query(ctx, query, pgx.NamedArgs{
+		"org_id":      orgId,
+		"customer_id": customerId,
+	})
+	if err != nil {
+		r.logger.Error(`failed to find active subscriptions by customer_id`, err.Error())
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var subscription models.Subscription
+		var customer models.Customer
+		err := rows.Scan(
+			&subscription.OrgId,
+			&subscription.Id,
+			&subscription.PspId,
+			&subscription.OrderId,
+			&subscription.OrderItemId,
+			&subscription.CustomerId,
+			&subscription.Status,
+			&subscription.PaymentMethodId,
+			&subscription.Amount,
+			&subscription.Currency,
+			&subscription.StartDate,
+			&subscription.EndDate,
+			&subscription.BillingInterval,
+			&subscription.BillingIntervalQty,
+			&subscription.Cycles,
+			&subscription.BillingAnchor,
+			&subscription.TrialEndsAt,
+			&subscription.CancelAt,
+			&subscription.EndsAt,
+			&subscription.LastCharge,
+			&subscription.RenewsAt,
+			&subscription.CurrentPeriodStart,
+			&subscription.CurrentPeriodEnd,
+			&subscription.DunningActive,
+			&subscription.ActiveDunningCampaignId,
+			&subscription.Metadata,
+			&subscription.CyclesProcessed,
+			&subscription.TotalRevenue,
+			&subscription.CancelledAt,
+			&subscription.CreatedAt,
+			&subscription.UpdatedAt,
+
+			&customer.OrgId,
+			&customer.Id,
+			&customer.FirstName,
+			&customer.LastName,
+			&customer.Email,
+			&customer.CreatedAt,
+			&customer.UpdatedAt,
+		)
+		if err != nil {
+			r.logger.Error(`failed to scan active subscription`, err.Error())
+			return nil, err
+		}
+		
+		subscription.Customer = customer
+		subscriptionEntity := subscription.ToEntity()
+		
+		// Load subscription items for this subscription
+		items, err := r.subscriptionItemRepository.FindBySubscriptionId(ctx, orgId, subscriptionEntity.Id)
+		if err != nil {
+			r.logger.Error(`failed to find SubscriptionItems for active subscription`, err.Error())
+			// Continue without items rather than failing completely
+			subscriptionEntity.Items = []entities.SubscriptionItem{}
+		} else {
+			subscriptionEntity.Items = items
+		}
+		
+		subscriptions = append(subscriptions, subscriptionEntity)
+	}
+
+	if rows.Err() != nil {
+		r.logger.Error(`rows iteration error`, rows.Err().Error())
+		return nil, rows.Err()
+	}
+
+	return subscriptions, nil
+}

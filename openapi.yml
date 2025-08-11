@@ -5,7 +5,7 @@ info:
     Comprehensive subscription billing platform API supporting traditional subscriptions, 
     usage-based billing, and hybrid models with advanced features like dunning management, 
     multi-currency support, and enterprise-grade security.
-  version: 1.0.8
+  version: 1.0.9
   contact:
     name: GetPaidHQ Support
     url: https://getpaidhq.co
@@ -290,6 +290,32 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/DunningCampaign'
+
+  /api/customers/{id}/mrr:
+    get:
+      tags: [Customers]
+      summary: Get customer MRR calculation
+      description: Calculate Monthly Recurring Revenue (MRR) for a specific customer, including breakdown by subscription and projected annual revenue
+      operationId: getCustomerMrr
+      parameters:
+        - $ref: '#/components/parameters/CustomerId'
+      responses:
+        '200':
+          description: Customer MRR calculation data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerMrrResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
 
   # Products
   /api/products:
@@ -6429,3 +6455,70 @@ components:
         currency:
           type: string
           description: Currency code (ISO 4217)
+
+    CustomerMrrResponse:
+      type: object
+      required:
+        - customer_id
+        - total_mrr
+        - currency
+        - breakdown
+        - projected_annual_revenue
+      properties:
+        customer_id:
+          type: string
+          description: Customer ID
+          example: "cus_abcdef123456"
+        total_mrr:
+          type: integer
+          description: Total Monthly Recurring Revenue in cents
+          example: 4798
+        currency:
+          type: string
+          description: Currency code (ISO 4217)
+          example: "usd"
+        breakdown:
+          type: array
+          description: Breakdown of MRR by subscription
+          items:
+            $ref: '#/components/schemas/MrrBreakdownItem'
+        projected_annual_revenue:
+          type: integer
+          description: Projected annual revenue based on current MRR (total_mrr * 12)
+          example: 57576
+
+    MrrBreakdownItem:
+      type: object
+      required:
+        - subscription_id
+        - product_name
+        - monthly_amount
+        - billing_interval
+        - next_billing
+      properties:
+        subscription_id:
+          type: string
+          description: Subscription ID
+          example: "sub_1234567890"
+        product_name:
+          type: string
+          description: Name of the product/plan
+          example: "Pro Plan"
+        monthly_amount:
+          type: integer
+          description: Original subscription amount in cents
+          example: 2399
+        billing_interval:
+          type: string
+          description: Billing interval of the subscription
+          enum: [month, year, week, day]
+          example: "month"
+        normalized_monthly:
+          type: integer
+          description: Normalized monthly amount in cents (optional, only present for non-monthly intervals)
+          example: 2399
+        next_billing:
+          type: string
+          format: date-time
+          description: Next billing date for the subscription
+          example: "2024-02-15T00:00:00Z"

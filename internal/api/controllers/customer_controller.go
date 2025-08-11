@@ -9,6 +9,7 @@ import (
 	"payloop/internal/api/mappers"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/logger"
+	"payloop/internal/lib"
 )
 
 type CustomerController struct {
@@ -154,5 +155,29 @@ func (cc CustomerController) List(c *gin.Context) {
 
 	// Convert paginated result to API response
 	response := mappers.ToCustomerListResponse(result)
+	c.JSON(http.StatusOK, response)
+}
+
+// GetCustomerMrr handles retrieving MRR calculation for a customer
+func (cc CustomerController) GetCustomerMrr(c *gin.Context) {
+	user, _ := c.Get("user")
+	authUser := user.(authn.User)
+	customerId := c.Param("id")
+
+	if customerId == "" {
+		apiErr := api.NewApiError(lib.BadRequestError, "Customer ID is required", nil)
+		c.JSON(http.StatusBadRequest, apiErr)
+		return
+	}
+
+	mrrData, err := cc.customerService.CalculateCustomerMrr(c.Request.Context(), authUser.OrgId, customerId)
+	if err != nil {
+		apiErr := api.NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+		return
+	}
+
+	// Convert application DTO to API response
+	response := mappers.ToCustomerMrrResponse(mrrData)
 	c.JSON(http.StatusOK, response)
 }

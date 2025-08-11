@@ -22,4 +22,7 @@ type CustomerService interface {
 	GetSecurePaymentMethod(ctx context.Context, orgId string, id string) (entities.SecurePaymentMethod, error)
 	CreateSecurePaymentMethod(ctx context.Context, orgId string, input dto.CreatePaymentMethodInput) (entities.SecurePaymentMethod, error)
 	UpdateSecurePaymentMethod(ctx context.Context, orgId string, paymentMethodId string, input dto.UpdatePaymentMethodInput) (entities.SecurePaymentMethod, error)
+	
+	// MRR calculation operations
+	CalculateCustomerMrr(ctx context.Context, orgId string, customerId string) (dto.CustomerMrrData, error)
 }
