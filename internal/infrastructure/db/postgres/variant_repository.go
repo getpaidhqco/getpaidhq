@@ -192,6 +192,54 @@ func (r VariantRepository) FindByProductId(ctx context.Context, orgId string, pr
 	return variants, count, nil
 }
 
+// FindByProductIds returns variants for multiple product IDs
+func (r VariantRepository) FindByProductIds(ctx context.Context, orgId string, productIds []string) ([]entities.Variant, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	if len(productIds) == 0 {
+		return []entities.Variant{}, nil
+	}
+
+	var variants = make([]entities.Variant, 0)
+	query := `SELECT org_id, id, product_id, name, description, metadata, created_at, updated_at
+			  FROM variants 
+			  WHERE org_id = $1 AND product_id = ANY($2)
+			  ORDER BY created_at DESC`
+
+	rows, err := tx.Query(ctx, query, orgId, productIds)
+	if err != nil {
+		r.logger.Error(`failed to find Variants by ProductIds`, slog.String("err", err.Error()))
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var variant models.Variant
+		err := rows.Scan(
+			&variant.OrgId,
+			&variant.Id,
+			&variant.ProductId,
+			&variant.Name,
+			&variant.Description,
+			&variant.Metadata,
+			&variant.CreatedAt,
+			&variant.UpdatedAt,
+		)
+		if err != nil {
+			r.logger.Error(`failed to scan Variant`, slog.String("err", err.Error()))
+			return nil, err
+		}
+		variants = append(variants, variant.ToEntity())
+	}
+
+	if rows.Err() != nil {
+		r.logger.Error(`rows iteration error`, slog.String("err", rows.Err().Error()))
+		return nil, rows.Err()
+	}
+
+	return variants, nil
+}
+
 func (r VariantRepository) Update(ctx context.Context, entity entities.Variant) (entities.Variant, error) {
 	tx := r.getTransactionFromContext(ctx)
 

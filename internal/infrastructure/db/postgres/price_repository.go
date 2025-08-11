@@ -260,6 +260,85 @@ func (r PriceRepository) FindByVariantId(ctx context.Context, orgId string, vari
 	return prices, count, nil
 }
 
+// FindByVariantIds returns prices for multiple variant IDs
+func (r PriceRepository) FindByVariantIds(ctx context.Context, orgId string, variantIds []string) ([]entities.Price, error) {
+	tx := r.getTransactionFromContext(ctx)
+
+	if len(variantIds) == 0 {
+		return []entities.Price{}, nil
+	}
+
+	var prices = make([]entities.Price, 0)
+	query := `SELECT org_id, id, variant_id, label, category, scheme, cycles, currency, unit_price, min_price, 
+                     suggested_price, billing_interval, billing_interval_qty, trial_interval, trial_interval_qty,
+                     tax_code, has_usage, meter_id, percentage_rate, fixed_fee, overage_unit_price, included_usage, usage_limit,
+                     metadata, created_at, updated_at
+              FROM prices 
+              WHERE org_id = $1 AND variant_id = ANY($2)
+              ORDER BY created_at DESC`
+
+	rows, err := tx.Query(ctx, query, orgId, variantIds)
+	if err != nil {
+		r.logger.Error(`failed to find Prices by VariantIds`, slog.String("err", err.Error()))
+		return nil, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var price models.Price
+		err := rows.Scan(
+			&price.OrgId,
+			&price.Id,
+			&price.VariantId,
+			&price.Label,
+			&price.Category,
+			&price.Scheme,
+			&price.Cycles,
+			&price.Currency,
+			&price.UnitPrice,
+			&price.MinPrice,
+			&price.SuggestedPrice,
+			&price.BillingInterval,
+			&price.BillingIntervalQty,
+			&price.TrialInterval,
+			&price.TrialIntervalQty,
+			&price.TaxCode,
+			&price.HasUsage,
+			&price.MeterId,
+			&price.PercentageRate,
+			&price.FixedFee,
+			&price.OverageUnitPrice,
+			&price.IncludedUsage,
+			&price.UsageLimit,
+			&price.Metadata,
+			&price.CreatedAt,
+			&price.UpdatedAt,
+		)
+		if err != nil {
+			r.logger.Error(`failed to scan Price`, slog.String("err", err.Error()))
+			return nil, err
+		}
+		prices = append(prices, price.ToEntity())
+	}
+
+	if rows.Err() != nil {
+		r.logger.Error(`rows iteration error`, slog.String("err", rows.Err().Error()))
+		return nil, rows.Err()
+	}
+
+	// Load price tiers for all prices
+	for i := range prices {
+		tiers, err := r.GetPriceTiers(ctx, orgId, prices[i].Id)
+		if err != nil {
+			r.logger.Error("failed to load price tiers", slog.String("price_id", prices[i].Id), slog.String("err", err.Error()))
+			continue // Continue without tiers rather than failing
+		}
+		prices[i].Tiers = tiers
+	}
+
+	return prices, nil
+}
+
 func (r PriceRepository) Update(ctx context.Context, entity entities.Price) (entities.Price, error) {
 	tx := r.getTransactionFromContext(ctx)
 

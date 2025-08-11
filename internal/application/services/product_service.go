@@ -149,13 +149,52 @@ func (s ProductService) CreateProduct(ctx context.Context, orgId string, input a
 }
 
 func (s ProductService) List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Product, int, error) {
-	subs, total, err := s.productRepository.Find(ctx, orgId, pagination)
+	// 1. Get products (existing logic)
+	products, total, err := s.productRepository.Find(ctx, orgId, pagination)
 	if err != nil {
 		s.logger.Error("Failed to list products", err.Error())
 		return nil, 0, err
 	}
 
-	return subs, total, nil
+	// Return early if no products
+	if len(products) == 0 {
+		return products, total, nil
+	}
+
+	// 2. Collect product IDs for batch loading
+	productIds := make([]string, len(products))
+	for i, product := range products {
+		productIds[i] = product.Id
+	}
+
+	// 3. Batch load variants
+	variants, err := s.variantRepository.FindByProductIds(ctx, orgId, productIds)
+	if err != nil {
+		s.logger.Error("Failed to load variants for products", err.Error())
+		// Return products without variants rather than failing completely
+		return products, total, nil
+	}
+
+	// 4. Collect variant IDs for batch loading prices
+	variantIds := make([]string, 0, len(variants))
+	for _, variant := range variants {
+		variantIds = append(variantIds, variant.Id)
+	}
+
+	// 5. Batch load prices (only if we have variants)
+	var prices []entities.Price
+	if len(variantIds) > 0 {
+		prices, err = s.priceRepository.FindByVariantIds(ctx, orgId, variantIds)
+		if err != nil {
+			s.logger.Error("Failed to load prices for variants", err.Error())
+			// Continue without prices rather than failing
+		}
+	}
+
+	// 6. Assemble the complete object graph
+	enrichedProducts := s.assembleProductsWithVariantsAndPrices(products, variants, prices)
+
+	return enrichedProducts, total, nil
 }
 
 func (s ProductService) FindById(ctx context.Context, orgId string, id string) (entities.Product, error) {
@@ -430,4 +469,27 @@ func (s ProductService) DeletePrice(ctx context.Context, orgId string, id string
 
 	_ = s.pubsub.Publish(orgId, topic.PriceDeleted, price)
 	return nil
+}
+
+// assembleProductsWithVariantsAndPrices builds the complete object graph efficiently
+func (s ProductService) assembleProductsWithVariantsAndPrices(products []entities.Product, variants []entities.Variant, prices []entities.Price) []entities.Product {
+	// Create lookup maps for efficient assembly
+	pricesByVariantId := make(map[string][]entities.Price)
+	for _, price := range prices {
+		pricesByVariantId[price.VariantId] = append(pricesByVariantId[price.VariantId], price)
+	}
+
+	variantsByProductId := make(map[string][]entities.Variant)
+	for _, variant := range variants {
+		// Attach prices to variant
+		variant.Prices = pricesByVariantId[variant.Id]
+		variantsByProductId[variant.ProductId] = append(variantsByProductId[variant.ProductId], variant)
+	}
+
+	// Attach variants to products
+	for i := range products {
+		products[i].Variants = variantsByProductId[products[i].Id]
+	}
+
+	return products
 }
