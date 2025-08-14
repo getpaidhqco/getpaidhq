@@ -7,6 +7,7 @@ import (
 	"payloop/internal/api/dto/mapper"
 	"payloop/internal/api/dto/request"
 	"payloop/internal/api/dto/response"
+	"payloop/internal/api/mappers"
 	"payloop/internal/application/interfaces"
 	app_lib "payloop/internal/application/lib/authz"
 	"payloop/internal/application/lib/logger"
@@ -194,7 +195,10 @@ func (o OrderController) List(c *gin.Context) {
 	orgId := user.(authn.User).OrgId
 	pagination := request.GetPagination(c)
 
-	ords, total, err := o.service.List(c.Request.Context(), orgId, pagination)
+	// Convert API DTO to application DTO
+	appPagination := mappers.ToPagination(pagination)
+
+	ords, total, err := o.service.List(c.Request.Context(), orgId, appPagination)
 	if err != nil {
 		apiErr := api.NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)

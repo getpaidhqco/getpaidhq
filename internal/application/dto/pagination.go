@@ -7,10 +7,11 @@ type Pagination struct {
 	Offset        int    `json:"offset"`
 	SortDirection string `json:"sort_order"`
 	SortBy        string `json:"sort_by"`
+	Search        string `json:"search"`
 }
 
 // NewPagination creates a new Pagination instance with default values
-func NewPagination(page, limit int, sortBy, sortDirection string) Pagination {
+func NewPagination(page, limit int, sortBy, sortDirection, search string) Pagination {
 	if page < 1 {
 		page = 0
 	}
@@ -23,12 +24,13 @@ func NewPagination(page, limit int, sortBy, sortDirection string) Pagination {
 	if sortDirection == "" {
 		sortDirection = "desc"
 	}
-	
+
 	return Pagination{
 		Page:          page,
 		Limit:         limit,
 		Offset:        page * limit,
 		SortBy:        sortBy,
 		SortDirection: sortDirection,
+		Search:        search,
 	}
 }

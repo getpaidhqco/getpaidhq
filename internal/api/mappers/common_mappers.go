@@ -13,6 +13,7 @@ func ToPagination(req request.Pagination) dto.Pagination {
         Offset:        req.Offset,
         SortDirection: req.SortDirection,
         SortBy:        req.SortBy,
+        Search:        req.Search,
     }
 }
 
@@ -22,7 +23,7 @@ func ToApiPaginatedResult[T any, R any](result dto.PaginatedResult[T], itemConve
     for i, item := range result.Items {
         items[i] = itemConverter(item)
     }
-    
+
     return struct {
         Items      []R `json:"items"`
         TotalCount int `json:"total_count"`

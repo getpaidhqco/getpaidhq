@@ -3,7 +3,7 @@ package services
 import (
 	"context"
 	"errors"
-	"payloop/internal/api/dto/request"
+	"payloop/internal/application/dto"
 	"payloop/internal/application/interfaces"
 	"payloop/internal/application/lib/events"
 	"payloop/internal/application/lib/events/topic"
@@ -433,7 +433,7 @@ func (s OrderService) CompleteOrder(ctx context.Context, input orders.CompleteOr
 		Order:   order,
 		Payment: payment,
 	}
-	
+
 	// Map to event payload for publishing
 	eventPayload := domainevents.OrderCompletedEvent{
 		Order:   workflowPayload.Order,
@@ -465,7 +465,7 @@ func (s OrderService) ListOrderSubscriptions(ctx context.Context, orgId string, 
 	return subscriptions, nil
 }
 
-func (s OrderService) List(ctx context.Context, orgId string, pagination request.Pagination) ([]entities.Order, int, error) {
+func (s OrderService) List(ctx context.Context, orgId string, pagination dto.Pagination) ([]entities.Order, int, error) {
 	orders, total, err := s.orderRepository.Find(ctx, orgId, pagination)
 	if err != nil {
 		s.logger.Error("Failed to list subscriptions", err.Error())

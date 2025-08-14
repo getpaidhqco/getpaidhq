@@ -8,7 +8,7 @@ import (
 	"github.com/jackc/pgx/v5"
 	_ "github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
-	"payloop/internal/api/dto/request"
+	"payloop/internal/application/dto"
 	"payloop/internal/application/lib/logger"
 	"payloop/internal/domain/entities"
 	"payloop/internal/domain/repositories"
@@ -51,12 +51,12 @@ func (r OrderRepository) FindById(ctx context.Context, orgId string, id string) 
 	query := `SELECT orders.org_id, orders.id, orders.customer_id, orders.reference,
        				orders.status, orders.session_id, orders.cart_id, orders.currency, orders.total, 
        				orders.metadata, orders.created_at, orders.updated_at,
-       				
+
                  	c.org_id, c.id, c.email, c.first_name, c.last_name, c.created_at, c.updated_at
 			  FROM orders
-			      
+
 			  JOIN customers c ON orders.org_id=c.org_id AND orders.customer_id = c.id
-			  
+
 			  WHERE orders.org_id = $1 AND orders.id = $2`
 
 	err := tx.QueryRow(ctx, query, orgId, id).Scan(
@@ -170,20 +170,27 @@ func (r OrderRepository) Update(ctx context.Context, entity entities.Order) (ent
 }
 
 // Find retrieves orders based on the given pagination and sorting parameters.
-func (r OrderRepository) Find(ctx context.Context, orgId string, p request.Pagination) ([]entities.Order, int, error) {
+func (r OrderRepository) Find(ctx context.Context, orgId string, p dto.Pagination) ([]entities.Order, int, error) {
 	tx := r.getTransactionFromContext(ctx)
-	r.logger.Debugf("sort_dir[%s] sort_col[%s]", p.SortDirection, p.SortBy)
+	r.logger.Debugf("sort_dir[%s] sort_col[%s] search[%s]", p.SortDirection, p.SortBy, p.Search)
 
 	var orders = make([]entities.Order, 0)
 	var count int
-	query := `SELECT o.org_id, o.id, o.customer_id, o.reference, 
+
+	// Build the WHERE clause with search functionality
+	whereClause := "WHERE o.org_id = @org_id"
+	if p.Search != "" {
+		whereClause += " AND (c.email ILIKE @search OR o.reference ILIKE @search OR o.id ILIKE @search)"
+	}
+
+	query := fmt.Sprintf(`SELECT o.org_id, o.id, o.customer_id, o.reference, 
        o.status, o.session_id, o.cart_id, o.currency, o.total, 
        o.metadata, o.created_at, o.updated_at,
        c.org_id, c.id, c.email, c.first_name, c.last_name, c.created_at, c.updated_at,
        count(*) OVER()
    FROM orders o
    JOIN customers c ON o.org_id=c.org_id AND o.customer_id = c.id
-   WHERE o.org_id = @org_id
+   %s
    ORDER BY
    CASE
         WHEN @sort_dir = 'asc' THEN
@@ -205,15 +212,21 @@ func (r OrderRepository) Find(ctx context.Context, orgId string, p request.Pagin
             NULL
         END
         DESC
-	LIMIT @lim OFFSET @off;`
+	LIMIT @lim OFFSET @off`, whereClause)
 
-	rows, err := tx.Query(ctx, query, pgx.NamedArgs{
+	args := pgx.NamedArgs{
 		"org_id":   orgId,
 		"lim":      p.Limit,
 		"off":      p.Offset,
 		"sort_col": p.SortBy,
 		"sort_dir": p.SortDirection,
-	})
+	}
+
+	if p.Search != "" {
+		args["search"] = "%" + p.Search + "%"
+	}
+
+	rows, err := tx.Query(ctx, query, args)
 	if err != nil {
 		r.logger.Error(`failed to find Orders`, err.Error())
 		return nil, 0, err
