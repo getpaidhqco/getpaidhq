@@ -13,7 +13,7 @@ import (
 	"payloop/internal/infrastructure/cache/redis"
 	"payloop/internal/infrastructure/db/postgres"
 	"payloop/internal/infrastructure/db/usage"
-	"payloop/internal/infrastructure/email/loops"
+	"payloop/internal/infrastructure/email/resend"
 	"payloop/internal/infrastructure/events"
 	"payloop/internal/infrastructure/maintenance"
 	"payloop/internal/infrastructure/payments/paystack"
@@ -66,7 +66,7 @@ var CommonModules = fx.Options(
 	paystack.Module,
 
 	// Email providers
-	loops.Module,
+	resend.Module,
 
 	// File storage
 	s3.Module(),

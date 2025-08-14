@@ -42,6 +42,7 @@ type Env struct {
 	EmailProvider    string `mapstructure:"GPHQ_EMAIL_PROVIDER"`
 	LoopsApiKey      string `mapstructure:"LOOPS_API_KEY"`
 	LoopsApiEndpoint string `mapstructure:"GPHQ_LOOPS_API_ENDPOINT"`
+	ResendApiKey     string `mapstructure:"RESEND_API_KEY"`
 	EmailFromEmail   string `mapstructure:"GPHQ_EMAIL_FROM_EMAIL"`
 	EmailFromName    string `mapstructure:"GPHQ_EMAIL_FROM_NAME"`
 
@@ -95,6 +96,7 @@ func NewEnv() Env {
 	viper.BindEnv("GPHQ_EMAIL_PROVIDER")
 	viper.BindEnv("LOOPS_API_KEY")
 	viper.BindEnv("GPHQ_LOOPS_API_ENDPOINT")
+	viper.BindEnv("RESEND_API_KEY")
 	viper.BindEnv("GPHQ_EMAIL_FROM_EMAIL")
 	viper.BindEnv("GPHQ_EMAIL_FROM_NAME")
 	viper.BindEnv("GPHQ_TOKEN_VAULT_TYPE")
@@ -132,6 +134,7 @@ func NewEnv() Env {
 		env.EmailProvider = viper.GetString("GPHQ_EMAIL_PROVIDER")
 		env.LoopsApiKey = viper.GetString("LOOPS_API_KEY")
 		env.LoopsApiEndpoint = viper.GetString("GPHQ_LOOPS_API_ENDPOINT")
+		env.ResendApiKey = viper.GetString("RESEND_API_KEY")
 		env.EmailFromEmail = viper.GetString("GPHQ_EMAIL_FROM_EMAIL")
 		env.EmailFromName = viper.GetString("GPHQ_EMAIL_FROM_NAME")
 
