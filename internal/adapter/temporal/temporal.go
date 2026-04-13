@@ -41,7 +41,7 @@ func NewTemporalEngine(
 	c, err := client.NewLazyClient(client.Options{
 		HostPort:  env.TemporalHost,
 		Namespace: "subscriptions",
-		Logger:    NewZapAdapter(lib.GetZapLogger()),
+		Logger:    NewSlogAdapter(lib.GetSlogLogger()),
 	})
 	if err != nil {
 		logger.Error("Unable to create client: ", err.Error())

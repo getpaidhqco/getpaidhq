@@ -2,62 +2,65 @@ package temporal
 
 import (
 	"fmt"
-	"go.uber.org/zap"
+	"log/slog"
+
+	temporallog "go.temporal.io/sdk/log"
 )
 
-import (
-	"go.temporal.io/sdk/log"
-)
-
-type ZapAdapter struct {
-	zl *zap.Logger
+// SlogAdapter adapts *slog.Logger to the Temporal SDK log.Logger interface.
+type SlogAdapter struct {
+	sl *slog.Logger
 }
 
-func NewZapAdapter(zapLogger *zap.Logger) *ZapAdapter {
-	return &ZapAdapter{
-		// Skip one call frame to exclude zap_adapter itself.
-		// Or it can be configured when logger is created (not always possible).
-		zl: zapLogger.WithOptions(zap.AddCallerSkip(1)),
-	}
+func NewSlogAdapter(sl *slog.Logger) *SlogAdapter {
+	return &SlogAdapter{sl: sl}
 }
 
-func (log *ZapAdapter) fields(keyvals []interface{}) []zap.Field {
+func (a *SlogAdapter) attrs(keyvals []interface{}) []slog.Attr {
 	if len(keyvals)%2 != 0 {
-		return []zap.Field{zap.Error(fmt.Errorf("odd number of keyvals pairs: %v", keyvals))}
+		return []slog.Attr{slog.String("error", fmt.Sprintf("odd number of keyvals: %v", keyvals))}
 	}
-
-	var fields []zap.Field
+	attrs := make([]slog.Attr, 0, len(keyvals)/2)
 	for i := 0; i < len(keyvals); i += 2 {
 		key, ok := keyvals[i].(string)
 		if !ok {
 			key = fmt.Sprintf("%v", keyvals[i])
 		}
-		fields = append(fields, zap.Any(key, keyvals[i+1]))
+		attrs = append(attrs, slog.Any(key, keyvals[i+1]))
 	}
-
-	return fields
+	return attrs
 }
 
-func (log *ZapAdapter) Debug(msg string, keyvals ...interface{}) {
-	log.zl.Debug(msg, log.fields(keyvals)...)
+func (a *SlogAdapter) toArgs(keyvals []interface{}) []any {
+	attrs := a.attrs(keyvals)
+	args := make([]any, len(attrs))
+	for i, attr := range attrs {
+		args[i] = attr
+	}
+	return args
 }
 
-func (log *ZapAdapter) Info(msg string, keyvals ...interface{}) {
-	log.zl.Info(msg, log.fields(keyvals)...)
+func (a *SlogAdapter) Debug(msg string, keyvals ...interface{}) {
+	a.sl.Debug(msg, a.toArgs(keyvals)...)
 }
 
-func (log *ZapAdapter) Warn(msg string, keyvals ...interface{}) {
-	log.zl.Warn(msg, log.fields(keyvals)...)
+func (a *SlogAdapter) Info(msg string, keyvals ...interface{}) {
+	a.sl.Info(msg, a.toArgs(keyvals)...)
 }
 
-func (log *ZapAdapter) Error(msg string, keyvals ...interface{}) {
-	log.zl.Error(msg, log.fields(keyvals)...)
+func (a *SlogAdapter) Warn(msg string, keyvals ...interface{}) {
+	a.sl.Warn(msg, a.toArgs(keyvals)...)
 }
 
-func (log *ZapAdapter) With(keyvals ...interface{}) log.Logger {
-	return &ZapAdapter{zl: log.zl.With(log.fields(keyvals)...)}
+func (a *SlogAdapter) Error(msg string, keyvals ...interface{}) {
+	a.sl.Error(msg, a.toArgs(keyvals)...)
 }
 
-func (log *ZapAdapter) WithCallerSkip(skip int) log.Logger {
-	return &ZapAdapter{zl: log.zl.WithOptions(zap.AddCallerSkip(skip))}
+func (a *SlogAdapter) With(keyvals ...interface{}) temporallog.Logger {
+	return &SlogAdapter{sl: a.sl.With(a.toArgs(keyvals)...)}
+}
+
+func (a *SlogAdapter) WithCallerSkip(_ int) temporallog.Logger {
+	// slog doesn't have caller skip; return as-is
+	return a
 }

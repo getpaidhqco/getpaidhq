@@ -16,13 +16,11 @@ require (
 	github.com/nats-io/nats-server/v2 v2.10.25
 	github.com/nats-io/nats.go v1.39.1
 	github.com/rs/cors/wrapper/gin v0.0.0-20240830163046-1084d89a1692
-	github.com/samber/slog-zap/v2 v2.6.2
 	github.com/segmentio/ksuid v1.0.4
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
 	go.temporal.io/api v1.45.0
 	go.temporal.io/sdk v1.32.1
-	go.uber.org/zap v1.27.0
 )
 
 require (
@@ -96,8 +94,6 @@ require (
 	github.com/rs/cors v1.11.1 // indirect
 	github.com/sagikazarmark/locafero v0.7.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
-	github.com/samber/lo v1.49.1 // indirect
-	github.com/samber/slog-common v0.18.1 // indirect
 	github.com/sourcegraph/conc v0.3.0 // indirect
 	github.com/spf13/afero v1.12.0 // indirect
 	github.com/spf13/cast v1.7.1 // indirect
