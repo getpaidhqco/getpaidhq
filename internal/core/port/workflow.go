@@ -55,6 +55,22 @@ type CompleteOrderStepInput struct {
 	PaymentContext PaymentWebhookContext
 }
 
+// Workflow represents a runnable workflow.
+type Workflow interface {
+	Start(ctx interface{}, payload interface{}) (WorkflowResult, error)
+}
+
+// WorkflowSteps defines the steps that can be executed within a workflow.
 type WorkflowSteps interface {
 	CompleteOrder(ctx context.Context, data CompleteOrderStepInput) (WorkflowResult, error)
+}
+
+// WorkflowPayload wraps data and steps for workflow execution.
+type WorkflowPayload struct {
+	Data  interface{}
+	Steps WorkflowSteps
+}
+
+// PaymentSuccessWorkflowPayload is the payload for the payment success workflow.
+type PaymentSuccessWorkflowPayload struct {
 }

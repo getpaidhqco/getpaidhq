@@ -21,15 +21,15 @@ type CreateOrderInput struct {
 }
 
 type CreateOrderResponse struct {
-	Order Order       `json:"order"`
-	Psp   interface{} `json:"psp"`
+	Order Order               `json:"order"`
+	Psp   InitPaymentResponse `json:"psp"`
 }
 
 type CompleteCheckoutSessionInput struct {
-	OrgId          string            `json:"org_id" binding:"required"`
-	OrderId        string            `json:"cart_id" binding:"required"`
-	PaymentContext interface{}       `json:"payment_context"`
-	Metadata       map[string]string `json:"metadata"`
+	OrgId          string                `json:"org_id" binding:"required"`
+	OrderId        string                `json:"cart_id" binding:"required"`
+	PaymentContext PaymentWebhookContext `json:"payment_context"`
+	Metadata       map[string]string     `json:"metadata"`
 }
 
 type CreateOrderCommandCustomer struct {

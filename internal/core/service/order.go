@@ -239,17 +239,8 @@ func (s *OrderService) CompleteCheckoutSession(ctx context.Context, input domain
 		return domain.Order{}, err
 	}
 
-	// The payment context comes from the webhook - extract what we need
-	paymentCtx, ok := input.PaymentContext.(port.PaymentWebhookContext)
-	if !ok {
-		// Try parsing from interface
-		var parseErr error
-		paymentCtx, parseErr = port.ParsePaymentWebhookContext(input.PaymentContext)
-		if parseErr != nil {
-			s.logger.Error("Failed to parse payment context", parseErr.Error())
-			return domain.Order{}, parseErr
-		}
-	}
+	// The payment context comes from the webhook
+	paymentCtx := input.PaymentContext
 
 	paymentMethod, err := s.paymentMethodRepository.Create(ctx, domain.PaymentMethod{
 		OrgId:          orgId,

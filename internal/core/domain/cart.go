@@ -38,3 +38,10 @@ type AdjustCommand struct {
 	PriceId   string `json:"price_id"`
 	Quantity  int    `json:"quantity"`
 }
+
+// TODO: resolve cart import - CreateCartInput.Cart was originally cart.Cart from payloop/internal/infrastructure/cart
+type CreateCartInput struct {
+	OrgId    string            `json:"org_id"`
+	Cart     interface{}       `json:"carts"`
+	Metadata map[string]string `json:"metadata"`
+}

@@ -139,6 +139,10 @@ type IdempotencyKeyRepository interface {
 	Create(ctx context.Context, key string, expiresAt time.Time) error
 }
 
+// UserRepository manages user persistence.
+type UserRepository interface {
+}
+
 // WebhookSubscriptionRepository manages webhook subscription persistence.
 type WebhookSubscriptionRepository interface {
 	Create(ctx context.Context, subscription domain.WebhookSubscription) (domain.WebhookSubscription, error)
