@@ -6,7 +6,6 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
 	"net/http"
-	
 )
 
 // RequestHandler function
@@ -27,14 +26,13 @@ func NewRequestHandler(logger Logger, reporter ErrorReporter) RequestHandler {
 		Repanic: true,
 	}))
 	engine.Use(func(c *gin.Context) {
-		logger.Debugf("-------- %s %s", c.Request.Method, c.Request.URL.Path)
+		logger.Debug("http request", "method", c.Request.Method, "path", c.Request.URL.Path)
 		c.Next()
 	})
-	// Register custom validations
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
 		err := v.RegisterValidation("iso4217", ValidateCurrency)
 		if err != nil {
-			logger.Errorf("Failed to register custom validator: %v", err)
+			logger.Error("failed to register custom validator", "error", err)
 		}
 	}
 

@@ -1,8 +1,6 @@
 package lib
 
 import (
-	"fmt"
-	"log"
 	"log/slog"
 	"os"
 )
@@ -24,7 +22,7 @@ type GinLogger struct {
 
 // Write implements io.Writer for gin-framework logging.
 func (l GinLogger) Write(p []byte) (n int, err error) {
-	l.Infof(string(p))
+	l.Info(string(p))
 	return len(p), nil
 }
 
@@ -32,52 +30,29 @@ type slogLogger struct {
 	logger *slog.Logger
 }
 
-func (l slogLogger) Debug(msg string, keysAndValues ...interface{}) {
-	l.logger.Debug(msg, keysAndValues...)
+func (l slogLogger) Debug(msg string, args ...any) {
+	l.logger.Debug(msg, args...)
 }
 
-func (l slogLogger) Info(msg string, keysAndValues ...interface{}) {
-	l.logger.Info(msg, keysAndValues...)
+func (l slogLogger) Info(msg string, args ...any) {
+	l.logger.Info(msg, args...)
 }
 
-func (l slogLogger) Warn(msg string, keysAndValues ...interface{}) {
-	l.logger.Warn(msg, keysAndValues...)
+func (l slogLogger) Warn(msg string, args ...any) {
+	l.logger.Warn(msg, args...)
 }
 
-func (l slogLogger) Error(msg string, keysAndValues ...interface{}) {
-	l.logger.Error(msg, keysAndValues...)
+func (l slogLogger) Error(msg string, args ...any) {
+	l.logger.Error(msg, args...)
+}
+
+func (l slogLogger) Fatal(msg string, args ...any) {
+	l.logger.Error(msg, args...)
+	os.Exit(1)
 }
 
 func (l slogLogger) Sync() error {
 	return nil
-}
-
-func (l slogLogger) Fatalf(msg string, keysAndValues ...interface{}) {
-	log.Fatal(msg, keysAndValues)
-}
-
-func (l slogLogger) Fatal(msg string, keysAndValues ...interface{}) {
-	log.Fatal(msg, keysAndValues)
-}
-
-func (l slogLogger) Infof(template string, args ...interface{}) {
-	l.logger.Info(fmt.Sprintf(template, args...))
-}
-
-func (l slogLogger) Debugf(template string, args ...interface{}) {
-	l.logger.Debug(fmt.Sprintf(template, args...))
-}
-
-func (l slogLogger) Errorf(template string, args ...interface{}) {
-	l.logger.Error(fmt.Sprintf(template, args...))
-}
-
-func (l slogLogger) Panicf(template string, args ...interface{}) {
-	l.logger.Error(fmt.Sprintf(template, args...))
-}
-
-func (l slogLogger) Warnf(template string, args ...interface{}) {
-	l.logger.Warn(fmt.Sprintf(template, args...))
 }
 
 // GetSlogLogger returns the underlying *slog.Logger for adapters that need it.
@@ -94,8 +69,6 @@ func GetSlogLogger() *slog.Logger {
 func newLogger(env Env) Logger {
 	var level slog.Level
 	switch env.LogLevel {
-	case "debug":
-		level = slog.LevelDebug
 	case "info":
 		level = slog.LevelInfo
 	case "warn":
@@ -103,7 +76,7 @@ func newLogger(env Env) Logger {
 	case "error":
 		level = slog.LevelError
 	default:
-		level = slog.LevelInfo
+		level = slog.LevelDebug
 	}
 
 	opts := &slog.HandlerOptions{
