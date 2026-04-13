@@ -6,21 +6,23 @@ import (
 )
 
 type PaymentMethod struct {
-	OrgId          string              `json:"org_id"`
-	Id             string              `json:"id"`
-	Status         PaymentMethodStatus `json:"status"`
-	Psp            string              `json:"psp"`
-	Name           string              `json:"name"`
-	CustomerId     string              `json:"customer_id"`
-	BillingAddress Address             `json:"billing_address,omitempty"`
-	Type           PaymentMethodType   `json:"type"`
-	Token          string              `json:"token"`
-	Details        interface{}         `json:"details,omitempty"`
-	Metadata       map[string]string   `json:"metadata,omitempty"`
-	ExpireAt       time.Time           `json:"expire_at,omitempty"`
-	CreatedAt      time.Time           `json:"created_at,omitempty"`
-	UpdatedAt      time.Time           `json:"updated_at,omitempty"`
+	OrgId          string              `gorm:"column:org_id;primaryKey" json:"org_id"`
+	Id             string              `gorm:"column:id;primaryKey" json:"id"`
+	Status         PaymentMethodStatus `gorm:"column:status" json:"status"`
+	Psp            string              `gorm:"column:psp" json:"psp"`
+	Name           string              `gorm:"column:name" json:"name"`
+	CustomerId     string              `gorm:"column:customer_id" json:"customer_id"`
+	BillingAddress Address             `gorm:"column:billing_address;serializer:json" json:"billing_address,omitempty"`
+	Type           PaymentMethodType   `gorm:"column:type" json:"type"`
+	Token          string              `gorm:"column:token" json:"token"`
+	Details        interface{}         `gorm:"column:details;serializer:json" json:"details,omitempty"`
+	Metadata       map[string]string   `gorm:"column:metadata;serializer:json" json:"metadata,omitempty"`
+	ExpireAt       time.Time           `gorm:"column:expire_at" json:"expire_at,omitempty"`
+	CreatedAt      time.Time           `gorm:"column:created_at" json:"created_at,omitempty"`
+	UpdatedAt      time.Time           `gorm:"column:updated_at" json:"updated_at,omitempty"`
 }
+
+func (PaymentMethod) TableName() string { return "payment_methods" }
 
 type Address struct {
 	FirstName  string  `json:"first_name,omitempty"`

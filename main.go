@@ -1,12 +1,15 @@
 package main
 
 import (
-	"payloop/internal/application/bootstrap"
+	"payloop/internal/config"
 )
 
 func main() {
-	err := bootstrap.RootApp.Execute()
+	app, err := config.NewApp()
 	if err != nil {
+		panic(err)
+	}
+	if err := app.Run(); err != nil {
 		panic(err)
 	}
 }

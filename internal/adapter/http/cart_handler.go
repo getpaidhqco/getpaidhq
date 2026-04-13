@@ -10,12 +10,12 @@ import (
 
 // CartHandler handles HTTP requests for domain.
 type CartHandler struct {
-	cartService service.CartService
+	cartService *service.CartService
 	logger      port.Logger
 }
 
 // NewCartHandler creates a new CartHandler.
-func NewCartHandler(cartService service.CartService, logger port.Logger) *CartHandler {
+func NewCartHandler(cartService *service.CartService, logger port.Logger) *CartHandler {
 	return &CartHandler{
 		cartService: cartService,
 		logger:      logger,

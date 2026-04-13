@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
-	"payloop/internal/domain/payment_providers"
 	"time"
 )
 
@@ -73,10 +72,10 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.
 	s.logger.Infof("Webhook parsed [%s][%s][%s][%s]", webhook.OrgId, webhook.OrderId, webhook.Psp, webhook.Type)
 
 	switch webhook.Type {
-	case payment_providers.PaymentSuccess:
+	case domain.PaymentSuccess:
 		// start workflow
 		s.workflowEngine.StartWorkflow(ctx, port.WorkflowPaymentSuccess, webhook)
-	case payment_providers.RecurringSuccess:
+	case domain.RecurringSuccess:
 		subs, err := s.subscriptionRepository.FindByOrderId(ctx, webhook.OrgId, webhook.OrderId)
 		if err != nil {
 			s.logger.Error("Failed to get subscriptions", err.Error())
@@ -104,7 +103,7 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.
 		// signal the workflow
 		err = s.workflowEngine.SignalSubscriptionWorkflow(ctx, "webhook-signal", subscription, chargeResult)
 
-	case payment_providers.PaymentRefunded:
+	case domain.PaymentRefunded:
 		// start workflow
 		_, err := s.workflowEngine.StartWorkflow(ctx, port.WorkflowPaymentRefunded, webhook)
 		if err != nil {

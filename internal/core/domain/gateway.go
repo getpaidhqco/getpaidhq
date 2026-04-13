@@ -32,8 +32,7 @@ type ChargePaymentCommand struct {
 
 type InitPaymentCommand struct {
 	OrgId    string
-	// TODO: resolve cart import
-	Cart     interface{}
+	Cart     Cart
 	Order    Order
 	Customer Customer
 	Options  map[string]string

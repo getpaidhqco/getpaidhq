@@ -3,29 +3,33 @@ package domain
 import "time"
 
 type Customer struct {
-	OrgId                  string            `json:"org_id"`
-	Id                     string            `json:"id"`
-	FirstName              string            `json:"first_name,omitempty"`
-	LastName               string            `json:"last_name,omitempty"`
-	Email                  string            `json:"email,omitempty"`
-	Phone                  string            `json:"phone,omitempty"`
-	DefaultPaymentMethodId string            `json:"default_payment_method_id,omitempty"`
-	BillingAddress         Address           `json:"billing_address,omitempty"`
-	Metadata               map[string]string `json:"metadata,omitempty"`
-	CreatedAt              time.Time         `json:"created_at"`
-	UpdatedAt              time.Time         `json:"updated_at"`
+	OrgId                  string            `gorm:"column:org_id;primaryKey" json:"org_id"`
+	Id                     string            `gorm:"column:id;primaryKey" json:"id"`
+	FirstName              string            `gorm:"column:first_name" json:"first_name,omitempty"`
+	LastName               string            `gorm:"column:last_name" json:"last_name,omitempty"`
+	Email                  string            `gorm:"column:email" json:"email,omitempty"`
+	Phone                  string            `gorm:"column:phone" json:"phone,omitempty"`
+	DefaultPaymentMethodId string            `gorm:"column:default_payment_method_id" json:"default_payment_method_id,omitempty"`
+	BillingAddress         Address           `gorm:"column:billing_address;serializer:json" json:"billing_address,omitempty"`
+	Metadata               map[string]string `gorm:"column:metadata;serializer:json" json:"metadata,omitempty"`
+	CreatedAt              time.Time         `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt              time.Time         `gorm:"column:updated_at" json:"updated_at"`
 }
 
+func (Customer) TableName() string { return "customers" }
+
 type CustomerCohort struct {
-	OrgId       string            `json:"org_id"`
-	CustomerId  string            `json:"customer_id"`
-	CohortId    string            `json:"cohort_id"`
-	CohortValue string            `json:"cohort_value"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
-	JoinedAt    time.Time         `json:"joined_at"`
-	CreatedAt   time.Time         `json:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at"`
+	OrgId       string            `gorm:"column:org_id;primaryKey" json:"org_id"`
+	CustomerId  string            `gorm:"column:customer_id;primaryKey" json:"customer_id"`
+	CohortId    string            `gorm:"column:cohort_id;primaryKey" json:"cohort_id"`
+	CohortValue string            `gorm:"column:cohort_value" json:"cohort_value"`
+	Metadata    map[string]string `gorm:"-" json:"metadata,omitempty"`
+	JoinedAt    time.Time         `gorm:"column:joined_at" json:"joined_at"`
+	CreatedAt   time.Time         `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt   time.Time         `gorm:"column:updated_at" json:"updated_at"`
 }
+
+func (CustomerCohort) TableName() string { return "customer_cohorts" }
 
 type CohortType string
 
@@ -35,11 +39,13 @@ const (
 )
 
 type Cohort struct {
-	OrgId     string            `json:"org_id"`
-	Id        string            `json:"id"`
-	Name      string            `json:"name,omitempty"`
-	Type      CohortType        `json:"type,omitempty"`
-	Metadata  map[string]string `json:"metadata,omitempty"`
-	CreatedAt time.Time         `json:"created_at"`
-	UpdatedAt time.Time         `json:"updated_at"`
+	OrgId     string            `gorm:"column:org_id;primaryKey" json:"org_id"`
+	Id        string            `gorm:"column:id;primaryKey" json:"id"`
+	Name      string            `gorm:"column:name" json:"name,omitempty"`
+	Type      CohortType        `gorm:"column:type" json:"type,omitempty"`
+	Metadata  map[string]string `gorm:"column:metadata;serializer:json" json:"metadata,omitempty"`
+	CreatedAt time.Time         `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt time.Time         `gorm:"column:updated_at" json:"updated_at"`
 }
+
+func (Cohort) TableName() string { return "cohorts" }

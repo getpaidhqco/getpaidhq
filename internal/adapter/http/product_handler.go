@@ -12,13 +12,13 @@ import (
 
 // ProductHandler handles HTTP requests for products, variants, and prices.
 type ProductHandler struct {
-	productService service.ProductService
+	productService *service.ProductService
 	logger         port.Logger
 	authz          port.Authz
 }
 
 // NewProductHandler creates a new ProductHandler.
-func NewProductHandler(productService service.ProductService, logger port.Logger, authz port.Authz) *ProductHandler {
+func NewProductHandler(productService *service.ProductService, logger port.Logger, authz port.Authz) *ProductHandler {
 	return &ProductHandler{
 		productService: productService,
 		logger:         logger,

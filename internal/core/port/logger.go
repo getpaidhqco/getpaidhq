@@ -1,19 +1,7 @@
 package port
 
-// Logger defines the logging interface used throughout the application.
-type Logger interface {
-	Debug(msg string, args ...any)
-	Info(msg string, args ...any)
-	Warn(msg string, args ...any)
-	Error(msg string, args ...any)
-	Fatal(msg string, args ...any)
+import "payloop/internal/lib"
 
-	Debugf(template string, args ...interface{})
-	Infof(template string, args ...interface{})
-	Warnf(template string, args ...interface{})
-	Errorf(template string, args ...interface{})
-	Panicf(template string, args ...interface{})
-	Fatalf(template string, args ...interface{})
-
-	Sync() error
-}
+// Logger is an alias for lib.Logger - the core logging interface.
+// Defined in lib to avoid import cycles (domain -> lib -> port -> domain).
+type Logger = lib.Logger

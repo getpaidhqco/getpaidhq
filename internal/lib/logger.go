@@ -8,24 +8,23 @@ import (
 	"go.uber.org/zap/zapcore"
 	"log"
 	"log/slog"
-	"payloop/internal/application/lib/logger"
 )
 
 var (
-	globalLogger logger.Logger
+	globalLogger Logger
 	zapLogger    *zap.Logger
 )
 
 type GinLogger struct {
-	logger.Logger
+	Logger
 }
 
 type FxLogger struct {
-	logger.Logger
+	Logger
 }
 
 // GetLogger get the logger
-func GetLogger() logger.Logger {
+func GetLogger() Logger {
 	if globalLogger == nil {
 		ll := newLogger(NewEnv(), zap.WithCaller(true))
 		globalLogger = ll
@@ -37,7 +36,7 @@ type MyLogger struct {
 	logger *slog.Logger
 }
 
-// Implementing all methods of logger.Logger to MyLogger
+// Implementing all methods of Logger to MyLogger
 func (l MyLogger) Debug(msg string, keysAndValues ...interface{}) {
 	l.logger.Debug(msg, keysAndValues...)
 }
@@ -54,7 +53,7 @@ func (l MyLogger) Error(msg string, keysAndValues ...interface{}) {
 	l.logger.Error(msg, keysAndValues...)
 }
 
-func (l MyLogger) With(args ...interface{}) logger.Logger {
+func (l MyLogger) With(args ...interface{}) Logger {
 	return MyLogger{logger: l.logger.With(args...)}
 }
 
@@ -158,7 +157,7 @@ func (l *FxLogger) LogEvent(event fxevent.Event) {
 }
 
 // newLogger sets up logger
-func newLogger(env Env, opts ...zap.Option) logger.Logger {
+func newLogger(env Env, opts ...zap.Option) Logger {
 	config := zap.NewDevelopmentConfig()
 	logOutput := env.LogOutput
 

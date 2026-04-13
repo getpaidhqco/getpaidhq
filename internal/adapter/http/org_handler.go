@@ -9,12 +9,12 @@ import (
 
 // OrgHandler handles HTTP requests for organizations.
 type OrgHandler struct {
-	service service.OrgService
+	service *service.OrgService
 	logger  port.Logger
 }
 
 // NewOrgHandler creates a new OrgHandler.
-func NewOrgHandler(service service.OrgService, logger port.Logger) *OrgHandler {
+func NewOrgHandler(service *service.OrgService, logger port.Logger) *OrgHandler {
 	return &OrgHandler{
 		service: service,
 		logger:  logger,

@@ -9,12 +9,12 @@ import (
 
 // UserHandler handles HTTP requests for users.
 type UserHandler struct {
-	service service.UserService
+	service *service.UserService
 	logger  port.Logger
 }
 
 // NewUserHandler creates a new UserHandler.
-func NewUserHandler(userService service.UserService, logger port.Logger) *UserHandler {
+func NewUserHandler(userService *service.UserService, logger port.Logger) *UserHandler {
 	return &UserHandler{
 		service: userService,
 		logger:  logger,

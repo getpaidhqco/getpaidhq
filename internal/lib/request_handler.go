@@ -6,8 +6,7 @@ import (
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
 	"net/http"
-	request_validator "payloop/internal/api/dto/validator"
-	"payloop/internal/application/lib/logger"
+	
 )
 
 // RequestHandler function
@@ -16,7 +15,7 @@ type RequestHandler struct {
 }
 
 // NewRequestHandler creates a new request handler
-func NewRequestHandler(logger logger.Logger, reporter ErrorReporter) RequestHandler {
+func NewRequestHandler(logger Logger, reporter ErrorReporter) RequestHandler {
 	engine := gin.Default()
 	engine.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -33,7 +32,7 @@ func NewRequestHandler(logger logger.Logger, reporter ErrorReporter) RequestHand
 	})
 	// Register custom validations
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		err := v.RegisterValidation("iso4217", request_validator.ValidateCurrency)
+		err := v.RegisterValidation("iso4217", ValidateCurrency)
 		if err != nil {
 			logger.Errorf("Failed to register custom validator: %v", err)
 		}

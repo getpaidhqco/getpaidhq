@@ -12,17 +12,19 @@ import (
 // OrderService merges the previous OrderService + OrderWorkflowService.
 // CompleteCheckoutSession is now a method on this unified service.
 type OrderService struct {
-	engine                 port.Engine
-	sessionRepository      port.SessionRepository
-	cartRepository         port.CartRepository
-	priceRepository        port.PriceRepository
-	orderRepository        port.OrderRepository
-	customerRepository     port.CustomerRepository
-	subscriptionRepository port.SubscriptionRepository
+	engine                  port.Engine
+	sessionRepository       port.SessionRepository
+	cartRepository          port.CartRepository
+	priceRepository         port.PriceRepository
+	orderRepository         port.OrderRepository
+	customerRepository      port.CustomerRepository
+	subscriptionRepository  port.SubscriptionRepository
 	paymentMethodRepository port.PaymentMethodRepository
-	paymentRepository      port.PaymentRepository
-	pubsub                 port.PubSub
-	logger                 port.Logger
+	paymentRepository       port.PaymentRepository
+	productRepository       port.ProductRepository
+	gatewayFactory          port.GatewayFactory
+	pubsub                  port.PubSub
+	logger                  port.Logger
 }
 
 func NewOrderService(
@@ -35,6 +37,8 @@ func NewOrderService(
 	subscriptionRepository port.SubscriptionRepository,
 	paymentRepository port.PaymentRepository,
 	paymentMethodRepository port.PaymentMethodRepository,
+	productRepository port.ProductRepository,
+	gatewayFactory port.GatewayFactory,
 	pubsub port.PubSub,
 	logger port.Logger,
 ) *OrderService {
@@ -47,6 +51,8 @@ func NewOrderService(
 		cartRepository:          cartRepository,
 		subscriptionRepository:  subscriptionRepository,
 		orderRepository:         orderRepository,
+		productRepository:       productRepository,
+		gatewayFactory:          gatewayFactory,
 		logger:                  logger,
 		paymentRepository:       paymentRepository,
 		pubsub:                  pubsub,
@@ -54,10 +60,216 @@ func NewOrderService(
 }
 
 // CreateOrder creates a new order from a session/cart or direct cart items.
-// TODO: port full CreateOrder logic from old OrderService (depends on cart infrastructure)
 func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrderInput) (domain.CreateOrderResponse, error) {
-	s.logger.Info("Creating order", "orgId", input.OrgId)
-	return domain.CreateOrderResponse{}, errors.New("CreateOrder: not yet ported - depends on cart infrastructure migration")
+	s.logger.Info("Creating order for cart", "session", input.SessionId)
+	orgId := input.OrgId
+	orderId := lib.GenerateId("order")
+	var customerEntity domain.Customer
+	var err error
+	var orderCart domain.Cart
+	currency := input.Currency
+
+	createPspSession := true
+	if input.SessionId == "" {
+		// no session, so we need to have a payment method set before we can activate the order
+		createPspSession = false
+	}
+
+	// check if the cart exists
+	if input.SessionId != "" {
+		session, err := s.sessionRepository.FindById(ctx, orgId, input.SessionId)
+		if err != nil {
+			s.logger.Error("Failed to find session id ", "id", input.SessionId, err.Error())
+			return domain.CreateOrderResponse{}, lib.NewCustomError(lib.NotFoundError, "session not found", nil)
+		}
+
+		existingCart, err := s.cartRepository.FindById(ctx, orgId, session.CartId)
+		if err != nil {
+			s.logger.Error("Failed to find cart id ", "id", input.SessionId, err.Error())
+			return domain.CreateOrderResponse{}, lib.NewCustomError(lib.NotFoundError, "cart not found", nil)
+		}
+		orderCart = existingCart
+		currency = orderCart.Data.Currency
+	} else {
+		// Create a cart from the items in the input
+		orderCart = domain.Cart{
+			OrgId: orgId,
+			Id:    lib.GenerateId("cart"),
+			Data: domain.CartData{
+				Currency: currency,
+			},
+		}
+
+		for _, item := range input.CartItems {
+			product, err := s.productRepository.FindById(ctx, orgId, item.ProductId)
+			if err != nil {
+				s.logger.Error("Failed to find product", err.Error())
+				return domain.CreateOrderResponse{}, lib.NewCustomError(lib.InternalError, "Can't add item to cart", err)
+			}
+
+			price, err := s.priceRepository.FindById(ctx, orgId, item.PriceId)
+			if err != nil {
+				s.logger.Error("Failed to find price", err.Error())
+				return domain.CreateOrderResponse{}, lib.NewCustomError(lib.InternalError, "Can't add item to cart", err)
+			}
+
+			orderCart.Data.Items = append(orderCart.Data.Items, domain.CartLineItem{
+				Id:            lib.GenerateId("ci"),
+				ProductId:     product.Id,
+				Price:         domain.PriceToCartItemPrice(price),
+				Description:   product.Name,
+				Quantity:      int64(item.Quantity),
+				UnitPrice:     price.UnitPrice,
+				SubTotal:      price.UnitPrice * int64(item.Quantity),
+				DiscountTotal: 0,
+				TaxTotal:      0,
+				ShippingTotal: 0,
+				Total:         price.UnitPrice * int64(item.Quantity),
+			})
+		}
+		orderCart.Calculate()
+
+		_, err := s.cartRepository.Create(ctx, domain.Cart{
+			OrgId: input.OrgId,
+			Id:    orderCart.Id,
+			Data:  orderCart.Data,
+			Total: orderCart.Total,
+		})
+		if err != nil {
+			s.logger.Error("failed to create cart", err)
+			return domain.CreateOrderResponse{}, err
+		}
+	}
+
+	// validate that the cart is not empty
+	if len(orderCart.Data.Items) == 0 {
+		return domain.CreateOrderResponse{}, errors.New("cart is empty")
+	}
+
+	// Get or create the customer
+	if input.Customer.Id != "" {
+		customerEntity, err = s.customerRepository.FindById(ctx, orgId, input.Customer.Id)
+		if err != nil {
+			s.logger.Error("Failed to find customer", err.Error())
+			return domain.CreateOrderResponse{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+		}
+	} else {
+		customerEntity, err = s.customerRepository.Create(ctx, domain.Customer{
+			OrgId:     orgId,
+			Id:        lib.GenerateId("customer"),
+			FirstName: input.Customer.FirstName,
+			LastName:  input.Customer.LastName,
+			Phone:     input.Customer.Phone,
+			Email:     input.Customer.Email,
+		})
+		if err != nil {
+			var derr lib.DatabaseError
+			if errors.As(err, &derr) && derr.Code == lib.UniqueKeyViolation {
+				customerEntity, err = s.customerRepository.Update(ctx, domain.Customer{
+					OrgId:     orgId,
+					Id:        lib.GenerateId("customer"),
+					FirstName: input.Customer.FirstName,
+					LastName:  input.Customer.LastName,
+					Phone:     input.Customer.Phone,
+					Email:     input.Customer.Email,
+				})
+				if err != nil {
+					s.logger.Error("Failed to update customer", err.Error())
+					return domain.CreateOrderResponse{}, err
+				}
+			} else {
+				s.logger.Error("Failed to create customer", err.Error())
+				return domain.CreateOrderResponse{}, err
+			}
+		}
+	}
+
+	ref := time.Now().Format("20060102150405")
+	order, err := s.orderRepository.Create(ctx, domain.Order{
+		OrgId:      orgId,
+		Id:         orderId,
+		Reference:  ref,
+		CustomerId: customerEntity.Id,
+		Status:     domain.OrderStatusPending,
+		SessionId:  input.SessionId,
+		CartId:     orderCart.Id,
+		Currency:   currency,
+		Total:      orderCart.Total,
+		Metadata:   input.Metadata,
+		CreatedAt:  time.Now().UTC(),
+		UpdatedAt:  time.Now().UTC(),
+	})
+	if err != nil {
+		s.logger.Error("Failed to create order", err.Error())
+		return domain.CreateOrderResponse{}, err
+	}
+
+	// Go through the list of items in the cart and create the order items for each item
+	for _, item := range orderCart.Data.Items {
+		orderItem, err := s.orderRepository.CreateOrderItem(ctx, domain.OrderItem{
+			OrgId:         orgId,
+			Id:            lib.GenerateId("order_item"),
+			OrderId:       orderId,
+			ProductId:     item.ProductId,
+			PriceId:       item.Price.Id,
+			Description:   item.Description,
+			Quantity:      int(item.Quantity),
+			TaxTotal:      item.TaxTotal,
+			DiscountTotal: item.DiscountTotal,
+			Subtotal:      item.SubTotal,
+			Total:         item.Total,
+			Metadata:      nil,
+			CreatedAt:     time.Now().UTC(),
+			UpdatedAt:     time.Now().UTC(),
+		})
+		if err != nil {
+			s.logger.Error("Failed to create order item", "item", item, "err", err.Error())
+			return domain.CreateOrderResponse{}, err
+		}
+
+		if orderItem.Price.Category == domain.PriceCategorySubscription {
+			subscription := domain.NewSubscriptionFromOrderItem(orderItem)
+			subscription.CustomerId = customerEntity.Id
+			subscription.PspId = input.PspId
+			subscription.PaymentMethodId = input.PaymentMethodId
+
+			_, err := s.subscriptionRepository.Create(ctx, subscription)
+			if err != nil {
+				s.logger.Error("Failed to create subscription", "item", item, err.Error())
+				return domain.CreateOrderResponse{}, err
+			}
+			_ = s.pubsub.Publish(orgId, port.TopicSubscriptionCreated, subscription)
+		}
+	}
+
+	var pspResponse domain.InitPaymentResponse
+	if createPspSession {
+		s.logger.Debugf("Creating payment session for order %s", order.Id)
+		gw, err := s.gatewayFactory.NewGateway(ctx, orgId, string(input.PspId))
+		if err != nil {
+			s.logger.Error("Failed to get gateway", "err", err.Error())
+			return domain.CreateOrderResponse{}, err
+		}
+		// initialise the payment session with the payment processor
+		pspResponse, err = gw.InitPayment(ctx, domain.InitPaymentCommand{
+			OrgId:    orgId,
+			Cart:     orderCart,
+			Order:    order,
+			Customer: customerEntity,
+			Options:  input.Options,
+		})
+		if err != nil {
+			s.logger.Error("Failed to initialise payment gateway", err.Error())
+			return domain.CreateOrderResponse{}, err
+		}
+	}
+
+	newOrder, _ := s.orderRepository.FindById(ctx, orgId, order.Id)
+
+	return domain.CreateOrderResponse{
+		Order: newOrder,
+		Psp:   pspResponse,
+	}, nil
 }
 
 func (s *OrderService) FindById(ctx context.Context, orgId string, id string) (domain.Order, error) {
@@ -227,7 +439,7 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input domain.CompleteO
 }
 
 // CompleteCheckoutSession marks a pending order as completed via a payment webhook.
-// This handles the PSP-triggered flow (Paystack/Checkout.com webhook → order completion).
+// This handles the PSP-triggered flow (Paystack/Checkout.com webhook -> order completion).
 func (s *OrderService) CompleteCheckoutSession(ctx context.Context, input domain.CompleteCheckoutSessionInput) (domain.Order, error) {
 	s.logger.Info("Completing order via checkout session", "order_id", input.OrderId)
 	orgId := input.OrgId

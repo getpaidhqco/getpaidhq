@@ -2,17 +2,16 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
-	// TODO: move cart types out of infrastructure - this import should become a domain/port reference
-	cartlib "payloop/internal/infrastructure/cart"
+	"payloop/internal/lib"
 )
 
 type CartService struct {
 	cartRepository    port.CartRepository
 	priceRepository   port.PriceRepository
 	productRepository port.ProductRepository
-	cartFactory       *CartFactory
 	logger            port.Logger
 }
 
@@ -20,11 +19,9 @@ func NewCartService(
 	repo port.CartRepository,
 	priceRepository port.PriceRepository,
 	logger port.Logger,
-	cartFactory *CartFactory,
 	productRepository port.ProductRepository,
 ) *CartService {
 	return &CartService{
-		cartFactory:       cartFactory,
 		cartRepository:    repo,
 		priceRepository:   priceRepository,
 		productRepository: productRepository,
@@ -44,19 +41,39 @@ func (s *CartService) AddProduct(ctx context.Context, input domain.AddProductCom
 		return domain.Cart{}, err
 	}
 
-	// TODO: resolve cart factory - NewFromEntity depends on infrastructure cart types
-	// For now, use the cart library directly with a type assertion
-	_ = cartEntity
-	_ = cartlib.AddItemInput{
-		ProductId: input.ProductId,
-		PriceId:   input.PriceId,
-		Quantity:  input.Quantity,
+	product, err := s.productRepository.FindById(ctx, input.OrgId, input.ProductId)
+	if err != nil {
+		s.logger.Error("Product doesnt exist", "product_id", input.ProductId, err.Error())
+		return domain.Cart{}, lib.NewCustomError(
+			lib.NotFoundError, fmt.Sprintf("Product %s not found", input.ProductId),
+			err,
+		)
 	}
 
-	// TODO: complete this once cart types are moved to domain
-	// cartInstance := s.cartFactory.NewFromEntity(cartEntity)
-	// _, err = cartInstance.AddItem(ctx, cartlib.AddItemInput{...})
-	// cartEntity.Data = cartInstance.CartData
+	price, err := s.priceRepository.FindById(ctx, input.OrgId, input.PriceId)
+	if err != nil {
+		s.logger.Error("Price doesnt exist", "price_id", input.PriceId, err.Error())
+		return domain.Cart{}, lib.NewCustomError(
+			lib.NotFoundError, fmt.Sprintf("Price %s not found", input.PriceId),
+			err,
+		)
+	}
+
+	cartEntity.Data.Items = append(cartEntity.Data.Items, domain.CartLineItem{
+		Id:            lib.GenerateId("ci"),
+		ProductId:     product.Id,
+		Price:         domain.PriceToCartItemPrice(price),
+		Description:   product.Name,
+		Quantity:      int64(input.Quantity),
+		UnitPrice:     price.UnitPrice,
+		SubTotal:      price.UnitPrice * int64(input.Quantity),
+		DiscountTotal: 0,
+		TaxTotal:      0,
+		ShippingTotal: 0,
+		Total:         price.UnitPrice * int64(input.Quantity),
+	})
+	cartEntity.Calculate()
+
 	_, err = s.cartRepository.Update(ctx, cartEntity)
 	if err != nil {
 		s.logger.Error(`failed to update cart`, err)
@@ -74,10 +91,8 @@ func (s *CartService) RemoveItem(ctx context.Context, input domain.RemoveItemCom
 		return domain.Cart{}, err
 	}
 
-	// TODO: resolve cart factory - NewFromEntity depends on infrastructure cart types
-	// cartInstance := s.cartFactory.NewFromEntity(cartEntity)
-	// _, err = cartInstance.RemoveItem(input.Id)
-	// cartEntity.Data = cartInstance.CartData
+	cartEntity.RemoveItem(input.Id)
+
 	_, err = s.cartRepository.Update(ctx, cartEntity)
 	if err != nil {
 		s.logger.Error(`failed to update cart`, err)
@@ -95,10 +110,11 @@ func (s *CartService) AdjustItem(ctx context.Context, input domain.AdjustCommand
 		return domain.Cart{}, err
 	}
 
-	// TODO: resolve cart factory - NewFromEntity depends on infrastructure cart types
-	// cartInstance := s.cartFactory.NewFromEntity(cartEntity)
-	// _, err = cartInstance.RemoveItem(input.ProductId)
-	// cartEntity.Data = cartInstance.CartData
+	err = cartEntity.AdjustQuantity(input.ProductId, int64(input.Quantity))
+	if err != nil {
+		return domain.Cart{}, err
+	}
+
 	_, err = s.cartRepository.Update(ctx, cartEntity)
 	if err != nil {
 		s.logger.Error(`failed to update cart`, err)

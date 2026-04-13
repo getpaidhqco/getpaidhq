@@ -3,12 +3,14 @@ package domain
 import "time"
 
 type Session struct {
-	OrgId     string    `json:"org_id"`
-	Id        string    `json:"id"`
-	CartId    string    `json:"cart_id"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	OrgId     string    `gorm:"column:org_id;primaryKey" json:"org_id"`
+	Id        string    `gorm:"column:id;primaryKey" json:"id"`
+	CartId    string    `gorm:"column:cart_id" json:"cart_id"`
+	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
 }
+
+func (Session) TableName() string { return "sessions" }
 
 type CreateSessionInput struct {
 	OrgId    string            `json:"org_id"`
