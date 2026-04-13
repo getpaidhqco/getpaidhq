@@ -2,7 +2,7 @@ package temporal
 
 import (
 	"go.uber.org/fx"
-	"payloop/internal/adapter/in/worker/temporal/activities"
+	"payloop/internal/adapter/temporal/activities"
 )
 
 // Module exports dependency

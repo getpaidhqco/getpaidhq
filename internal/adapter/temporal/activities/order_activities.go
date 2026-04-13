@@ -6,7 +6,7 @@ import (
 	"errors"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
-	"payloop/internal/adapter/in/worker/temporal/types"
+	"payloop/internal/adapter/temporal/types"
 	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
 	"payloop/internal/lib"

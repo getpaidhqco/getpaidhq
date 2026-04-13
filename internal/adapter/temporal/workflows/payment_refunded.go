@@ -3,7 +3,7 @@ package workflows
 import (
 	"errors"
 	temporalio "go.temporal.io/sdk/temporal"
-	"payloop/internal/adapter/in/worker/temporal/activities"
+	"payloop/internal/adapter/temporal/activities"
 	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
 	"time"
