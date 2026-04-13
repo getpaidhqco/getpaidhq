@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 type Order struct {
 	OrgId      string            `gorm:"column:org_id;primaryKey" json:"org_id"`
@@ -20,6 +23,19 @@ type Order struct {
 }
 
 func (Order) TableName() string { return "orders" }
+
+func (o *Order) Validate() error {
+	if o.OrgId == "" {
+		return errors.New("org_id is required")
+	}
+	if o.Id == "" {
+		return errors.New("id is required")
+	}
+	if o.CustomerId == "" {
+		return errors.New("customer_id is required")
+	}
+	return nil
+}
 
 // SetMetadata merges the existing metadata with the specified values.
 func (o *Order) SetMetadata(meta map[string]string) *Order {

@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -34,8 +35,11 @@ func (s *ReportHandler) RegisterRoutes(rg *gin.RouterGroup) {
 }
 
 func (s *ReportHandler) GetMRR(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 
 	startTime, err := time.Parse(time.DateOnly, c.Query("start_date"))
 	if err != nil {
@@ -63,8 +67,11 @@ func (s *ReportHandler) GetMRR(c *gin.Context) {
 }
 
 func (s *ReportHandler) GetARR(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 	startTime, err := time.Parse(time.DateOnly, c.Query("start_date"))
 	if err != nil {
 		apiErr := NewApiErrorFromError(err)
@@ -91,8 +98,11 @@ func (s *ReportHandler) GetARR(c *gin.Context) {
 }
 
 func (s *ReportHandler) GetSubscribers(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 	startTime, err := time.Parse(time.DateOnly, c.Query("start_date"))
 	if err != nil {
 		apiErr := NewApiErrorFromError(err)
@@ -119,8 +129,11 @@ func (s *ReportHandler) GetSubscribers(c *gin.Context) {
 }
 
 func (s *ReportHandler) GetRefundTotals(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 	startTime, err := time.Parse(time.DateOnly, c.Query("start_date"))
 	if err != nil {
 		apiErr := NewApiErrorFromError(err)
@@ -147,8 +160,11 @@ func (s *ReportHandler) GetRefundTotals(c *gin.Context) {
 }
 
 func (s *ReportHandler) GetCustomerChurnTotals(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 	startTime, err := time.Parse(time.DateOnly, c.Query("start_date"))
 	if err != nil {
 		apiErr := NewApiErrorFromError(err)
@@ -175,8 +191,11 @@ func (s *ReportHandler) GetCustomerChurnTotals(c *gin.Context) {
 }
 
 func (s *ReportHandler) GetCustomerChurnRates(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 	startTime, err := time.Parse(time.DateOnly, c.Query("start_date"))
 	if err != nil {
 		apiErr := NewApiErrorFromError(err)

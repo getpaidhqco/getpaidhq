@@ -1,9 +1,12 @@
 package domain
 
 import (
+	"errors"
 	"payloop/internal/lib"
 	"time"
 )
+
+const hoursPerDay = 24
 
 type CreateSubscriptionInput struct {
 	OrgId string `json:"org_id"`
@@ -83,6 +86,25 @@ type Subscription struct {
 
 func (Subscription) TableName() string { return "subscriptions" }
 
+func (s *Subscription) Validate() error {
+	if s.OrgId == "" {
+		return errors.New("org_id is required")
+	}
+	if s.Id == "" {
+		return errors.New("id is required")
+	}
+	if s.Amount < 0 {
+		return errors.New("amount must not be negative")
+	}
+	if s.BillingInterval == "" {
+		return errors.New("billing_interval is required")
+	}
+	if s.BillingIntervalQty <= 0 {
+		return errors.New("billing_interval_qty must be positive")
+	}
+	return nil
+}
+
 type ProrationDetails struct {
 	CreditAmount       int       `json:"credit_amount"`
 	DaysCredited       int       `json:"days_credited"`
@@ -116,12 +138,12 @@ func (s *Subscription) CalculateProrationDetails(
 	}
 
 	if prorationMode == "credit_unused" {
-		totalDays := int(s.CurrentPeriodEnd.Sub(s.CurrentPeriodStart).Hours() / 24)
+		totalDays := int(s.CurrentPeriodEnd.Sub(s.CurrentPeriodStart).Hours() / hoursPerDay)
 		if totalDays <= 0 {
 			return details
 		}
 
-		daysRemaining := int(s.CurrentPeriodEnd.Sub(referenceDate).Hours() / 24)
+		daysRemaining := int(s.CurrentPeriodEnd.Sub(referenceDate).Hours() / hoursPerDay)
 		if daysRemaining <= 0 {
 			return details
 		}

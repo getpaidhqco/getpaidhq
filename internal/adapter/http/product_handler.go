@@ -1,12 +1,13 @@
 package handler
 
 import (
-	"github.com/gin-gonic/gin"
 	"net/http"
 
-	"payloop/internal/core/service"
+	"github.com/gin-gonic/gin"
+
 	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
+	"payloop/internal/core/service"
 	"payloop/internal/lib"
 )
 
@@ -52,13 +53,16 @@ func (s *ProductHandler) RegisterRoutes(rg *gin.RouterGroup) {
 
 func (s *ProductHandler) checkAuthz(action port.Action) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		user, _ := c.Get("user")
-		authUser := user.(port.AuthUser)
+		authUser, err := getAuthUser(c)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+			c.Abort()
+			return
+		}
 		allowed := s.authz.Enforce(authUser, action, "")
 		if !allowed {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Unauthorized",
-			})
+			apiErr := NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+			c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 			c.Abort()
 			return
 		}
@@ -67,8 +71,11 @@ func (s *ProductHandler) checkAuthz(action port.Action) gin.HandlerFunc {
 }
 
 func (s *ProductHandler) Get(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 	orgId := authUser.OrgId
 	id := c.Param("id")
 
@@ -84,8 +91,11 @@ func (s *ProductHandler) Get(c *gin.Context) {
 
 func (s *ProductHandler) Create(c *gin.Context) {
 	var input domain.CreateProductInput
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 
 	allowed := s.authz.Enforce(authUser, port.ActionCreateProduct, "")
 	if !allowed {
@@ -111,8 +121,12 @@ func (s *ProductHandler) Create(c *gin.Context) {
 }
 
 func (s *ProductHandler) List(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	pagination := GetPagination(c)
 
 	prods, total, err := s.productService.List(c.Request.Context(), orgId, pagination)
@@ -139,8 +153,11 @@ func (s *ProductHandler) List(c *gin.Context) {
 
 func (s *ProductHandler) Update(c *gin.Context) {
 	var input domain.UpdateProductInput
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 	orgId := authUser.OrgId
 	id := c.Param("id")
 
@@ -168,8 +185,11 @@ func (s *ProductHandler) Update(c *gin.Context) {
 }
 
 func (s *ProductHandler) Delete(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 	orgId := authUser.OrgId
 	id := c.Param("id")
 
@@ -180,7 +200,7 @@ func (s *ProductHandler) Delete(c *gin.Context) {
 		return
 	}
 
-	err := s.productService.DeleteProduct(c.Request.Context(), orgId, id)
+	err = s.productService.DeleteProduct(c.Request.Context(), orgId, id)
 	if err != nil {
 		apiErr := NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -193,8 +213,12 @@ func (s *ProductHandler) Delete(c *gin.Context) {
 // CreatePrice creates a new price for a variant.
 func (s *ProductHandler) CreatePrice(c *gin.Context) {
 	var input CreatePriceRequest
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		apiErr := NewApiErrorFromError(err)
@@ -232,8 +256,12 @@ func (s *ProductHandler) CreatePrice(c *gin.Context) {
 
 // GetPrice gets a price by ID.
 func (s *ProductHandler) GetPrice(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	id := c.Param("id")
 
 	price, err := s.productService.GetPrice(c.Request.Context(), orgId, id)
@@ -248,8 +276,12 @@ func (s *ProductHandler) GetPrice(c *gin.Context) {
 
 // ListPrices lists all prices for a variant.
 func (s *ProductHandler) ListPrices(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	variantId := c.Param("variantId")
 	pagination := GetPagination(c)
 
@@ -273,8 +305,12 @@ func (s *ProductHandler) ListPrices(c *gin.Context) {
 // UpdatePrice updates a price.
 func (s *ProductHandler) UpdatePrice(c *gin.Context) {
 	var input CreatePriceRequest
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	id := c.Param("priceId")
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -312,11 +348,15 @@ func (s *ProductHandler) UpdatePrice(c *gin.Context) {
 
 // DeletePrice deletes a price.
 func (s *ProductHandler) DeletePrice(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	id := c.Param("priceId")
 
-	err := s.productService.DeletePrice(c.Request.Context(), orgId, id)
+	err = s.productService.DeletePrice(c.Request.Context(), orgId, id)
 	if err != nil {
 		apiErr := NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -329,8 +369,12 @@ func (s *ProductHandler) DeletePrice(c *gin.Context) {
 // CreateVariant creates a new variant for a product.
 func (s *ProductHandler) CreateVariant(c *gin.Context) {
 	var input domain.CreateVariantInput
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	productId := c.Param("productId")
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -351,8 +395,12 @@ func (s *ProductHandler) CreateVariant(c *gin.Context) {
 
 // GetVariant gets a variant by ID.
 func (s *ProductHandler) GetVariant(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	id := c.Param("id")
 
 	variant, err := s.productService.GetVariant(c.Request.Context(), orgId, id)
@@ -367,8 +415,12 @@ func (s *ProductHandler) GetVariant(c *gin.Context) {
 
 // ListVariants lists all variants for a product.
 func (s *ProductHandler) ListVariants(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	productId := c.Param("productId")
 	pagination := GetPagination(c)
 
@@ -392,8 +444,12 @@ func (s *ProductHandler) ListVariants(c *gin.Context) {
 // UpdateVariant updates a variant.
 func (s *ProductHandler) UpdateVariant(c *gin.Context) {
 	var input domain.UpdateVariantInput
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	id := c.Param("id")
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -414,11 +470,15 @@ func (s *ProductHandler) UpdateVariant(c *gin.Context) {
 
 // DeleteVariant deletes a variant.
 func (s *ProductHandler) DeleteVariant(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	id := c.Param("id")
 
-	err := s.productService.DeleteVariant(c.Request.Context(), orgId, id)
+	err = s.productService.DeleteVariant(c.Request.Context(), orgId, id)
 	if err != nil {
 		apiErr := NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)

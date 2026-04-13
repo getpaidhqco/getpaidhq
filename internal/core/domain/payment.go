@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 type Payment struct {
 	OrgId          string            `gorm:"column:org_id;primaryKey" json:"org_id"`
@@ -24,6 +27,19 @@ type Payment struct {
 }
 
 func (Payment) TableName() string { return "payments" }
+
+func (p *Payment) Validate() error {
+	if p.OrgId == "" {
+		return errors.New("org_id is required")
+	}
+	if p.Id == "" {
+		return errors.New("id is required")
+	}
+	if p.Amount <= 0 {
+		return errors.New("amount must be positive")
+	}
+	return nil
+}
 
 // SetMetadata merges the existing metadata with the specified values.
 func (p *Payment) SetMetadata(meta map[string]string) *Payment {

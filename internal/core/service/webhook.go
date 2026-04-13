@@ -93,7 +93,7 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.
 			Status:      domain.PaymentStatusSucceeded,
 			ErrorReason: "",
 			ErrorCode:   "",
-			Currency:    webhook.Payment.Currency,
+			Currency:    domain.Currency(webhook.Payment.Currency),
 			PspId:       webhook.Payment.PspId,
 			Reference:   webhook.Payment.Reference,
 			ProcessedAt: webhook.Payment.PaidAt,

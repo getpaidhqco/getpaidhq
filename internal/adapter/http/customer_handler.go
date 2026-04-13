@@ -34,8 +34,11 @@ func (cc *CustomerHandler) RegisterRoutes(rg *gin.RouterGroup) {
 
 func (cc *CustomerHandler) Create(c *gin.Context) {
 	var input domain.CreateCustomerInput
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		apiErr := NewApiErrorFromError(err)
@@ -55,8 +58,11 @@ func (cc *CustomerHandler) Create(c *gin.Context) {
 
 func (cc *CustomerHandler) CreateCustomerPaymentMethod(c *gin.Context) {
 	var input domain.CreatePaymentMethodInput
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 	customerId := c.Param("id")
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -80,8 +86,11 @@ func (cc *CustomerHandler) CreateCustomerPaymentMethod(c *gin.Context) {
 
 func (cc *CustomerHandler) UpdateCustomerPaymentMethod(c *gin.Context) {
 	var input domain.UpdatePaymentMethodInput
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 	customerId := c.Param("id")
 	pmId := c.Param("pmid")
 
@@ -106,8 +115,11 @@ func (cc *CustomerHandler) UpdateCustomerPaymentMethod(c *gin.Context) {
 }
 
 func (cc *CustomerHandler) GetCustomerPaymentMethod(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 	paymentMethodId := c.Param("id")
 
 	paymentMethod, err := cc.customerService.GetPaymentMethod(c.Request.Context(), authUser.OrgId, paymentMethodId)
@@ -121,8 +133,11 @@ func (cc *CustomerHandler) GetCustomerPaymentMethod(c *gin.Context) {
 }
 
 func (cc *CustomerHandler) Get(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 	customerId := c.Param("id")
 
 	customer, err := cc.customerService.Get(c.Request.Context(), authUser.OrgId, customerId)
@@ -136,8 +151,11 @@ func (cc *CustomerHandler) Get(c *gin.Context) {
 }
 
 func (cc *CustomerHandler) List(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 	pagination := GetPagination(c)
 
 	customers, total, err := cc.customerService.List(c.Request.Context(), authUser.OrgId, pagination)

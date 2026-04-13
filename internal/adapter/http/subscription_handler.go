@@ -6,8 +6,8 @@ import (
 	"github.com/gin-gonic/gin"
 
 	"payloop/internal/core/domain"
-	"payloop/internal/core/port"
 	"payloop/internal/core/service"
+	"payloop/internal/core/port"
 )
 
 // SubscriptionHandler handles HTTP requests for subscriptions.
@@ -37,8 +37,11 @@ func (s *SubscriptionHandler) RegisterRoutes(rg *gin.RouterGroup) {
 }
 
 func (s *SubscriptionHandler) Get(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 	orgId := authUser.OrgId
 	subscriptionId := c.Param("id")
 
@@ -55,8 +58,12 @@ func (s *SubscriptionHandler) Get(c *gin.Context) {
 // Update lets you change subscription settings that have no impact on the billed amount.
 func (s *SubscriptionHandler) Update(c *gin.Context) {
 	var input domain.UpdateSubscriptionRequest
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	id := c.Param("id")
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -72,9 +79,8 @@ func (s *SubscriptionHandler) Update(c *gin.Context) {
 		Metadata: input.Metadata,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
+		apiErr := NewApiErrorFromError(err)
+		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return
 	}
 
@@ -83,8 +89,12 @@ func (s *SubscriptionHandler) Update(c *gin.Context) {
 
 func (s *SubscriptionHandler) Pause(c *gin.Context) {
 	var input PauseSubscriptionRequest
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	id := c.Param("id")
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -109,8 +119,12 @@ func (s *SubscriptionHandler) Pause(c *gin.Context) {
 
 func (s *SubscriptionHandler) Resume(c *gin.Context) {
 	var input ResumeSubscriptionRequest
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	id := c.Param("id")
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -135,8 +149,12 @@ func (s *SubscriptionHandler) Resume(c *gin.Context) {
 
 func (s *SubscriptionHandler) Cancel(c *gin.Context) {
 	var input PauseSubscriptionRequest
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	id := c.Param("id")
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -161,8 +179,12 @@ func (s *SubscriptionHandler) Cancel(c *gin.Context) {
 
 func (s *SubscriptionHandler) UpdateBillingAnchor(c *gin.Context) {
 	var input UpdateBillingAnchorRequest
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	id := c.Param("id")
 
 	if err := c.ShouldBindJSON(&input); err != nil {
@@ -189,8 +211,12 @@ func (s *SubscriptionHandler) UpdateBillingAnchor(c *gin.Context) {
 }
 
 func (s *SubscriptionHandler) List(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	pagination := GetPagination(c)
 
 	subs, total, err := s.subsService.List(c.Request.Context(), orgId, pagination)
@@ -215,8 +241,12 @@ func (s *SubscriptionHandler) List(c *gin.Context) {
 }
 
 func (s *SubscriptionHandler) ListPayments(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	pagination := GetPagination(c)
 	id := c.Param("id")
 

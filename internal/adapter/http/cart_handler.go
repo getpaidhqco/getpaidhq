@@ -1,11 +1,13 @@
 package handler
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 
-	"payloop/internal/core/service"
-	"payloop/internal/core/port"
 	"payloop/internal/core/domain"
+	"payloop/internal/core/port"
+	"payloop/internal/core/service"
 )
 
 // CartHandler handles HTTP requests for domain.
@@ -31,8 +33,12 @@ func (o *CartHandler) RegisterRoutes(rg *gin.RouterGroup) {
 func (o *CartHandler) AddProduct(c *gin.Context) {
 	var input AddItemRequest
 	cartId := c.Param("id")
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		apiErr := NewApiErrorFromError(err)

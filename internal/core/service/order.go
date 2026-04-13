@@ -520,7 +520,7 @@ func (s *OrderService) CompleteCheckoutSession(ctx context.Context, input domain
 			SubscriptionId: subscriptionId,
 			Status:         domain.PaymentStatusSucceeded,
 			Recurring:      recurringPayment,
-			Currency:       paymentCtx.Payment.Currency,
+			Currency:       domain.Currency(paymentCtx.Payment.Currency),
 			Amount:         paymentCtx.Payment.Amount,
 			PspFee:         0,
 			PlatformFee:    0,

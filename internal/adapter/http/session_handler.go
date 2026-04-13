@@ -5,9 +5,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
 	"payloop/internal/core/service"
-	"payloop/internal/core/domain"
+	"payloop/internal/lib"
 )
 
 // SessionHandler handles HTTP requests for sessions.
@@ -33,13 +34,16 @@ func (s *SessionHandler) RegisterRoutes(rg *gin.RouterGroup) {
 
 func (s *SessionHandler) checkAuthz(action port.Action) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		user, _ := c.Get("user")
-		authUser := user.(port.AuthUser)
+		authUser, err := getAuthUser(c)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+			c.Abort()
+			return
+		}
 		allowed := s.authz.Enforce(authUser, action, "")
 		if !allowed {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Unauthorized",
-			})
+			apiErr := NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+			c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 			c.Abort()
 			return
 		}
@@ -49,8 +53,11 @@ func (s *SessionHandler) checkAuthz(action port.Action) gin.HandlerFunc {
 
 func (s *SessionHandler) Create(c *gin.Context) {
 	var input domain.CreateSessionRequest
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		apiErr := NewApiErrorFromError(err)

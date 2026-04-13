@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -38,8 +39,11 @@ func (o *OrderHandler) RegisterRoutes(rg *gin.RouterGroup) {
 
 func (o *OrderHandler) CreateOrder(c *gin.Context) {
 	var input CreateOrderRequest
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 
 	allowed := o.authz.Enforce(authUser, port.ActionCreateOrder, "")
 	if !allowed {
@@ -98,8 +102,11 @@ func (o *OrderHandler) CreateOrder(c *gin.Context) {
 
 func (o *OrderHandler) CompleteOrder(c *gin.Context) {
 	var input CompleteOrderRequest
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 	id := c.Param("id")
 
 	allowed := o.authz.Enforce(authUser, port.ActionCreateOrder, "")
@@ -171,8 +178,11 @@ func (o *OrderHandler) CompleteOrder(c *gin.Context) {
 }
 
 func (o *OrderHandler) ListSubscriptions(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 	id := c.Param("id")
 
 	allowed := o.authz.Enforce(authUser, port.ActionListOrderSubscriptions, "")
@@ -193,8 +203,12 @@ func (o *OrderHandler) ListSubscriptions(c *gin.Context) {
 }
 
 func (o *OrderHandler) List(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
+	orgId := authUser.OrgId
 	pagination := GetPagination(c)
 
 	ords, total, err := o.service.List(c.Request.Context(), orgId, pagination)
@@ -219,8 +233,11 @@ func (o *OrderHandler) List(c *gin.Context) {
 }
 
 func (o *OrderHandler) Get(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 	orgId := authUser.OrgId
 	id := c.Param("id")
 

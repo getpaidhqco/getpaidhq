@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"net/http"
+
 	"github.com/gin-gonic/gin"
 
-	"payloop/internal/core/service"
 	"payloop/internal/core/port"
+	"payloop/internal/core/service"
 )
 
 // OrgHandler handles HTTP requests for organizations.
@@ -28,8 +30,11 @@ func (u *OrgHandler) RegisterRoutes(rg *gin.RouterGroup) {
 
 func (u *OrgHandler) Create(c *gin.Context) {
 	var input CreateOrgInput
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+	authUser, err := getAuthUser(c)
+	if err != nil {
+		c.JSON(http.StatusUnauthorized, NewApiError("authentication_error", err.Error(), nil))
+		return
+	}
 
 	if err := c.ShouldBindJSON(&input); err != nil {
 		apiErr := NewApiErrorFromError(err)

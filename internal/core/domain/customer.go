@@ -1,6 +1,9 @@
 package domain
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 type Customer struct {
 	OrgId                  string            `gorm:"column:org_id;primaryKey" json:"org_id"`
@@ -17,6 +20,16 @@ type Customer struct {
 }
 
 func (Customer) TableName() string { return "customers" }
+
+func (c *Customer) Validate() error {
+	if c.OrgId == "" {
+		return errors.New("org_id is required")
+	}
+	if c.Email == "" {
+		return errors.New("email is required")
+	}
+	return nil
+}
 
 type CustomerCohort struct {
 	OrgId       string            `gorm:"column:org_id;primaryKey" json:"org_id"`
