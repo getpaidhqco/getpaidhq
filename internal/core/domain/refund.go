@@ -8,7 +8,7 @@ type Refund struct {
 	PspRefundId string    `gorm:"column:psp_refund_id" json:"psp_refund_id"`
 	PaymentId   string    `gorm:"column:payment_id" json:"payment_id"`
 	Amount      int64     `gorm:"column:amount" json:"amount"`
-	Currency    string    `gorm:"column:currency" json:"currency"`
+	Currency    Currency  `gorm:"column:currency" json:"currency"`
 	Reason      string    `gorm:"column:reason" json:"reason,omitempty"`
 	RefundedAt  time.Time `gorm:"column:refunded_at" json:"refunded_at"`
 	CreatedAt   time.Time `gorm:"column:created_at" json:"created_at"`

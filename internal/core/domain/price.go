@@ -67,7 +67,7 @@ type CreatePriceInput struct {
 	Category           PriceCategory   `json:"category"`
 	Scheme             PriceScheme     `json:"scheme"`
 	Cycles             int             `json:"cycles"`
-	Currency           string          `json:"currency"`
+	Currency           Currency        `json:"currency"`
 	UnitPrice          int64           `json:"unit_price"`
 	MinPrice           int64           `json:"min_price"`
 	SuggestedPrice     int64           `json:"suggested_price"`

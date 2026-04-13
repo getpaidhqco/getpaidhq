@@ -32,7 +32,7 @@ func TestNewSubscriptionFromOrderItem_FreeTrial(t *testing.T) {
 	assert.Equal(t, SubscriptionStatusPending, subscription.Status)
 	assert.Equal(t, orderItem.Price.BillingInterval, subscription.BillingInterval)
 	assert.Equal(t, orderItem.Price.BillingIntervalQty, subscription.BillingIntervalQty)
-	assert.Equal(t, string(orderItem.Price.Currency), subscription.Currency)
+	assert.Equal(t, orderItem.Price.Currency, subscription.Currency)
 	assert.Equal(t, orderItem.Price.UnitPrice, subscription.Amount)
 	assert.Equal(t, 0, subscription.Cycles)
 	assert.Equal(t, 0, subscription.Retries)

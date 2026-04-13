@@ -36,7 +36,7 @@ type OrderResponse struct {
 	SessionId  string            `json:"session_id"`
 	CartId     string            `json:"cart_id"`
 	Items      []OrderItemResponse `json:"items"`
-	Currency   string            `json:"currency"`
+	Currency   domain.Currency    `json:"currency"`
 	Total      int64             `json:"total"`
 	Metadata   map[string]string `json:"metadata"`
 	CreatedAt  time.Time         `json:"created_at"`
@@ -113,7 +113,7 @@ func NewOrderItemFromEntity(entity domain.OrderItem) OrderItemResponse {
 type SubscriptionResponse struct {
 	Id          string                    `json:"id"`
 	Status      domain.SubscriptionStatus `json:"status"`
-	Currency    string                    `json:"currency"`
+	Currency    domain.Currency            `json:"currency"`
 	Amount      int64                     `json:"amount"`
 	OrderId     string                    `json:"order_id"`
 	OrderItemId string                    `json:"order_item_id"`
@@ -327,7 +327,7 @@ type PaymentResponse struct {
 	OrderId        string               `json:"order_id"`
 	SubscriptionId string               `json:"subscription_id"`
 	Status         domain.PaymentStatus `json:"status"`
-	Currency       string               `json:"currency"`
+	Currency       domain.Currency       `json:"currency"`
 	Amount         int64                `json:"amount"`
 	PspFee         int64                `json:"psp_fee"`
 	PlatformFee    int64                `json:"platform_fee"`

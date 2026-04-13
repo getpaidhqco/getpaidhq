@@ -67,7 +67,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrder
 	var customerEntity domain.Customer
 	var err error
 	var orderCart domain.Cart
-	currency := input.Currency
+	currency := domain.Currency(input.Currency)
 
 	createPspSession := true
 	if input.SessionId == "" {
@@ -401,7 +401,7 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input domain.CompleteO
 				OrderId:        input.Id,
 				SubscriptionId: subscription.Id,
 				Status:         domain.PaymentStatusSucceeded,
-				Currency:       input.Payment.Currency,
+				Currency:       domain.Currency(input.Payment.Currency),
 				Amount:         input.Payment.Amount,
 				PspFee:         0,
 				PlatformFee:    0,

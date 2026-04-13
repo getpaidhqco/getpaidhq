@@ -9,7 +9,7 @@ var ErrItemNotFound = errors.New("item not found")
 
 // CartData holds the computed cart totals and line items.
 type CartData struct {
-	Currency      string         `json:"currency"`
+	Currency      Currency       `json:"currency"`
 	Total         int64          `json:"total"`
 	SubTotal      int64          `json:"sub_total"`
 	DiscountTotal int64          `json:"discount"`
@@ -51,7 +51,7 @@ type CartItemPrice struct {
 	Id                 string          `json:"id"`
 	Category           PriceCategory   `json:"category"`
 	Scheme             PriceScheme     `json:"scheme"`
-	Currency           string          `json:"currency"`
+	Currency           Currency        `json:"currency"`
 	Cycles             int64           `json:"cycles"`
 	UnitPrice          int64           `json:"unit_price"`
 	MinPrice           int64           `json:"min_price"`
@@ -84,7 +84,7 @@ func PriceToCartItemPrice(p Price) CartItemPrice {
 		Id:                 p.Id,
 		Category:           p.Category,
 		Scheme:             p.Scheme,
-		Currency:           string(p.Currency),
+		Currency:           p.Currency,
 		Cycles:             int64(p.Cycles),
 		UnitPrice:          p.UnitPrice,
 		BillingInterval:    p.BillingInterval,

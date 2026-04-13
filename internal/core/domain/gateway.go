@@ -24,7 +24,7 @@ type ChargePaymentCommand struct {
 	OrderId        string
 	SubscriptionId string
 	Amount         int64
-	Currency       string
+	Currency       Currency
 	Reference      string
 	PaymentMethod  GatewayPaymentMethod
 	Customer       Customer
@@ -88,7 +88,7 @@ type GatewayPaymentMethod struct {
 }
 
 type GatewayPayment struct {
-	Currency    string        `json:"currency"`
+	Currency    Currency      `json:"currency"`
 	Reference   string        `json:"reference"`
 	PspId       string        `json:"psp_id"`
 	Amount      int64         `json:"amount"`

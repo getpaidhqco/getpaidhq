@@ -33,7 +33,7 @@ func (s *SessionService) CreateSession(ctx context.Context, input domain.CreateS
 		OrgId: input.OrgId,
 		Id:    lib.GenerateId("cart"),
 		Data: domain.CartData{
-			Currency: input.Currency,
+			Currency: domain.Currency(input.Currency),
 		},
 	})
 	if err != nil {

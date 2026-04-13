@@ -29,7 +29,7 @@ type CreateProductPriceInput struct {
 	Category           PriceCategory   `json:"category" binding:"required"`
 	Scheme             PriceScheme     `json:"scheme" binding:"required"`
 	Cycles             int             `json:"cycles" binding:"omitempty,gt=0"`
-	Currency           string          `json:"currency" binding:"required"`
+	Currency           Currency        `json:"currency" binding:"required"`
 	UnitPrice          int64           `json:"unit_price" binding:"required,gte=0"`
 	MinPrice           int64           `json:"min_price" binding:"omitempty,gte=0"`
 	SuggestedPrice     int64           `json:"suggested_price" binding:"omitempty,gte=0"`

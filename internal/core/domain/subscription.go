@@ -11,8 +11,8 @@ type CreateSubscriptionInput struct {
 	PaymentMethodId string `json:"payment_method_id" binding:"required"`
 	Activate        bool   `json:"activate"`
 
-	Amount   int64  `json:"amount" binding:"required"`
-	Currency string `json:"currency" binding:"required"`
+	Amount   int64    `json:"amount" binding:"required"`
+	Currency Currency `json:"currency" binding:"required"`
 
 	BillingInterval    BillingInterval `json:"billing_interval" binding:"required"`
 	BillingIntervalQty int             `json:"billing_interval_qty" binding:"required"`
@@ -71,7 +71,7 @@ type Subscription struct {
 	Retries     int       `gorm:"column:retries" json:"retries"`
 	NextRetryAt time.Time `gorm:"column:next_retry" json:"next_retry,omitempty,omitzero"`
 
-	Currency        string            `gorm:"column:currency" json:"currency"`
+	Currency        Currency          `gorm:"column:currency" json:"currency"`
 	Amount          int64             `gorm:"column:amount" json:"amount"`
 	Metadata        map[string]string `gorm:"column:metadata;serializer:json" json:"metadata"`
 	CyclesProcessed int               `gorm:"column:cycles_processed" json:"cycles_processed"`
@@ -348,7 +348,7 @@ func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 		BillingIntervalQty: item.Price.BillingIntervalQty,
 		Cycles:             item.Price.Cycles,
 		Retries:            0,
-		Currency:           string(item.Price.Currency),
+		Currency:           item.Price.Currency,
 		Amount:             item.Price.UnitPrice,
 		CyclesProcessed:    0,
 		TotalRevenue:       0,

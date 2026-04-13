@@ -51,7 +51,7 @@ func (p Paystack) InitPayment(ctx context.Context, input domain.InitPaymentComma
 
 	request := transactions.TransactionRequest{
 		Reference: reference,
-		Currency:  currency,
+		Currency:  string(currency),
 		Amount:    float32(cart.Total),
 		Email:     email,
 		Metadata: pscommon.Metadata{
@@ -92,7 +92,7 @@ func (p Paystack) ChargePayment(ctx context.Context, input domain.ChargePaymentC
 		Email:             customer.Email,
 		AuthorizationCode: paymentMethod.Token,
 		Reference:         input.Reference,
-		Currency:          input.Currency,
+		Currency:          string(input.Currency),
 		Queue:             true,
 		Metadata: pscommon.Metadata{
 			"org_id":   input.OrgId,
@@ -102,7 +102,7 @@ func (p Paystack) ChargePayment(ctx context.Context, input domain.ChargePaymentC
 	}
 
 	jsonR, _ := json.Marshal(request)
-	p.logger.Debug("ChargeAuthorization", "request", string(jsonR))
+	p.logger.Debug("charge authorization request", "request", string(jsonR))
 
 	response, err := client.Transaction.ChargeAuthorization(ctx, request)
 	if err != nil {
@@ -159,7 +159,7 @@ func (p Paystack) ChargePayment(ctx context.Context, input domain.ChargePaymentC
 	//	status = domain.ChargePaymentStatusPending
 	//}
 
-	p.logger.Info("ChargeAuthorization", "status", response.Status, "reference", response.Reference)
+	p.logger.Info("charge authorization completed", "status", response.Status, "reference", response.Reference)
 	return domain.ChargePaymentResponse{
 		Status:        status,
 		Psp:           domain.Paystack,

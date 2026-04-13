@@ -37,11 +37,11 @@ func PaymentRefunded(ctx temporal.Context, payload domain.PaymentWebhookContext)
 	err = temporal.ExecuteActivity(ctx1, a.HandlePaymentRefundedEvent, paymentWebhookContext).
 		Get(ctx1, &completeOrderResult)
 	if err != nil {
-		logger.Error("HandlePaymentRefundedEvent failed", "error", err)
+		logger.Error("handle payment refunded event failed", "error", err)
 		return port.WorkflowResult{}, temporalio.NewApplicationError("handle refund event failed", "", err)
 	}
 
-	logger.Info("[PaymentRefunded] Workflow completed.")
+	logger.Info("payment refunded workflow completed")
 	return port.WorkflowResult{
 		Success: true,
 		Message: "PaymentRefunded completed",

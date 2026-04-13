@@ -72,7 +72,7 @@ func (p WebhookParserAdapter) ParseWebhook(ctx context.Context, data []byte) (do
 			Psp:     domain.CheckoutDotCom,
 			Status:  "success",
 			Payment: domain.GatewayPayment{
-				Currency:    webhook.Currency,
+				Currency:    domain.Currency(webhook.Currency),
 				Reference:   webhook.Reference,
 				PspId:       webhook.ID,
 				Amount:      int64(webhook.Amount),
@@ -117,7 +117,7 @@ func (p WebhookParserAdapter) ParseWebhook(ctx context.Context, data []byte) (do
 			Psp:     domain.CheckoutDotCom,
 			Status:  string(domain.PaymentStatusRefunded),
 			Payment: domain.GatewayPayment{
-				Currency:    webhook.Currency,
+				Currency:    domain.Currency(webhook.Currency),
 				Reference:   webhook.Reference,
 				PspId:       webhook.ID,
 				Amount:      int64(webhook.Amount),

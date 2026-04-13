@@ -12,7 +12,7 @@ import (
 
 func SubscriptionChargeReminder(ctx temporal_wf.Context, subscription domain.Subscription, reminderTime time.Time) (port.WorkflowResult, error) {
 	logger := temporal_wf.GetLogger(ctx)
-	logger.Info("SubscriptionChargeReminder started, waiting for reminder time", "reminderTime", reminderTime)
+	logger.Info("subscription charge reminder started, waiting for reminder time", "reminderTime", reminderTime)
 
 	valid := true
 
@@ -43,7 +43,7 @@ func SubscriptionChargeReminder(ctx temporal_wf.Context, subscription domain.Sub
 	err = temporal_wf.ExecuteActivity(ctx1, a.ProcessReminderEvent, subscription).
 		Get(ctx1, nil)
 	if err != nil {
-		logger.Error("SubscriptionChargeReminder failed", "error", err)
+		logger.Error("subscription charge reminder failed", "error", err)
 		return port.WorkflowResult{
 			Success: false,
 		}, temporalio.NewNonRetryableApplicationError("SubscriptionChargeReminder failed", "", err)

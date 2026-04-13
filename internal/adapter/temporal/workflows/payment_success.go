@@ -17,7 +17,7 @@ import (
 // Execute executes tasks for processing a successful payment
 func PaymentSuccessWorkflow(ctx temporal.Context, payload port.WorkflowPayload) (port.WorkflowResult, error) {
 	logger := temporal.GetLogger(ctx)
-	logger.Info("PaymentSuccessWorkflow started")
+	logger.Info("payment success workflow started")
 
 	// parse the data to make sure we have what we need
 	paymentWebhookContext, err := domain.ParsePaymentWebhookContext(payload.Data)
@@ -60,7 +60,7 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload port.WorkflowPayload) 
 	// ACTIVITY
 	// process the subscriptions
 	subscription := subscriptions[0]
-	logger.Info("Spawning child workflow for subscription", "subscription", subscription.Id)
+	logger.Info("spawning child workflow for subscription", "subscriptionId", subscription.Id)
 	childCtx := temporal.WithChildOptions(ctx, temporal.ChildWorkflowOptions{
 		WorkflowID:        fmt.Sprintf(`subscription_[%s]_[%s]`, subscription.OrgId, subscription.Id),
 		ParentClosePolicy: enums.PARENT_CLOSE_POLICY_ABANDON,
@@ -89,7 +89,7 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload port.WorkflowPayload) 
 		Execution:      childWE,
 	}).Get(ctx1, nil)
 
-	logger.Info("[payment_success] Workflow completed.")
+	logger.Info("payment success workflow completed")
 	return port.WorkflowResult{
 		Success: true,
 		Message: "PaymentSuccessWorkflow completed",

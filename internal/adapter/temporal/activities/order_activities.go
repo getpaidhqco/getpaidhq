@@ -48,7 +48,7 @@ func NewOrderActivities(
 
 func (a *OrderActivities) CompleteOrder(ctx context.Context, paymentContext domain.PaymentWebhookContext) (port.WorkflowResult, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("CompleteCheckoutSession", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId)
+	logger.Info("completing checkout session", "orgId", paymentContext.OrgId, "orderId", paymentContext.OrderId)
 
 	order, err := a.orderService.CompleteCheckoutSession(ctx, domain.CompleteCheckoutSessionInput{
 		OrgId:          paymentContext.OrgId,
@@ -70,7 +70,7 @@ func (a *OrderActivities) CompleteOrder(ctx context.Context, paymentContext doma
 
 func (a *OrderActivities) HandlePaymentRefundedEvent(ctx context.Context, paymentContext domain.PaymentWebhookContext) (port.WorkflowResult, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("HandlePaymentRefundedEvent", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId)
+	logger.Info("handling payment refunded event", "orgId", paymentContext.OrgId, "orderId", paymentContext.OrderId)
 
 	// Find the payment
 	payment, err := a.paymentRepository.FindByPspId(ctx, paymentContext.OrgId, paymentContext.Payment.PspId)
@@ -112,7 +112,7 @@ func (a *OrderActivities) HandlePaymentRefundedEvent(ctx context.Context, paymen
 
 func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId string, orderId string) ([]domain.Subscription, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("GetOrderSubscriptions", "orgId", orgId, "orderId", orderId)
+	logger.Info("getting order subscriptions", "orgId", orgId, "orderId", orderId)
 
 	subs, err := a.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
 
@@ -123,7 +123,7 @@ func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId strin
 // update the subscription status to reflect the billing period
 func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, currentSub domain.Subscription) (domain.ChargeResult, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("ChargeCustomerForBillingPeriod", "id", currentSub.Id, "Total", currentSub.Amount)
+	logger.Info("charging customer for billing period", "subscriptionId", currentSub.Id, "amount", currentSub.Amount)
 
 	subscription, err := a.subscriptionRepository.FindById(ctx, currentSub.OrgId, currentSub.Id)
 	if err != nil {
@@ -167,7 +167,7 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 
 	// Gateway errors should be retried by Temporal using the retry policy in the workflow.
 	if chargeResult.Status == domain.GatewayError {
-		logger.Error("Gateway error, returning error so that the charge can be retried", "error", chargeResult.ErrorReason)
+		logger.Error("gateway error, returning error so that the charge can be retried", "error", chargeResult.ErrorReason)
 		a.errorReporter.ReportError(ctx, errors.New("gateway error while charging subscription"), map[string]interface{}{
 			"org_id":          subscription.OrgId,
 			"error":           chargeResult.ErrorReason,
@@ -211,7 +211,7 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 
 func (a *OrderActivities) HandleChargeResult(ctx context.Context, subscription domain.Subscription, chargeResult domain.ChargeResult) (domain.Subscription, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("HandleChargeResult", "id", subscription.Id)
+	logger.Info("handling charge result", "subscriptionId", subscription.Id)
 
 	if chargeResult.Status == domain.PaymentStatusSucceeded {
 		return a.subscriptionService.HandleSubscriptionChargeSuccess(ctx, domain.SubscriptionChargeInput{
@@ -233,7 +233,7 @@ func (a *OrderActivities) HandleChargeResult(ctx context.Context, subscription d
 // repositories directly here instead of a Service implementation.
 func (a *OrderActivities) StoreSubscriptionWorkflowContext(ctx context.Context, input types.StoreSubscriptionWorkflowContextInput) error {
 	logger := activity.GetLogger(ctx)
-	logger.Info("StoreSubscriptionWorkflowContext", "OrgId", input.OrgId, "SubscriptionId", input.SubscriptionId, "Execution", input.Execution)
+	logger.Info("storing subscription workflow context", "orgId", input.OrgId, "subscriptionId", input.SubscriptionId, "execution", input.Execution)
 	executionBytes, err := json.Marshal(input.Execution)
 	if err != nil {
 		return err
@@ -252,7 +252,7 @@ func (a *OrderActivities) StoreSubscriptionWorkflowContext(ctx context.Context, 
 
 func (a *OrderActivities) ErrorState(ctx context.Context, subscription domain.Subscription, err error) error {
 	logger := activity.GetLogger(ctx)
-	logger.Info("ErrorState", "orgId", subscription.OrgId, "subscriptionId", subscription.Id, "error", err)
+	logger.Info("error state", "orgId", subscription.OrgId, "subscriptionId", subscription.Id, "error", err)
 
 	subscription.Status = domain.SubscriptionStatusError
 	subscription.Metadata["error"] = err.Error()
@@ -272,7 +272,7 @@ func (a *OrderActivities) GetSubscription(ctx context.Context, orgId string, id 
 
 func (a *OrderActivities) ProcessReminderEvent(ctx context.Context, subscription domain.Subscription) error {
 	logger := activity.GetLogger(ctx)
-	logger.Info("ProcessReminderEvent", "orgId", subscription.OrgId, "subscriptionId", subscription.Id)
+	logger.Info("processing reminder event", "orgId", subscription.OrgId, "subscriptionId", subscription.Id)
 	subscription, err := a.subscriptionRepository.FindById(ctx, subscription.OrgId, subscription.Id)
 	if err != nil {
 		logger.Error("failed to find subscription", "error", err)

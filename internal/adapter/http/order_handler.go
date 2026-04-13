@@ -68,7 +68,7 @@ func (o *OrderHandler) CreateOrder(c *gin.Context) {
 
 	rsp, err := o.service.CreateOrder(c.Request.Context(), domain.CreateOrderInput{
 		OrgId:    authUser.OrgId,
-		Currency: input.Cart.Currency,
+		Currency: domain.Currency(input.Cart.Currency),
 		Customer: domain.CreateOrderCommandCustomer{
 			Id:        input.Customer.ID,
 			Email:     input.Customer.Email,
@@ -156,7 +156,7 @@ func (o *OrderHandler) CompleteOrder(c *gin.Context) {
 			CompletedAt: completedAt,
 			Reference:   input.Payment.Reference,
 			Amount:      input.Payment.Amount,
-			Currency:    input.Payment.Currency,
+			Currency:    domain.Currency(input.Payment.Currency),
 			Metadata:    input.Payment.Metadata,
 		},
 		Metadata: input.Metadata,

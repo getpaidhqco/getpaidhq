@@ -21,7 +21,7 @@ type ChargeResult struct {
 	Status      PaymentStatus `json:"status"`
 	ErrorReason string        `json:"error_reason"`
 	ErrorCode   string        `json:"error_code"`
-	Currency    string        `json:"currency"`
+	Currency    Currency      `json:"currency"`
 	PspId       string        `json:"psp_id"`
 	Reference   string        `json:"reference"`
 	ProcessedAt time.Time     `json:"processed_at"`

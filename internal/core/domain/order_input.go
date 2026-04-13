@@ -12,7 +12,7 @@ type CreateOrderInput struct {
 	OrgId           string                     `json:"org_id" binding:"required"`
 	Customer        CreateOrderCommandCustomer `json:"customer" binding:"required"`
 	SessionId       string                     `json:"session_id"`
-	Currency        string                     `json:"currency"`
+	Currency        Currency                   `json:"currency"`
 	CartItems       []CartItem                 `json:"items"`
 	PspId           Gateway                    `json:"psp_id" binding:"required"`
 	PaymentMethodId string                     `json:"payment_method_id"`
@@ -55,7 +55,7 @@ type CompleteOrderInputPayment struct {
 	CompletedAt time.Time         `json:"completed_at"`
 	Reference   string            `json:"reference"`
 	Amount      int64             `json:"amount"`
-	Currency    string            `json:"currency"`
+	Currency    Currency          `json:"currency"`
 	Metadata    map[string]string `json:"metadata"`
 }
 
@@ -74,12 +74,12 @@ type CreateOrderRow struct {
 	OrgId     string                     `json:"org_id" binding:"required"`
 	Customer  CreateOrderCommandCustomer `json:"customer" binding:"required"`
 	SessionId string                     `json:"session_id" binding:"required"`
-	Currency  string                     `json:"currency" binding:"required"`
+	Currency  Currency                   `json:"currency" binding:"required"`
 	Metadata  map[string]string          `json:"metadata"`
 }
 
 type CartInput struct {
-	Currency     string  `json:"currency" binding:"required"`
+	Currency     Currency `json:"currency" binding:"required"`
 	Total        float64 `json:"total" binding:"required"`
 	SubTotal     float64 `json:"sub_total" binding:"required"`
 	Discount     float64 `json:"discount" binding:"required"`

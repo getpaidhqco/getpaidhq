@@ -12,7 +12,7 @@ type Payment struct {
 	SubscriptionId string            `gorm:"column:subscription_id" json:"subscription_id"`
 	Status         PaymentStatus     `gorm:"column:status" json:"status"`
 	Recurring      bool              `gorm:"column:recurring" json:"recurring"`
-	Currency       string            `gorm:"column:currency" json:"currency"`
+	Currency       Currency          `gorm:"column:currency" json:"currency"`
 	Amount         int64             `gorm:"column:amount" json:"amount"`
 	PspFee         int64             `gorm:"column:psp_fee" json:"psp_fee"`
 	PlatformFee    int64             `gorm:"column:platform_fee" json:"platform_fee"`

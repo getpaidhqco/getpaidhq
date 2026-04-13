@@ -26,7 +26,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input domain.Subscription) (doma
 	// A flag to indicate if the workflow should be refreshed. Used by the "force-update" signal
 	restartBillingWait := false
 
-	logger.Info("SubscriptionWorkflow started", "subscriptionId", subscription.Id)
+	logger.Info("subscription workflow started", "subscriptionId", subscription.Id)
 	var a *activities.OrderActivities
 	// Register query handler for subscription details
 	err := workflow.SetQueryHandler(ctx, "get-state", func() (domain.Subscription, error) {
@@ -206,7 +206,7 @@ func SubscriptionWorkflow(ctx workflow.Context, input domain.Subscription) (doma
 			// This shouldn't be reached because of the retry policy which will retry forever
 			// The workflow can be stopped using updates
 			// TODO report this error
-			logger.Error("ChargeCustomerForBillingPeriod failed completely, ending workflow", "error", err)
+			logger.Error("charge customer for billing period failed completely, ending workflow", "error", err)
 			return subscription, err
 		}
 

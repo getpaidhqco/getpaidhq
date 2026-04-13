@@ -29,7 +29,7 @@ func NewOutgoingWebhookActivities(
 
 func (a *OutgoingWebhookActivities) SendWebhook(ctx context.Context, data port.OutgoingWebhookPayload) error {
 	logger := activity.GetLogger(ctx)
-	logger.Info("SendWebhook")
+	logger.Info("sending webhook")
 
 	err := a.whService.SendWebhook(ctx, data)
 	if err != nil {

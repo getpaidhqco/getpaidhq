@@ -76,7 +76,7 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (domain.Pa
 			Psp:     domain.Paystack,
 			Status:  "success",
 			Payment: domain.GatewayPayment{
-				Currency:    webhook.Currency,
+				Currency:    domain.Currency(webhook.Currency),
 				Reference:   webhook.Reference,
 				PspId:       strconv.FormatInt(webhook.ID, 10),
 				Amount:      webhook.Amount,
@@ -154,7 +154,7 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (domain.Pa
 			Psp:     domain.Paystack,
 			Status:  "success",
 			Payment: domain.GatewayPayment{
-				Currency:    webhook.Currency,
+				Currency:    domain.Currency(webhook.Currency),
 				Reference:   originalPayment.Reference,
 				PspId:       originalPayment.PspId,
 				Amount:      webhook.Amount,

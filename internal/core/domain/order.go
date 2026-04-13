@@ -12,7 +12,7 @@ type Order struct {
 	SessionId  string            `gorm:"column:session_id" json:"session_id,omitempty"`
 	CartId     string            `gorm:"column:cart_id" json:"cart_id,omitempty"`
 	Items      []OrderItem       `gorm:"foreignKey:OrderId,OrgId;references:Id,OrgId" json:"items,omitempty"`
-	Currency   string            `gorm:"column:currency" json:"currency"`
+	Currency   Currency          `gorm:"column:currency" json:"currency"`
 	Total      int64             `gorm:"column:total" json:"total"`
 	Metadata   map[string]string `gorm:"column:metadata;serializer:json" json:"metadata,omitempty"`
 	CreatedAt  time.Time         `gorm:"column:created_at" json:"created_at"`
