@@ -138,6 +138,14 @@ func ParsePaymentWebhookContext(data interface{}) (PaymentWebhookContext, error)
 	return payload, nil
 }
 
+// GatewayAdapter is a port that payment adapter packages implement.
+// The GatewayFactory uses this to create gateway/webhook parser instances
+// without importing adapter packages directly.
+type GatewayAdapter interface {
+	CreateGateway(settingsJSON string) (domain.GatewayProvider, error)
+	CreateWebhookParser() domain.WebhookParser
+}
+
 // PaymentWebhookPayload wraps a payment webhook for processing.
 type PaymentWebhookPayload struct {
 	Psp  domain.Gateway `json:"psp"`

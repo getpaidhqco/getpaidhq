@@ -2,6 +2,7 @@ package config
 
 import (
 	"payloop/internal/adapter/cedar"
+	"payloop/internal/adapter/checkout_com"
 	"payloop/internal/adapter/clerk"
 	"payloop/internal/adapter/cron"
 	handler "payloop/internal/adapter/http"
@@ -10,6 +11,7 @@ import (
 	"payloop/internal/adapter/postgres"
 	"payloop/internal/adapter/redis"
 	"payloop/internal/adapter/sqs"
+	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
 	"payloop/internal/core/service"
 	"payloop/internal/lib"
@@ -81,10 +83,12 @@ func NewApp() (*App, error) {
 	clerkProvider := clerk.NewClerkClient(env, logger, metadataRepo)
 	authenticators := []port.Authenticator{clerkAuth}
 
-	// Payment
-	paystackFactory := paystack.NewPaystackFactory(pspRepo, settingRepo, logger)
-	paystackWP := paystack.NewWebhookParser(paymentRepo, paystackFactory, logger)
-	gatewayFactory := service.NewGatewayFactory(pspRepo, settingRepo, paystackWP, logger)
+	// Payment gateway adapters
+	gatewayAdapters := map[domain.Gateway]port.GatewayAdapter{
+		domain.Paystack:      paystack.NewAdapter(paymentRepo, pspRepo, settingRepo, logger),
+		domain.CheckoutDotCom: checkout_com.NewAdapter(logger),
+	}
+	gatewayFactory := service.NewGatewayFactory(pspRepo, settingRepo, logger, gatewayAdapters)
 
 	// Temporal (nil for now - requires full temporal adapter integration)
 	var engine port.Engine

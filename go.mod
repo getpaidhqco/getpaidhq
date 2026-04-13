@@ -18,12 +18,10 @@ require (
 	github.com/rs/cors/wrapper/gin v0.0.0-20240830163046-1084d89a1692
 	github.com/samber/slog-zap/v2 v2.6.2
 	github.com/segmentio/ksuid v1.0.4
-	github.com/spf13/cobra v1.9.1
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
 	go.temporal.io/api v1.45.0
 	go.temporal.io/sdk v1.32.1
-	go.uber.org/fx v1.23.0
 	go.uber.org/zap v1.27.0
 )
 
@@ -71,7 +69,6 @@ require (
 	github.com/grpc-ecosystem/go-grpc-middleware v1.4.0 // indirect
 	github.com/grpc-ecosystem/grpc-gateway/v2 v2.26.1 // indirect
 	github.com/hashicorp/hcl v1.0.0 // indirect
-	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
@@ -109,7 +106,6 @@ require (
 	github.com/subosito/gotenv v1.6.0 // indirect
 	github.com/twitchyliquid64/golang-asm v0.15.1 // indirect
 	github.com/ugorji/go/codec v1.2.12 // indirect
-	go.uber.org/dig v1.18.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/arch v0.14.0 // indirect
 	golang.org/x/crypto v0.35.0 // indirect
