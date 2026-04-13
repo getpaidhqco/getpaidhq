@@ -23,11 +23,11 @@ func (p WebhookParserAdapter) ValidateWebhook(ctx context.Context, data []byte) 
 }
 
 func (p WebhookParserAdapter) ParseWebhook(ctx context.Context, data []byte) (domain.PaymentWebhookContext, error) {
-	p.logger.Info("[CheckoutDotCom] parsing webhook")
+	p.logger.Info("parsing webhook", "psp", "checkout.com")
 
 	var payload WebhookPayload
 	if err := json.Unmarshal(data, &payload); err != nil {
-		p.logger.Errorf("failed to unmarshal webhook payload", err.Error())
+		p.logger.Error("failed to unmarshal webhook payload", "error", err)
 		return domain.PaymentWebhookContext{}, err
 	}
 
@@ -35,7 +35,7 @@ func (p WebhookParserAdapter) ParseWebhook(ctx context.Context, data []byte) (do
 	case PaymentCapturedWebhook:
 		_, err := parseData[PaymentCaptured](payload.Data)
 		if err != nil {
-			p.logger.Errorf("failed to parse charge success: %s", err.Error())
+			p.logger.Error("failed to parse charge success", "error", err)
 			return domain.PaymentWebhookContext{}, err
 		}
 
@@ -46,7 +46,7 @@ func (p WebhookParserAdapter) ParseWebhook(ctx context.Context, data []byte) (do
 	case PaymentApprovedWebhook:
 		webhook, err := parseData[PaymentApproved](payload.Data)
 		if err != nil {
-			p.logger.Errorf("failed to parse charge success: %s", err.Error())
+			p.logger.Error("failed to parse charge success", "error", err)
 			return domain.PaymentWebhookContext{}, err
 		}
 
@@ -55,11 +55,11 @@ func (p WebhookParserAdapter) ParseWebhook(ctx context.Context, data []byte) (do
 		phase := webhook.Metadata.Phase
 
 		if orgId == "" || orderId == "" {
-			p.logger.Errorf("missing orgId or orderId")
+			p.logger.Error("missing orgId or orderId")
 			return domain.PaymentWebhookContext{}, errors.New("missing orgId or orderId")
 		}
 		if phase == "recurring" {
-			p.logger.Debugf("Recurring charge webhook, ignoring")
+			p.logger.Debug("recurring charge webhook, ignoring")
 			return domain.PaymentWebhookContext{
 				Type: domain.Noop,
 			}, nil
@@ -101,12 +101,12 @@ func (p WebhookParserAdapter) ParseWebhook(ctx context.Context, data []byte) (do
 	case PaymentRefundedWebhook:
 		webhook, err := parseData[PaymentRefunded](payload.Data)
 		if err != nil {
-			p.logger.Errorf("failed to parse PaymentRefundedWebhook: %s", err.Error())
+			p.logger.Error("failed to parse payment refunded webhook", "error", err)
 			return domain.PaymentWebhookContext{}, err
 		}
 		orgId := webhook.Metadata["org_id"]
 		if orgId == "" {
-			p.logger.Errorf("missing orgId ")
+			p.logger.Error("missing orgId")
 			return domain.PaymentWebhookContext{}, errors.New("missing orgId")
 		}
 

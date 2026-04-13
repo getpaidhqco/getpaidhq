@@ -32,7 +32,7 @@ func NewWebhookParser(
 func (p WebhookParser) ValidateWebhook(ctx context.Context, data []byte) error {
 	var payload WebhookPayload
 	if err := json.Unmarshal(data, &payload); err != nil {
-		p.logger.Errorf("failed to unmarshal webhook payload", err.Error())
+		p.logger.Error("failed to unmarshal webhook payload", "error", err)
 		return err
 	}
 	return nil
@@ -41,7 +41,7 @@ func (p WebhookParser) ValidateWebhook(ctx context.Context, data []byte) error {
 func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (domain.PaymentWebhookContext, error) {
 	var payload WebhookPayload
 	if err := json.Unmarshal(data, &payload); err != nil {
-		p.logger.Errorf("failed to unmarshal webhook payload", err.Error())
+		p.logger.Error("failed to unmarshal webhook payload", "error", err)
 		return domain.PaymentWebhookContext{}, err
 	}
 
@@ -49,7 +49,7 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (domain.Pa
 	case "charge.success":
 		webhook, err := p.parseChargeSuccess(payload.Data)
 		if err != nil {
-			p.logger.Errorf("failed to parse charge success: %s", err.Error())
+			p.logger.Error("failed to parse charge success", "error", err)
 			return domain.PaymentWebhookContext{}, err
 		}
 
@@ -60,11 +60,11 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (domain.Pa
 		}
 
 		if orgID, ok := webhook.Metadata["org_id"]; !ok || orgID == "" {
-			p.logger.Errorf("missing org_id in webhook metadata")
+			p.logger.Error("missing org_id in webhook metadata")
 			return domain.PaymentWebhookContext{}, errors.New("missing org_id in webhook metadata")
 		}
 		if orderId, ok := webhook.Metadata["order_id"]; !ok || orderId == "" {
-			p.logger.Errorf("missing order Id in webhook metadata")
+			p.logger.Error("missing order id in webhook metadata")
 			return domain.PaymentWebhookContext{}, errors.New("missing order_id in webhook metadata")
 		}
 
@@ -104,31 +104,31 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (domain.Pa
 	case "refund.processed":
 		webhook, err := p.parseRefundProcessed(payload.Data)
 		if err != nil {
-			p.logger.Errorf("failed to parse: %s", err.Error())
+			p.logger.Error("failed to parse refund processed", "error", err)
 			return domain.PaymentWebhookContext{}, err
 		}
 
 		transactions, err := p.paymentRepository.ListByPspId(ctx, domain.Paystack, webhook.TransactionReference)
 		if err != nil {
-			p.logger.Errorf("failed to find ListByPspId: %s", err.Error())
+			p.logger.Error("failed to find ListByPspId", "error", err)
 			return domain.PaymentWebhookContext{}, err
 		}
 		if len(transactions) == 0 {
-			p.logger.Debugf("No transaction with ref %s", webhook.TransactionReference)
+			p.logger.Debug("no transaction with ref", "transactionReference", webhook.TransactionReference)
 			return domain.PaymentWebhookContext{}, errors.New("transaction not found")
 		}
 
 		var originalPayment domain.Payment
 		for _, transaction := range transactions {
-			p.logger.Debugf(`Checking transaction %s`, transaction.PspId)
+			p.logger.Debug("checking transaction", "pspId", transaction.PspId)
 			cli, err := p.factory.New(ctx, transaction.OrgId)
 			if err != nil {
-				p.logger.Errorf("failed to create paystack client: %s", err.Error())
+				p.logger.Error("failed to create paystack client", "error", err)
 				return domain.PaymentWebhookContext{}, err
 			}
 			paystack, ok := cli.(Paystack)
 			if !ok {
-				p.logger.Errorf("failed to assert cli to Paystack")
+				p.logger.Error("failed to assert cli to Paystack")
 				return domain.PaymentWebhookContext{}, errors.New("invalid Paystack type")
 			}
 
@@ -140,7 +140,7 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (domain.Pa
 			if err != nil {
 				continue
 			}
-			p.logger.Debugf(`Found refund %s -> %s`, refund.ID, refund.Status)
+			p.logger.Debug("found refund", "refundId", refund.ID, "status", refund.Status)
 			// we now have the original payment
 			originalPayment = transaction
 			break
@@ -173,7 +173,7 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (domain.Pa
 
 		p.logger.Info("transfer failed")
 	default:
-		p.logger.Warnf("unknown event %s", payload.Event)
+		p.logger.Warn("unknown event", "event", payload.Event)
 	}
 
 	return domain.PaymentWebhookContext{}, errors.New("unknown event")

@@ -41,9 +41,9 @@ func (r RetryPolicy) GetNextCharge(subscription Subscription) time.Time {
 	}
 	var nextCharge time.Time
 	base := subscription.RenewsAt
-	logger.Debugf("Calculating next retry charge for [%s]", subscription.Id)
-	logger.Debugf("Retries attempted   [%d]", subscription.Retries)
-	logger.Debugf("Base time   [%s]", base)
+	logger.Debug("calculating next retry charge", "subscriptionId", subscription.Id)
+	logger.Debug("retries attempted", "retries", subscription.Retries)
+	logger.Debug("base time", "base", base)
 
 	var retryDuration time.Duration
 	switch r.RetryInterval {
@@ -60,12 +60,12 @@ func (r RetryPolicy) GetNextCharge(subscription Subscription) time.Time {
 	}
 
 	retryUntil := base.Add(time.Duration(r.RetryPeriod) * retryDuration)
-	logger.Debugf("Retry until [%s]", retryUntil)
+	logger.Debug("retry until", "retryUntil", retryUntil)
 
 	retryPeriod := time.Duration(r.RetryPeriod) * retryDuration / time.Duration(r.RetryAttempts-subscription.Retries)
 
 	nextCharge = base.Add(retryPeriod)
-	logger.Debugf("Charge date for retry #%d [%s]", subscription.Retries+1, nextCharge)
+	logger.Debug("charge date for retry", "retryNumber", subscription.Retries+1, "nextCharge", nextCharge)
 
 	return nextCharge
 }

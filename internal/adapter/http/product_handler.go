@@ -221,7 +221,7 @@ func (s *ProductHandler) CreatePrice(c *gin.Context) {
 		Metadata:           input.Metadata,
 	})
 	if err != nil {
-		s.logger.Error("Failed to create price", err.Error())
+		s.logger.Error("failed to create price", "error", err)
 		apiErr := NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
 		return

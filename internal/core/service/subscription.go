@@ -39,11 +39,10 @@ func NewSubscriptionService(
 ) *SubscriptionService {
 
 	_, err := pubsub.Subscribe("subscription.workflow.>", func(topic string, data []byte) {
-		logger.Infof("Received message from %s", topic)
+		logger.Info("received message", "topic", topic)
 	})
 	if err != nil {
-		logger.Error("Failed to subscribe to topic", err.Error())
-		panic(err)
+		logger.Error("failed to subscribe to topic", "error", err)
 	}
 
 	return &SubscriptionService{
@@ -61,17 +60,17 @@ func NewSubscriptionService(
 }
 
 func (s *SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, orgId string, orderId string) ([]domain.Subscription, error) {
-	s.logger.Info("CreateSubscriptionsForOrder", "orgId", orgId, "orderId", orderId)
+	s.logger.Info("creating subscriptions for order", "orgId", orgId, "orderId", orderId)
 	var subs []domain.Subscription
 	order, err := s.orderRepository.FindById(ctx, orgId, orderId)
 	if err != nil {
-		s.logger.Error("Failed to find order", err.Error())
+		s.logger.Error("failed to find order", "error", err)
 		return subs, err
 	}
 
 	orderItems, err := s.orderRepository.FindOrderItemsByOrderId(ctx, orgId, orderId)
 	if err != nil {
-		s.logger.Error("Failed to find order items", err.Error())
+		s.logger.Error("failed to find order items", "error", err)
 		return subs, err
 	}
 
@@ -83,23 +82,23 @@ func (s *SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, o
 
 		_, err := s.subscriptionRepository.Create(ctx, subscription)
 		if err != nil {
-			s.logger.Error("Failed to create subscription", "item", item, err.Error())
+			s.logger.Error("failed to create subscription", "item", item, "error", err)
 			return subs, err
 		}
 		subs = append(subs, subscription)
 	}
 
-	s.logger.Info("Subscriptions created", "count", len(subs))
+	s.logger.Info("subscriptions created", "count", len(subs))
 	return subs, nil
 }
 
 func (s *SubscriptionService) Create(ctx context.Context, input domain.CreateSubscriptionInput) (domain.Subscription, error) {
-	s.logger.Info("Creating new subscription", "orgId", input.OrgId)
+	s.logger.Info("creating new subscription", "orgId", input.OrgId)
 
 	subscription := domain.NewFromCreateInput(input)
 	subscription, err := s.subscriptionRepository.Create(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed create subscriptions", err.Error())
+		s.logger.Error("failed to create subscription", "error", err)
 		return domain.Subscription{}, err
 	}
 
@@ -108,22 +107,22 @@ func (s *SubscriptionService) Create(ctx context.Context, input domain.CreateSub
 }
 
 func (s *SubscriptionService) Update(ctx context.Context, input domain.UpdateSubscriptionInput) (domain.Subscription, error) {
-	s.logger.Info("Updating subscription", "orgId", input.OrgId, "id", input.Id)
+	s.logger.Info("updating subscription", "orgId", input.OrgId, "subscriptionId", input.Id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
-		s.logger.Error("Failed to find subscriptions", err.Error())
+		s.logger.Error("failed to find subscription", "error", err)
 		return domain.Subscription{}, err
 	}
 
 	if input.Status != subscription.Status {
-		s.logger.Infof("Updating status %s", input.Status)
+		s.logger.Info("updating status", "status", input.Status)
 		subscription.Status = input.Status
 	}
 
 	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", "err", err.Error())
+		s.logger.Error("failed to update subscription", "error", err)
 		return domain.Subscription{}, err
 	}
 
@@ -132,11 +131,11 @@ func (s *SubscriptionService) Update(ctx context.Context, input domain.UpdateSub
 }
 
 func (s *SubscriptionService) FindById(ctx context.Context, orgId string, id string) (domain.Subscription, error) {
-	s.logger.Info("Fetching", "orgId", orgId, "id", id)
+	s.logger.Info("fetching subscription", "orgId", orgId, "subscriptionId", id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to find subscriptions", err.Error())
+		s.logger.Error("failed to find subscription", "error", err)
 		return domain.Subscription{}, err
 	}
 	return subscription, nil
@@ -144,24 +143,24 @@ func (s *SubscriptionService) FindById(ctx context.Context, orgId string, id str
 
 // Activate a subscription and start the workflow engine.
 func (s *SubscriptionService) Activate(ctx context.Context, orgId string, id string) (domain.Subscription, error) {
-	s.logger.Info("Marking subscription active", "orgId", orgId, "id", id)
+	s.logger.Info("marking subscription active", "orgId", orgId, "subscriptionId", id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to find subscriptions", err.Error())
+		s.logger.Error("failed to find subscription", "error", err)
 		return domain.Subscription{}, err
 	}
 
 	subscription.Status = domain.SubscriptionStatusActive
 	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", "err", err.Error())
+		s.logger.Error("failed to update subscription", "error", err)
 		return domain.Subscription{}, err
 	}
 
 	err = s.engine.StartSubscriptionWorkflow(ctx, subscription)
 	if err != nil {
-		s.logger.Errorf("Failed to start workflow %v", err.Error())
+		s.logger.Error("failed to start workflow", "error", err)
 		return domain.Subscription{}, err
 	}
 
@@ -170,11 +169,11 @@ func (s *SubscriptionService) Activate(ctx context.Context, orgId string, id str
 
 // PauseSubscription pauses a subscription and signals the workflow engine.
 func (s *SubscriptionService) PauseSubscription(ctx context.Context, input domain.PauseSubscriptionInput) (domain.Subscription, error) {
-	s.logger.Info("Pausing subscription", "orgId", input.OrgId, "id", input.Id)
+	s.logger.Info("pausing subscription", "orgId", input.OrgId, "subscriptionId", input.Id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
-		s.logger.Error("Failed to find subscriptions", err.Error())
+		s.logger.Error("failed to find subscription", "error", err)
 		var serr lib.CustomError
 		if errors.As(err, &serr) {
 			return domain.Subscription{}, err
@@ -183,14 +182,14 @@ func (s *SubscriptionService) PauseSubscription(ctx context.Context, input domai
 	}
 
 	if subscription.Status == domain.SubscriptionStatusPaused {
-		s.logger.Info("Subscription is already paused")
+		s.logger.Info("subscription is already paused")
 		return subscription, lib.NewCustomError(lib.BadRequestError, "subscription is paused already", nil)
 	}
 
 	subscription.Status = domain.SubscriptionStatusPaused
 	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", "err", err.Error())
+		s.logger.Error("failed to update subscription", "error", err)
 		return domain.Subscription{}, err
 	}
 
@@ -211,7 +210,7 @@ func (s *SubscriptionService) PauseSubscription(ctx context.Context, input domai
 func (s *SubscriptionService) List(ctx context.Context, orgId string, pagination domain.Pagination) ([]domain.Subscription, int, error) {
 	subs, total, err := s.subscriptionRepository.Find(ctx, orgId, pagination)
 	if err != nil {
-		s.logger.Error("Failed to list subscriptions", err.Error())
+		s.logger.Error("failed to list subscriptions", "error", err)
 		return nil, 0, err
 	}
 	return subs, total, nil
@@ -219,11 +218,11 @@ func (s *SubscriptionService) List(ctx context.Context, orgId string, pagination
 
 // ResumeSubscription resumes a paused subscription and signals the workflow engine.
 func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input domain.ResumeSubscriptionInput) (domain.Subscription, error) {
-	s.logger.Info("Resuming subscription", "orgId", input.OrgId, "id", input.Id)
+	s.logger.Info("resuming subscription", "orgId", input.OrgId, "subscriptionId", input.Id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
-		s.logger.Error("Failed to find subscriptions", err.Error())
+		s.logger.Error("failed to find subscription", "error", err)
 		var serr lib.CustomError
 		if errors.As(err, &serr) {
 			return domain.Subscription{}, err
@@ -233,7 +232,7 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input doma
 
 	if subscription.Status != domain.SubscriptionStatusPaused &&
 		subscription.Status != domain.SubscriptionStatusPastDue {
-		s.logger.Info("Subscription is not paused")
+		s.logger.Info("subscription is not paused")
 		return subscription, lib.NewCustomError(lib.BadRequestError, "subscription is not paused", nil)
 	}
 
@@ -251,7 +250,7 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input doma
 	}
 
 	if behaviour == domain.StartNewBillingPeriod {
-		s.logger.Debugf(`Starting new billing period..`)
+		s.logger.Debug("starting new billing period")
 		nextCharge := time.Now().UTC().Add(time.Second * 20)
 		subscription.BillingAnchor = nextCharge.Day()
 		subscription.RenewsAt = nextCharge
@@ -262,7 +261,7 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input doma
 	subscription.Status = domain.SubscriptionStatusActive
 	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", "err", err.Error())
+		s.logger.Error("failed to update subscription", "error", err)
 		return domain.Subscription{}, err
 	}
 
@@ -282,11 +281,11 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input doma
 
 // CancelSubscription cancels a subscription. It will continue through its current billing cycle.
 func (s *SubscriptionService) CancelSubscription(ctx context.Context, input domain.CancelSubscriptionInput) (domain.Subscription, error) {
-	s.logger.Info("Cancelling subscription", "orgId", input.OrgId, "id", input.Id)
+	s.logger.Info("cancelling subscription", "orgId", input.OrgId, "subscriptionId", input.Id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
-		s.logger.Error("Failed to find subscriptions", err.Error())
+		s.logger.Error("failed to find subscription", "error", err)
 		var serr lib.CustomError
 		if errors.As(err, &serr) {
 			return domain.Subscription{}, err
@@ -295,7 +294,7 @@ func (s *SubscriptionService) CancelSubscription(ctx context.Context, input doma
 	}
 
 	if subscription.Status == domain.SubscriptionStatusCancelled {
-		s.logger.Info("Subscription is already cancelled")
+		s.logger.Info("subscription is already cancelled")
 		return subscription, lib.NewCustomError(lib.BadRequestError, "subscription is already cancelled", nil)
 	}
 
@@ -305,12 +304,12 @@ func (s *SubscriptionService) CancelSubscription(ctx context.Context, input doma
 	subscription.CancelledAt = cancelledAt
 	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", "err", err.Error())
+		s.logger.Error("failed to update subscription", "error", err)
 		return domain.Subscription{}, err
 	}
 
 	// Signal the workflow engine
-	s.logger.Debugf("Updating workflow for subscription %s [%s]", subscription.Id, port.TopicSubscriptionCancelled)
+	s.logger.Debug("updating workflow for subscription", "subscriptionId", subscription.Id, "topic", port.TopicSubscriptionCancelled)
 	err = s.engine.UpdateSubscriptionWorkflow(ctx, port.TopicSubscriptionCancelled, subscription)
 	if err != nil {
 		var serr lib.CustomError
@@ -325,11 +324,11 @@ func (s *SubscriptionService) CancelSubscription(ctx context.Context, input doma
 }
 
 func (s *SubscriptionService) UpdateBillingAnchor(ctx context.Context, input domain.UpdateBillingAnchorInput) (domain.ProrationDetails, error) {
-	s.logger.Infof("Updating billing anchor for subscription %s", input.Id)
+	s.logger.Info("updating billing anchor", "subscriptionId", input.Id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
-		s.logger.Error("Failed to find subscriptions", err.Error())
+		s.logger.Error("failed to find subscription", "error", err)
 		var serr lib.CustomError
 		if errors.As(err, &serr) {
 			return domain.ProrationDetails{}, err
@@ -341,7 +340,7 @@ func (s *SubscriptionService) UpdateBillingAnchor(ctx context.Context, input dom
 
 	_, err = s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", "err", err.Error())
+		s.logger.Error("failed to update subscription", "error", err)
 		return domain.ProrationDetails{}, err
 	}
 
@@ -356,7 +355,7 @@ func (s *SubscriptionService) UpdateBillingAnchor(ctx context.Context, input dom
 
 // UpdateWorkflowState refreshes the workflow state from the database. Used for debugging and error recovery.
 func (s *SubscriptionService) UpdateWorkflowState(ctx context.Context, orgId string, id string) (domain.Subscription, error) {
-	s.logger.Infof("Updating workflow [%s][%s]", orgId, id)
+	s.logger.Info("updating workflow state", "orgId", orgId, "subscriptionId", id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, id)
 	if err != nil {
@@ -378,43 +377,41 @@ func (s *SubscriptionService) UpdateWorkflowState(ctx context.Context, orgId str
 func (s *SubscriptionService) GetSubscriptionCustomer(ctx context.Context, subscription domain.Subscription) (domain.Customer, error) {
 	customer, err := s.customerRepository.FindById(ctx, subscription.OrgId, subscription.CustomerId)
 	if err != nil {
-		s.logger.Error("Failed to find customer", err.Error())
+		s.logger.Error("failed to find customer", "error", err)
 		return domain.Customer{}, err
 	}
 	return customer, nil
 }
 
 func (s *SubscriptionService) GetSubscriptionPaymentMethod(ctx context.Context, subscription domain.Subscription) (domain.PaymentMethod, error) {
-	s.logger.Infof("Fetching payment method for subscription [%s] %s - %s",
-		subscription.OrgId, subscription.Id, subscription.PaymentMethodId)
+	s.logger.Info("fetching payment method for subscription", "orgId", subscription.OrgId, "subscriptionId", subscription.Id, "paymentMethodId", subscription.PaymentMethodId)
 
 	paymentMethod, err := s.customerRepository.FindPaymentMethodById(ctx, subscription.OrgId, subscription.PaymentMethodId)
 	if err != nil {
-		s.logger.Error("Failed to find payment method", err.Error())
+		s.logger.Error("failed to find payment method", "error", err)
 		return domain.PaymentMethod{}, err
 	}
 	return paymentMethod, nil
 }
 
 func (s *SubscriptionService) FindSubscriptionPayments(ctx context.Context, pk domain.EntityKey, pagination domain.Pagination) ([]domain.Payment, int, error) {
-	s.logger.Info("Fetching payment method for subscription", "orgId", pk.OrgId, "id", pk.Id)
+	s.logger.Info("fetching payments for subscription", "orgId", pk.OrgId, "subscriptionId", pk.Id)
 
 	payments, total, err := s.paymentRepository.FindBySubscriptionId(ctx, pk.OrgId, pk.Id, pagination)
 	if err != nil {
-		s.logger.Error("Failed to find payment method", err.Error())
+		s.logger.Error("failed to find payments", "error", err)
 		return nil, 0, err
 	}
 	return payments, total, nil
 }
 
 func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Context, input domain.SubscriptionChargeInput) (domain.Subscription, error) {
-	s.logger.Info("Recording subscription payment and updating subscription")
+	s.logger.Info("recording subscription payment and updating subscription")
 	subscription := input.Subscription
 	charge := input.ChargeResult
 
 	if subscription.Id == "" {
-		s.logger.Error("Subscription is empty")
-		panic("Subscription is empty")
+		return domain.Subscription{}, errors.New("subscription is empty")
 	}
 
 	payment := domain.Payment{
@@ -441,7 +438,7 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 
 	payment, err := s.paymentRepository.Create(ctx, payment)
 	if err != nil {
-		s.logger.Error("Failed to create payment", err.Error())
+		s.logger.Error("failed to create payment", "error", err)
 	}
 
 	lastCharge := time.Now().UTC()
@@ -465,12 +462,11 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 		subscription.CurrentPeriodEnd = nextCharge
 	}
 
-	s.logger.Infof("[%s][%s] subscription charged, updating with new values [%s]",
-		subscription.OrgId, subscription.Id, subscription.Status)
+	s.logger.Info("subscription charged", "orgId", subscription.OrgId, "subscriptionId", subscription.Id, "status", subscription.Status)
 
 	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", "err", err.Error())
+		s.logger.Error("failed to update subscription", "error", err)
 		return domain.Subscription{}, err
 	}
 
@@ -491,19 +487,22 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 }
 
 func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Context, input domain.SubscriptionChargeInput) (domain.Subscription, error) {
-	s.logger.Info("Charge failure happened",
+	s.logger.Info("charge failure happened",
 		"orgId", input.Subscription.OrgId,
-		"id", input.Subscription.Id,
+		"subscriptionId", input.Subscription.Id,
 		"reason", input.ChargeResult.ErrorReason)
 
 	subscription := input.Subscription
 	charge := input.ChargeResult
 
-	s.logger.Infof("Subscription [%s] charge failed with reason [%s][%s][chargeResult status = %s][]",
-		subscription.Id, charge.ErrorCode, charge.ErrorReason, charge.Status, subscription.Retries)
+	s.logger.Info("subscription charge failed",
+		"subscriptionId", subscription.Id,
+		"errorCode", charge.ErrorCode,
+		"errorReason", charge.ErrorReason,
+		"chargeStatus", charge.Status,
+		"retries", subscription.Retries)
 	if subscription.Id == "" {
-		s.logger.Error("Subscription is empty")
-		panic("Subscription is empty")
+		return domain.Subscription{}, errors.New("subscription is empty")
 	}
 
 	payment := domain.Payment{
@@ -530,13 +529,13 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 
 	payment, err := s.paymentRepository.Create(ctx, payment)
 	if err != nil {
-		s.logger.Error("Failed to create payment", err.Error())
+		s.logger.Error("failed to create payment", "error", err)
 	}
 
-	s.logger.Debug("Created payment for subscription")
+	s.logger.Debug("created payment for subscription")
 
 	retryPolicy := s.GetRetryPolicy(ctx, subscription.OrgId)
-	s.logger.Debug("Retry policy",
+	s.logger.Debug("retry policy",
 		"attempts", retryPolicy.RetryAttempts,
 		"interval", retryPolicy.RetryInterval,
 		"qty", retryPolicy.RetryPeriod,
@@ -545,26 +544,26 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 
 	nextRetryDate := retryPolicy.GetNextCharge(subscription)
 	if nextRetryDate.IsZero() {
-		s.logger.Debugf("Subscription [%s] has no more retries left", subscription.Id)
+		s.logger.Debug("subscription has no more retries left", "subscriptionId", subscription.Id)
 		if retryPolicy.FailureAction == domain.FailureActionMarkUnpaid {
-			s.logger.Debugf("Marking as unpaid..")
+			s.logger.Debug("marking as unpaid")
 			subscription.Status = domain.SubscriptionStatusUnpaid
 		}
 		if retryPolicy.FailureAction == domain.FailureActionCancel {
-			s.logger.Debugf("Cancelling..")
+			s.logger.Debug("cancelling")
 			subscription.SetCancelled()
 		}
 	} else {
-		s.logger.Debugf("Subscription [%s] next retry date [%s]", subscription.Id, nextRetryDate)
+		s.logger.Debug("subscription next retry scheduled", "subscriptionId", subscription.Id, "nextRetryDate", nextRetryDate)
 		subscription.Status = domain.SubscriptionStatusPastDue
 		subscription.NextRetryAt = nextRetryDate
 		subscription.Retries++
 	}
 
-	s.logger.Infof("[%s][%s] nextCharge=[%s]", subscription.OrgId, subscription.Id, subscription.GetNextChargeDate())
+	s.logger.Info("updating subscription after charge failure", "orgId", subscription.OrgId, "subscriptionId", subscription.Id, "nextChargeDate", subscription.GetNextChargeDate())
 	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		s.logger.Error("Failed to update subscription", "err", err.Error())
+		s.logger.Error("failed to update subscription", "error", err)
 		return domain.Subscription{}, err
 	}
 
@@ -599,14 +598,14 @@ func (s *SubscriptionService) GetRetryPolicy(ctx context.Context, orgId string) 
 	}
 	setting, err := s.settingRepository.FindById(ctx, orgId, "subscriptions", "retry_policy")
 	if err != nil || setting.Value == "" {
-		s.logger.Infof(`Retry policy not set, using default policy`)
+		s.logger.Info("retry policy not set, using default policy")
 		return defaultPolicy
 	}
 
 	var retryPolicy domain.RetryPolicy
 	err = json.Unmarshal([]byte(setting.Value), &retryPolicy)
 	if err != nil {
-		s.logger.Error("Failed to unmarshal retry policy", "error", err)
+		s.logger.Error("failed to unmarshal retry policy", "error", err)
 		return defaultPolicy
 	}
 	return retryPolicy

@@ -32,11 +32,11 @@ func NewQueueService(
 }
 
 func (s *QueueService) HandleQueueMessage(data port.QueueMessage) error {
-	s.logger.Infof("[QueueService] queue message: [%s]", data.Type)
+	s.logger.Info("queue message received", "type", data.Type)
 
 	payloadBytes, err := json.Marshal(data.Data)
 	if err != nil {
-		s.logger.Errorf("[QueueService] failed to marshal data: %v", err)
+		s.logger.Error("failed to marshal data", "error", err)
 		return err
 	}
 
@@ -45,7 +45,7 @@ func (s *QueueService) HandleQueueMessage(data port.QueueMessage) error {
 		var payload port.PaymentWebhookPayload
 		err = json.Unmarshal(payloadBytes, &payload)
 		if err != nil {
-			s.logger.Errorf("[QueueService] failed to unmarshal webhook payload: %v", err)
+			s.logger.Error("failed to unmarshal webhook payload", "error", err)
 			return err
 		}
 
@@ -54,15 +54,15 @@ func (s *QueueService) HandleQueueMessage(data port.QueueMessage) error {
 		var payload port.PubSubPayload
 		err = json.Unmarshal(payloadBytes, &payload)
 		if err != nil {
-			s.logger.Errorf("[QueueService] failed to unmarshal webhook payload: %v", err)
+			s.logger.Error("failed to unmarshal webhook payload", "error", err)
 			return err
 		}
 
-		s.logger.Debugf("[QueueService] received report event: [%s]", payload.Topic)
+		s.logger.Debug("received report event", "topic", payload.Topic)
 		//s.reportService.ProcessDataChange(payloadBytes)
 		return nil
 	default:
-		s.logger.Errorf("[QueueService] unknown message type: [%s]", data.Type)
+		s.logger.Error("unknown message type", "type", data.Type)
 		return lib.NewCustomError(lib.BadRequestError, "unknown message type", nil)
 	}
 }

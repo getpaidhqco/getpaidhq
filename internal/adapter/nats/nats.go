@@ -2,7 +2,6 @@ package nats
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/nats-io/nats-server/v2/server"
 	"github.com/nats-io/nats.go"
 	"payloop/internal/core/port"
@@ -51,7 +50,7 @@ func (n NatsPubSub) Publish(orgId, topic string, message interface{}) error {
 		Data:      message,
 		CreatedAt: time.Now().UTC(),
 	})
-	n.logger.Debug(fmt.Sprintf("[nats] publishing topic [%s]", topic))
+	n.logger.Debug("publishing topic", "topic", topic)
 	err := n.Conn.Publish(topic, data)
 	return err
 }

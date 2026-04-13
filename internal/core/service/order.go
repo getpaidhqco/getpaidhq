@@ -61,7 +61,7 @@ func NewOrderService(
 
 // CreateOrder creates a new order from a session/cart or direct cart items.
 func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrderInput) (domain.CreateOrderResponse, error) {
-	s.logger.Info("Creating order for cart", "session", input.SessionId)
+	s.logger.Info("creating order", "sessionId", input.SessionId)
 	orgId := input.OrgId
 	orderId := lib.GenerateId("order")
 	var customerEntity domain.Customer
@@ -79,13 +79,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrder
 	if input.SessionId != "" {
 		session, err := s.sessionRepository.FindById(ctx, orgId, input.SessionId)
 		if err != nil {
-			s.logger.Error("Failed to find session id ", "id", input.SessionId, err.Error())
+			s.logger.Error("failed to find session", "sessionId", input.SessionId, "error", err)
 			return domain.CreateOrderResponse{}, lib.NewCustomError(lib.NotFoundError, "session not found", nil)
 		}
 
 		existingCart, err := s.cartRepository.FindById(ctx, orgId, session.CartId)
 		if err != nil {
-			s.logger.Error("Failed to find cart id ", "id", input.SessionId, err.Error())
+			s.logger.Error("failed to find cart", "cartId", session.CartId, "error", err)
 			return domain.CreateOrderResponse{}, lib.NewCustomError(lib.NotFoundError, "cart not found", nil)
 		}
 		orderCart = existingCart
@@ -103,13 +103,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrder
 		for _, item := range input.CartItems {
 			product, err := s.productRepository.FindById(ctx, orgId, item.ProductId)
 			if err != nil {
-				s.logger.Error("Failed to find product", err.Error())
+				s.logger.Error("failed to find product", "error", err)
 				return domain.CreateOrderResponse{}, lib.NewCustomError(lib.InternalError, "Can't add item to cart", err)
 			}
 
 			price, err := s.priceRepository.FindById(ctx, orgId, item.PriceId)
 			if err != nil {
-				s.logger.Error("Failed to find price", err.Error())
+				s.logger.Error("failed to find price", "error", err)
 				return domain.CreateOrderResponse{}, lib.NewCustomError(lib.InternalError, "Can't add item to cart", err)
 			}
 
@@ -136,7 +136,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrder
 			Total: orderCart.Total,
 		})
 		if err != nil {
-			s.logger.Error("failed to create cart", err)
+			s.logger.Error("failed to create cart", "error", err)
 			return domain.CreateOrderResponse{}, err
 		}
 	}
@@ -150,7 +150,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrder
 	if input.Customer.Id != "" {
 		customerEntity, err = s.customerRepository.FindById(ctx, orgId, input.Customer.Id)
 		if err != nil {
-			s.logger.Error("Failed to find customer", err.Error())
+			s.logger.Error("failed to find customer", "error", err)
 			return domain.CreateOrderResponse{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
 		}
 	} else {
@@ -174,11 +174,11 @@ func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrder
 					Email:     input.Customer.Email,
 				})
 				if err != nil {
-					s.logger.Error("Failed to update customer", err.Error())
+					s.logger.Error("failed to update customer", "error", err)
 					return domain.CreateOrderResponse{}, err
 				}
 			} else {
-				s.logger.Error("Failed to create customer", err.Error())
+				s.logger.Error("failed to create customer", "error", err)
 				return domain.CreateOrderResponse{}, err
 			}
 		}
@@ -200,7 +200,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrder
 		UpdatedAt:  time.Now().UTC(),
 	})
 	if err != nil {
-		s.logger.Error("Failed to create order", err.Error())
+		s.logger.Error("failed to create order", "error", err)
 		return domain.CreateOrderResponse{}, err
 	}
 
@@ -223,7 +223,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrder
 			UpdatedAt:     time.Now().UTC(),
 		})
 		if err != nil {
-			s.logger.Error("Failed to create order item", "item", item, "err", err.Error())
+			s.logger.Error("failed to create order item", "item", item, "error", err)
 			return domain.CreateOrderResponse{}, err
 		}
 
@@ -235,7 +235,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrder
 
 			_, err := s.subscriptionRepository.Create(ctx, subscription)
 			if err != nil {
-				s.logger.Error("Failed to create subscription", "item", item, err.Error())
+				s.logger.Error("failed to create subscription", "item", item, "error", err)
 				return domain.CreateOrderResponse{}, err
 			}
 			_ = s.pubsub.Publish(orgId, port.TopicSubscriptionCreated, subscription)
@@ -244,10 +244,10 @@ func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrder
 
 	var pspResponse domain.InitPaymentResponse
 	if createPspSession {
-		s.logger.Debugf("Creating payment session for order %s", order.Id)
+		s.logger.Debug("creating payment session for order", "orderId", order.Id)
 		gw, err := s.gatewayFactory.NewGateway(ctx, orgId, string(input.PspId))
 		if err != nil {
-			s.logger.Error("Failed to get gateway", "err", err.Error())
+			s.logger.Error("failed to get gateway", "error", err)
 			return domain.CreateOrderResponse{}, err
 		}
 		// initialise the payment session with the payment processor
@@ -259,7 +259,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrder
 			Options:  input.Options,
 		})
 		if err != nil {
-			s.logger.Error("Failed to initialise payment gateway", err.Error())
+			s.logger.Error("failed to initialise payment gateway", "error", err)
 			return domain.CreateOrderResponse{}, err
 		}
 	}
@@ -283,24 +283,24 @@ func (s *OrderService) FindById(ctx context.Context, orgId string, id string) (d
 func (s *OrderService) List(ctx context.Context, orgId string, pagination domain.Pagination) ([]domain.Order, int, error) {
 	orders, total, err := s.orderRepository.Find(ctx, orgId, pagination)
 	if err != nil {
-		s.logger.Error("Failed to list orders", err.Error())
+		s.logger.Error("failed to list orders", "error", err)
 		return nil, 0, err
 	}
 	return orders, total, nil
 }
 
 func (s *OrderService) ListOrderSubscriptions(ctx context.Context, orgId string, id string) ([]domain.Subscription, error) {
-	s.logger.Info("Listing subscriptions for order", "orgId", orgId, "id", id)
+	s.logger.Info("listing subscriptions for order", "orgId", orgId, "orderId", id)
 
 	_, err := s.orderRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Order not found", "err", err.Error())
+		s.logger.Error("order not found", "error", err)
 		return nil, errors.New("order not found")
 	}
 
 	subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to retrieve subscriptions", err.Error())
+		s.logger.Error("failed to retrieve subscriptions", "error", err)
 		return nil, err
 	}
 
@@ -310,7 +310,7 @@ func (s *OrderService) ListOrderSubscriptions(ctx context.Context, orgId string,
 // CompleteOrder marks a pending order as completed and activates subscriptions.
 // No payment is involved - subscriptions start charging using the specified payment methods.
 func (s *OrderService) CompleteOrder(ctx context.Context, input domain.CompleteOrderInput) (domain.Order, error) {
-	s.logger.Infof("Completing order [%s][%s]", input.OrgId, input.Id)
+	s.logger.Info("completing order", "orgId", input.OrgId, "orderId", input.Id)
 
 	order, err := s.orderRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
@@ -330,7 +330,7 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input domain.CompleteO
 
 	_, err = s.orderRepository.Update(ctx, order)
 	if err != nil {
-		s.logger.Error("Failed to update order", err.Error())
+		s.logger.Error("failed to update order", "error", err)
 		return domain.Order{}, err
 	}
 
@@ -338,7 +338,7 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input domain.CompleteO
 	if input.PaymentMethodId != "" {
 		paymentMethod, err = s.customerRepository.FindPaymentMethodById(ctx, order.OrgId, input.PaymentMethodId)
 		if err != nil {
-			s.logger.Error("Failed to find payment method", err.Error())
+			s.logger.Error("failed to find payment method", "error", err)
 			return domain.Order{}, lib.NewCustomError(lib.NotFoundError, "Payment method not found", err)
 		}
 	}
@@ -351,7 +351,7 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input domain.CompleteO
 				return domain.Order{}, lib.NewCustomError(lib.BadRequestError, "Invalid card details", err)
 			}
 			expireAt = details.GetExpiryDate()
-			s.logger.Debugf("This payment method expires at: %v", expireAt)
+			s.logger.Debug("payment method expiry", "expireAt", expireAt)
 		}
 
 		paymentMethod, err = s.paymentMethodRepository.Create(ctx, domain.PaymentMethod{
@@ -371,19 +371,19 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input domain.CompleteO
 			UpdatedAt:      time.Now().UTC(),
 		})
 		if err != nil {
-			s.logger.Error("Failed to create payment method", err.Error())
+			s.logger.Error("failed to create payment method", "error", err)
 			return domain.Order{}, err
 		}
-		s.logger.Debugf(`Created payment method [%s] for order [%s]`, paymentMethod.Id, order.Id)
+		s.logger.Debug("created payment method for order", "paymentMethodId", paymentMethod.Id, "orderId", order.Id)
 	}
 
 	subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, input.OrgId, input.Id)
 	if err != nil {
-		s.logger.Info("no subscriptions to process", err.Error())
+		s.logger.Info("no subscriptions to process", "error", err)
 	}
 
 	for _, subscription := range subscriptions {
-		s.logger.Debugf("Setting subscription [%s] to active", subscription.Id)
+		s.logger.Debug("setting subscription to active", "subscriptionId", subscription.Id)
 
 		subscription.PaymentMethodId = paymentMethod.Id
 		subscription.SetMetadata(input.Metadata)
@@ -413,23 +413,23 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input domain.CompleteO
 			}
 			payment, err = s.paymentRepository.Create(ctx, payment)
 			if err != nil {
-				s.logger.Error("Failed to create payment", err.Error())
+				s.logger.Error("failed to create payment", "error", err)
 				return domain.Order{}, err
 			}
 		}
 
 		subscription.SetActive(payment)
-		s.logger.Infof("Subscription [%s] activated. firstPaymentCharged=%t", subscription.Id, firstPaymentCharged)
+		s.logger.Info("subscription activated", "subscriptionId", subscription.Id, "firstPaymentCharged", firstPaymentCharged)
 		newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 		if err != nil {
-			s.logger.Error("Failed to update subscription", "err", err.Error())
+			s.logger.Error("failed to update subscription", "error", err)
 			return domain.Order{}, err
 		}
 
-		s.logger.Debugf("Starting subscription workflow")
+		s.logger.Debug("starting subscription workflow")
 		err = s.engine.StartSubscriptionWorkflow(ctx, newSub)
 		if err != nil {
-			s.logger.Errorf("Failed to start workflow %v", err.Error())
+			s.logger.Error("failed to start workflow", "error", err)
 			return domain.Order{}, err
 		}
 	}
@@ -441,7 +441,7 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input domain.CompleteO
 // CompleteCheckoutSession marks a pending order as completed via a payment webhook.
 // This handles the PSP-triggered flow (Paystack/Checkout.com webhook -> order completion).
 func (s *OrderService) CompleteCheckoutSession(ctx context.Context, input domain.CompleteCheckoutSessionInput) (domain.Order, error) {
-	s.logger.Info("Completing order via checkout session", "order_id", input.OrderId)
+	s.logger.Info("completing order via checkout session", "orderId", input.OrderId)
 	orgId := input.OrgId
 	orderId := input.OrderId
 
@@ -454,7 +454,7 @@ func (s *OrderService) CompleteCheckoutSession(ctx context.Context, input domain
 	order.UpdatedAt = time.Now()
 	_, err = s.orderRepository.Update(ctx, order)
 	if err != nil {
-		s.logger.Error("Failed to update order", err.Error())
+		s.logger.Error("failed to update order", "error", err)
 		return domain.Order{}, err
 	}
 
@@ -475,15 +475,15 @@ func (s *OrderService) CompleteCheckoutSession(ctx context.Context, input domain
 		UpdatedAt:      time.Now().UTC(),
 	})
 	if err != nil {
-		s.logger.Error("Failed to create payment method", err.Error())
+		s.logger.Error("failed to create payment method", "error", err)
 		return domain.Order{}, err
 	}
-	s.logger.Infof("Created payment method %s for order %s", paymentMethod.Id, order.Id)
+	s.logger.Info("created payment method for order", "paymentMethodId", paymentMethod.Id, "orderId", order.Id)
 
 	var subscriptionId string
 	subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
 	if err != nil {
-		s.logger.Error("no subscriptions", err.Error())
+		s.logger.Error("no subscriptions found", "error", err)
 	}
 
 	recurringPayment := len(subscriptions) > 0 && paymentCtx.Payment.Amount > 0
@@ -504,7 +504,7 @@ func (s *OrderService) CompleteCheckoutSession(ctx context.Context, input domain
 
 		_, err := s.subscriptionRepository.Update(ctx, subscription)
 		if err != nil {
-			s.logger.Error("Failed to update subscription status", err.Error())
+			s.logger.Error("failed to update subscription status", "error", err)
 			return domain.Order{}, err
 		}
 	}
@@ -532,7 +532,7 @@ func (s *OrderService) CompleteCheckoutSession(ctx context.Context, input domain
 		}
 		_, err := s.paymentRepository.Create(ctx, payment)
 		if err != nil {
-			s.logger.Error("Failed to create payment", err.Error())
+			s.logger.Error("failed to create payment", "error", err)
 		}
 	}
 

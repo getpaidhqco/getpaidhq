@@ -61,14 +61,14 @@ func (s *WebhookSubscriptionService) SendWebhook(ctx context.Context, input port
 	// Convert the data to JSON
 	jsonData, err := json.Marshal(input.Event)
 	if err != nil {
-		s.logger.Errorf("Failed to marshal JSON: %v", err)
+		s.logger.Error("failed to marshal json", "error", err)
 		return err
 	}
 
 	// Create a new POST request with the JSON data
 	req, err := http.NewRequest("POST", webhook.URL, bytes.NewBuffer(jsonData))
 	if err != nil {
-		s.logger.Errorf("Failed to create new request: %v", err)
+		s.logger.Error("failed to create new request", "error", err)
 		return err
 	}
 
@@ -88,7 +88,7 @@ func (s *WebhookSubscriptionService) SendWebhook(ctx context.Context, input port
 	client := &http.Client{}
 	resp, err := client.Do(req)
 	if err != nil {
-		s.logger.Errorf("Failed to send request: %v", err.Error())
+		s.logger.Error("failed to send request", "error", err)
 		return err
 	}
 	defer func(Body io.ReadCloser) {
@@ -96,7 +96,7 @@ func (s *WebhookSubscriptionService) SendWebhook(ctx context.Context, input port
 	}(resp.Body)
 
 	// Print the response status
-	s.logger.Infof("Webhook sent to %s. Response Status: %s", webhook.URL, resp.Status)
+	s.logger.Info("webhook sent", "url", webhook.URL, "status", resp.Status)
 	return nil
 }
 

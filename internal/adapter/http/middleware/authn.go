@@ -36,7 +36,7 @@ func NewAuthnWrapperMiddleware(
 
 // Setup registers the authentication wrapper middleware on the gin engine.
 func (m AuthnWrapperMiddleware) Setup() {
-	m.logger.Info("Setting up authn wrapper middleware")
+	m.logger.Info("setting up authn wrapper middleware")
 	m.handler.Gin.Use(func(c *gin.Context) {
 		isAuthenticated := false
 
@@ -65,7 +65,7 @@ func (m AuthnWrapperMiddleware) Setup() {
 		}
 
 		if !isAuthenticated {
-			m.logger.Error("Authentication failed", "message", "unauthorized access")
+			m.logger.Error("authentication failed", "message", "unauthorized access")
 			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
 			return
 		}

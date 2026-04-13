@@ -18,7 +18,7 @@ func PaymentRefunded(ctx temporal.Context, payload domain.PaymentWebhookContext)
 	// parse the data to make sure we have what we need
 	paymentWebhookContext, err := domain.ParsePaymentWebhookContext(payload)
 	if err != nil {
-		logger.Error("Invalid payload data", "err", err.Error())
+		logger.Error("invalid payload data", "error", err)
 		return port.WorkflowResult{}, errors.New("invalid payload data, expected domain.PaymentWebhookContext ")
 	}
 
@@ -37,7 +37,7 @@ func PaymentRefunded(ctx temporal.Context, payload domain.PaymentWebhookContext)
 	err = temporal.ExecuteActivity(ctx1, a.HandlePaymentRefundedEvent, paymentWebhookContext).
 		Get(ctx1, &completeOrderResult)
 	if err != nil {
-		logger.Error("[HandlePaymentRefundedEvent] failed with error: ", "Error", err.Error())
+		logger.Error("HandlePaymentRefundedEvent failed", "error", err)
 		return port.WorkflowResult{}, temporalio.NewApplicationError("handle refund event failed", "", err)
 	}
 

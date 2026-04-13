@@ -48,7 +48,7 @@ func (s *ProductService) CreateProduct(ctx context.Context, orgId string, input 
 			UpdatedAt:   time.Now().UTC(),
 		})
 	if err != nil {
-		s.logger.Error("Failed to create product", err.Error())
+		s.logger.Error("failed to create product", "error", err)
 		return domain.Product{}, err
 	}
 
@@ -63,7 +63,7 @@ func (s *ProductService) CreateProduct(ctx context.Context, orgId string, input 
 				UpdatedAt: time.Now().UTC(),
 			})
 		if err != nil {
-			s.logger.Error("Failed to create variant", err.Error())
+			s.logger.Error("failed to create variant", "error", err)
 			return domain.Product{}, err
 		}
 
@@ -88,7 +88,7 @@ func (s *ProductService) CreateProduct(ctx context.Context, orgId string, input 
 					Metadata:           p.Metadata,
 				}))
 			if err != nil {
-				s.logger.Error("Failed to create price", err.Error())
+				s.logger.Error("failed to create price", "error", err)
 				return domain.Product{}, err
 			}
 		}
@@ -96,7 +96,7 @@ func (s *ProductService) CreateProduct(ctx context.Context, orgId string, input 
 
 	product, err = s.FindById(ctx, orgId, product.Id)
 	if err != nil {
-		s.logger.Error("Failed to find product", err.Error())
+		s.logger.Error("failed to find product", "error", err)
 		return domain.Product{}, err
 	}
 
@@ -107,7 +107,7 @@ func (s *ProductService) CreateProduct(ctx context.Context, orgId string, input 
 func (s *ProductService) List(ctx context.Context, orgId string, pagination domain.Pagination) ([]domain.Product, int, error) {
 	subs, total, err := s.productRepository.Find(ctx, orgId, pagination)
 	if err != nil {
-		s.logger.Error("Failed to list products", err.Error())
+		s.logger.Error("failed to list products", "error", err)
 		return nil, 0, err
 	}
 
@@ -117,7 +117,7 @@ func (s *ProductService) List(ctx context.Context, orgId string, pagination doma
 func (s *ProductService) FindById(ctx context.Context, orgId string, id string) (domain.Product, error) {
 	product, err := s.productRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to list products", err.Error())
+		s.logger.Error("failed to find product", "error", err)
 		return domain.Product{}, err
 	}
 
@@ -156,7 +156,7 @@ func (s *ProductService) CreateProductPrice(ctx context.Context, input domain.Cr
 	})
 
 	if err != nil {
-		s.logger.Error("Failed to create product price", err.Error())
+		s.logger.Error("failed to create product price", "error", err)
 		return domain.Price{}, err
 	}
 
@@ -167,7 +167,7 @@ func (s *ProductService) CreateProductPrice(ctx context.Context, input domain.Cr
 func (s *ProductService) UpdateProduct(ctx context.Context, orgId string, id string, input domain.UpdateProductInput) (domain.Product, error) {
 	product, err := s.productRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to find product", err.Error())
+		s.logger.Error("failed to find product", "error", err)
 		return domain.Product{}, err
 	}
 
@@ -178,7 +178,7 @@ func (s *ProductService) UpdateProduct(ctx context.Context, orgId string, id str
 
 	product, err = s.productRepository.Update(ctx, product)
 	if err != nil {
-		s.logger.Error("Failed to update product", err.Error())
+		s.logger.Error("failed to update product", "error", err)
 		return domain.Product{}, err
 	}
 
@@ -189,13 +189,13 @@ func (s *ProductService) UpdateProduct(ctx context.Context, orgId string, id str
 func (s *ProductService) DeleteProduct(ctx context.Context, orgId string, id string) error {
 	product, err := s.productRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to find product", err.Error())
+		s.logger.Error("failed to find product", "error", err)
 		return err
 	}
 
 	err = s.productRepository.Delete(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to delete product", err.Error())
+		s.logger.Error("failed to delete product", "error", err)
 		return err
 	}
 
@@ -215,7 +215,7 @@ func (s *ProductService) CreateVariant(ctx context.Context, orgId string, produc
 		UpdatedAt:   time.Now().UTC(),
 	})
 	if err != nil {
-		s.logger.Error("Failed to create variant", err.Error())
+		s.logger.Error("failed to create variant", "error", err)
 		return domain.Variant{}, err
 	}
 
@@ -226,7 +226,7 @@ func (s *ProductService) CreateVariant(ctx context.Context, orgId string, produc
 func (s *ProductService) GetVariant(ctx context.Context, orgId string, id string) (domain.Variant, error) {
 	variant, err := s.variantRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to find variant", err.Error())
+		s.logger.Error("failed to find variant", "error", err)
 		return domain.Variant{}, err
 	}
 
@@ -236,7 +236,7 @@ func (s *ProductService) GetVariant(ctx context.Context, orgId string, id string
 func (s *ProductService) ListVariants(ctx context.Context, orgId string, productId string, pagination domain.Pagination) ([]domain.Variant, int, error) {
 	variants, total, err := s.variantRepository.FindByProductId(ctx, orgId, productId, pagination)
 	if err != nil {
-		s.logger.Error("Failed to list variants", err.Error())
+		s.logger.Error("failed to list variants", "error", err)
 		return nil, 0, err
 	}
 
@@ -246,7 +246,7 @@ func (s *ProductService) ListVariants(ctx context.Context, orgId string, product
 func (s *ProductService) UpdateVariant(ctx context.Context, orgId string, id string, input domain.UpdateVariantInput) (domain.Variant, error) {
 	variant, err := s.variantRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to find variant", err.Error())
+		s.logger.Error("failed to find variant", "error", err)
 		return domain.Variant{}, err
 	}
 
@@ -257,7 +257,7 @@ func (s *ProductService) UpdateVariant(ctx context.Context, orgId string, id str
 
 	variant, err = s.variantRepository.Update(ctx, variant)
 	if err != nil {
-		s.logger.Error("Failed to update variant", err.Error())
+		s.logger.Error("failed to update variant", "error", err)
 		return domain.Variant{}, err
 	}
 
@@ -268,13 +268,13 @@ func (s *ProductService) UpdateVariant(ctx context.Context, orgId string, id str
 func (s *ProductService) DeleteVariant(ctx context.Context, orgId string, id string) error {
 	variant, err := s.variantRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to find variant", err.Error())
+		s.logger.Error("failed to find variant", "error", err)
 		return err
 	}
 
 	err = s.variantRepository.Delete(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to delete variant", err.Error())
+		s.logger.Error("failed to delete variant", "error", err)
 		return err
 	}
 
@@ -285,7 +285,7 @@ func (s *ProductService) DeleteVariant(ctx context.Context, orgId string, id str
 func (s *ProductService) GetPrice(ctx context.Context, orgId string, id string) (domain.Price, error) {
 	price, err := s.priceRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to find price", err.Error())
+		s.logger.Error("failed to find price", "error", err)
 		return domain.Price{}, err
 	}
 
@@ -295,7 +295,7 @@ func (s *ProductService) GetPrice(ctx context.Context, orgId string, id string) 
 func (s *ProductService) ListPrices(ctx context.Context, orgId string, variantId string, pagination domain.Pagination) ([]domain.Price, int, error) {
 	prices, total, err := s.priceRepository.FindByVariantId(ctx, orgId, variantId, pagination)
 	if err != nil {
-		s.logger.Error("Failed to list prices", err.Error())
+		s.logger.Error("failed to list prices", "error", err)
 		return nil, 0, err
 	}
 
@@ -305,7 +305,7 @@ func (s *ProductService) ListPrices(ctx context.Context, orgId string, variantId
 func (s *ProductService) UpdatePrice(ctx context.Context, orgId string, id string, input domain.CreatePriceInput) (domain.Price, error) {
 	price, err := s.priceRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to find price", err.Error())
+		s.logger.Error("failed to find price", "error", err)
 		return domain.Price{}, err
 	}
 
@@ -334,7 +334,7 @@ func (s *ProductService) UpdatePrice(ctx context.Context, orgId string, id strin
 
 	price, err = s.priceRepository.Update(ctx, price)
 	if err != nil {
-		s.logger.Error("Failed to update price", err.Error())
+		s.logger.Error("failed to update price", "error", err)
 		return domain.Price{}, err
 	}
 
@@ -345,13 +345,13 @@ func (s *ProductService) UpdatePrice(ctx context.Context, orgId string, id strin
 func (s *ProductService) DeletePrice(ctx context.Context, orgId string, id string) error {
 	price, err := s.priceRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to find price", err.Error())
+		s.logger.Error("failed to find price", "error", err)
 		return err
 	}
 
 	err = s.priceRepository.Delete(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to delete price", err.Error())
+		s.logger.Error("failed to delete price", "error", err)
 		return err
 	}
 

@@ -33,13 +33,13 @@ func NewGatewayFactory(
 func (s *GatewayFactory) NewGateway(ctx context.Context, orgId string, id string) (domain.GatewayProvider, error) {
 	psp, err := s.pspRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Errorf("Failed to get Gateway[%s] - %s", id, err.Error())
+		s.logger.Error("failed to get gateway", "gatewayId", id, "error", err)
 		return nil, err
 	}
 
 	setting, err := s.settingRepository.FindById(ctx, orgId, psp.Id, "settings")
 	if err != nil {
-		s.logger.Errorf("Failed to get settings for %s - %v", id, err)
+		s.logger.Error("failed to get settings", "gatewayId", id, "error", err)
 		return nil, err
 	}
 

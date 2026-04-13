@@ -68,7 +68,7 @@ func (p Paystack) InitPayment(ctx context.Context, input domain.InitPaymentComma
 
 	transaction, err := client.Transaction.Initialize(ctx, &request)
 	if err != nil {
-		p.logger.Errorf("failed to init paystack payment [%s]", err.Error())
+		p.logger.Error("failed to init paystack payment", "error", err)
 		return domain.InitPaymentResponse{}, err
 	}
 	p.logger.Info("created Paystack transaction", "reference", transaction.Reference, "code", transaction.AccessCode)
@@ -82,7 +82,7 @@ func (p Paystack) ChargePayment(ctx context.Context, input domain.ChargePaymentC
 		ApiKey:    p.Config.ApiKey,
 		ConnectId: p.Config.ConnectId,
 	})
-	p.logger.Infof("charging payment for connect account %s", p.Config.ConnectId)
+	p.logger.Info("charging payment for connect account", "connectId", p.Config.ConnectId)
 
 	customer := input.Customer
 	paymentMethod := input.PaymentMethod
@@ -102,11 +102,11 @@ func (p Paystack) ChargePayment(ctx context.Context, input domain.ChargePaymentC
 	}
 
 	jsonR, _ := json.Marshal(request)
-	p.logger.Debugf("ChargeAuthorization: %s", jsonR)
+	p.logger.Debug("ChargeAuthorization", "request", string(jsonR))
 
 	response, err := client.Transaction.ChargeAuthorization(ctx, request)
 	if err != nil {
-		p.logger.Errorf("failed to charge payment [%s]", err.Error())
+		p.logger.Error("failed to charge payment", "error", err)
 		var paystackErr *pserrors.APIError
 		if errors.As(err, &paystackErr) {
 
@@ -159,7 +159,7 @@ func (p Paystack) ChargePayment(ctx context.Context, input domain.ChargePaymentC
 	//	status = domain.ChargePaymentStatusPending
 	//}
 
-	p.logger.Infof("ChargeAuthorization [%s][%s]", response.Status, response.Reference)
+	p.logger.Info("ChargeAuthorization", "status", response.Status, "reference", response.Reference)
 	return domain.ChargePaymentResponse{
 		Status:        status,
 		Psp:           domain.Paystack,

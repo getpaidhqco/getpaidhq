@@ -2,7 +2,6 @@ package middleware
 
 import (
 	"context"
-	"log/slog"
 	"net/http"
 	"runtime/debug"
 
@@ -78,7 +77,7 @@ func (m DatabaseTrx) Setup() {
 				m.logger.Error("trx commit error: ", err)
 			}
 		} else {
-			m.logger.Debug("rolling back transaction due to status code:", slog.Int("err", c.Writer.Status()))
+			m.logger.Debug("rolling back transaction due to status code", "statusCode", c.Writer.Status())
 			_ = txHandle.Rollback(c.Request.Context())
 		}
 	})

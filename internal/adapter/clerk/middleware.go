@@ -28,7 +28,7 @@ func NewClerkMiddleware(
 
 	client, err := clerkapi.NewClient(env.ClerkSecretKey)
 	if err != nil {
-		logger.Error("Error initializing clerk client", "error", err)
+		logger.Error("error initializing clerk client", "error", err)
 		panic(err)
 	}
 
@@ -43,7 +43,7 @@ func NewClerkMiddleware(
 
 // Setup sets up clerk middleware
 func (m ClerkMiddleware) Setup() {
-	m.logger.Info("Setting up clerk middleware")
+	m.logger.Info("setting up clerk middleware")
 	m.handler.Gin.Use(func(c *gin.Context) {
 
 		if isPublicPath(c.Request.URL.Path) {
@@ -96,13 +96,13 @@ func (m ClerkMiddleware) Authenticate(ctx context.Context, token string) (port.A
 	}
 
 	// Log the session information
-	m.logger.Infof("Clerk Auth: [%s][%s][%s]", session.ActiveOrganizationID, session.Claims.Subject, token)
+	m.logger.Info("clerk auth", "orgId", session.ActiveOrganizationID, "subject", session.Claims.Subject, "token", token)
 	user, err := m.client.Users().Read(session.Claims.Subject)
 	if err != nil {
-		m.logger.Error("Error fetching user from Clerk API", "error", err)
+		m.logger.Error("error fetching user from clerk API", "error", err)
 		return port.AuthUser{}, err
 	}
-	m.logger.Infof("Clerk Auth: [%s][%s][%s]", session.ActiveOrganizationID, session.Claims.Subject, user)
+	m.logger.Info("clerk auth", "orgId", session.ActiveOrganizationID, "subject", session.Claims.Subject, "user", user)
 
 	// If the organization ID is not in the token, try to fetch the user's organization memberships
 	clerkOrgId := session.ActiveOrganizationID
@@ -117,13 +117,13 @@ func (m ClerkMiddleware) Authenticate(ctx context.Context, token string) (port.A
 	}
 
 	if authedUser.OrgId == "" {
-		m.logger.Info("Organization ID not found in token, fetching from Clerk API")
+		m.logger.Info("organization ID not found in token, fetching from clerk API")
 		// Fetch the user's organization memberships
 		memberships, err := m.client.Users().ListMemberships(clerkapi.ListMembershipsParams{
 			UserID: session.Claims.Subject,
 		})
 		if err != nil {
-			m.logger.Error("Error fetching user organization memberships", "error", err)
+			m.logger.Error("error fetching user organization memberships", "error", err)
 			return port.AuthUser{}, err
 		}
 		if len(memberships.Data) > 0 {
@@ -132,12 +132,12 @@ func (m ClerkMiddleware) Authenticate(ctx context.Context, token string) (port.A
 			authedUser.PrimaryRole = MapClerkRoleToUserRole(memberships.Data[0].Role)
 			authedUser.Roles = []port.UserRole{MapClerkRoleToUserRole(memberships.Data[0].Role)}
 		} else {
-			m.logger.Error("No organization memberships found for user", "user_id", session.Claims.Subject)
+			m.logger.Error("no organization memberships found for user", "userId", session.Claims.Subject)
 			return authedUser, port.ErrOnboardingRequired
 		}
 	}
 
-	m.logger.Infof("Found org ID from metadata: %s with role: %s", clerkOrgId, orgRole)
+	m.logger.Info("found org id from metadata", "orgId", clerkOrgId, "role", orgRole)
 
 	return authedUser, nil
 }

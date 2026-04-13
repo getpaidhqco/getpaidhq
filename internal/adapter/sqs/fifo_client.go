@@ -51,7 +51,7 @@ func NewSQSFifoClient(logger port.Logger, env lib.Env) port.QueueClient {
 
 func (c SQSFifoClient) Start(handler port.QueueMessageHandler) {
 	queueUrl := c.env.Get("SQS_QUEUE_URL")
-	c.logger.Infof("Starting SQS FIFO client for queue [%s]", queueUrl)
+	c.logger.Info("starting sqs fifo client", "queueUrl", queueUrl)
 	go func() {
 		for {
 			// Receive messages from the queue
@@ -64,7 +64,7 @@ func (c SQSFifoClient) Start(handler port.QueueMessageHandler) {
 				},
 			})
 			if err != nil {
-				c.logger.Errorf("failed to receive messages, %v", err)
+				c.logger.Error("failed to receive messages", "error", err)
 				time.Sleep(30 * time.Second)
 				continue
 			}
@@ -73,15 +73,15 @@ func (c SQSFifoClient) Start(handler port.QueueMessageHandler) {
 				continue
 			}
 
-			c.logger.Debugf("[SQSFifoClient] processing %d messages", len(msgResult.Messages))
+			c.logger.Debug("processing messages", "count", len(msgResult.Messages))
 			for _, msg := range msgResult.Messages {
 				start := time.Now()
 				// Process the message
-				c.logger.Debugf("[SQSFifoClient] Processing [%s]", aws.ToString(msg.MessageId))
+				c.logger.Debug("processing message", "messageId", aws.ToString(msg.MessageId))
 				var queueMessage port.QueueMessage
 				err := json.Unmarshal([]byte(*msg.Body), &queueMessage)
 				if err != nil {
-					c.logger.Errorf("[SQSFifoClient] failed to unmarshal queue message: %v", err)
+					c.logger.Error("failed to unmarshal queue message", "error", err)
 					_ = c.deleteMessage(aws.ToString(msg.ReceiptHandle))
 					continue
 				}
@@ -89,19 +89,19 @@ func (c SQSFifoClient) Start(handler port.QueueMessageHandler) {
 				err = handler(queueMessage)
 				if err != nil {
 					if !port.IsRetryable(err) {
-						c.logger.Errorf("non-retryable error %s, %v", aws.ToString(msg.MessageId), err.Error())
+						c.logger.Error("non-retryable error", "messageId", aws.ToString(msg.MessageId), "error", err)
 						_ = c.deleteMessage(aws.ToString(msg.ReceiptHandle))
 					}
 					continue
 				}
 
 				elapsed := time.Since(start)
-				c.logger.Debugf("[SQSFifoClient] ----- Processed [%s] in %s", aws.ToString(msg.MessageId), elapsed)
+				c.logger.Debug("processed message", "messageId", aws.ToString(msg.MessageId), "elapsed", elapsed)
 
 				// Processing was successful, delete the message after processing
 				_ = c.deleteMessage(aws.ToString(msg.ReceiptHandle))
 				if err != nil {
-					c.logger.Errorf("failed to delete message %s, %v", aws.ToString(msg.MessageId), err)
+					c.logger.Error("failed to delete message", "messageId", aws.ToString(msg.MessageId), "error", err)
 				}
 			}
 		}
@@ -128,7 +128,7 @@ func (c SQSFifoClient) SendMessage(ctx context.Context, data port.QueueMessage) 
 		return lib.NewCustomError(lib.InternalError, "failed to send message", err)
 	}
 
-	c.logger.Debugf("Sent message to SQS FIFO queue [%s][%s]", queueUrl, *rsp.MessageId)
+	c.logger.Debug("sent message to sqs fifo queue", "queueUrl", queueUrl, "messageId", *rsp.MessageId)
 	return nil
 }
 
@@ -140,7 +140,7 @@ func (c SQSFifoClient) deleteMessage(id string) error {
 		ReceiptHandle: aws.String(id),
 	})
 	if err != nil {
-		c.logger.Errorf("failed to delete message %s, %v", id, err)
+		c.logger.Error("failed to delete message", "id", id, "error", err)
 	}
 	return err
 }

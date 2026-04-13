@@ -25,7 +25,7 @@ func NewCorsMiddleware(handler lib.RequestHandler, logger port.Logger, env lib.E
 
 // Setup registers the CORS middleware on the gin engine.
 func (m CorsMiddleware) Setup() {
-	m.logger.Info("Setting up cors middleware")
+	m.logger.Info("setting up cors middleware")
 
 	debug := false
 	m.handler.Gin.Use(cors.New(cors.Options{

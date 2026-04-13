@@ -36,18 +36,18 @@ func NewWebhookService(
 // HandlePaymentWebhook parses a payment webhook and checks if it is valid. If valid, it publishes
 // a payment event to the event bus.
 func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.PaymentWebhookPayload) error {
-	s.logger.Infof("HandlePaymentWebhook: %s", payload.Data)
+	s.logger.Info("handling payment webhook", "data", payload.Data)
 
 	hash := md5.Sum([]byte(payload.Data))
 	hashHex := hex.EncodeToString(hash[:])
 	// Check if the idempotency key already exists
 	exists, err := s.idempotencyRepo.Exists(ctx, hashHex)
 	if err != nil {
-		s.logger.Errorf("failed to check idempotency key", err.Error())
+		s.logger.Error("failed to check idempotency key", "error", err)
 		return port.NewQueueHandlerError("failed to check idempotency key", false, err)
 	}
 	if exists {
-		s.logger.Info("Webhook already processed")
+		s.logger.Info("webhook already processed")
 		return nil
 	}
 
@@ -59,17 +59,17 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.
 
 	err = parser.ValidateWebhook(ctx, []byte(payload.Data))
 	if err != nil {
-		s.logger.Error("Failed to validate webhook", err.Error())
+		s.logger.Error("failed to validate webhook", "error", err)
 		return port.NewQueueHandlerError("Failed to validate webhook", false, err)
 	}
 
 	webhook, err := parser.ParseWebhook(ctx, []byte(payload.Data))
 	if err != nil {
-		s.logger.Error("failed to parse webhook", "err", err.Error())
+		s.logger.Error("failed to parse webhook", "error", err)
 		return port.NewQueueHandlerError("failed to parse webhook", false, err)
 	}
 
-	s.logger.Infof("Webhook parsed [%s][%s][%s][%s]", webhook.OrgId, webhook.OrderId, webhook.Psp, webhook.Type)
+	s.logger.Info("webhook parsed", "orgId", webhook.OrgId, "orderId", webhook.OrderId, "psp", webhook.Psp, "type", webhook.Type)
 
 	switch webhook.Type {
 	case domain.PaymentSuccess:
@@ -78,11 +78,11 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.
 	case domain.RecurringSuccess:
 		subs, err := s.subscriptionRepository.FindByOrderId(ctx, webhook.OrgId, webhook.OrderId)
 		if err != nil {
-			s.logger.Error("Failed to get subscriptions", err.Error())
+			s.logger.Error("failed to get subscriptions", "error", err)
 			return err
 		}
 		if len(subs) == 0 {
-			s.logger.Error("No subscriptions found for order")
+			s.logger.Error("no subscriptions found for order")
 			return nil
 		}
 		subscription := subs[0]
@@ -107,18 +107,18 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.
 		// start workflow
 		_, err := s.workflowEngine.StartWorkflow(ctx, port.WorkflowPaymentRefunded, webhook)
 		if err != nil {
-			s.logger.Errorf("Failed to start workflow %v", err.Error())
+			s.logger.Error("failed to start workflow", "error", err)
 			return err
 		}
 	default:
-		s.logger.Info("Unknown webhook type", "type", webhook.Type)
+		s.logger.Info("unknown webhook type", "type", webhook.Type)
 
 	}
 
 	// Store the idempotency key
 	err = s.idempotencyRepo.Create(ctx, hashHex, time.Now().Add(24*time.Hour))
 	if err != nil {
-		s.logger.Errorf("failed to store idempotency key", err.Error())
+		s.logger.Error("failed to store idempotency key", "error", err)
 		return port.NewQueueHandlerError("failed to store idempotency key", false, err)
 	}
 	return nil
@@ -126,7 +126,7 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.
 
 // HandleAuthnWebhook processes an authentication webhook and logs the provider and data.
 func (s *WebhookService) HandleAuthnWebhook(ctx context.Context, payload port.AuthnWebhookPayload) error {
-	s.logger.Infof("HandleAuthnWebhook: Provider=%s, Data=%s", payload.Provider, payload.Data)
+	s.logger.Info("handling authn webhook", "provider", payload.Provider, "data", payload.Data)
 
 	// Add your business logic here, e.g., validating the payload or triggering workflows.
 

@@ -33,7 +33,7 @@ func (a *OutgoingWebhookActivities) SendWebhook(ctx context.Context, data port.O
 
 	err := a.whService.SendWebhook(ctx, data)
 	if err != nil {
-		logger.Error("Failed to send webhook", "Error", err)
+		logger.Error("failed to send webhook", "error", err)
 		return err
 	}
 

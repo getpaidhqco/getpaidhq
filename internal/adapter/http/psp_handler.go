@@ -58,7 +58,7 @@ func (s *PspHandler) Create(c *gin.Context) {
 		return
 	}
 
-	s.logger.Debug("Creating PSP", "input", input)
+	s.logger.Debug("creating PSP", "input", input)
 	psp, err := s.gatewayService.CreateGateway(c.Request.Context(), port.CreateGatewayInput{
 		OrgId:    authUser.OrgId,
 		PspId:    domain.Gateway(input.PspId),

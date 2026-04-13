@@ -40,7 +40,7 @@ func (s PaystackFactory) New(ctx context.Context, orgId string) (domain.GatewayP
 	var config PaystackConfig
 	err = json.Unmarshal([]byte(setting.Value), &config)
 	if err != nil {
-		s.logger.Error("Failed to unmarshal setting value", "error", err)
+		s.logger.Error("failed to unmarshal setting value", "error", err)
 		return nil, err
 	}
 	err = config.Validate()

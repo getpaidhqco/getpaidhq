@@ -37,14 +37,14 @@ func (u *WebhookHandler) Process(c *gin.Context) {
 	queryParams := c.Request.URL.Query()
 	psp := queryParams.Get("p")
 
-	u.logger.Debug("Processing webhook")
+	u.logger.Debug("processing webhook")
 	err = u.webhookService.HandlePaymentWebhook(c.Request.Context(), port.PaymentWebhookPayload{
 		Psp:  domain.Gateway(psp),
 		Data: string(jsonData),
 	})
 	if err != nil {
 		// log the error and report it, but always respond positively to the webhook
-		u.logger.Errorf("Error processing webhook: %s", err.Error())
+		u.logger.Error("error processing webhook", "error", err)
 	}
 
 	c.JSON(200, map[string]string{"status": "success"})

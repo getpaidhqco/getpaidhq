@@ -28,11 +28,10 @@ func NewWorkflowService(
 		engine:          engine,
 		idempotencyRepo: idempotencyRepo,
 	}
-	logger.Debugf("[WorkflowService] Subscribing to all topics")
+	logger.Debug("subscribing to all topics")
 	_, err := pubsub.Subscribe(">", service.HandleOutboundWebhook)
 	if err != nil {
-		logger.Error("Failed to subscribe to topic", err.Error())
-		panic(err)
+		logger.Error("failed to subscribe to topic", "error", err)
 	}
 
 	return service
@@ -41,19 +40,19 @@ func NewWorkflowService(
 // HandleOutboundWebhook listens for all published messages and starts an outgoing webhook workflow
 // if the org is subscribed to the event.
 func (s *WorkflowService) HandleOutboundWebhook(topic string, data []byte) {
-	s.logger.Infof("[WorkflowService] checking topic: %s", topic)
+	s.logger.Info("checking topic for outbound webhook", "topic", topic)
 	// Check if the org is subscribed to any outgoing messages and send them using a workflow
 
 	var payload port.PubSubPayload
 	err := json.Unmarshal(data, &payload)
 	if err != nil {
-		s.logger.Errorf("Failed to unmarshal payload: %v", err)
+		s.logger.Error("failed to unmarshal payload", "error", err)
 		return
 	}
 
 	subs, err := s.whsRepo.FindByEvent(context.Background(), payload.OrgId, payload.Topic)
 	if err != nil {
-		s.logger.Errorf("Failed to get webhook subscriptions: %v", err)
+		s.logger.Error("failed to get webhook subscriptions", "error", err)
 		return
 	}
 
@@ -63,7 +62,7 @@ func (s *WorkflowService) HandleOutboundWebhook(topic string, data []byte) {
 			Event:               payload,
 		})
 		if err != nil {
-			s.logger.Errorf("Failed to start workflow %v", err.Error())
+			s.logger.Error("failed to start workflow", "error", err)
 		}
 	}
 

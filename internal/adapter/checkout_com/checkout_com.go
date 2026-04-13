@@ -216,24 +216,23 @@ func (p CheckoutDotCom) ChargePayment(ctx context.Context, input domain.ChargePa
 	requestJSON, _ := json.Marshal(request)
 	p.logger.Info("request JSON", "request", string(requestJSON))
 
-	p.logger.Infof("Recurring Checkout.com payment: [%s][%s %d]",
-		input.Reference, input.Currency, input.Amount)
+	p.logger.Info("recurring checkout.com payment", "reference", input.Reference, "currency", input.Currency, "amount", input.Amount)
 	p.logger.Info("paymentMethod", "paymentMethod", paymentMethod.Token)
 	response, err := api.Payments.RequestPayment(request, nil)
 	if err != nil {
-		p.logger.Errorf("Error charging payment: %v", err)
+		p.logger.Error("error charging payment", "error", err)
 		errjson, _ := json.Marshal(err)
 		p.logger.Error("errjson", "errjson", string(errjson))
 		var capierr checkout_errors.CheckoutAPIError
 		if errors.As(err, &capierr) {
-			p.logger.Errorf("capierr.Data.ErrorType: %v", capierr.Data.ErrorType)
+			p.logger.Error("checkout api error", "errorType", capierr.Data.ErrorType)
 		}
 		return domain.ChargePaymentResponse{
 			Status: domain.ChargePaymentStatusError,
 		}
 	}
 
-	p.logger.Infof("charged payment %s %s %s", response.Id, response.Reference, response.ResponseSummary)
+	p.logger.Info("charged payment", "id", response.Id, "reference", response.Reference, "responseSummary", response.ResponseSummary)
 	return domain.ChargePaymentResponse{
 		Status:        domain.ChargePaymentStatusSuccess,
 		Psp:           domain.CheckoutDotCom,

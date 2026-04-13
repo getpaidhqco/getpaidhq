@@ -37,7 +37,7 @@ func (s *SessionService) CreateSession(ctx context.Context, input domain.CreateS
 		},
 	})
 	if err != nil {
-		s.logger.Error(`failed to create cart`, err)
+		s.logger.Error("failed to create cart", "error", err)
 		return domain.Session{}, err
 	}
 

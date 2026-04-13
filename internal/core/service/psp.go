@@ -41,13 +41,13 @@ func (s *PspService) CreateGateway(ctx context.Context, input port.CreateGateway
 			Active: true,
 		})
 	if err != nil {
-		s.logger.Errorf("Failed to create psp - %e", err)
+		s.logger.Error("failed to create psp", "error", err)
 		return domain.PspConfig{}, err
 	}
 
 	settingsJson, err := json.Marshal(input.Settings)
 	if err != nil {
-		s.logger.Errorf("Failed to marshal settings - %e", err)
+		s.logger.Error("failed to marshal settings", "error", err)
 		return domain.PspConfig{}, err
 	}
 
@@ -60,7 +60,7 @@ func (s *PspService) CreateGateway(ctx context.Context, input port.CreateGateway
 		Value:    string(settingsJson),
 	})
 	if err != nil {
-		s.logger.Errorf("Failed to create psp settings - %e", err)
+		s.logger.Error("failed to create psp settings", "error", err)
 		return domain.PspConfig{}, err
 	}
 

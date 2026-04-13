@@ -22,7 +22,7 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload port.WorkflowPayload) 
 	// parse the data to make sure we have what we need
 	paymentWebhookContext, err := domain.ParsePaymentWebhookContext(payload.Data)
 	if err != nil {
-		logger.Error("Invalid payload data", "err", err.Error())
+		logger.Error("invalid payload data", "error", err)
 		return port.WorkflowResult{}, errors.New("invalid payload data, expected domain.PaymentWebhookContext ")
 	}
 
@@ -40,7 +40,7 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload port.WorkflowPayload) 
 	})
 	err = temporal.ExecuteActivity(ctx1, a.CompleteOrder, paymentWebhookContext).Get(ctx1, &completeOrderResult)
 	if err != nil {
-		logger.Error("[Complete Order] failed with error: ", "Error", err.Error())
+		logger.Error("complete order failed", "error", err)
 		return port.WorkflowResult{}, temporalio.NewApplicationError("Complete Order failed", "", err)
 	}
 
@@ -71,7 +71,7 @@ func PaymentSuccessWorkflow(ctx temporal.Context, payload port.WorkflowPayload) 
 	var childWE temporal.Execution
 	if err := childWorkflowFuture.GetChildWorkflowExecution().
 		Get(ctx, &childWE); err != nil {
-		logger.Error("Unable to start subscription workflow.", "err", err.Error())
+		logger.Error("unable to start subscription workflow", "error", err)
 		// update the subscription so that we can retry
 
 		return port.WorkflowResult{

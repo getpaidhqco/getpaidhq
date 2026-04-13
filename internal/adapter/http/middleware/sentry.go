@@ -30,12 +30,12 @@ func NewSentryMiddleware(handler lib.RequestHandler, logger port.Logger, env lib
 
 // Setup registers the Sentry middleware on the gin engine.
 func (m SentryMiddleware) Setup() {
-	m.logger.Info("Setting up Sentry middleware")
+	m.logger.Info("setting up sentry middleware")
 
 	m.handler.Gin.Use(func(c *gin.Context) {
 		defer func() {
 			if r := recover(); r != nil {
-				m.logger.Error("Recovered from panic",
+				m.logger.Error("recovered from panic",
 					"err", r,
 					"stack", string(debug.Stack()),
 					"url", c.Request.URL.String())

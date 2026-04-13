@@ -33,8 +33,7 @@ func NewCustomerService(
 	// 3am first of every month
 	err := scheduler.ScheduleTask("0 3 1 * *", service.DetectExpiringPaymentMethods)
 	if err != nil {
-		logger.Errorf("Failed to schedule task: %v", err)
-		panic(err)
+		logger.Error("failed to schedule task", "error", err)
 	}
 
 	// subscribe to order events to manage cohorts
@@ -68,7 +67,7 @@ func (s *CustomerService) Create(ctx context.Context, orgId string, input domain
 
 	newCustomer, err := s.customerRepository.Create(ctx, customer)
 	if err != nil {
-		s.logger.Error("Failed to create customer: ", err)
+		s.logger.Error("failed to create customer", "error", err)
 		return domain.Customer{}, err
 	}
 
@@ -79,7 +78,7 @@ func (s *CustomerService) Create(ctx context.Context, orgId string, input domain
 func (s *CustomerService) GetPaymentMethod(ctx context.Context, orgId string, id string) (domain.PaymentMethod, error) {
 	paymentMethod, err := s.paymentMethodRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to get payment method: ", err)
+		s.logger.Error("failed to get payment method", "error", err)
 		return domain.PaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Payment method not found", err)
 	}
 
@@ -90,7 +89,7 @@ func (s *CustomerService) CreatePaymentMethod(ctx context.Context, orgId string,
 
 	customer, err := s.customerRepository.FindById(ctx, orgId, input.CustomerId)
 	if err != nil {
-		s.logger.Error("Failed to get customer: ", err)
+		s.logger.Error("failed to get customer", "error", err)
 		return domain.PaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
 	}
 
@@ -110,7 +109,7 @@ func (s *CustomerService) CreatePaymentMethod(ctx context.Context, orgId string,
 		}
 
 		expireAt = details.GetExpiryDate()
-		s.logger.Debugf("This payment method expires at: %v", expireAt)
+		s.logger.Debug("payment method expiry", "expireAt", expireAt)
 	}
 
 	// check for existing payment method
@@ -133,17 +132,17 @@ func (s *CustomerService) CreatePaymentMethod(ctx context.Context, orgId string,
 
 	newPaymentMethod, err := s.paymentMethodRepository.Create(ctx, paymentMethod)
 	if err != nil {
-		s.logger.Error("Failed to create payment method: ", "err", err)
+		s.logger.Error("failed to create payment method", "error", err)
 		return domain.PaymentMethod{}, lib.MapDatabaseError(err)
 	}
 
 	if input.IsDefault {
 		// update the customer's default payment method
-		s.logger.Debugf("Updating customer %s default payment method to %s", customer.Id, newPaymentMethod.Id)
+		s.logger.Debug("updating customer default payment method", "customerId", customer.Id, "paymentMethodId", newPaymentMethod.Id)
 		customer.DefaultPaymentMethodId = newPaymentMethod.Id
 		_, err = s.customerRepository.Update(ctx, customer)
 		if err != nil {
-			s.logger.Error("Failed to update customer: ", "err", err)
+			s.logger.Error("failed to update customer", "error", err)
 			return domain.PaymentMethod{}, lib.MapDatabaseError(err)
 		}
 	}
@@ -156,7 +155,7 @@ func (s *CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string,
 
 	customer, err := s.customerRepository.FindById(ctx, orgId, input.CustomerId)
 	if err != nil {
-		s.logger.Error("Failed to get customer: ", err)
+		s.logger.Error("failed to get customer", "error", err)
 		return domain.PaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
 	}
 
@@ -176,7 +175,7 @@ func (s *CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string,
 		}
 
 		paymentMethod.ExpireAt = details.GetExpiryDate()
-		s.logger.Debugf("This payment method expires at: %v", paymentMethod.ExpireAt)
+		s.logger.Debug("payment method expiry", "expireAt", paymentMethod.ExpireAt)
 	}
 
 	if input.Token != "" {
@@ -188,17 +187,17 @@ func (s *CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string,
 
 	newPaymentMethod, err := s.paymentMethodRepository.Update(ctx, paymentMethod)
 	if err != nil {
-		s.logger.Error("Failed to update payment method: ", "err", err)
+		s.logger.Error("failed to update payment method", "error", err)
 		return domain.PaymentMethod{}, lib.MapDatabaseError(err)
 	}
 
 	if input.IsDefault {
 		// update the customer's default payment method
-		s.logger.Debugf("Updating customer %s default payment method to %s", customer.Id, newPaymentMethod.Id)
+		s.logger.Debug("updating customer default payment method", "customerId", customer.Id, "paymentMethodId", newPaymentMethod.Id)
 		customer.DefaultPaymentMethodId = newPaymentMethod.Id
 		_, err = s.customerRepository.Update(ctx, customer)
 		if err != nil {
-			s.logger.Error("Failed to update customer: ", "err", err)
+			s.logger.Error("failed to update customer", "error", err)
 			return domain.PaymentMethod{}, lib.MapDatabaseError(err)
 		}
 	}
@@ -208,16 +207,16 @@ func (s *CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string,
 }
 
 func (s *CustomerService) DetectExpiringPaymentMethods() {
-	s.logger.Infof("Detecting expiring payment methods for all organizations")
+	s.logger.Info("detecting expiring payment methods for all organizations")
 	// Implement the logic to detect expiring payment methods
 	expiring, err := s.paymentMethodRepository.FindExpiringPaymentMethods(context.Background(), time.Now().UTC())
 	if err != nil {
-		s.logger.Error("Failed to detect expiring payment methods: ", "err", err)
+		s.logger.Error("failed to detect expiring payment methods", "error", err)
 		return
 	}
 	for _, paymentMethod := range expiring {
 		// send notification to customer
-		s.logger.Infof("Payment method %s is expiring", paymentMethod.Id)
+		s.logger.Info("payment method is expiring", "paymentMethodId", paymentMethod.Id)
 		_ = s.pubsub.Publish(paymentMethod.OrgId, port.TopicPaymentMethodExpired, paymentMethod)
 	}
 }
@@ -227,7 +226,7 @@ func (s *CustomerService) HandleOrderEvent(eventTopic string, data []byte) {
 	var payload port.PubSubPayload
 	err := json.Unmarshal(data, &payload)
 	if err != nil {
-		s.logger.Errorf("Failed to unmarshal payload: %v", err)
+		s.logger.Error("failed to unmarshal payload", "error", err)
 		return
 	}
 
@@ -236,16 +235,16 @@ func (s *CustomerService) HandleOrderEvent(eventTopic string, data []byte) {
 		var order domain.Order
 		payloadBytes, err := json.Marshal(payload.Data)
 		if err != nil {
-			s.logger.Errorf("Failed to marshal payload data: %v", err)
+			s.logger.Error("failed to marshal payload data", "error", err)
 			return
 		}
 		err = json.Unmarshal(payloadBytes, &order)
 		if err != nil {
-			s.logger.Errorf("Failed to unmarshal event data: %v", err)
+			s.logger.Error("failed to unmarshal event data", "error", err)
 			return
 		}
 		// add the customer to the signup_date cohort
-		s.logger.Infof("Adding customer [%s] to the [signup_date] cohort", order.CustomerId)
+		s.logger.Info("adding customer to cohort", "customerId", order.CustomerId, "cohort", "signup_date")
 		_, err = s.customerRepository.AddToCohort(
 			context.Background(),
 			order.OrgId,
@@ -254,7 +253,7 @@ func (s *CustomerService) HandleOrderEvent(eventTopic string, data []byte) {
 			time.Now().Format("2006-01-02"),
 		)
 		if err != nil {
-			s.logger.Errorf("Failed to add customer to cohort: %v", err)
+			s.logger.Error("failed to add customer to cohort", "error", err)
 			return
 		}
 	}
@@ -263,7 +262,7 @@ func (s *CustomerService) HandleOrderEvent(eventTopic string, data []byte) {
 func (s *CustomerService) Get(ctx context.Context, orgId string, id string) (domain.Customer, error) {
 	customer, err := s.customerRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		s.logger.Error("Failed to get customer: ", err)
+		s.logger.Error("failed to get customer", "error", err)
 		return domain.Customer{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
 	}
 
@@ -273,7 +272,7 @@ func (s *CustomerService) Get(ctx context.Context, orgId string, id string) (dom
 func (s *CustomerService) List(ctx context.Context, orgId string, pagination domain.Pagination) ([]domain.Customer, int, error) {
 	customers, total, err := s.customerRepository.List(ctx, orgId, pagination)
 	if err != nil {
-		s.logger.Error("Failed to list customers: ", err)
+		s.logger.Error("failed to list customers", "error", err)
 		return nil, 0, lib.NewCustomError(lib.InternalError, "Error listing customers", err)
 	}
 

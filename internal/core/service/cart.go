@@ -43,7 +43,7 @@ func (s *CartService) AddProduct(ctx context.Context, input domain.AddProductCom
 
 	product, err := s.productRepository.FindById(ctx, input.OrgId, input.ProductId)
 	if err != nil {
-		s.logger.Error("Product doesnt exist", "product_id", input.ProductId, err.Error())
+		s.logger.Error("product does not exist", "productId", input.ProductId, "error", err)
 		return domain.Cart{}, lib.NewCustomError(
 			lib.NotFoundError, fmt.Sprintf("Product %s not found", input.ProductId),
 			err,
@@ -52,7 +52,7 @@ func (s *CartService) AddProduct(ctx context.Context, input domain.AddProductCom
 
 	price, err := s.priceRepository.FindById(ctx, input.OrgId, input.PriceId)
 	if err != nil {
-		s.logger.Error("Price doesnt exist", "price_id", input.PriceId, err.Error())
+		s.logger.Error("price does not exist", "priceId", input.PriceId, "error", err)
 		return domain.Cart{}, lib.NewCustomError(
 			lib.NotFoundError, fmt.Sprintf("Price %s not found", input.PriceId),
 			err,
@@ -76,7 +76,7 @@ func (s *CartService) AddProduct(ctx context.Context, input domain.AddProductCom
 
 	_, err = s.cartRepository.Update(ctx, cartEntity)
 	if err != nil {
-		s.logger.Error(`failed to update cart`, err)
+		s.logger.Error("failed to update cart", "error", err)
 		return domain.Cart{}, err
 	}
 
@@ -95,7 +95,7 @@ func (s *CartService) RemoveItem(ctx context.Context, input domain.RemoveItemCom
 
 	_, err = s.cartRepository.Update(ctx, cartEntity)
 	if err != nil {
-		s.logger.Error(`failed to update cart`, err)
+		s.logger.Error("failed to update cart", "error", err)
 		return domain.Cart{}, err
 	}
 
@@ -117,7 +117,7 @@ func (s *CartService) AdjustItem(ctx context.Context, input domain.AdjustCommand
 
 	_, err = s.cartRepository.Update(ctx, cartEntity)
 	if err != nil {
-		s.logger.Error(`failed to update cart`, err)
+		s.logger.Error("failed to update cart", "error", err)
 		return domain.Cart{}, err
 	}
 

@@ -58,7 +58,7 @@ func (s *SessionHandler) Create(c *gin.Context) {
 		return
 	}
 
-	s.logger.Debug("Creating session", "input", input)
+	s.logger.Debug("creating session", "input", input)
 	session, err := s.sessionService.CreateSession(c.Request.Context(), domain.CreateSessionInput{
 		OrgId:    authUser.OrgId,
 		Currency: input.Currency,

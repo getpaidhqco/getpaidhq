@@ -1,7 +1,6 @@
 package workflows
 
 import (
-	"fmt"
 	temporalio "go.temporal.io/sdk/temporal"
 	"payloop/internal/adapter/temporal/activities"
 	"payloop/internal/core/domain"
@@ -23,11 +22,11 @@ func SubscriptionChargeReminder(ctx temporal_wf.Context, subscription domain.Sub
 		return !valid || rollover
 	})
 	if err != nil {
-		logger.Error("Reminder interrupted, not processing", "Error", err)
+		logger.Error("reminder interrupted, not processing", "error", err)
 		return port.WorkflowResult{Success: false}, err
 	}
 	if !ok {
-		logger.Info(fmt.Sprintf("REMINDER EMAIL FOR [%s][%s]", subscription.OrgId, subscription.Id))
+		logger.Info("reminder email", "orgId", subscription.OrgId, "subscriptionId", subscription.Id)
 	}
 
 	var a *activities.OrderActivities
@@ -44,7 +43,7 @@ func SubscriptionChargeReminder(ctx temporal_wf.Context, subscription domain.Sub
 	err = temporal_wf.ExecuteActivity(ctx1, a.ProcessReminderEvent, subscription).
 		Get(ctx1, nil)
 	if err != nil {
-		logger.Error("[SubscriptionChargeReminder] failed with error: ", "Error", err.Error())
+		logger.Error("SubscriptionChargeReminder failed", "error", err)
 		return port.WorkflowResult{
 			Success: false,
 		}, temporalio.NewNonRetryableApplicationError("SubscriptionChargeReminder failed", "", err)

@@ -57,7 +57,7 @@ func (a *OrderActivities) CompleteOrder(ctx context.Context, paymentContext doma
 		Metadata:       nil,
 	})
 	if err != nil {
-		logger.Error("error completing order", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId, "err", err.Error())
+		logger.Error("error completing order", "orgId", paymentContext.OrgId, "orderId", paymentContext.OrderId, "error", err)
 		return port.WorkflowResult{}, temporal.NewNonRetryableApplicationError("Can't mark order as completed", "order", err)
 	}
 
@@ -75,7 +75,7 @@ func (a *OrderActivities) HandlePaymentRefundedEvent(ctx context.Context, paymen
 	// Find the payment
 	payment, err := a.paymentRepository.FindByPspId(ctx, paymentContext.OrgId, paymentContext.Payment.PspId)
 	if err != nil {
-		logger.Error("error finding payment", "OrgId", paymentContext.OrgId, "PspId", paymentContext.Payment.PspId, "err", err.Error())
+		logger.Error("error finding payment", "orgId", paymentContext.OrgId, "pspId", paymentContext.Payment.PspId, "error", err)
 		return port.WorkflowResult{}, temporal.NewNonRetryableApplicationError("can't find payment", "payment", err)
 	}
 
@@ -83,7 +83,7 @@ func (a *OrderActivities) HandlePaymentRefundedEvent(ctx context.Context, paymen
 	payment.Status = domain.PaymentStatusRefunded
 	newPayment, err := a.paymentRepository.Update(ctx, payment)
 	if err != nil {
-		logger.Error("error completing order", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId, "err", err.Error())
+		logger.Error("error completing order", "orgId", paymentContext.OrgId, "orderId", paymentContext.OrderId, "error", err)
 		return port.WorkflowResult{}, temporal.NewApplicationError("Can't update payment status", "payment", err)
 	}
 
@@ -99,7 +99,7 @@ func (a *OrderActivities) HandlePaymentRefundedEvent(ctx context.Context, paymen
 		UpdatedAt:  time.Now().UTC(),
 	})
 	if err != nil {
-		logger.Error("error creating refund", "OrgId", paymentContext.OrgId, "PaymentId", payment.Id, "err", err.Error())
+		logger.Error("error creating refund", "orgId", paymentContext.OrgId, "paymentId", payment.Id, "error", err)
 		return port.WorkflowResult{}, temporal.NewApplicationError("Can't create refund record", "refund", err)
 	}
 
@@ -112,7 +112,7 @@ func (a *OrderActivities) HandlePaymentRefundedEvent(ctx context.Context, paymen
 
 func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId string, orderId string) ([]domain.Subscription, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("GetOrderSubscriptions: ", "[OrgId]", orgId, "[OrderId]", orderId)
+	logger.Info("GetOrderSubscriptions", "orgId", orgId, "orderId", orderId)
 
 	subs, err := a.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
 
@@ -127,25 +127,25 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 
 	subscription, err := a.subscriptionRepository.FindById(ctx, currentSub.OrgId, currentSub.Id)
 	if err != nil {
-		logger.Error("Failed to find subscription", "error", err.Error())
+		logger.Error("failed to find subscription", "error", err)
 		return domain.ChargeResult{}, err
 	}
 
 	gw, err := a.gatewayFactory.NewGateway(ctx, subscription.OrgId, string(subscription.PspId))
 	if err != nil {
-		logger.Error("Failed to get gateway", "err", err.Error())
+		logger.Error("failed to get gateway", "error", err)
 		return domain.ChargeResult{}, err
 	}
 
 	customer, err := a.subscriptionService.GetSubscriptionCustomer(ctx, subscription)
 	if err != nil {
-		logger.Error("failed to get customer", "error", err.Error())
+		logger.Error("failed to get customer", "error", err)
 		return domain.ChargeResult{}, err
 	}
 
 	paymentMethod, err := a.subscriptionService.GetSubscriptionPaymentMethod(ctx, subscription)
 	if err != nil {
-		logger.Error("failed to get paymentMethod", "error", err.Error())
+		logger.Error("failed to get paymentMethod", "error", err)
 		return domain.ChargeResult{}, err
 	}
 
@@ -179,7 +179,7 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 
 	rawData, err := json.Marshal(chargeResult.PspResponse)
 	if err != nil {
-		logger.Error("failed to marshal charge result", "error", err.Error())
+		logger.Error("failed to marshal charge result", "error", err)
 	}
 
 	var status domain.PaymentStatus
@@ -252,14 +252,14 @@ func (a *OrderActivities) StoreSubscriptionWorkflowContext(ctx context.Context, 
 
 func (a *OrderActivities) ErrorState(ctx context.Context, subscription domain.Subscription, err error) error {
 	logger := activity.GetLogger(ctx)
-	logger.Info("ErrorState", "OrgId", subscription.OrgId, "SubscriptionId", subscription.Id, "err", err.Error())
+	logger.Info("ErrorState", "orgId", subscription.OrgId, "subscriptionId", subscription.Id, "error", err)
 
 	subscription.Status = domain.SubscriptionStatusError
 	subscription.Metadata["error"] = err.Error()
 
 	_, err = a.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
-		logger.Error("Failed to update subscription", "error", err.Error())
+		logger.Error("failed to update subscription", "error", err)
 		return err
 	}
 
@@ -272,16 +272,16 @@ func (a *OrderActivities) GetSubscription(ctx context.Context, orgId string, id 
 
 func (a *OrderActivities) ProcessReminderEvent(ctx context.Context, subscription domain.Subscription) error {
 	logger := activity.GetLogger(ctx)
-	logger.Info("ProcessReminderEvent", "OrgId", subscription.OrgId, "SubscriptionId", subscription.Id)
+	logger.Info("ProcessReminderEvent", "orgId", subscription.OrgId, "subscriptionId", subscription.Id)
 	subscription, err := a.subscriptionRepository.FindById(ctx, subscription.OrgId, subscription.Id)
 	if err != nil {
-		logger.Error("Failed to find subscription", "error", err.Error())
+		logger.Error("failed to find subscription", "error", err)
 		return err
 	}
 
 	err = a.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionRenewalReminder, subscription)
 	if err != nil {
-		logger.Error("Failed to publish reminder event", "error", err.Error())
+		logger.Error("failed to publish reminder event", "error", err)
 		return err
 	}
 

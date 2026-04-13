@@ -29,7 +29,7 @@ func OutgoingWebhookWorkflow(ctx temporal.Context, payload port.OutgoingWebhookP
 	err := temporal.ExecuteActivity(ctx1, a.SendWebhook, payload).
 		Get(ctx1, nil)
 	if err != nil {
-		logger.Error("[SendWebhook] failed with error: ", "Error", err.Error())
+		logger.Error("SendWebhook failed", "error", err)
 		// Todo the webhook delivery failed and wont be retried.
 		// We should log the error and return a non-retryable error
 		return port.WorkflowResult{}, temporalio.NewNonRetryableApplicationError("SendWebhook failed", "webhook", err)

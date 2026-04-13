@@ -42,7 +42,7 @@ func NewOrgService(
 }
 
 func (s *OrgService) Create(ctx context.Context, input port.CreateOrgInput) (domain.Org, error) {
-	s.logger.Debug("Creating tenant", "input", input)
+	s.logger.Debug("creating tenant", "input", input)
 
 	org := domain.Org{
 		Id:        lib.GenerateId("org"),
@@ -59,10 +59,10 @@ func (s *OrgService) Create(ctx context.Context, input port.CreateOrgInput) (dom
 	// get the local org id.  If we reuse the Clerk org id as the local org id, then we can avoid this lookup.
 	// Clerk org ids format is the same as our org ids, so we can use the same id.
 	if input.Owner.Id != "" {
-		s.logger.Debug("Creating auth provider org")
+		s.logger.Debug("creating auth provider org")
 		extOrg, err := s.authProvider.CreateOrg(ctx, org, input.Owner.Id)
 		if err != nil {
-			s.logger.Error("Failed to create org in auth provider", "err", err)
+			s.logger.Error("failed to create org in auth provider", "error", err)
 			return domain.Org{}, err
 		}
 		org.Id = extOrg.ExternalId
@@ -70,12 +70,12 @@ func (s *OrgService) Create(ctx context.Context, input port.CreateOrgInput) (dom
 
 	org, err := s.orgRepository.Create(ctx, org)
 	if err != nil {
-		s.logger.Error("Failed to create org", "err", err)
+		s.logger.Error("failed to create org", "error", err)
 		return domain.Org{}, err
 	}
 
-	s.logger.Debug("Org created", "org_id", org.Id)
-	s.logger.Debug("Creating API key")
+	s.logger.Debug("org created", "orgId", org.Id)
+	s.logger.Debug("creating api key")
 	key := lib.GenerateId("sk")
 	_, err = s.apiKeyRepository.Create(ctx, domain.ApiKey{
 		OrgId:     org.Id,
@@ -85,13 +85,13 @@ func (s *OrgService) Create(ctx context.Context, input port.CreateOrgInput) (dom
 		UpdatedAt: time.Now(),
 	})
 	if err != nil {
-		s.logger.Error("Failed to create API key", "org_id", org.Id, "err", err)
+		s.logger.Error("failed to create api key", "orgId", org.Id, "error", err)
 		return domain.Org{}, err
 	}
 
 	cohorts := []string{"signup_date"}
 	for _, cohort := range cohorts {
-		s.logger.Debugf("Creating cohort [%s]", cohort)
+		s.logger.Debug("creating cohort", "cohort", cohort)
 		_, err = s.customerRepository.CreateCohort(ctx, domain.Cohort{
 			OrgId:     org.Id,
 			Id:        cohort,
@@ -102,7 +102,7 @@ func (s *OrgService) Create(ctx context.Context, input port.CreateOrgInput) (dom
 			UpdatedAt: time.Now().UTC(),
 		})
 		if err != nil {
-			s.logger.Warn("Failed to create cohort", "org_id", org.Id, "cohort", cohort, "err", err)
+			s.logger.Warn("failed to create cohort", "orgId", org.Id, "cohort", cohort, "error", err)
 		}
 	}
 

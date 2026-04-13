@@ -26,6 +26,6 @@ func NewCedarMiddleware(handler lib.RequestHandler, logger port.Logger, env lib.
 
 // Setup sets up cognito middleware
 func (m CedarMiddleware) Setup() {
-	m.logger.Info("Setting up cedar middleware")
+	m.logger.Info("setting up cedar middleware")
 
 }
