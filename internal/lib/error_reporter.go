@@ -6,16 +6,15 @@ import (
 	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
 	"log/slog"
-	"payloop/internal/application/lib/logger"
 )
 
 // ErrorReporter is a utility struct for reporting errors to Sentry.
 type ErrorReporter struct {
-	logger logger.Logger
+	logger Logger
 }
 
 // NewErrorReporter creates a new instance of ErrorReporter.
-func NewErrorReporter(logger logger.Logger) ErrorReporter {
+func NewErrorReporter(logger Logger) ErrorReporter {
 	err := sentry.Init(sentry.ClientOptions{
 		Dsn: "https://48ff010c02c013dfadac4dd94e9db1d5@o529990.ingest.us.sentry.io/4509072497180673", // Replace with your Sentry DSN
 	})
