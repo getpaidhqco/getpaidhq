@@ -5,21 +5,20 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"payloop/internal/application/dto"
-	"payloop/internal/application/interfaces"
 	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
+	"payloop/internal/core/service"
 )
 
 // PspHandler handles HTTP requests for payment service providers.
 type PspHandler struct {
-	gatewayService interfaces.GatewayService
+	gatewayService *service.PspService
 	logger         port.Logger
 	authz          port.Authz
 }
 
 // NewPspHandler creates a new PspHandler.
-func NewPspHandler(gatewayService interfaces.GatewayService, logger port.Logger, authz port.Authz) *PspHandler {
+func NewPspHandler(gatewayService *service.PspService, logger port.Logger, authz port.Authz) *PspHandler {
 	return &PspHandler{
 		gatewayService: gatewayService,
 		logger:         logger,
@@ -60,7 +59,7 @@ func (s *PspHandler) Create(c *gin.Context) {
 	}
 
 	s.logger.Debug("Creating PSP", "input", input)
-	psp, err := s.gatewayService.CreateGateway(c.Request.Context(), dto.CreateGatewayInput{
+	psp, err := s.gatewayService.CreateGateway(c.Request.Context(), port.CreateGatewayInput{
 		OrgId:    authUser.OrgId,
 		PspId:    domain.Gateway(input.PspId),
 		Name:     input.Name,

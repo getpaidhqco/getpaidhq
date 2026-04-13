@@ -4,7 +4,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"net/http"
 
-	"payloop/internal/application/services"
+	"payloop/internal/core/service"
 	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
 	"payloop/internal/lib"
@@ -12,13 +12,13 @@ import (
 
 // ProductHandler handles HTTP requests for products, variants, and prices.
 type ProductHandler struct {
-	productService services.ProductService
+	productService service.ProductService
 	logger         port.Logger
 	authz          port.Authz
 }
 
 // NewProductHandler creates a new ProductHandler.
-func NewProductHandler(productService services.ProductService, logger port.Logger, authz port.Authz) *ProductHandler {
+func NewProductHandler(productService service.ProductService, logger port.Logger, authz port.Authz) *ProductHandler {
 	return &ProductHandler{
 		productService: productService,
 		logger:         logger,
@@ -83,7 +83,7 @@ func (s *ProductHandler) Get(c *gin.Context) {
 }
 
 func (s *ProductHandler) Create(c *gin.Context) {
-	var input CreateProductRequest
+	var input domain.CreateProductInput
 	user, _ := c.Get("user")
 	authUser := user.(port.AuthUser)
 
@@ -138,7 +138,7 @@ func (s *ProductHandler) List(c *gin.Context) {
 }
 
 func (s *ProductHandler) Update(c *gin.Context) {
-	var input UpdateProductRequest
+	var input domain.UpdateProductInput
 	user, _ := c.Get("user")
 	authUser := user.(port.AuthUser)
 	orgId := authUser.OrgId
@@ -328,7 +328,7 @@ func (s *ProductHandler) DeletePrice(c *gin.Context) {
 
 // CreateVariant creates a new variant for a product.
 func (s *ProductHandler) CreateVariant(c *gin.Context) {
-	var input CreateVariantRequest
+	var input domain.CreateVariantInput
 	user, _ := c.Get("user")
 	orgId := user.(port.AuthUser).OrgId
 	productId := c.Param("productId")
@@ -391,7 +391,7 @@ func (s *ProductHandler) ListVariants(c *gin.Context) {
 
 // UpdateVariant updates a variant.
 func (s *ProductHandler) UpdateVariant(c *gin.Context) {
-	var input UpdateVariantRequest
+	var input domain.UpdateVariantInput
 	user, _ := c.Get("user")
 	orgId := user.(port.AuthUser).OrgId
 	id := c.Param("id")

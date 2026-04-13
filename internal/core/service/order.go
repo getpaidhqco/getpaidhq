@@ -53,6 +53,13 @@ func NewOrderService(
 	}
 }
 
+// CreateOrder creates a new order from a session/cart or direct cart items.
+// TODO: port full CreateOrder logic from old OrderService (depends on cart infrastructure)
+func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrderInput) (domain.CreateOrderResponse, error) {
+	s.logger.Info("Creating order", "orgId", input.OrgId)
+	return domain.CreateOrderResponse{}, errors.New("CreateOrder: not yet ported - depends on cart infrastructure migration")
+}
+
 func (s *OrderService) FindById(ctx context.Context, orgId string, id string) (domain.Order, error) {
 	order, err := s.orderRepository.FindById(ctx, orgId, id)
 	if err != nil {

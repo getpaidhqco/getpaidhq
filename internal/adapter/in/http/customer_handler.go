@@ -5,19 +5,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
-	"payloop/internal/application/interfaces"
+	"payloop/internal/core/service"
 )
 
-// CustomerHandler handles HTTP requests for customers.
 type CustomerHandler struct {
-	customerService interfaces.CustomerService
+	customerService *service.CustomerService
 	logger          port.Logger
 	authz           port.Authz
 }
 
-// NewCustomerHandler creates a new CustomerHandler.
-func NewCustomerHandler(customerService interfaces.CustomerService, logger port.Logger, authz port.Authz) *CustomerHandler {
+func NewCustomerHandler(customerService *service.CustomerService, logger port.Logger, authz port.Authz) *CustomerHandler {
 	return &CustomerHandler{
 		customerService: customerService,
 		logger:          logger,
@@ -25,34 +24,16 @@ func NewCustomerHandler(customerService interfaces.CustomerService, logger port.
 	}
 }
 
-// RegisterRoutes registers customer routes on the given router group.
 func (cc *CustomerHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.GET("/customers", cc.List)
 	rg.GET("/customers/:id", cc.Get)
 	rg.POST("/customers", cc.Create)
-	rg.POST("/customers/:id/payment-methods", cc.checkAuthz(port.ActionCreatePaymentMethod), cc.CreateCustomerPaymentMethod)
-	rg.PUT("/customers/:id/payment-methods/:pmid", cc.checkAuthz(port.ActionCreatePaymentMethod), cc.UpdateCustomerPaymentMethod)
+	rg.POST("/customers/:id/payment-methods", cc.CreateCustomerPaymentMethod)
+	rg.PUT("/customers/:id/payment-methods/:pmid", cc.UpdateCustomerPaymentMethod)
 }
 
-func (cc *CustomerHandler) checkAuthz(action port.Action) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		user, _ := c.Get("user")
-		authUser := user.(port.AuthUser)
-		allowed := cc.authz.Enforce(authUser, action, "")
-		if !allowed {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Unauthorized",
-			})
-			c.Abort()
-			return
-		}
-		c.Next()
-	}
-}
-
-// Create handles the creation of a new customer.
 func (cc *CustomerHandler) Create(c *gin.Context) {
-	var input CreateCustomerRequest
+	var input domain.CreateCustomerInput
 	user, _ := c.Get("user")
 	authUser := user.(port.AuthUser)
 
@@ -72,9 +53,8 @@ func (cc *CustomerHandler) Create(c *gin.Context) {
 	c.JSON(http.StatusOK, customer)
 }
 
-// CreateCustomerPaymentMethod handles the creation of a new payment method for a customer.
 func (cc *CustomerHandler) CreateCustomerPaymentMethod(c *gin.Context) {
-	var input CreatePaymentMethodRequest
+	var input domain.CreatePaymentMethodInput
 	user, _ := c.Get("user")
 	authUser := user.(port.AuthUser)
 	customerId := c.Param("id")
@@ -85,12 +65,10 @@ func (cc *CustomerHandler) CreateCustomerPaymentMethod(c *gin.Context) {
 		return
 	}
 
-	paymentMethod, err := cc.customerService.CreatePaymentMethod(
-		c.Request.Context(), authUser.OrgId, CreatePaymentMethodInput{
-			CreatePaymentMethodRequest: input,
-			OrgId:                      authUser.OrgId,
-			CustomerId:                 customerId,
-		})
+	input.OrgId = authUser.OrgId
+	input.CustomerId = customerId
+
+	paymentMethod, err := cc.customerService.CreatePaymentMethod(c.Request.Context(), authUser.OrgId, input)
 	if err != nil {
 		apiErr := NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -100,9 +78,8 @@ func (cc *CustomerHandler) CreateCustomerPaymentMethod(c *gin.Context) {
 	c.JSON(http.StatusOK, paymentMethod)
 }
 
-// UpdateCustomerPaymentMethod handles updating a payment method for a customer.
 func (cc *CustomerHandler) UpdateCustomerPaymentMethod(c *gin.Context) {
-	var input UpdatePaymentMethodRequest
+	var input domain.UpdatePaymentMethodInput
 	user, _ := c.Get("user")
 	authUser := user.(port.AuthUser)
 	customerId := c.Param("id")
@@ -114,13 +91,11 @@ func (cc *CustomerHandler) UpdateCustomerPaymentMethod(c *gin.Context) {
 		return
 	}
 
-	paymentMethod, err := cc.customerService.UpdatePaymentMethod(
-		c.Request.Context(), authUser.OrgId, UpdatePaymentMethodInput{
-			UpdatePaymentMethodRequest: input,
-			PaymentMethodId:            pmId,
-			OrgId:                      authUser.OrgId,
-			CustomerId:                 customerId,
-		})
+	input.OrgId = authUser.OrgId
+	input.CustomerId = customerId
+	input.PaymentMethodId = pmId
+
+	paymentMethod, err := cc.customerService.UpdatePaymentMethod(c.Request.Context(), authUser.OrgId, input)
 	if err != nil {
 		apiErr := NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -130,7 +105,6 @@ func (cc *CustomerHandler) UpdateCustomerPaymentMethod(c *gin.Context) {
 	c.JSON(http.StatusOK, paymentMethod)
 }
 
-// GetCustomerPaymentMethod handles retrieving a payment method by ID.
 func (cc *CustomerHandler) GetCustomerPaymentMethod(c *gin.Context) {
 	user, _ := c.Get("user")
 	authUser := user.(port.AuthUser)
@@ -146,7 +120,6 @@ func (cc *CustomerHandler) GetCustomerPaymentMethod(c *gin.Context) {
 	c.JSON(http.StatusOK, paymentMethod)
 }
 
-// Get handles retrieving a customer by ID.
 func (cc *CustomerHandler) Get(c *gin.Context) {
 	user, _ := c.Get("user")
 	authUser := user.(port.AuthUser)
@@ -162,7 +135,6 @@ func (cc *CustomerHandler) Get(c *gin.Context) {
 	c.JSON(http.StatusOK, NewCustomerFromEntity(customer))
 }
 
-// List handles retrieving a list of customers with pagination and search.
 func (cc *CustomerHandler) List(c *gin.Context) {
 	user, _ := c.Get("user")
 	authUser := user.(port.AuthUser)

@@ -1,17 +1,23 @@
 package domain
 
-import (
-	"context"
-	pubsub "payloop/internal/application/lib/events"
-)
+import "context"
+
+// PubSubPayload represents a published event payload.
+type PubSubPayload struct {
+	Id        string      `json:"id"`
+	OrgId     string      `json:"org_id"`
+	Topic     string      `json:"topic"`
+	Data      interface{} `json:"data"`
+	CreatedAt interface{} `json:"created_at"`
+}
 
 type OutgoingWebhookPayload struct {
 	WebhookSubscription WebhookSubscription
-	Event               pubsub.Payload
+	Event               PubSubPayload
 }
 
 type PaymentRefundedPayload struct {
-	refund Refund
+	Refund Refund
 }
 
 type PaymentSuccessWorkflow interface {

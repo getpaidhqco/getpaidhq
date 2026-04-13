@@ -3,19 +3,18 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 
-	"payloop/internal/application/dto"
-	"payloop/internal/application/services"
+	"payloop/internal/core/service"
 	"payloop/internal/core/port"
 )
 
 // OrgHandler handles HTTP requests for organizations.
 type OrgHandler struct {
-	service services.OrgService
+	service service.OrgService
 	logger  port.Logger
 }
 
 // NewOrgHandler creates a new OrgHandler.
-func NewOrgHandler(service services.OrgService, logger port.Logger) *OrgHandler {
+func NewOrgHandler(service service.OrgService, logger port.Logger) *OrgHandler {
 	return &OrgHandler{
 		service: service,
 		logger:  logger,
@@ -38,7 +37,7 @@ func (u *OrgHandler) Create(c *gin.Context) {
 		return
 	}
 
-	t, err := u.service.Create(c.Request.Context(), dto.CreateOrgInput{
+	t, err := u.service.Create(c.Request.Context(), port.CreateOrgInput{
 		Owner:    authUser,
 		Name:     input.Name,
 		Country:  input.Country,

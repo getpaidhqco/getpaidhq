@@ -4,7 +4,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"time"
+
+	"payloop/internal/core/domain"
 )
 
 // PubSub defines the interface for publish/subscribe messaging.
@@ -13,13 +14,8 @@ type PubSub interface {
 	Subscribe(topic string, handler func(topic string, data []byte)) (PubSubSubscription, error)
 }
 
-type PubSubPayload struct {
-	Id        string      `json:"id"`
-	OrgId     string      `json:"org_id"`
-	Topic     string      `json:"topic"`
-	Data      interface{} `json:"data"`
-	CreatedAt time.Time   `json:"created_at"`
-}
+// PubSubPayload is an alias for the domain PubSubPayload type.
+type PubSubPayload = domain.PubSubPayload
 
 type PubSubSubscription interface {
 	Unsubscribe() error

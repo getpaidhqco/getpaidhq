@@ -197,7 +197,7 @@ func (o *OrderHandler) List(c *gin.Context) {
 	orgId := user.(port.AuthUser).OrgId
 	pagination := GetPagination(c)
 
-	ords, total, err := o.service.List(c.Request.Context(), orgId, pagination.ToDomainPagination())
+	ords, total, err := o.service.List(c.Request.Context(), orgId, pagination)
 	if err != nil {
 		apiErr := NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)

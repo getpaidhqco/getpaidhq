@@ -3,19 +3,19 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 
-	"payloop/internal/application/services"
-	"payloop/internal/core/domain"
+	"payloop/internal/core/service"
 	"payloop/internal/core/port"
+	"payloop/internal/core/domain"
 )
 
-// CartHandler handles HTTP requests for carts.
+// CartHandler handles HTTP requests for domain.
 type CartHandler struct {
-	cartService services.CartService
+	cartService service.CartService
 	logger      port.Logger
 }
 
 // NewCartHandler creates a new CartHandler.
-func NewCartHandler(cartService services.CartService, logger port.Logger) *CartHandler {
+func NewCartHandler(cartService service.CartService, logger port.Logger) *CartHandler {
 	return &CartHandler{
 		cartService: cartService,
 		logger:      logger,

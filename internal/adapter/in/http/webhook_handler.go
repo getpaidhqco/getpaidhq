@@ -5,19 +5,19 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"payloop/internal/application/interfaces/webhooks"
 	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
+	"payloop/internal/core/service"
 )
 
 // WebhookHandler handles incoming payment webhook requests.
 type WebhookHandler struct {
-	webhookService webhooks.WebhookService
+	webhookService *service.WebhookService
 	logger         port.Logger
 }
 
 // NewWebhookHandler creates a new WebhookHandler.
-func NewWebhookHandler(service webhooks.WebhookService, logger port.Logger) *WebhookHandler {
+func NewWebhookHandler(service *service.WebhookService, logger port.Logger) *WebhookHandler {
 	return &WebhookHandler{
 		webhookService: service,
 		logger:         logger,
@@ -38,7 +38,7 @@ func (u *WebhookHandler) Process(c *gin.Context) {
 	psp := queryParams.Get("p")
 
 	u.logger.Debug("Processing webhook")
-	err = u.webhookService.HandlePaymentWebhook(c.Request.Context(), webhooks.PaymentWebhookPayload{
+	err = u.webhookService.HandlePaymentWebhook(c.Request.Context(), port.PaymentWebhookPayload{
 		Psp:  domain.Gateway(psp),
 		Data: string(jsonData),
 	})

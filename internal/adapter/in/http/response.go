@@ -1,11 +1,9 @@
 package handler
 
 import (
-	"encoding/json"
 	"time"
 
 	"payloop/internal/core/domain"
-	"payloop/internal/infrastructure/cart"
 )
 
 // ---------------------------------------------------------------------------
@@ -411,21 +409,12 @@ func NewGatewayFromEntity(entity domain.PspConfig) GatewayResponse {
 // ---------------------------------------------------------------------------
 
 type CartResponse struct {
-	cart.CartData
+	Data interface{} `json:"data"`
 }
 
 func ToCartResponse(entity domain.Cart) CartResponse {
-	data, err := json.Marshal(entity.Data)
-	if err != nil {
-		// handle error
-	}
-	var cartData cart.CartData
-	if err := json.Unmarshal(data, &cartData); err != nil {
-		// handle error
-	}
-
 	return CartResponse{
-		CartData: entity.Data.(cart.CartData),
+		Data: entity.Data,
 	}
 }
 

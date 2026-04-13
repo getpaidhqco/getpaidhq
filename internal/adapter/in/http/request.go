@@ -30,8 +30,8 @@ type Pagination struct {
 	SortBy        string `json:"sort_by"`
 }
 
-// GetPagination reads pagination parameters from the gin context.
-func GetPagination(c *gin.Context) Pagination {
+// GetPagination reads pagination parameters from the gin context and returns a domain.Pagination.
+func GetPagination(c *gin.Context) domain.Pagination {
 	page, err := strconv.Atoi(c.DefaultQuery(PageTag, PageDefault))
 	if err != nil || page < 1 {
 		page = 0
@@ -44,7 +44,7 @@ func GetPagination(c *gin.Context) Pagination {
 	sortOrder := c.DefaultQuery("sort_order", "desc")
 	sortBy := c.DefaultQuery("sort_by", "created_at")
 
-	return Pagination{
+	return domain.Pagination{
 		Page:          page,
 		Limit:         limit,
 		Offset:        page * limit,

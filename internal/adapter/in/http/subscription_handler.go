@@ -193,7 +193,7 @@ func (s *SubscriptionHandler) List(c *gin.Context) {
 	orgId := user.(port.AuthUser).OrgId
 	pagination := GetPagination(c)
 
-	subs, total, err := s.subsService.List(c.Request.Context(), orgId, pagination.ToDomainPagination())
+	subs, total, err := s.subsService.List(c.Request.Context(), orgId, pagination)
 	if err != nil {
 		apiErr := NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
@@ -223,7 +223,7 @@ func (s *SubscriptionHandler) ListPayments(c *gin.Context) {
 	payments, total, err := s.subsService.FindSubscriptionPayments(c.Request.Context(), domain.EntityKey{
 		OrgId: orgId,
 		Id:    id,
-	}, pagination.ToDomainPagination())
+	}, pagination)
 	if err != nil {
 		apiErr := NewApiErrorFromError(err)
 		c.JSON(apiErr.GetHttpErrorCode(), apiErr)

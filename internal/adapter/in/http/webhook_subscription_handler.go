@@ -5,21 +5,21 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"payloop/internal/application/interfaces"
-	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
+	"payloop/internal/core/service"
+	"payloop/internal/core/domain"
 )
 
 // WebhookSubscriptionHandler handles HTTP requests for webhook subscriptions.
 type WebhookSubscriptionHandler struct {
-	webhookSubscriptionService interfaces.WebhookSubscriptionService
+	webhookSubscriptionService *service.WebhookSubscriptionService
 	logger                     port.Logger
 	authz                      port.Authz
 }
 
 // NewWebhookSubscriptionHandler creates a new WebhookSubscriptionHandler.
 func NewWebhookSubscriptionHandler(
-	webhookSubscriptionService interfaces.WebhookSubscriptionService,
+	webhookSubscriptionService *service.WebhookSubscriptionService,
 	logger port.Logger,
 	authz port.Authz,
 ) *WebhookSubscriptionHandler {

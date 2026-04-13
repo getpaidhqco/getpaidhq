@@ -5,18 +5,18 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"payloop/internal/application/interfaces"
 	"payloop/internal/core/port"
+	"payloop/internal/core/service"
 )
 
 // ReportHandler handles HTTP requests for reports.
 type ReportHandler struct {
-	reportService interfaces.ReportService
+	reportService *service.ReportService
 	logger        port.Logger
 }
 
 // NewReportHandler creates a new ReportHandler.
-func NewReportHandler(reportService interfaces.ReportService, logger port.Logger) *ReportHandler {
+func NewReportHandler(reportService *service.ReportService, logger port.Logger) *ReportHandler {
 	return &ReportHandler{
 		reportService: reportService,
 		logger:        logger,

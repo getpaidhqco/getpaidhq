@@ -3,18 +3,18 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 
-	"payloop/internal/application/services"
+	"payloop/internal/core/service"
 	"payloop/internal/core/port"
 )
 
 // UserHandler handles HTTP requests for users.
 type UserHandler struct {
-	service services.UserService
+	service service.UserService
 	logger  port.Logger
 }
 
 // NewUserHandler creates a new UserHandler.
-func NewUserHandler(userService services.UserService, logger port.Logger) *UserHandler {
+func NewUserHandler(userService service.UserService, logger port.Logger) *UserHandler {
 	return &UserHandler{
 		service: userService,
 		logger:  logger,

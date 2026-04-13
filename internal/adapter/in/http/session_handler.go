@@ -5,20 +5,20 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"payloop/internal/application/interfaces"
-	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
+	"payloop/internal/core/service"
+	"payloop/internal/core/domain"
 )
 
 // SessionHandler handles HTTP requests for sessions.
 type SessionHandler struct {
-	sessionService interfaces.SessionService
+	sessionService *service.SessionService
 	logger         port.Logger
 	authz          port.Authz
 }
 
 // NewSessionHandler creates a new SessionHandler.
-func NewSessionHandler(sessionService interfaces.SessionService, logger port.Logger, authz port.Authz) *SessionHandler {
+func NewSessionHandler(sessionService *service.SessionService, logger port.Logger, authz port.Authz) *SessionHandler {
 	return &SessionHandler{
 		sessionService: sessionService,
 		logger:         logger,
