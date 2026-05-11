@@ -140,7 +140,7 @@ func (s *ReportService) HandlePublishedEvent(_ string, data []byte) {
 
 }
 
-func (s *ReportService) MapCdcStream(op string, entity string, newObj interface{}, oldObj interface{}) {
+func (s *ReportService) MapCdcStream(op string, entity string, newObj any, oldObj any) {
 
 	event := port.DataChangeEvent{
 		Operation: domain.Operation(op),

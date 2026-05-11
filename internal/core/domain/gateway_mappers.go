@@ -5,7 +5,7 @@ import (
 	"errors"
 )
 
-func ParsePaymentWebhookContext(data interface{}) (PaymentWebhookContext, error) {
+func ParsePaymentWebhookContext(data any) (PaymentWebhookContext, error) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return PaymentWebhookContext{}, errors.New("failed to marshal data to JSON")

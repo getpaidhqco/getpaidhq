@@ -188,11 +188,11 @@ func TestCalculateProrationDetails(t *testing.T) {
 	amount := int64(1000)
 
 	tests := []struct {
-		name            string
-		prorationMode   string
-		referenceDate   time.Time
-		expectedCredit  int
-		expectedDays    int
+		name           string
+		prorationMode  string
+		referenceDate  time.Time
+		expectedCredit int
+		expectedDays   int
 	}{
 		{
 			name:           "No Proration",

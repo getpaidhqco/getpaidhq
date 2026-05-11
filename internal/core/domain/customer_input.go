@@ -17,7 +17,7 @@ type CreatePaymentMethodInput struct {
 	Psp            string            `json:"psp" binding:"required"`
 	Name           string            `json:"name" binding:"required"`
 	Type           PaymentMethodType `json:"type" binding:"required"`
-	Details        interface{}       `json:"details"`
+	Details        any               `json:"details"`
 	Token          string            `json:"token" binding:"required"`
 	IsDefault      bool              `json:"is_default"`
 	BillingAddress Address           `json:"billing_address"`
@@ -31,7 +31,7 @@ type UpdatePaymentMethodInput struct {
 	PaymentMethodId string            `json:"payment_method_id"`
 	Name            string            `json:"name"`
 	Type            PaymentMethodType `json:"type"`
-	Details         interface{}       `json:"details"`
+	Details         any               `json:"details"`
 	Token           string            `json:"token"`
 	IsDefault       bool              `json:"is_default"`
 	BillingAddress  Address           `json:"billing_address"`

@@ -10,7 +10,7 @@ type Customer struct {
 	Email                  string            `gorm:"column:email" json:"email,omitempty"`
 	Phone                  string            `gorm:"column:phone" json:"phone,omitempty"`
 	DefaultPaymentMethodId string            `gorm:"column:default_payment_method_id" json:"default_payment_method_id,omitempty"`
-	BillingAddress         Address           `gorm:"column:billing_address;serializer:json" json:"billing_address,omitempty"`
+	BillingAddress         Address           `gorm:"column:billing_address;serializer:json" json:"billing_address"`
 	Metadata               map[string]string `gorm:"column:metadata;serializer:json" json:"metadata,omitempty"`
 	CreatedAt              time.Time         `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt              time.Time         `gorm:"column:updated_at" json:"updated_at"`

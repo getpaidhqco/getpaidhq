@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"payloop/internal/core/port"
 	"payloop/internal/lib"
+	"slices"
 )
 
 type ApiKeyMiddleware struct {
@@ -52,12 +53,7 @@ func (m ApiKeyMiddleware) Setup() {
 }
 
 func isPublicPath(path string) bool {
-	for _, publicPath := range port.PublicPaths {
-		if path == publicPath {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(port.PublicPaths, path)
 }
 
 func (m ApiKeyMiddleware) Authenticate(ctx context.Context, token string) (port.AuthUser, error) {

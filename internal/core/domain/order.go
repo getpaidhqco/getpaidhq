@@ -1,12 +1,14 @@
 package domain
 
+import "maps"
+
 import "time"
 
 type Order struct {
 	OrgId      string            `gorm:"column:org_id;primaryKey" json:"org_id"`
 	Id         string            `gorm:"column:id;primaryKey" json:"id"`
 	CustomerId string            `gorm:"column:customer_id" json:"customer_id"`
-	Customer   Customer          `gorm:"foreignKey:CustomerId,OrgId;references:Id,OrgId" json:"customer,omitempty"`
+	Customer   Customer          `gorm:"foreignKey:CustomerId,OrgId;references:Id,OrgId" json:"customer"`
 	Reference  string            `gorm:"column:reference" json:"reference"`
 	Status     OrderStatus       `gorm:"column:status" json:"status"`
 	SessionId  string            `gorm:"column:session_id" json:"session_id,omitempty"`
@@ -26,9 +28,7 @@ func (o *Order) SetMetadata(meta map[string]string) *Order {
 	if o.Metadata == nil {
 		o.Metadata = make(map[string]string)
 	}
-	for key, value := range meta {
-		o.Metadata[key] = value
-	}
+	maps.Copy(o.Metadata, meta)
 	return o
 }
 

@@ -3,59 +3,59 @@ package paystack
 import "time"
 
 type WebhookPayload struct {
-	Event string      `json:"event"`
-	Data  interface{} `json:"data"`
+	Event string `json:"event"`
+	Data  any    `json:"data"`
 }
 
 type TransactionSuccessful struct {
-	ID              int64       `json:"id"`
-	Domain          string      `json:"domain"`
-	Status          string      `json:"status"`
-	Reference       string      `json:"reference"`
-	Amount          int64       `json:"amount"`
-	Message         interface{} `json:"message"`
-	GatewayResponse string      `json:"gateway_response"`
-	PaidAt          time.Time   `json:"paid_at"`
-	CreatedAt       time.Time   `json:"created_at"`
-	Channel         string      `json:"channel"`
-	Currency        string      `json:"currency"`
-	IPAddress       string      `json:"ip_address"`
+	ID              int64     `json:"id"`
+	Domain          string    `json:"domain"`
+	Status          string    `json:"status"`
+	Reference       string    `json:"reference"`
+	Amount          int64     `json:"amount"`
+	Message         any       `json:"message"`
+	GatewayResponse string    `json:"gateway_response"`
+	PaidAt          time.Time `json:"paid_at"`
+	CreatedAt       time.Time `json:"created_at"`
+	Channel         string    `json:"channel"`
+	Currency        string    `json:"currency"`
+	IPAddress       string    `json:"ip_address"`
 
 	// we dont specify a json tag here because we need to handle it as a special case
 	// it's sometimes returned as a string and sometimes an object, so unmarhalling fails
-	Metadata map[string]interface{} `json:"-"`
+	Metadata map[string]any `json:"-"`
 
-	FeesBreakdown interface{} `json:"fees_breakdown"`
-	Log           interface{} `json:"log"`
-	Fees          int         `json:"fees"`
-	FeesSplit     interface{} `json:"fees_split"`
+	FeesBreakdown any `json:"fees_breakdown"`
+	Log           any `json:"log"`
+	Fees          int `json:"fees"`
+	FeesSplit     any `json:"fees_split"`
 	Authorization struct {
-		AuthorizationCode         string      `json:"authorization_code"`
-		Bin                       string      `json:"bin"`
-		Last4                     string      `json:"last4"`
-		ExpMonth                  string      `json:"exp_month"`
-		ExpYear                   string      `json:"exp_year"`
-		Channel                   string      `json:"channel"`
-		CardType                  string      `json:"card_type"`
-		Bank                      string      `json:"bank"`
-		CountryCode               string      `json:"country_code"`
-		Brand                     string      `json:"brand"`
-		Reusable                  bool        `json:"reusable"`
-		Signature                 string      `json:"signature"`
-		AccountName               interface{} `json:"account_name"`
-		ReceiverBankAccountNumber interface{} `json:"receiver_bank_account_number"`
-		ReceiverBank              interface{} `json:"receiver_bank"`
+		AuthorizationCode         string `json:"authorization_code"`
+		Bin                       string `json:"bin"`
+		Last4                     string `json:"last4"`
+		ExpMonth                  string `json:"exp_month"`
+		ExpYear                   string `json:"exp_year"`
+		Channel                   string `json:"channel"`
+		CardType                  string `json:"card_type"`
+		Bank                      string `json:"bank"`
+		CountryCode               string `json:"country_code"`
+		Brand                     string `json:"brand"`
+		Reusable                  bool   `json:"reusable"`
+		Signature                 string `json:"signature"`
+		AccountName               any    `json:"account_name"`
+		ReceiverBankAccountNumber any    `json:"receiver_bank_account_number"`
+		ReceiverBank              any    `json:"receiver_bank"`
 	} `json:"authorization"`
 	Customer struct {
-		ID                       int         `json:"id"`
-		FirstName                string      `json:"first_name"`
-		LastName                 string      `json:"last_name"`
-		Email                    string      `json:"email"`
-		CustomerCode             string      `json:"customer_code"`
-		Phone                    string      `json:"phone"`
-		Metadata                 interface{} `json:"metadata"`
-		RiskAction               string      `json:"risk_action"`
-		InternationalFormatPhone interface{} `json:"international_format_phone"`
+		ID                       int    `json:"id"`
+		FirstName                string `json:"first_name"`
+		LastName                 string `json:"last_name"`
+		Email                    string `json:"email"`
+		CustomerCode             string `json:"customer_code"`
+		Phone                    string `json:"phone"`
+		Metadata                 any    `json:"metadata"`
+		RiskAction               string `json:"risk_action"`
+		InternationalFormatPhone any    `json:"international_format_phone"`
 	} `json:"customer"`
 	Plan struct {
 	} `json:"plan"`
@@ -63,15 +63,15 @@ type TransactionSuccessful struct {
 	} `json:"subaccount"`
 	Split struct {
 	} `json:"split"`
-	OrderID interface{} `json:"order_id"`
+	OrderID any `json:"order_id"`
 
-	RequestedAmount    int         `json:"requested_amount"`
-	PosTransactionData interface{} `json:"pos_transaction_data"`
+	RequestedAmount    int `json:"requested_amount"`
+	PosTransactionData any `json:"pos_transaction_data"`
 	Source             struct {
-		Type       string      `json:"type"`
-		Source     string      `json:"source"`
-		EntryPoint string      `json:"entry_point"`
-		Identifier interface{} `json:"identifier"`
+		Type       string `json:"type"`
+		Source     string `json:"source"`
+		EntryPoint string `json:"entry_point"`
+		Identifier any    `json:"identifier"`
 	} `json:"source"`
 }
 
@@ -88,11 +88,11 @@ type Metadata struct {
 }
 
 type RefundProcessed struct {
-	Status               string      `json:"status"`
-	TransactionReference string      `json:"transaction_reference"`
-	RefundReference      interface{} `json:"refund_reference"`
-	Amount               int64       `json:"amount"`
-	Currency             string      `json:"currency"`
+	Status               string `json:"status"`
+	TransactionReference string `json:"transaction_reference"`
+	RefundReference      any    `json:"refund_reference"`
+	Amount               int64  `json:"amount"`
+	Currency             string `json:"currency"`
 	Customer             struct {
 		FirstName string `json:"first_name"`
 		LastName  string `json:"last_name"`

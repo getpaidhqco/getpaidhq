@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"payloop/internal/core/domain"
+	"slices"
 )
 
 // ErrOnboardingRequired is returned when a user needs to complete onboarding.
@@ -58,12 +59,7 @@ func GetPrimaryRole(roles []UserRole) UserRole {
 var PublicPaths = []string{"/api/health", "/api/notify", "/api/notify/cdc"}
 
 func IsPublicPath(path string) bool {
-	for _, publicPath := range PublicPaths {
-		if path == publicPath {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(PublicPaths, path)
 }
 
 // Authenticator validates tokens and returns an authenticated user.
@@ -75,7 +71,7 @@ type Authenticator interface {
 // CreateOrgResponse contains the response data from creating an organization.
 type CreateOrgResponse struct {
 	ExternalId string
-	Data       interface{}
+	Data       any
 }
 
 // AuthProvider manages external auth provider operations (Clerk, Cognito, etc.).
@@ -128,8 +124,8 @@ const (
 
 	ActionAddProductToCart   Action = "AddProductToCart"
 	ActionRemoveItemFromCart Action = "RemoveItemFromCart"
-	ActionProcessWebhook    Action = "ProcessWebhook"
-	ActionCreateSession     Action = "CreateSession"
+	ActionProcessWebhook     Action = "ProcessWebhook"
+	ActionCreateSession      Action = "CreateSession"
 	ActionUpdateSubscription Action = "UpdateSubscription"
 	ActionPauseSubscription  Action = "PauseSubscription"
 	ActionResumeSubscription Action = "ResumeSubscription"

@@ -18,7 +18,7 @@ func TestRetryPolicy_GetNextCharge(t *testing.T) {
 		FailureAction: FailureActionCancel,
 	}
 
-	for i := 0; i < retryPolicy.RetryAttempts; i++ {
+	for i := range retryPolicy.RetryAttempts {
 		nextCharge := retryPolicy.GetNextCharge(subscription)
 		t.Logf("Next charge date for retry %d: %v", i+1, nextCharge)
 		subscription.Retries++

@@ -62,11 +62,11 @@ type ChargePaymentResponse struct {
 	ErrorReason   string              `json:"error_reason"`
 	ErrorCode     string              `json:"error_code"`
 
-	PspResponse interface{} `json:"psp_response"`
+	PspResponse any `json:"psp_response"`
 }
 
 type InitPaymentResponse struct {
-	PspResponse interface{}
+	PspResponse any
 }
 
 type PaymentWebhookType string

@@ -18,7 +18,7 @@ func BenchmarkRequestReplyLoopback(b *testing.B) {
 	})
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := nc.Request("hello.world", []byte("hihi"), 10*time.Second)
 		if err != nil {
 			b.Fatal(err)
@@ -41,7 +41,7 @@ func BenchmarkRequestReplyInProcess(b *testing.B) {
 	})
 
 	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
+	for b.Loop() {
 		_, err := nc.Request("hello.world", []byte("hihi"), 10*time.Second)
 		if err != nil {
 			b.Fatal(err)

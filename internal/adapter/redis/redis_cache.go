@@ -23,7 +23,7 @@ func NewRedisClient(addr string, password string, db int) port.CacheClient {
 }
 
 // Set sets a key-value pair in Redis with an expiration time.
-func (r *RedisClient) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+func (r *RedisClient) Set(ctx context.Context, key string, value any, expiration time.Duration) error {
 	return r.client.Set(ctx, key, value, expiration).Err()
 }
 

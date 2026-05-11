@@ -42,7 +42,7 @@ func (m CognitoMiddleware) Authenticate(ctx context.Context, token string) (port
 	orgId := t.Claims.(jwt.MapClaims)["custom:company"].(string)
 	userId := t.Claims.(jwt.MapClaims)["sub"].(string)
 	email := t.Claims.(jwt.MapClaims)["email"].(string)
-	roles := t.Claims.(jwt.MapClaims)["cognito:groups"].([]interface{})
+	roles := t.Claims.(jwt.MapClaims)["cognito:groups"].([]any)
 
 	var roleStrings []port.UserRole
 	for _, role := range roles {

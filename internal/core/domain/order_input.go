@@ -65,7 +65,7 @@ type CompleteOrderInputPaymentMethod struct {
 	IsDefault      bool              `json:"is_default"`
 	BillingAddress Address           `json:"billing_address"`
 	Type           PaymentMethodType `json:"type" binding:"required"`
-	Details        interface{}       `json:"details"`
+	Details        any               `json:"details"`
 	Token          string            `json:"token"`
 	Metadata       map[string]string `json:"metadata"`
 }

@@ -146,7 +146,7 @@ type CompleteOrderInputPaymentMethod struct {
 	IsDefault      bool              `json:"is_default"`
 	BillingAddress Address           `json:"billing_address"`
 	Type           string            `json:"type"`
-	Details        interface{}       `json:"details"`
+	Details        any               `json:"details"`
 	Token          string            `json:"token"`
 	Metadata       map[string]string `json:"metadata"`
 }
@@ -231,7 +231,7 @@ type CreatePaymentMethodRequest struct {
 
 	// Type of payment method, e.g. card, bank account, etc.
 	Type           domain.PaymentMethodType `json:"type" binding:"required"`
-	Details        interface{}              `json:"details"`
+	Details        any                      `json:"details"`
 	Token          string                   `json:"token" binding:"required"`
 	IsDefault      bool                     `json:"is_default"`
 	BillingAddress domain.Address           `json:"billing_address"`
@@ -241,7 +241,7 @@ type CreatePaymentMethodRequest struct {
 type UpdatePaymentMethodRequest struct {
 	Name           string                   `json:"name"`
 	Type           domain.PaymentMethodType `json:"type"`
-	Details        interface{}              `json:"details"`
+	Details        any                      `json:"details"`
 	Token          string                   `json:"token"`
 	IsDefault      bool                     `json:"is_default"`
 	BillingAddress domain.Address           `json:"billing_address"`

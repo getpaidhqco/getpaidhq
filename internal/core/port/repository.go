@@ -140,8 +140,7 @@ type IdempotencyKeyRepository interface {
 }
 
 // UserRepository manages user persistence.
-type UserRepository interface {
-}
+type UserRepository any
 
 // WebhookSubscriptionRepository manages webhook subscription persistence.
 type WebhookSubscriptionRepository interface {
@@ -185,8 +184,8 @@ type ReportRepository interface {
 type DataChangeEvent struct {
 	Operation domain.Operation
 	Entity    domain.Entity
-	NewObject interface{}
-	OldObject interface{}
+	NewObject any
+	OldObject any
 }
 
 // ProcessDailyMetricsInput is the input for processing daily reporting metrics.

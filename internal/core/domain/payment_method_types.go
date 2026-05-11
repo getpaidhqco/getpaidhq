@@ -37,7 +37,7 @@ func (d CardDetail) GetExpiryDate() time.Time {
 	return time.Date(expiryYear, time.Month(expiryMonth), 1, 0, 0, 0, 0, time.UTC)
 }
 
-func ParsePaymentMethodDetails(paymentMethodType PaymentMethodType, details interface{}) (PaymentMethodDetails, error) {
+func ParsePaymentMethodDetails(paymentMethodType PaymentMethodType, details any) (PaymentMethodDetails, error) {
 	switch paymentMethodType {
 	case "card":
 		var cardDetail CardDetail

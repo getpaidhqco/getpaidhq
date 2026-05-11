@@ -3,8 +3,8 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 
-	"payloop/internal/core/service"
 	"payloop/internal/core/port"
+	"payloop/internal/core/service"
 )
 
 // OrgHandler handles HTTP requests for organizations.

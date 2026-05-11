@@ -13,8 +13,8 @@ import (
 // ListResponse is a generic response for list endpoints.
 // swagger:response listResponse
 type ListResponse struct {
-	Data interface{} `json:"data"`
-	Meta Meta        `json:"meta"`
+	Data any  `json:"data"`
+	Meta Meta `json:"meta"`
 }
 
 type Meta struct {
@@ -28,18 +28,18 @@ type Meta struct {
 // ---------------------------------------------------------------------------
 
 type OrderResponse struct {
-	Id         string            `json:"id"`
-	CustomerId string            `json:"customer_id"`
-	Customer   CustomerResponse  `json:"customer"`
-	Reference  string            `json:"reference"`
-	Status     string            `json:"status"`
-	SessionId  string            `json:"session_id"`
-	CartId     string            `json:"cart_id"`
+	Id         string              `json:"id"`
+	CustomerId string              `json:"customer_id"`
+	Customer   CustomerResponse    `json:"customer"`
+	Reference  string              `json:"reference"`
+	Status     string              `json:"status"`
+	SessionId  string              `json:"session_id"`
+	CartId     string              `json:"cart_id"`
 	Items      []OrderItemResponse `json:"items"`
-	Currency   string            `json:"currency"`
-	Total      int64             `json:"total"`
-	Metadata   map[string]string `json:"metadata"`
-	CreatedAt  time.Time         `json:"created_at"`
+	Currency   string              `json:"currency"`
+	Total      int64               `json:"total"`
+	Metadata   map[string]string   `json:"metadata"`
+	CreatedAt  time.Time           `json:"created_at"`
 }
 
 func NewOrderFromEntity(entity domain.Order) OrderResponse {
@@ -120,30 +120,30 @@ type SubscriptionResponse struct {
 
 	PaymentMethodId string `json:"payment_method_id,omitempty"`
 
-	StartDate          time.Time              `json:"start_date,omitempty"`
-	EndDate            time.Time              `json:"end_date,omitempty,omitzero"`
+	StartDate          time.Time              `json:"start_date"`
+	EndDate            time.Time              `json:"end_date,omitzero"`
 	BillingInterval    domain.BillingInterval `json:"billing_interval"`
 	BillingIntervalQty int                    `json:"billing_interval_qty"`
 	Cycles             int                    `json:"cycles"`
 	BillingAnchor      int                    `json:"billing_anchor"`
-	TrialEndsAt        time.Time              `json:"trial_ends_at,omitempty,omitzero"`
-	CancelAt           time.Time              `json:"cancel_at,omitempty,omitzero"`
-	EndsAt             time.Time              `json:"ends_at,omitempty,omitzero"`
-	LastCharge         time.Time              `json:"last_charge,omitempty,omitzero"`
-	RenewsAt           time.Time              `json:"renews_at,omitempty,omitzero"`
+	TrialEndsAt        time.Time              `json:"trial_ends_at,omitzero"`
+	CancelAt           time.Time              `json:"cancel_at,omitzero"`
+	EndsAt             time.Time              `json:"ends_at,omitzero"`
+	LastCharge         time.Time              `json:"last_charge,omitzero"`
+	RenewsAt           time.Time              `json:"renews_at,omitzero"`
 
-	CurrentPeriodStart time.Time `json:"current_period_start,omitempty,omitzero"`
-	CurrentPeriodEnd   time.Time `json:"current_period_end,omitempty,omitzero"`
+	CurrentPeriodStart time.Time `json:"current_period_start,omitzero"`
+	CurrentPeriodEnd   time.Time `json:"current_period_end,omitzero"`
 
 	Retries     int       `json:"retries"`
-	NextRetryAt time.Time `json:"next_retry,omitempty,omitzero"`
+	NextRetryAt time.Time `json:"next_retry,omitzero"`
 
 	Customer CustomerResponse `json:"customer"`
 
 	Metadata        map[string]string `json:"metadata"`
 	CyclesProcessed int               `json:"cycles_processed"`
 	TotalRevenue    int64             `json:"total_revenue"`
-	CancelledAt     time.Time         `json:"cancelled_at,omitempty,omitzero"`
+	CancelledAt     time.Time         `json:"cancelled_at,omitzero"`
 	CreatedAt       time.Time         `json:"created_at"`
 	UpdatedAt       time.Time         `json:"updated_at"`
 }
@@ -193,10 +193,10 @@ type CustomerResponse struct {
 	FirstName      string            `json:"first_name,omitempty"`
 	LastName       string            `json:"last_name,omitempty"`
 	Phone          string            `json:"phone,omitempty"`
-	BillingAddress domain.Address    `json:"billing_address,omitempty"`
+	BillingAddress domain.Address    `json:"billing_address"`
 	Metadata       map[string]string `json:"metadata,omitempty"`
-	CreatedAt      time.Time         `json:"created_at,omitempty"`
-	UpdatedAt      time.Time         `json:"updated_at,omitempty"`
+	CreatedAt      time.Time         `json:"created_at"`
+	UpdatedAt      time.Time         `json:"updated_at"`
 }
 
 func NewCustomerFromEntity(entity domain.Customer) CustomerResponse {
@@ -367,8 +367,8 @@ type ProrationDetailsResponse struct {
 	CurrentPeriodEnd   time.Time `json:"current_period_end"`
 	OldBillingAnchor   int       `json:"old_billing_anchor,omitempty"`
 	NewBillingAnchor   int       `json:"new_billing_anchor,omitempty"`
-	NewPeriodStart     time.Time `json:"new_period_start,omitempty"`
-	NewPeriodEnd       time.Time `json:"new_period_end,omitempty"`
+	NewPeriodStart     time.Time `json:"new_period_start"`
+	NewPeriodEnd       time.Time `json:"new_period_end"`
 }
 
 func NewProrationDetailsFromEntity(details domain.ProrationDetails) ProrationDetailsResponse {
@@ -409,7 +409,7 @@ func NewGatewayFromEntity(entity domain.PspConfig) GatewayResponse {
 // ---------------------------------------------------------------------------
 
 type CartResponse struct {
-	Data interface{} `json:"data"`
+	Data any `json:"data"`
 }
 
 func ToCartResponse(entity domain.Cart) CartResponse {

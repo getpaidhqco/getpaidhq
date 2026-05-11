@@ -111,8 +111,8 @@ type ProrationDetails struct {
 	CurrentPeriodEnd   time.Time `json:"current_period_end"`
 	OldBillingAnchor   int       `json:"old_billing_anchor,omitempty"`
 	NewBillingAnchor   int       `json:"new_billing_anchor,omitempty"`
-	NewPeriodStart     time.Time `json:"new_period_start,omitempty"`
-	NewPeriodEnd       time.Time `json:"new_period_end,omitempty"`
+	NewPeriodStart     time.Time `json:"new_period_start"`
+	NewPeriodEnd       time.Time `json:"new_period_end"`
 }
 
 // SubscriptionBillingAnchorChangedData contains the event-specific data for billing anchor changes.

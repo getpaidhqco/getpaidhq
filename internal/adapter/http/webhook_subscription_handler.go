@@ -5,9 +5,9 @@ import (
 
 	"github.com/gin-gonic/gin"
 
+	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
 	"payloop/internal/core/service"
-	"payloop/internal/core/domain"
 )
 
 // WebhookSubscriptionHandler handles HTTP requests for webhook subscriptions.

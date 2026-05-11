@@ -1,7 +1,6 @@
 package redis
 
 import (
-	"context"
 	"testing"
 	"time"
 
@@ -15,8 +14,7 @@ func TestNewRedisClient_Elasticache(t *testing.T) {
 
 	client := NewRedisClient(addr, password, db)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	ctx := t.Context()
 
 	err := client.Set(ctx, "test-key", "test-value", 1*time.Minute)
 	assert.NoError(t, err)

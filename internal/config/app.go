@@ -87,7 +87,7 @@ func NewApp() (*App, error) {
 
 	// Payment gateway adapters
 	gatewayAdapters := map[domain.Gateway]port.GatewayAdapter{
-		domain.Paystack:      paystack.NewAdapter(paymentRepo, pspRepo, settingRepo, logger),
+		domain.Paystack:       paystack.NewAdapter(paymentRepo, pspRepo, settingRepo, logger),
 		domain.CheckoutDotCom: checkout_com.NewAdapter(logger),
 	}
 	gatewayFactory := service.NewGatewayFactory(pspRepo, settingRepo, logger, gatewayAdapters)

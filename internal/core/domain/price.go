@@ -61,20 +61,20 @@ func NewPrice(orgId, variantId string, input CreatePriceInput) Price {
 }
 
 type CreatePriceInput struct {
-	OrgId              string          `json:"org_id"`
-	Label              string          `json:"label"`
-	VariantId          string          `json:"variant_id"`
-	Category           PriceCategory   `json:"category"`
-	Scheme             PriceScheme     `json:"scheme"`
-	Cycles             int             `json:"cycles"`
-	Currency           string          `json:"currency"`
-	UnitPrice          int64           `json:"unit_price"`
-	MinPrice           int64           `json:"min_price"`
-	SuggestedPrice     int64           `json:"suggested_price"`
-	BillingInterval    BillingInterval `json:"billing_interval"`
-	BillingIntervalQty int             `json:"billing_interval_qty"`
-	TrialInterval      BillingInterval `json:"trial_interval"`
-	TrialIntervalQty   int             `json:"trial_interval_qty"`
-	TaxCode            string          `json:"tax_code"`
+	OrgId              string            `json:"org_id"`
+	Label              string            `json:"label"`
+	VariantId          string            `json:"variant_id"`
+	Category           PriceCategory     `json:"category"`
+	Scheme             PriceScheme       `json:"scheme"`
+	Cycles             int               `json:"cycles"`
+	Currency           string            `json:"currency"`
+	UnitPrice          int64             `json:"unit_price"`
+	MinPrice           int64             `json:"min_price"`
+	SuggestedPrice     int64             `json:"suggested_price"`
+	BillingInterval    BillingInterval   `json:"billing_interval"`
+	BillingIntervalQty int               `json:"billing_interval_qty"`
+	TrialInterval      BillingInterval   `json:"trial_interval"`
+	TrialIntervalQty   int               `json:"trial_interval_qty"`
+	TaxCode            string            `json:"tax_code"`
 	Metadata           map[string]string `json:"metadata"`
 }

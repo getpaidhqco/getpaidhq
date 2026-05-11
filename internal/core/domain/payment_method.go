@@ -12,14 +12,14 @@ type PaymentMethod struct {
 	Psp            string              `gorm:"column:psp" json:"psp"`
 	Name           string              `gorm:"column:name" json:"name"`
 	CustomerId     string              `gorm:"column:customer_id" json:"customer_id"`
-	BillingAddress Address             `gorm:"column:billing_address;serializer:json" json:"billing_address,omitempty"`
+	BillingAddress Address             `gorm:"column:billing_address;serializer:json" json:"billing_address"`
 	Type           PaymentMethodType   `gorm:"column:type" json:"type"`
 	Token          string              `gorm:"column:token" json:"token"`
-	Details        interface{}         `gorm:"column:details;serializer:json" json:"details,omitempty"`
+	Details        any                 `gorm:"column:details;serializer:json" json:"details,omitempty"`
 	Metadata       map[string]string   `gorm:"column:metadata;serializer:json" json:"metadata,omitempty"`
-	ExpireAt       time.Time           `gorm:"column:expire_at" json:"expire_at,omitempty"`
-	CreatedAt      time.Time           `gorm:"column:created_at" json:"created_at,omitempty"`
-	UpdatedAt      time.Time           `gorm:"column:updated_at" json:"updated_at,omitempty"`
+	ExpireAt       time.Time           `gorm:"column:expire_at" json:"expire_at"`
+	CreatedAt      time.Time           `gorm:"column:created_at" json:"created_at"`
+	UpdatedAt      time.Time           `gorm:"column:updated_at" json:"updated_at"`
 }
 
 func (PaymentMethod) TableName() string { return "payment_methods" }
@@ -50,7 +50,7 @@ func (a Address) IsEmpty() bool {
 		a.Country == ""
 }
 
-func ParseAddress(address map[string]interface{}) Address {
+func ParseAddress(address map[string]any) Address {
 	jsonData, _ := json.Marshal(address)
 	var addr Address
 	_ = json.Unmarshal(jsonData, &addr)

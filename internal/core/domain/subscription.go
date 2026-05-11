@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"maps"
 	"payloop/internal/lib"
 	"time"
 )
@@ -53,15 +54,15 @@ type Subscription struct {
 	PaymentMethodId string             `gorm:"column:payment_method_id" json:"payment_method_id,omitempty"`
 
 	StartDate          time.Time       `gorm:"column:start_date" json:"start_date"`
-	EndDate            time.Time       `gorm:"column:end_date" json:"end_date,omitempty,omitzero"`
+	EndDate            time.Time       `gorm:"column:end_date" json:"end_date,omitzero"`
 	BillingInterval    BillingInterval `gorm:"column:billing_interval" json:"billing_interval"`
 	BillingIntervalQty int             `gorm:"column:billing_interval_qty" json:"billing_interval_qty"`
 	Cycles             int             `gorm:"column:cycles" json:"cycles"`
 	BillingAnchor      int             `gorm:"column:billing_anchor" json:"billing_anchor"`
 
-	TrialEndsAt time.Time `gorm:"column:trial_ends_at" json:"trial_ends_at,omitempty,omitzero"`
-	CancelAt    time.Time `gorm:"column:cancel_at" json:"cancel_at,omitempty,omitzero"`
-	EndsAt      time.Time `gorm:"column:ends_at" json:"ends_at,omitempty,omitzero"`
+	TrialEndsAt time.Time `gorm:"column:trial_ends_at" json:"trial_ends_at,omitzero"`
+	CancelAt    time.Time `gorm:"column:cancel_at" json:"cancel_at,omitzero"`
+	EndsAt      time.Time `gorm:"column:ends_at" json:"ends_at,omitzero"`
 	LastCharge  time.Time `gorm:"column:last_charge" json:"last_charge"`
 	RenewsAt    time.Time `gorm:"column:renews_at" json:"renews_at"`
 
@@ -69,14 +70,14 @@ type Subscription struct {
 	CurrentPeriodEnd   time.Time `gorm:"column:current_period_end" json:"current_period_end"`
 
 	Retries     int       `gorm:"column:retries" json:"retries"`
-	NextRetryAt time.Time `gorm:"column:next_retry" json:"next_retry,omitempty,omitzero"`
+	NextRetryAt time.Time `gorm:"column:next_retry" json:"next_retry,omitzero"`
 
 	Currency        string            `gorm:"column:currency" json:"currency"`
 	Amount          int64             `gorm:"column:amount" json:"amount"`
 	Metadata        map[string]string `gorm:"column:metadata;serializer:json" json:"metadata"`
 	CyclesProcessed int               `gorm:"column:cycles_processed" json:"cycles_processed"`
 	TotalRevenue    int64             `gorm:"column:total_revenue" json:"total_revenue"`
-	CancelledAt     time.Time         `gorm:"column:cancelled_at" json:"cancelled_at,omitempty,omitzero"`
+	CancelledAt     time.Time         `gorm:"column:cancelled_at" json:"cancelled_at,omitzero"`
 	CreatedAt       time.Time         `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt       time.Time         `gorm:"column:updated_at" json:"updated_at"`
 }
@@ -90,8 +91,8 @@ type ProrationDetails struct {
 	CurrentPeriodEnd   time.Time `json:"current_period_end"`
 	OldBillingAnchor   int       `json:"old_billing_anchor,omitempty"`
 	NewBillingAnchor   int       `json:"new_billing_anchor,omitempty"`
-	NewPeriodStart     time.Time `json:"new_period_start,omitempty"`
-	NewPeriodEnd       time.Time `json:"new_period_end,omitempty"`
+	NewPeriodStart     time.Time `json:"new_period_start"`
+	NewPeriodEnd       time.Time `json:"new_period_end"`
 }
 
 func (s *Subscription) CalculateProrationDetails(
@@ -157,9 +158,7 @@ func (s *Subscription) SetMetadata(meta map[string]string) *Subscription {
 	if s.Metadata == nil {
 		s.Metadata = make(map[string]string)
 	}
-	for key, value := range meta {
-		s.Metadata[key] = value
-	}
+	maps.Copy(s.Metadata, meta)
 	return s
 }
 
@@ -309,10 +308,7 @@ func (s *Subscription) SetCancelled() *Subscription {
 
 func calculateBillingAnchor(anchor int, year int, month int, referenceTime time.Time) time.Time {
 	daysInMonth := time.Date(year, time.Month(month+1), 0, 0, 0, 0, 0, time.UTC).Day()
-	billingDay := anchor
-	if anchor > daysInMonth {
-		billingDay = daysInMonth
-	}
+	billingDay := min(anchor, daysInMonth)
 	hour, min, sec := referenceTime.Clock()
 	nsec := referenceTime.Nanosecond()
 	return time.Date(year, time.Month(month), billingDay, hour, min, sec, nsec, time.UTC)

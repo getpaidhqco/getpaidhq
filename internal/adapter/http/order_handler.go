@@ -90,7 +90,7 @@ func (o *OrderHandler) CreateOrder(c *gin.Context) {
 		return
 	}
 
-	c.JSON(200, map[string]interface{}{
+	c.JSON(200, map[string]any{
 		"order": NewOrderFromEntity(rsp.Order),
 		"psp":   rsp.Psp.PspResponse,
 	})

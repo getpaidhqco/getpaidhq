@@ -93,7 +93,7 @@ func NewTemporalEngine(
 	return t
 }
 
-func (t Temporal) StartWorkflow(ctx context.Context, id port.WorkflowType, payload interface{}) (port.WorkflowResult, error) {
+func (t Temporal) StartWorkflow(ctx context.Context, id port.WorkflowType, payload any) (port.WorkflowResult, error) {
 
 	switch id {
 	case "payment.success":
@@ -231,11 +231,11 @@ func (t Temporal) UpdateSubscriptionWorkflow(ctx context.Context, updateName str
 		RunID:        we.RunID,
 		UpdateName:   updateName,
 		WaitForStage: client.WorkflowUpdateStageCompleted,
-		Args:         []interface{}{subscription},
+		Args:         []any{subscription},
 	})
 	if err != nil {
 		t.logger.Error("Failed to update workflow", "error", slog.String("err", err.Error()))
-		t.errorReporter.ReportError(ctx, err, map[string]interface{}{
+		t.errorReporter.ReportError(ctx, err, map[string]any{
 			"org_id":          subscription.OrgId,
 			"workflow_id":     we.ID,
 			"run_id":          we.RunID,
@@ -262,7 +262,7 @@ func (t Temporal) CancelSubscriptionWorkflow(ctx context.Context, subscription d
 	cancelErr := t.client.CancelWorkflow(ctx, we.ID, we.RunID)
 	if cancelErr != nil {
 		t.logger.Error("Failed to cancel workflow", "error", slog.String("err", cancelErr.Error()))
-		t.errorReporter.ReportError(ctx, err, map[string]interface{}{
+		t.errorReporter.ReportError(ctx, err, map[string]any{
 			"org_id":          subscription.OrgId,
 			"workflow_id":     we.ID,
 			"run_id":          we.RunID,
@@ -274,7 +274,7 @@ func (t Temporal) CancelSubscriptionWorkflow(ctx context.Context, subscription d
 	return nil
 }
 
-func (t Temporal) SignalSubscriptionWorkflow(ctx context.Context, signal string, subscription domain.Subscription, payload interface{}) error {
+func (t Temporal) SignalSubscriptionWorkflow(ctx context.Context, signal string, subscription domain.Subscription, payload any) error {
 	we, err := t.getExecution(subscription)
 	if err != nil {
 		t.logger.Error("Failed to get subscription workflow", "error", err)

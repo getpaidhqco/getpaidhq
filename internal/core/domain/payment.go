@@ -1,5 +1,7 @@
 package domain
 
+import "maps"
+
 import "time"
 
 type Payment struct {
@@ -30,8 +32,6 @@ func (p *Payment) SetMetadata(meta map[string]string) *Payment {
 	if p.Metadata == nil {
 		p.Metadata = make(map[string]string)
 	}
-	for key, value := range meta {
-		p.Metadata[key] = value
-	}
+	maps.Copy(p.Metadata, meta)
 	return p
 }

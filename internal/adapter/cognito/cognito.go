@@ -74,7 +74,7 @@ func NewCognitoClient(env lib.Env) (Cognito, error) {
 
 func (c *Cognito) VerifyToken(tokenStr string) (*jwt.Token, error) {
 	// parse token and verify signature
-	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (interface{}, error) {
+	token, err := jwt.Parse(tokenStr, func(token *jwt.Token) (any, error) {
 		// validate token signing method
 		if alg := token.Method.Alg(); alg != "RS256" {
 			return nil, fmt.Errorf("invalid signing method %s. signing method must be RS256", alg)

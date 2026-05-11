@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"net/http"
 	"runtime/debug"
+	"slices"
 
 	"github.com/gin-gonic/gin"
 
@@ -21,12 +22,7 @@ type DatabaseTrx struct {
 
 // statusInList checks if a status is in the provided list.
 func statusInList(status int, statusList []int) bool {
-	for _, i := range statusList {
-		if i == status {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(statusList, status)
 }
 
 // NewDatabaseTrx creates a new DatabaseTrx middleware.

@@ -18,7 +18,7 @@ func NewInMemoryCache() port.CacheClient {
 }
 
 // Set sets a key-value pair in the in-memory cache with an expiration time (ignored in this implementation).
-func (m *InMemoryCache) Set(ctx context.Context, key string, value interface{}, expiration time.Duration) error {
+func (m *InMemoryCache) Set(ctx context.Context, key string, value any, expiration time.Duration) error {
 	m.store[key] = value.(string)
 	return nil
 }

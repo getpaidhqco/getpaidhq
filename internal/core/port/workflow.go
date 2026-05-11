@@ -7,11 +7,11 @@ import (
 
 // Engine is the interface for the workflow orchestration engine (e.g., Temporal).
 type Engine interface {
-	StartWorkflow(ctx context.Context, id WorkflowType, payload interface{}) (WorkflowResult, error)
+	StartWorkflow(ctx context.Context, id WorkflowType, payload any) (WorkflowResult, error)
 	StartSubscriptionWorkflow(ctx context.Context, subscription domain.Subscription) error
 	UpdateSubscriptionWorkflow(ctx context.Context, updateName string, subscription domain.Subscription) error
 	CancelSubscriptionWorkflow(ctx context.Context, subscription domain.Subscription) error
-	SignalSubscriptionWorkflow(ctx context.Context, signal string, subscription domain.Subscription, payload interface{}) error
+	SignalSubscriptionWorkflow(ctx context.Context, signal string, subscription domain.Subscription, payload any) error
 }
 
 // WorkflowService handles outbound workflow operations (e.g., webhook delivery).
@@ -22,7 +22,7 @@ type WorkflowService interface {
 type WorkflowResult struct {
 	Success bool
 	Message string
-	Payload interface{}
+	Payload any
 }
 
 type WorkflowType string
@@ -57,7 +57,7 @@ type CompleteOrderStepInput struct {
 
 // Workflow represents a runnable workflow.
 type Workflow interface {
-	Start(ctx interface{}, payload interface{}) (WorkflowResult, error)
+	Start(ctx any, payload any) (WorkflowResult, error)
 }
 
 // WorkflowSteps defines the steps that can be executed within a workflow.
@@ -67,7 +67,7 @@ type WorkflowSteps interface {
 
 // WorkflowPayload wraps data and steps for workflow execution.
 type WorkflowPayload struct {
-	Data  interface{}
+	Data  any
 	Steps WorkflowSteps
 }
 

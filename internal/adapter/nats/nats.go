@@ -43,7 +43,7 @@ func NewNatsPubSub(logger port.Logger) port.PubSub {
 	}
 }
 
-func (n NatsPubSub) Publish(orgId, topic string, message interface{}) error {
+func (n NatsPubSub) Publish(orgId, topic string, message any) error {
 	data, _ := json.Marshal(port.PubSubPayload{
 		Id:        lib.GenerateId("evt"),
 		OrgId:     orgId,

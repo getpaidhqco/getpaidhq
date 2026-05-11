@@ -16,7 +16,7 @@ type TransactionBeginner interface {
 type Committer interface {
 	Commit(ctx context.Context) error
 	Rollback(ctx context.Context) error
-	GetClient() interface{}
+	GetClient() any
 }
 
 type Database interface {

@@ -39,7 +39,7 @@ type ChargePaymentCommand struct {
 
 type InitPaymentCommand struct {
 	OrgId    string
-	Cart     interface{} // cart.Cart - resolved at adapter level
+	Cart     any // cart.Cart - resolved at adapter level
 	Order    domain.Order
 	Customer domain.Customer
 	Options  map[string]string
@@ -65,11 +65,11 @@ type ChargePaymentResponse struct {
 	PaymentType   string              `json:"payment_type"`
 	ErrorReason   string              `json:"error_reason"`
 	ErrorCode     string              `json:"error_code"`
-	PspResponse   interface{}         `json:"psp_response"`
+	PspResponse   any                 `json:"psp_response"`
 }
 
 type InitPaymentResponse struct {
-	PspResponse interface{}
+	PspResponse any
 }
 
 type PaymentWebhookType string
@@ -125,7 +125,7 @@ type PaymentWebhookContext struct {
 	RawData       []byte             `json:"raw_data"`
 }
 
-func ParsePaymentWebhookContext(data interface{}) (PaymentWebhookContext, error) {
+func ParsePaymentWebhookContext(data any) (PaymentWebhookContext, error) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return PaymentWebhookContext{}, errors.New("failed to marshal data to JSON")

@@ -27,7 +27,7 @@ func NewErrorReporter(logger Logger) ErrorReporter {
 	}
 }
 
-func (er *ErrorReporter) ReportError(ctx interface{}, err error, data map[string]interface{}) {
+func (er *ErrorReporter) ReportError(ctx any, err error, data map[string]any) {
 	switch c := ctx.(type) {
 	case *gin.Context:
 		if hub := sentrygin.GetHubFromContext(c); hub != nil {
