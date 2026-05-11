@@ -12,12 +12,12 @@ import (
 
 // SubscriptionHandler handles HTTP requests for subscriptions.
 type SubscriptionHandler struct {
-	subsService *service.SubscriptionService
+	subsService *service.SubscriptionOrchestrationService
 	logger      port.Logger
 }
 
 // NewSubscriptionHandler creates a new SubscriptionHandler.
-func NewSubscriptionHandler(subscriptionService *service.SubscriptionService, logger port.Logger) *SubscriptionHandler {
+func NewSubscriptionHandler(subscriptionService *service.SubscriptionOrchestrationService, logger port.Logger) *SubscriptionHandler {
 	return &SubscriptionHandler{
 		subsService: subscriptionService,
 		logger:      logger,

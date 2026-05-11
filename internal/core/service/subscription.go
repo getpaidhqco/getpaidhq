@@ -10,8 +10,15 @@ import (
 	"time"
 )
 
-// SubscriptionService merges the previous SubscriptionService + SubscriptionOrchestrationService.
-// Workflow orchestration is built-in: when a subscription state changes, the workflow engine is signaled.
+// SubscriptionService is the narrow subscription service. It owns all
+// subscription operations that do NOT signal the workflow engine: CRUD,
+// charge-result handling (called from activities), and the DB-side of the
+// lifecycle transitions (Pause/Resume/Cancel without signaling).
+//
+// The engine-aware operations live on SubscriptionOrchestrationService,
+// which wraps this service. Splitting the two avoids a construction-time
+// cycle between services, the engine, and the activities that the engine
+// dispatches into the services.
 type SubscriptionService struct {
 	sessionRepository      port.SessionRepository
 	settingRepository      port.SettingRepository
@@ -20,7 +27,6 @@ type SubscriptionService struct {
 	customerRepository     port.CustomerRepository
 	subscriptionRepository port.SubscriptionRepository
 	paymentRepository      port.PaymentRepository
-	engine                 port.Engine
 	pubsub                 port.PubSub
 	logger                 port.Logger
 }
@@ -35,7 +41,6 @@ func NewSubscriptionService(
 	paymentRepository port.PaymentRepository,
 	pubsub port.PubSub,
 	logger port.Logger,
-	engine port.Engine,
 ) *SubscriptionService {
 
 	_, err := pubsub.Subscribe("subscription.workflow.>", func(topic string, data []byte) {
@@ -56,7 +61,6 @@ func NewSubscriptionService(
 		subscriptionRepository: subscriptionRepository,
 		pubsub:                 pubsub,
 		logger:                 logger,
-		engine:                 engine,
 	}
 }
 
@@ -142,7 +146,8 @@ func (s *SubscriptionService) FindById(ctx context.Context, orgId string, id str
 	return subscription, nil
 }
 
-// Activate a subscription and start the workflow engine.
+// Activate marks the subscription active in the database.
+// The orchestration wrapper additionally starts the workflow engine.
 func (s *SubscriptionService) Activate(ctx context.Context, orgId string, id string) (domain.Subscription, error) {
 	s.logger.Info("Marking subscription active", "orgId", orgId, "id", id)
 
@@ -159,16 +164,11 @@ func (s *SubscriptionService) Activate(ctx context.Context, orgId string, id str
 		return domain.Subscription{}, err
 	}
 
-	err = s.engine.StartSubscriptionWorkflow(ctx, subscription)
-	if err != nil {
-		s.logger.Errorf("Failed to start workflow %v", err.Error())
-		return domain.Subscription{}, err
-	}
-
 	return subscription, nil
 }
 
-// PauseSubscription pauses a subscription and signals the workflow engine.
+// PauseSubscription updates the subscription state in the database.
+// The orchestration wrapper additionally signals the workflow engine.
 func (s *SubscriptionService) PauseSubscription(ctx context.Context, input domain.PauseSubscriptionInput) (domain.Subscription, error) {
 	s.logger.Info("Pausing subscription", "orgId", input.OrgId, "id", input.Id)
 
@@ -194,17 +194,6 @@ func (s *SubscriptionService) PauseSubscription(ctx context.Context, input domai
 		return domain.Subscription{}, err
 	}
 
-	// Signal the workflow engine
-	err = s.engine.UpdateSubscriptionWorkflow(ctx, "subscription.paused", subscription)
-	if err != nil {
-		var serr lib.CustomError
-		if errors.As(err, &serr) {
-			return domain.Subscription{}, err
-		}
-		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
-	}
-
-	_ = s.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionPaused, subscription)
 	return subscription, nil
 }
 
@@ -217,7 +206,8 @@ func (s *SubscriptionService) List(ctx context.Context, orgId string, pagination
 	return subs, total, nil
 }
 
-// ResumeSubscription resumes a paused subscription and signals the workflow engine.
+// ResumeSubscription updates the subscription state in the database.
+// The orchestration wrapper additionally signals the workflow engine.
 func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input domain.ResumeSubscriptionInput) (domain.Subscription, error) {
 	s.logger.Info("Resuming subscription", "orgId", input.OrgId, "id", input.Id)
 
@@ -266,21 +256,11 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input doma
 		return domain.Subscription{}, err
 	}
 
-	// Signal the workflow engine
-	err = s.engine.UpdateSubscriptionWorkflow(ctx, port.TopicSubscriptionResumed, newSub)
-	if err != nil {
-		var serr lib.CustomError
-		if errors.As(err, &serr) {
-			return domain.Subscription{}, err
-		}
-		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
-	}
-
-	_ = s.pubsub.Publish(newSub.OrgId, port.TopicSubscriptionResumed, newSub)
 	return newSub, nil
 }
 
 // CancelSubscription cancels a subscription. It will continue through its current billing cycle.
+// The orchestration wrapper additionally signals the workflow engine.
 func (s *SubscriptionService) CancelSubscription(ctx context.Context, input domain.CancelSubscriptionInput) (domain.Subscription, error) {
 	s.logger.Info("Cancelling subscription", "orgId", input.OrgId, "id", input.Id)
 
@@ -309,18 +289,6 @@ func (s *SubscriptionService) CancelSubscription(ctx context.Context, input doma
 		return domain.Subscription{}, err
 	}
 
-	// Signal the workflow engine
-	s.logger.Debugf("Updating workflow for subscription %s [%s]", subscription.Id, port.TopicSubscriptionCancelled)
-	err = s.engine.UpdateSubscriptionWorkflow(ctx, port.TopicSubscriptionCancelled, subscription)
-	if err != nil {
-		var serr lib.CustomError
-		if errors.As(err, &serr) {
-			return domain.Subscription{}, err
-		}
-		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
-	}
-
-	_ = s.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionCancelled, subscription)
 	return subscription, nil
 }
 
@@ -345,34 +313,12 @@ func (s *SubscriptionService) UpdateBillingAnchor(ctx context.Context, input dom
 		return domain.ProrationDetails{}, err
 	}
 
-	// Publish billing anchor changed event
 	sub, findErr := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if findErr == nil {
 		_ = s.pubsub.Publish(sub.OrgId, port.TopicSubscriptionBillingAnchorChanged, sub)
 	}
 
 	return prorationDetails, nil
-}
-
-// UpdateWorkflowState refreshes the workflow state from the database. Used for debugging and error recovery.
-func (s *SubscriptionService) UpdateWorkflowState(ctx context.Context, orgId string, id string) (domain.Subscription, error) {
-	s.logger.Infof("Updating workflow [%s][%s]", orgId, id)
-
-	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, id)
-	if err != nil {
-		return domain.Subscription{}, lib.NewCustomError(lib.NotFoundError, "Not found", err)
-	}
-
-	err = s.engine.UpdateSubscriptionWorkflow(ctx, "refresh-state", subscription)
-	if err != nil {
-		var serr lib.CustomError
-		if errors.As(err, &serr) {
-			return domain.Subscription{}, err
-		}
-		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, err.Error(), err)
-	}
-
-	return subscription, nil
 }
 
 func (s *SubscriptionService) GetSubscriptionCustomer(ctx context.Context, subscription domain.Subscription) (domain.Customer, error) {
