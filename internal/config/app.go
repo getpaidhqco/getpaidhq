@@ -11,6 +11,8 @@ import (
 	"payloop/internal/adapter/postgres"
 	"payloop/internal/adapter/redis"
 	"payloop/internal/adapter/sqs"
+	"payloop/internal/adapter/temporal"
+	"payloop/internal/adapter/temporal/activities"
 	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
 	"payloop/internal/core/service"
@@ -90,16 +92,34 @@ func NewApp() (*App, error) {
 	}
 	gatewayFactory := service.NewGatewayFactory(pspRepo, settingRepo, logger, gatewayAdapters)
 
-	// Temporal (nil for now - requires full temporal adapter integration)
-	var engine port.Engine
-
 	_ = cache
 	_ = authenticators
 
 	// ---------------------------------------------------------------------------
-	// Services
+	// Narrow services (no workflow engine).
+	//
+	// These are constructed first so that Temporal activities — which are
+	// dispatched by the engine and therefore cannot depend on it — can hold
+	// references to them. The engine-aware variants are constructed below,
+	// after the engine itself exists.
 	// ---------------------------------------------------------------------------
-	subService := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, pubsub, logger, engine)
+	subService := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, pubsub, logger)
+	orderWorkflowService := service.NewOrderWorkflowService(orderRepo, customerRepo, subRepo, paymentMethodRepo, paymentRepo, pubsub, logger)
+
+	// ---------------------------------------------------------------------------
+	// Workflow engine: activities are wired to the narrow services above; the
+	// engine is then constructed with the activities. Engine-aware services
+	// (which the engine itself does not depend on) are constructed after.
+	// ---------------------------------------------------------------------------
+	webhookSubService := service.NewWebhookSubscriptionService(logger, webhookSubRepo, idempotencyRepo, pubsub)
+	orderActivities := activities.NewOrderActivities(orderWorkflowService, settingRepo, subService, subRepo, pubsub, paymentRepo, gatewayFactory, reporter)
+	webhookActivities := activities.NewOutgoingWebhookActivities(webhookSubRepo, settingRepo, webhookSubService, pubsub)
+	engine := temporal.NewTemporalEngine(logger, env, orderActivities, reporter, webhookActivities, settingRepo, pubsub)
+
+	// ---------------------------------------------------------------------------
+	// Engine-aware services and the rest.
+	// ---------------------------------------------------------------------------
+	subOrchestrationService := service.NewSubscriptionOrchestrationService(subService, engine, logger)
 	orderService := service.NewOrderService(engine, sessionRepo, priceRepo, cartRepo, orderRepo, customerRepo, subRepo, paymentRepo, paymentMethodRepo, productRepo, gatewayFactory, pubsub, logger)
 	customerService := service.NewCustomerService(customerRepo, paymentMethodRepo, pubsub, logger, scheduler)
 	productService := service.NewProductService(productRepo, variantRepo, priceRepo, cartRepo, logger, pubsub)
@@ -109,7 +129,6 @@ func NewApp() (*App, error) {
 	orgService := service.NewOrgService(orgRepo, pubsub, clerkProvider, customerRepo, settingRepo, metadataRepo, apiKeyRepo, logger)
 	pspService := service.NewPspService(pspRepo, settingRepo, logger, pubsub)
 	webhookService := service.NewWebhookService(logger, gatewayFactory, engine, idempotencyRepo, subRepo)
-	webhookSubService := service.NewWebhookSubscriptionService(logger, webhookSubRepo, idempotencyRepo, pubsub)
 	reportService := service.NewReportService(logger, reportRepo, pubsub, queueClient, nil, scheduler, orgRepo) // nil = cdc stream
 	metadataService := service.NewMetadataService(metadataRepo, logger)
 
@@ -121,7 +140,7 @@ func NewApp() (*App, error) {
 	// ---------------------------------------------------------------------------
 	healthHandler := handler.NewHealthHandler(logger)
 	orderHandler := handler.NewOrderHandler(orderService, logger, authzEngine)
-	subscriptionHandler := handler.NewSubscriptionHandler(subService, logger)
+	subscriptionHandler := handler.NewSubscriptionHandler(subOrchestrationService, logger)
 	customerHandler := handler.NewCustomerHandler(customerService, logger, authzEngine)
 	productHandler := handler.NewProductHandler(productService, logger, authzEngine)
 	cartHandler := handler.NewCartHandler(cartService, logger)
