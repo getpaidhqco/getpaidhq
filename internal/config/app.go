@@ -11,8 +11,6 @@ import (
 	"payloop/internal/adapter/postgres"
 	"payloop/internal/adapter/redis"
 	"payloop/internal/adapter/sqs"
-	"payloop/internal/adapter/temporal"
-	"payloop/internal/adapter/temporal/activities"
 	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
 	"payloop/internal/core/service"
@@ -92,11 +90,8 @@ func NewApp() (*App, error) {
 	}
 	gatewayFactory := service.NewGatewayFactory(pspRepo, settingRepo, logger, gatewayAdapters)
 
-	// Workflow engine holder: passed to services at construction so the real
-	// Temporal engine can be plugged in once activities (which depend on
-	// services) have been built.
-	engineRef := &engineHolder{}
-	var engine port.Engine = engineRef
+	// Temporal (nil for now - requires full temporal adapter integration)
+	var engine port.Engine
 
 	_ = cache
 	_ = authenticators
@@ -117,15 +112,6 @@ func NewApp() (*App, error) {
 	webhookSubService := service.NewWebhookSubscriptionService(logger, webhookSubRepo, idempotencyRepo, pubsub)
 	reportService := service.NewReportService(logger, reportRepo, pubsub, queueClient, nil, scheduler, orgRepo) // nil = cdc stream
 	metadataService := service.NewMetadataService(metadataRepo, logger)
-
-	// ---------------------------------------------------------------------------
-	// Workflow engine (Temporal) — built after services so activities can hold
-	// references to them, then plugged into engineRef so services see a live
-	// engine at runtime.
-	// ---------------------------------------------------------------------------
-	orderActivities := activities.NewOrderActivities(orderService, settingRepo, subService, subRepo, pubsub, paymentRepo, gatewayFactory, reporter)
-	webhookActivities := activities.NewOutgoingWebhookActivities(webhookSubRepo, settingRepo, webhookSubService, pubsub)
-	engineRef.inner = temporal.NewTemporalEngine(logger, env, orderActivities, reporter, webhookActivities, settingRepo, pubsub)
 
 	_ = metadataService
 	_ = userService
