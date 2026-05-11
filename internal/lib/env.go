@@ -9,6 +9,7 @@ import (
 // Env has environment stored
 type Env struct {
 	ServerPort      string `mapstructure:"SERVER_PORT"`
+	WorkflowEngine  string `mapstructure:"WORKFLOW_ENGINE"`
 	TemporalHost    string `mapstructure:"TEMPORAL_HOST"`
 	Env             string `mapstructure:"ENV"`
 	LogOutput       string `mapstructure:"LOG_OUTPUT"`
@@ -26,6 +27,11 @@ type Env struct {
 	PaystackApiKey string `mapstructure:"PAYSTACK_API_KEY"`
 
 	ClerkSecretKey string `mapstructure:"CLERK_SECRET"`
+
+	HatchetClientToken  string `mapstructure:"HATCHET_CLIENT_TOKEN"`
+	HatchetHostPort     string `mapstructure:"HATCHET_CLIENT_HOST_PORT"`
+	HatchetNamespace    string `mapstructure:"HATCHET_CLIENT_NAMESPACE"`
+	HatchetTLSStrategy  string `mapstructure:"HATCHET_CLIENT_TLS_STRATEGY"`
 }
 
 // NewEnv creates a new environment
@@ -39,7 +45,13 @@ func NewEnv() Env {
 
 	var env Env
 
+	viper.SetDefault("WORKFLOW_ENGINE", "temporal")
+	viper.SetDefault("HATCHET_CLIENT_HOST_PORT", "localhost:7077")
+	viper.SetDefault("HATCHET_CLIENT_NAMESPACE", "payloop")
+	viper.SetDefault("HATCHET_CLIENT_TLS_STRATEGY", "none")
+
 	viper.BindEnv("SERVER_PORT")
+	viper.BindEnv("WORKFLOW_ENGINE")
 	viper.BindEnv("TEMPORAL_HOST")
 	viper.BindEnv("ENV")
 	viper.BindEnv("LOG_OUTPUT")
@@ -53,6 +65,10 @@ func NewEnv() Env {
 	viper.BindEnv("COGNITO_REGION")
 	viper.BindEnv("PAYSTACK_API_KEY")
 	viper.BindEnv("CLERK_SECRET")
+	viper.BindEnv("HATCHET_CLIENT_TOKEN")
+	viper.BindEnv("HATCHET_CLIENT_HOST_PORT")
+	viper.BindEnv("HATCHET_CLIENT_NAMESPACE")
+	viper.BindEnv("HATCHET_CLIENT_TLS_STRATEGY")
 	err = viper.Unmarshal(&env)
 	if err != nil {
 		log.Println("☠️ cannot read configuration file, reading from environment")
@@ -63,6 +79,11 @@ func NewEnv() Env {
 		env.LogLevel = viper.GetString("PAYLOOP_LOG_LEVEL")
 		env.ClerkSecretKey = viper.GetString("CLERK_SECRET")
 		env.TemporalHost = viper.GetString("TEMPORAL_HOST")
+		env.WorkflowEngine = viper.GetString("WORKFLOW_ENGINE")
+		env.HatchetClientToken = viper.GetString("HATCHET_CLIENT_TOKEN")
+		env.HatchetHostPort = viper.GetString("HATCHET_CLIENT_HOST_PORT")
+		env.HatchetNamespace = viper.GetString("HATCHET_CLIENT_NAMESPACE")
+		env.HatchetTLSStrategy = viper.GetString("HATCHET_CLIENT_TLS_STRATEGY")
 
 		return env
 	}

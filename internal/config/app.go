@@ -11,6 +11,8 @@ import (
 	"payloop/internal/adapter/postgres"
 	"payloop/internal/adapter/redis"
 	"payloop/internal/adapter/sqs"
+	"payloop/internal/adapter/hatchet"
+	hatchetsteps "payloop/internal/adapter/hatchet/steps"
 	"payloop/internal/adapter/temporal"
 	"payloop/internal/adapter/temporal/activities"
 	"payloop/internal/core/domain"
@@ -113,9 +115,21 @@ func NewApp() (*App, error) {
 	// (which the engine itself does not depend on) are constructed after.
 	// ---------------------------------------------------------------------------
 	webhookSubService := service.NewWebhookSubscriptionService(logger, webhookSubRepo, idempotencyRepo, pubsub)
-	orderActivities := activities.NewOrderActivities(orderWorkflowService, subService, paymentService, subRepo, settingRepo)
-	webhookActivities := activities.NewOutgoingWebhookActivities(webhookSubRepo, settingRepo, webhookSubService, pubsub)
-	engine := temporal.NewTemporalEngine(logger, env, orderActivities, reporter, webhookActivities, settingRepo, pubsub)
+
+	// Both Temporal and Hatchet adapters are compiled in; WORKFLOW_ENGINE selects
+	// which one is started. The narrow services above are engine-agnostic — only
+	// the activity/step wrappers and the engine itself differ.
+	var engine port.Engine
+	switch env.WorkflowEngine {
+	case "hatchet":
+		orderSteps := hatchetsteps.NewOrderSteps(logger, orderWorkflowService, subService, paymentService, subRepo, settingRepo)
+		webhookSteps := hatchetsteps.NewOutgoingWebhookSteps(logger, webhookSubRepo, settingRepo, webhookSubService, pubsub)
+		engine = hatchet.NewHatchetEngine(logger, env, orderSteps, reporter, webhookSteps, settingRepo, pubsub)
+	default:
+		orderActivities := activities.NewOrderActivities(orderWorkflowService, subService, paymentService, subRepo, settingRepo)
+		webhookActivities := activities.NewOutgoingWebhookActivities(webhookSubRepo, settingRepo, webhookSubService, pubsub)
+		engine = temporal.NewTemporalEngine(logger, env, orderActivities, reporter, webhookActivities, settingRepo, pubsub)
+	}
 
 	// ---------------------------------------------------------------------------
 	// Engine-aware services and the rest.

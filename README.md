@@ -1,314 +1,202 @@
 # Payloop
 
-Payloop is a smart recurring payment processing framework designed to provide flexible and extensible subscription management capabilities. It allows developers to easily integrate subscription billing into their applications with support for various payment providers, authentication methods, and workflow orchestration.
+Payloop is a Go subscription-billing backend. HTTP API on Gin, Hatchet for durable subscription/webhook workflows, PostgreSQL via GORM, NATS pub/sub, Redis cache, Cedar for authorization, Paystack + Checkout.com as payment gateways, Clerk for auth.
 
-## Table of Contents
+> **Status**: we're currently running local-only while we rework the deployment story. AWS pipelines, prod tunnels, and the Temporal adapter are paused — Temporal Go code is still compiled but never instantiated and will be removed once the migration is complete.
 
-- [Overview](#overview)
+## Table of contents
+
 - [Architecture](#architecture)
-- [API Endpoints](#api-endpoints)
-- [Data Model](#data-model)
+- [API endpoints](#api-endpoints)
+- [Data model](#data-model)
 - [Integrations](#integrations)
-- [Authentication & Authorization](#authentication--authorization)
+- [Auth & authorization](#auth--authorization)
 - [Installation](#installation)
 - [Configuration](#configuration)
-- [Database Migrations](#database-migrations)
+- [Database schema](#database-schema)
 - [Development](#development)
-- [Deployment](#deployment)
-
-## Overview
-
-Payloop is a comprehensive payment processing system that focuses on subscription management. It provides:
-
-- Subscription creation and management
-- Payment processing with multiple providers
-- Customer management
-- Product and pricing configuration
-- Order processing
-- Webhook integrations
-- Reporting capabilities
-
-The system is built using Domain-Driven Design (DDD) principles and follows a clean architecture approach.
 
 ## Architecture
 
-Payloop follows a layered architecture based on DDD principles:
+Ports-and-adapters (hexagonal). See `CLAUDE.md` for the load-bearing details (narrow-vs-orchestration service pattern, engine-construction order, etc.).
 
-### Layers
+```
+internal/
+├── core/
+│   ├── domain/   # entities, value objects, pure Go
+│   ├── port/     # interfaces the core depends on
+│   └── service/  # application services (business orchestration)
+├── adapter/
+│   ├── postgres/      # GORM repository implementations
+│   ├── hatchet/       # workflow engine adapter (active)
+│   ├── temporal/      # legacy workflow engine (compiled, unused — will be removed)
+│   ├── redis/         # cache adapter
+│   ├── nats/          # pub/sub adapter
+│   ├── sqs/           # AWS SQS adapter (FIFO event queue)
+│   ├── cedar/         # authorization adapter
+│   ├── clerk/         # Clerk auth provider
+│   ├── cognito/       # AWS Cognito auth provider (unwired)
+│   ├── apikey/        # API-key auth provider (unwired)
+│   ├── checkout_com/  # Checkout.com payment gateway
+│   ├── paystack/      # Paystack payment gateway
+│   ├── cron/          # cron scheduler
+│   ├── http/          # Gin handlers
+│   └── memory/        # in-memory adapters used for tests
+├── lib/                # cross-cutting helpers (Env, Logger, RequestHandler, ...)
+└── config/app.go       # manual DI — every repo/service/handler is wired here
+```
 
-1. **API Layer** (`internal/api/`)
-   - Controllers: Handle HTTP requests and responses
-   - Routes: Define API endpoints
-   - Middlewares: Process requests (authentication, logging, etc.)
-   - DTOs: Data transfer objects for API requests and responses
+### Key components
 
-2. **Application Layer** (`internal/application/`)
-   - Services: Implement business logic and orchestrate domain operations
-   - Interfaces: Define contracts for repositories and external services
-   - DTOs: Internal data transfer objects
+- **Web framework**: Gin
+- **Workflow engine**: Hatchet (durable workflows, event-driven scheduling). The runner workflow is long-lived per subscription and sleeps until next charge or until it receives an update/cancel event.
+- **Database**: two PostgreSQL databases (operational + reporting) managed via Prisma — `db push` only, no migrations are checked in
+- **Event system**: NATS for pub/sub
+- **Cache**: Redis
+- **Authorization**: Cedar policy engine (`policy.cedar`)
+- **DI**: manual wiring in `internal/config/app.go` (no Uber FX)
 
-3. **Domain Layer** (`internal/domain/`)
-   - Entities: Core business objects (Subscription, Customer, Payment, etc.)
-   - Repositories: Interfaces for data access
-   - Value Objects: Immutable objects representing concepts
-   - Factories: Create complex domain objects
+## API endpoints
 
-4. **Infrastructure Layer** (`internal/infrastructure/`)
-   - Database: PostgreSQL implementation of repositories
-   - Authentication: API key, Cognito, and Clerk implementations
-   - Authorization: Cedar policy engine
-   - Payment Providers: Paystack integration
-   - Cache: Redis implementation
-   - Pub/Sub: NATS implementation
-   - Queue: AWS SQS implementation
-   - Workflow: Temporal implementation
-   - Scheduler: Cron implementation
+RESTful API mounted under `/api`. Main groups:
 
-### Key Components
+**Subscriptions**
+- `GET /api/subscriptions` — list subscriptions
+- `GET /api/subscriptions/:id` — get details
+- `GET /api/subscriptions/:id/payments` — list payments
+- `PUT /api/subscriptions/:id/pause` / `…/resume` / `…/cancel` — lifecycle
+- `PUT /api/subscriptions/:id/billing-anchor` — update billing anchor
+- `PATCH /api/subscriptions/:id` — update details
 
-- **Dependency Injection**: Uses Uber's FX library for dependency injection
-- **Web Framework**: Uses Gin for HTTP routing and handling
-- **Database**: PostgreSQL with Prisma for schema management
-- **Workflow Engine**: Temporal for orchestrating complex workflows
-- **Event System**: NATS for pub/sub messaging
-- **Caching**: Redis for caching
-- **Authorization**: Cedar for policy-based access control
+**Customers** / **Payment methods**
+- `POST /api/customers` — create
+- `POST /api/customers/:id/payment-methods` — add payment method
+- `PUT /api/customers/:id/payment-methods/:pmid` — update payment method
+- `GET /api/payment-methods/:id` — get details
 
-## API Endpoints
+Plus endpoints for orders, products, sessions, carts, webhooks, webhook subscriptions, organizations, reports, and PSPs. See `openapi.yml` for the full surface.
 
-Payloop exposes a RESTful API with the following main endpoints:
+## Data model
 
-### Subscriptions
+- **Org**, **User**, **ApiKey** — tenancy and access
+- **Product**, **Variant**, **Price** — product catalog
+- **Cart**, **Session**, **Order**, **OrderItem** — sales
+- **Customer**, **PaymentMethod**, **Cohort** — customer profile
+- **Subscription**, **Payment**, **Refund** — billing
+- **WebhookSubscription** — outbound event notifications
+- **Psp**, **Setting**, **MetadataStore**, **IdempotencyKey** — integration plumbing
 
-- `GET /api/subscriptions`: List subscriptions
-- `GET /api/subscriptions/:id`: Get subscription details
-- `GET /api/subscriptions/:id/payments`: List payments for a subscription
-- `PUT /api/subscriptions/:id/pause`: Pause a subscription
-- `PUT /api/subscriptions/:id/cancel`: Cancel a subscription
-- `PUT /api/subscriptions/:id/resume`: Resume a paused subscription
-- `PUT /api/subscriptions/:id/billing-anchor`: Update billing anchor date
-- `PATCH /api/subscriptions/:id`: Update subscription details
-
-### Customers
-
-- `POST /api/customers`: Create a new customer
-- `POST /api/customers/:id/payment-methods`: Add a payment method to a customer
-- `PUT /api/customers/:id/payment-methods/:pmid`: Update a customer's payment method
-
-### Payment Methods
-
-- `GET /api/payment-methods/:id`: Get payment method details
-
-### Other Endpoints
-
-The API also includes endpoints for:
-- Orders
-- Products
-- Organizations
-- Users
-- Carts
-- Sessions
-- Webhooks
-- Reports
-- Payment Service Providers (PSPs)
-
-## Data Model
-
-Payloop's data model includes the following key entities:
-
-### Core Entities
-
-- **Org**: Organizations that use the system
-- **User**: Users who can access the system
-- **ApiKey**: API keys for authentication
-
-### Product Catalog
-
-- **Product**: Products that can be sold
-- **Variant**: Product variants
-- **Price**: Pricing information for variants
-
-### Sales
-
-- **Cart**: Shopping carts
-- **Session**: User sessions
-- **Order**: Customer orders
-- **OrderItem**: Items in an order
-
-### Customers
-
-- **Customer**: Customer information
-- **PaymentMethod**: Customer payment methods
-- **Cohort**: Customer groupings
-
-### Billing
-
-- **Subscription**: Recurring billing subscriptions
-- **Payment**: Payment transactions
-- **Refund**: Payment refunds
-
-### Integration
-
-- **WebhookSubscription**: Webhook configuration for event notifications
+The canonical schema lives in `schemas/getpaidhq/schema.prisma`; the reporting projection is at `schemas/reporting/schema.prisma`.
 
 ## Integrations
 
-Payloop integrates with various external systems:
+| Concern              | Adapter                                |
+|----------------------|----------------------------------------|
+| Workflow engine      | Hatchet (`internal/adapter/hatchet`)   |
+| Pub/Sub              | NATS                                   |
+| Queue                | AWS SQS (FIFO)                         |
+| Cache                | Redis                                  |
+| Database             | PostgreSQL via GORM                    |
+| Authorization        | Cedar                                  |
+| Authentication       | Clerk (active), Cognito + API key (compiled, unwired) |
+| Payment gateways     | Paystack, Checkout.com                 |
+| Email                | Resend, Loops                          |
+| Token vault          | AES (local), AWS Secrets Manager (hosted) |
 
-### Authentication Providers
-- Cognito
-- Clerk
-- API Key
+## Auth & authorization
 
-### Payment Providers
-- Paystack
+Authentication is pluggable via `port.Authenticator`. Clerk is the only authenticator wired in `app.go` today; Cognito and the API-key adapters are compiled but not registered.
 
-### Infrastructure Services
-- Temporal (Workflow Engine)
-- NATS (Pub/Sub)
-- AWS SQS (Queue)
-- Redis (Cache)
-- PostgreSQL (Database)
-- Cedar (Authorization)
-
-## Authentication & Authorization
-
-Payloop uses a flexible authentication system that supports multiple providers:
-
-- **API Key**: For server-to-server authentication
-- **Cognito**: AWS Cognito for user authentication
-- **Clerk**: Clerk.dev for user authentication
-
-Authorization is handled by Cedar, a policy-based access control system. Policies are defined in the `policy.cedar` file.
-
-To enable or disable an authentication method, add or remove the `group:"authenticators"` FX tag from the
-injection, or remove the FX DI in modules.go.
+Authorization is policy-based via Cedar. Policies live in `policy.cedar` at the repo root and are loaded at startup.
 
 ## Installation
 
 ### Prerequisites
 
-- Docker
-- Docker Compose
-- Go 1.24
-- Temporal client
+- Docker + Docker Compose v2
+- Go 1.24+
+- pnpm (for Prisma scripts)
 
 ### Setup
 
-1. Clone the repository
-2. Run Docker Compose to start the required services:
+1. Clone the repo and install JS deps:
    ```
-   docker-compose up -d
+   pnpm install
    ```
-3. Create the `subscriptions` namespace in Temporal:
+2. Copy `.env.example` to `.env` and fill in any required secrets (Clerk, Paystack, etc.). Most local defaults work out of the box.
+3. Start the stack:
    ```
-   temporal operator namespace create -n subscriptions
+   docker compose -f docker/docker-compose.yml up -d
    ```
-4. Run the seed script to create initial data
+   This brings up a single Postgres (host port `6432`) that hosts three databases — `getpaidhq`, `getpaidhq_reports`, `hatchet` — and a `hatchet-lite` container (UI on `8888`, gRPC on `7077`).
+4. Push the Prisma schemas:
+   ```
+   pnpm prisma:push
+   pnpm prisma:reporting:push
+   ```
+5. Mint a Hatchet token and put it in `.env`:
+   ```
+   TENANT_ID=$(psql "postgresql://postgres:postgres@localhost:6432/hatchet" -tA -c "SELECT id FROM \"Tenant\" WHERE slug='default';")
+   docker exec hatchet-lite /hatchet-admin --config /config token create --name local-dev --tenant-id "$TENANT_ID"
+   # paste the returned token into HATCHET_CLIENT_TOKEN in .env
+   ```
+6. Run the API:
+   ```
+   go run .
+   ```
 
 ## Configuration
 
-Configuration is managed through the `config.yml` file, which includes settings for:
+All runtime config is read from environment variables. `.env.example` lists every variable the app understands, with empty values. Drop a `.env` next to it for local development — `lib.NewEnv()` loads it via godotenv.
 
-- Server (port, host)
-- Database connection
-- Logging
-- Authentication
-- Payment providers
-- Pub/Sub
-- Subscriptions
+Important keys:
 
-## Database Migrations
+- `WORKFLOW_ENGINE=hatchet` — the only supported value while we're local-only
+- `DATABASE_URL` / `REPORTING_DATABASE_URL` — operational + reporting Postgres URLs
+- `HATCHET_CLIENT_*` — Hatchet SDK config (auto-read by the SDK)
+- `GPHQ_*` — legacy prefix kept on side-vars; the Go app reads un-prefixed names
 
-Payloop uses Prisma to manage database schema and migrations:
+There is a `config.yml` checked in for historical reasons. It is not the source of truth — env vars override anything in it.
 
-- Development: Run migrations locally using Prisma CLI
-- Test/Production: Migrations are executed by the CI/CD pipeline before deployment
+## Database schema
 
-For the Postgres database we use Prisma to manage the database schema and migrations. Migrations in Test and Prod
-environments are managed by the CI/CD pipeline. Migrations are executed before the Payloop backend is built and deployed.
-Check the buildspec.yml file for more details.
+Prisma is the schema source of truth, but there are **no migrations checked in** — the local-only reset starts from a single base model. To sync:
+
+```
+pnpm prisma:push                 # → getpaidhq
+pnpm prisma:reporting:push       # → getpaidhq_reports
+```
+
+Both commands use the local Prisma 6 install (`pnpm exec`), not `pnpm dlx` — Prisma 7 changed the datasource syntax in a way our schema does not yet support.
+
+When we re-add a deployment pipeline, migrations will be regenerated from the current state.
 
 ## Development
 
-### Change Data Capture (CDC)
+### Common commands
 
-Payloop uses two databases:
-- `payloop`: Operational database
-- `payloop_reporting`: Reporting database
+- `go run .` — start the API server
+- `go build -o main .` — same build the Dockerfile produces
+- `go test ./...` — run all tests (richest coverage lives in `internal/core/domain`)
 
-These databases are kept in sync using a Change Data Capture (CDC) process.
+### Working with Hatchet
 
-Currently (Apr 2025) the CDC library doesn't update the publication records for the logical replication, which means
-we need to manually update the publication records in the `pg_publication` table every time there's an update to the
-CDC Stream service. We need to remove the current publication and subscription so that the system can create
-a new one when the server starts.
+- UI: http://localhost:8888 (default tenant slug `default`, seeded automatically)
+- gRPC: `localhost:7077`
+- Hatchet's own state is in the `hatchet` database inside our shared Postgres — useful for inspecting workflow runs from `psql` when debugging
 
-```sql
-SELECT *
-FROM pg_publication;
-SELECT *
-FROM pg_replication_slots;
-
-DROP PUBLICATION cdc_pub;
-SELECT pg_terminate_backend(22081);
-SELECT pg_drop_replication_slot('cdc_slot2');
-```
-
-### Connecting to Test Environment
-
-Via the bastion:
-
-Payloop API (port 8888->8081):
-```
-ssh -o StrictHostKeyChecking=no -N -L 8888:payloop.temporal.temporal:8081 ec2-user@ec2-34-244-193-216.eu-west-1.compute.amazonaws.com -i cj-bastion-test.pem -v
-```
-
-Temporal UI (port 9999->8080):
-```
-ssh -o StrictHostKeyChecking=no -N -L 9999:temporal-svc.temporal:8080 ec2-user@ec2-34-244-193-216.eu-west-1.compute.amazonaws.com -i cj-bastion-test.pem -v
-```
-
-## Deployment
-
-Payloop is containerized using Docker and can be deployed to various environments:
-
-- The `Dockerfile` defines the build process
-- The `buildspec.yml` file defines the CI/CD pipeline for AWS CodeBuild
-
-### Creating ECR Registries
-
-For AWS deployment, ECR registries are used to store Docker images:
+### Stack lifecycle
 
 ```
-# Golang base image
-docker pull golang:1.24-alpine
-
-aws ecr create-repository --repository-name golang-1_24-alpine --profile=cj-test
-aws ecr get-login-password --region eu-west-1 --profile=cj-test |  docker login --username AWS --password-stdin 329237115630.dkr.ecr.eu-west-1.amazonaws.com
-docker tag golang:1.24-alpine 329237115630.dkr.ecr.eu-west-1.amazonaws.com/golang-1_24-alpine
-docker push 329237115630.dkr.ecr.eu-west-1.amazonaws.com/golang-1_24-alpine
+docker compose -f docker/docker-compose.yml up -d         # start
+docker compose -f docker/docker-compose.yml down          # stop, keep data
+docker compose -f docker/docker-compose.yml down -v       # stop + wipe volumes (clean slate)
 ```
 
-```
-# Temporal images
-docker pull temporalio/auto-setup
+The Postgres init script (`docker/init/01-create-databases.sql`) recreates `getpaidhq_reports` and `hatchet` alongside the default `getpaidhq` database whenever the volume is fresh.
 
-aws ecr create-repository --repository-name temporalio_auto_setup --profile=cj-test
-aws ecr get-login-password --region eu-west-1 --profile=cj-test |  docker login --username AWS --password-stdin 329237115630.dkr.ecr.eu-west-1.amazonaws.com
-docker tag temporalio/auto-setup 329237115630.dkr.ecr.eu-west-1.amazonaws.com/temporalio_auto_setup
-docker push 329237115630.dkr.ecr.eu-west-1.amazonaws.com/temporalio_auto_setup
+### Reporting database
 
-docker pull temporalio/admin-tools
+`getpaidhq_reports` is created but no CDC stream is wired up while we're local. Reads against the reporting schema will return empty data until that's restored.
 
-aws ecr create-repository --repository-name temporalio_admin_tools --profile=cj-test
-aws ecr get-login-password --region eu-west-1 --profile=cj-test |  docker login --username AWS --password-stdin 329237115630.dkr.ecr.eu-west-1.amazonaws.com
-docker tag temporalio/admin-tools 329237115630.dkr.ecr.eu-west-1.amazonaws.com/temporalio_admin_tools
-docker push 329237115630.dkr.ecr.eu-west-1.amazonaws.com/temporalio_admin_tools
-
-docker pull temporalio/ui
-aws ecr create-repository --repository-name temporalio_ui --profile=cj-test
-aws ecr get-login-password --region eu-west-1 --profile=cj-test |  docker login --username AWS --password-stdin 329237115630.dkr.ecr.eu-west-1.amazonaws.com
-docker tag temporalio/ui 329237115630.dkr.ecr.eu-west-1.amazonaws.com/temporalio_ui
-docker push 329237115630.dkr.ecr.eu-west-1.amazonaws.com/temporalio_ui
-```
+See `CLAUDE.md` for architectural conventions, the engine-construction-order pattern, and gotchas before making changes.

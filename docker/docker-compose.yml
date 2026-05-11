@@ -1,63 +1,64 @@
-version: "3.5"
+name: getpaidhq
+
 services:
   postgresql:
-    container_name: temporal-postgresql
-    command: ["-c", "wal_level=logical", "-c", "max_wal_senders=10", "-c", "max_replication_slots=10"]
+    container_name: getpaidhq-postgresql
+    command:
+      - "-c"
+      - "wal_level=logical"
+      - "-c"
+      - "max_wal_senders=10"
+      - "-c"
+      - "max_replication_slots=10"
     environment:
-      POSTGRES_PASSWORD: postgres
       POSTGRES_USER: postgres
-    image: postgres:${POSTGRESQL_VERSION}
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: getpaidhq
+    image: postgres:17
     networks:
       - payloop-network
+    # Host port 6432 is mapped to the container's 5432 to avoid clashing with
+    # other local Postgres containers running on the default port.
     ports:
-      - 5432:5432
+      - "6432:5432"
     volumes:
-      - /var/lib/postgresql/data
-  temporal:
-    container_name: temporal
-    depends_on:
-      - postgresql
-    environment:
-      - DB=postgres12
-      - DB_PORT=5432
-      - POSTGRES_USER=postgres
-      - POSTGRES_PWD=postgres
-      - POSTGRES_SEEDS=postgresql
-      - DYNAMIC_CONFIG_FILE_PATH=config/dynamicconfig/development-sql.yaml
-    image: temporalio/auto-setup:${TEMPORAL_VERSION}
-    networks:
-      - payloop-network
-    ports:
-      - 7233:7233
-    volumes:
-      - ./dynamicconfig:/etc/temporal/config/dynamicconfig
-  temporal-admin-tools:
-    container_name: temporal-admin-tools
-    depends_on:
-      - temporal
-    environment:
-      - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CLI_ADDRESS=temporal:7233
-    image: temporalio/admin-tools:${TEMPORAL_ADMINTOOLS_VERSION}
-    networks:
-      - payloop-network
-    stdin_open: true
-    tty: true
-  temporal-ui:
-    container_name: temporal-ui
-    depends_on:
-      - temporal
-    environment:
-      - TEMPORAL_ADDRESS=temporal:7233
-      - TEMPORAL_CORS_ORIGINS=http://localhost:3000
-    image: temporalio/ui:${TEMPORAL_UI_VERSION}
-    networks:
-      - payloop-network
-    ports:
-      - 8080:8080
+      - getpaidhq-pgdata:/var/lib/postgresql/data
+      - ./init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
 
+  hatchet-lite:
+    # All-in-one Hatchet (engine + API + UI) for local development.
+    # Shares the postgresql service above — uses its own `hatchet` database.
+    # First-boot bootstrap (register, create tenant, issue token) lives in CLAUDE.md.
+    container_name: hatchet-lite
+    depends_on:
+      postgresql:
+        condition: service_healthy
+    image: ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
+    environment:
+      DATABASE_URL: "postgresql://postgres:postgres@postgresql:5432/hatchet?sslmode=disable"
+      SERVER_GRPC_INSECURE: "t"
+      SERVER_GRPC_BROADCAST_ADDRESS: "localhost:7077"
+      SERVER_AUTH_SET_EMAIL_VERIFIED: "t"
+      SERVER_AUTH_COOKIE_DOMAIN: "localhost"
+      SERVER_AUTH_COOKIE_INSECURE: "t"
+      SERVER_AUTH_COOKIE_SECRETS: "secret1 secret2"
+      SERVER_DEFAULT_ENGINE_VERSION: "V1"
+      SERVER_URL: "http://localhost:8888"
+    networks:
+      - payloop-network
+    ports:
+      - "8888:8888"
+      - "7077:7077"
 
 networks:
   payloop-network:
     driver: bridge
     name: payloop-network
+
+volumes:
+  getpaidhq-pgdata:

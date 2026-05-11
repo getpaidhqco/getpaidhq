@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Payloop is a Go subscription-billing backend. HTTP API on Gin, Temporal for subscription/webhook workflows, PostgreSQL via GORM, NATS pub/sub, Redis cache, Cedar for authorization, Paystack + Checkout.com as payment gateways, Clerk for auth.
+Payloop is a Go subscription-billing backend. HTTP API on Gin, Temporal **or** Hatchet for subscription/webhook workflows (selected at startup via `WORKFLOW_ENGINE`), PostgreSQL via GORM, NATS pub/sub, Redis cache, Cedar for authorization, Paystack + Checkout.com as payment gateways, Clerk for auth.
 
 The README's "Architecture" section is partly outdated — see "Architecture" below for what the code actually does.
 
@@ -16,15 +16,22 @@ Run / build (Go 1.24):
 - `go test ./...` — run all tests. Most tests live under `internal/core/domain` and `internal/adapter/{redis,sqs,nats}`.
 - `go test ./internal/core/domain -run TestNextBillingDate` — run a single test.
 
-Local stack (Postgres + Temporal + Temporal UI):
-- `docker-compose -f docker/docker-compose.yml up -d` — required services. Temporal UI at `localhost:8080`, Temporal gRPC at `localhost:7233`, Postgres at `localhost:5432`.
-- `temporal operator namespace create -n subscriptions` — one-time after first Temporal start. The Go client hard-codes namespace `subscriptions` in `internal/adapter/temporal/temporal.go`.
+Local stack (single Postgres shared by app + Hatchet, plus Hatchet Lite):
+- `docker compose -f docker/docker-compose.yml up -d` — required services. Hatchet UI at `localhost:8888`, Hatchet gRPC at `localhost:7077`, Postgres at `localhost:6432`.
+- The shared Postgres exposes three databases (auto-created by `docker/init/01-create-databases.sql`): `getpaidhq` (app), `getpaidhq_reports` (reporting), `hatchet` (Hatchet's own internal store).
 
-Database schema (Prisma is the source of truth, not gorm migrations):
-- `pnpm prisma:push` — push operational schema (`prisma/schema.prisma`) to `DATABASE_URL`.
-- `pnpm prisma:reporting:push` — push reporting schema (`schemas/reporting/schema.prisma`) to the reporting DB.
+Selecting the workflow engine:
+- `WORKFLOW_ENGINE=hatchet` is the only supported value for local now. The Temporal Go adapter is still compiled in but unused — it will be removed when migration is done.
+- First-time bootstrap (after the stack is up):
+  1. The default tenant + admin user are seeded automatically. Tenant id is in the `Tenant` table of the `hatchet` DB (slug `default`).
+  2. Mint a token: `docker exec hatchet-lite /hatchet-admin --config /config token create --name local-dev --tenant-id <tenant-id>`. The `--config /config` flag is required to load the auto-generated encryption keyset.
+  3. Set in `.env`: `HATCHET_CLIENT_TOKEN=<token>`. The other client vars (`HATCHET_CLIENT_HOST_PORT=localhost:7077`, `HATCHET_CLIENT_NAMESPACE=payloop`, `HATCHET_CLIENT_TLS_STRATEGY=none`) are already there.
+
+Database schema (Prisma is the source of truth, no migrations — clean-slate `db push` only):
+- `pnpm prisma:push` — push operational schema (`schemas/getpaidhq/schema.prisma`) to `DATABASE_URL`.
+- `pnpm prisma:reporting:push` — push reporting schema (`schemas/reporting/schema.prisma`) to `REPORTING_DATABASE_URL`.
 - `pnpm prisma:format` / `pnpm prisma:reporting:format` — format the schemas.
-- CI runs `npx prisma migrate deploy` before building the image (see `buildspec.yml`).
+- There are no Prisma migrations checked in. `db push` syncs the schema directly. The previous migrations were thrown away as part of the local-only reset; once we deploy again, migrations will be regenerated from this base.
 
 Tunnels & deploy (require AWS profiles + bastion PEM):
 - `pnpm tunnel:test` / `pnpm tunnel:prod` — SSH tunnel to test/prod (DB 7777, API 8888, Temporal UI 9999, Redis 6379 on test).
@@ -60,8 +67,13 @@ The wrapping happens at the type level (the orchestration service embeds the nar
 
 ### Workflow engine
 
-- `internal/adapter/temporal/temporal.go` boots a single Temporal worker on task queue `events` in namespace `subscriptions`. Workflows registered: `PaymentSuccessWorkflow`, `SubscriptionChargeReminder`, `SubscriptionWorkflow`, `OutgoingWebhookWorkflow`, `PaymentRefunded` (see `internal/adapter/temporal/workflows/`).
+Two adapters are compiled in; `WORKFLOW_ENGINE` selects at startup. The factory lives in `internal/config/app.go` (right after the narrow services are built).
+
+- **Temporal** — `internal/adapter/temporal/temporal.go` boots a single worker on task queue `events` in namespace `subscriptions`. Workflows: `PaymentSuccessWorkflow`, `SubscriptionChargeReminder`, `SubscriptionWorkflow`, `OutgoingWebhookWorkflow`, `PaymentRefunded`.
+- **Hatchet** — `internal/adapter/hatchet/hatchet.go` boots a single worker named `payloop-events`. Workflows: `payment-success` (DAG), `payment-refunded`, `outgoing-webhook`, `billing-cycle` (DAG), `subscription-charge-reminder` (durable), `subscription-runner` (durable; long-running, one per subscription). The runner sleeps until next charge or until an update/cancel event arrives, then spawns the billing DAG and waits for its result.
 - Engine port: `port.Engine` exposes `StartWorkflow`, `StartSubscriptionWorkflow`, `UpdateSubscriptionWorkflow`, `CancelSubscriptionWorkflow`, `SignalSubscriptionWorkflow`. Adapter logic is engine-specific; the rest of the codebase only sees `port.Engine`.
+
+**Hatchet update semantics (different from Temporal!).** Today's Temporal `UpdateSubscriptionWorkflow` blocks until the workflow's update handler runs (`WaitForStage: WorkflowUpdateStageCompleted`). The Hatchet equivalent pushes a user event (`update:<updateName>:<orgId>:<subId>`) and returns immediately — fire-and-forget. The durable runner observes the event in its select loop, usually within seconds. Callers in `subscription_orchestration.go` already `pubsub.Publish` after, so downstream observers are unaffected; do **not** assume synchronous acknowledgment when reading post-call state.
 
 ### Payment gateways
 
@@ -80,7 +92,7 @@ Adapter registry in `app.go`: `map[domain.Gateway]port.GatewayAdapter` with `dom
 ## Conventions and gotchas
 
 - `internal/config/app.go` ignores some constructed services with `_ = ...` (e.g., `metadataService`, `userService`, `cache`, `authenticators`). They are constructed for side-effects or because their dependencies are needed elsewhere; don't delete them without checking.
-- `go.mod.docker` is a separate module file copied during the Docker build (see `Dockerfile`); when changing dependencies remember to update it as well or the image build breaks.
 - Logger is `port.Logger` (a thin facade); zap is the backing impl via `internal/lib/logger.go`. Use the injected logger, not `log` or `fmt.Println`.
-- Env loading: `lib.NewEnv()` loads `.env` via godotenv then binds known keys via viper. Add new env vars by extending the `Env` struct **and** calling `viper.BindEnv` in `NewEnv()`.
+- Env loading: `lib.NewEnv()` loads `.env` via godotenv then binds known keys via viper. Add new env vars by extending the `Env` struct **and** calling `viper.BindEnv` in `NewEnv()`. Local-only setup uses `WORKFLOW_ENGINE=hatchet`. Hatchet vars (`HATCHET_CLIENT_TOKEN`, `HATCHET_CLIENT_HOST_PORT`, `HATCHET_CLIENT_NAMESPACE`, `HATCHET_CLIENT_TLS_STRATEGY`) are the canonical names the Hatchet SDK auto-reads.
+- `.env.example` lists every var the app reads. The active `.env` is gitignored; previous environment-specific copies (`.env.local`, `.env.prod`, `.env.test`, `docker/.env`) live under `.temp/` while we run local-only, and will be restored once we redo the deployment.
 - Tests are sparse and live next to the code under test (`*_test.go`). The richest test surface today is `internal/core/domain/subscription*_test.go` — model new domain-logic tests on those.

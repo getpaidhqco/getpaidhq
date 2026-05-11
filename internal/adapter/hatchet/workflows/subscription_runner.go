@@ -1,0 +1,174 @@
+package workflows
+
+import (
+	"payloop/internal/adapter/hatchet/steps"
+	"payloop/internal/core/domain"
+	"time"
+
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+)
+
+// NewSubscriptionRunnerWorkflow builds the per-subscription long-running
+// durable task. It replaces the Temporal SubscriptionWorkflow.
+//
+// On each iteration:
+//
+//  1. Compute the next charge date from current state.
+//  2. Spawn a charge-reminder durable task one minute before, detached.
+//  3. Wait for the charge time OR any of:
+//     - update:subscription.paused / .resumed / .cancelled / .activated
+//     - update:refresh-state
+//     - cancel:<sub>
+//     If an event fires, the wait result carries the latest Subscription
+//     payload and the loop restarts with that state.
+//  4. When the sleep wins, spawn the billing-cycle DAG and await ChargeResult.
+//  5. If ChargeResult.Status is Pending, wait up to 1h for a webhook event.
+//  6. Hand the (possibly webhook-updated) ChargeResult to HandleChargeResult.
+//  7. Loop.
+//
+// Terminal exit: Cancelled, Expired, or a cancel:<sub> event.
+func NewSubscriptionRunnerWorkflow(client *hatchet.Client, orderSteps *steps.OrderSteps) *hatchet.StandaloneTask {
+	return client.NewStandaloneDurableTask("subscription-runner",
+		func(ctx hatchet.DurableContext, sub domain.Subscription) (domain.Subscription, error) {
+			for {
+				if isTerminalStatus(sub.Status) {
+					return sub, nil
+				}
+
+				next := sub.GetNextChargeDate()
+				if next.IsZero() {
+					return sub, nil
+				}
+
+				reminderAt := next.Add(-1 * time.Minute)
+				_, _ = client.RunNoWait(ctx, "subscription-charge-reminder", ReminderInput{
+					Subscription: sub,
+					ReminderAt:   reminderAt,
+				}, hatchet.WithRunKey(ReminderRunKey(sub.OrgId, sub.Id, reminderAt)))
+
+				// Wait for the next charge time OR any update / cancel event.
+				now, err := ctx.Now()
+				if err != nil {
+					return sub, err
+				}
+				wait := next.Sub(now)
+				if wait < time.Second {
+					wait = time.Second
+				}
+
+				pausedKey := UpdateEventKey("subscription.paused", sub.OrgId, sub.Id)
+				resumedKey := UpdateEventKey("subscription.resumed", sub.OrgId, sub.Id)
+				cancelledKey := UpdateEventKey("subscription.cancelled", sub.OrgId, sub.Id)
+				activatedKey := UpdateEventKey("subscription.activated", sub.OrgId, sub.Id)
+				refreshKey := UpdateEventKey("refresh-state", sub.OrgId, sub.Id)
+				cancelKey := CancelEventKey(sub.OrgId, sub.Id)
+
+				waitResult, err := ctx.WaitFor(hatchet.OrCondition(
+					hatchet.SleepCondition(wait),
+					hatchet.UserEventCondition(pausedKey, ""),
+					hatchet.UserEventCondition(resumedKey, ""),
+					hatchet.UserEventCondition(cancelledKey, ""),
+					hatchet.UserEventCondition(activatedKey, ""),
+					hatchet.UserEventCondition(refreshKey, ""),
+					hatchet.UserEventCondition(cancelKey, ""),
+				))
+				if err != nil {
+					return sub, err
+				}
+
+				keysSeen := waitResult.Keys()
+				if containsKey(keysSeen, cancelKey) {
+					return sub, nil
+				}
+
+				eventFired := false
+				for _, k := range []string{pausedKey, resumedKey, cancelledKey, activatedKey, refreshKey} {
+					if containsKey(keysSeen, k) {
+						var updated domain.Subscription
+						if err := waitResult.Unmarshal(k, &updated); err == nil && updated.Id != "" {
+							sub = updated
+						}
+						eventFired = true
+						break
+					}
+				}
+				if eventFired {
+					continue
+				}
+
+				// Sleep won — charge time reached.
+				if sub.Status == domain.SubscriptionStatusPaused ||
+					sub.Status == domain.SubscriptionStatusNonRenewing {
+					continue
+				}
+				if isTerminalStatus(sub.Status) {
+					return sub, nil
+				}
+				if !sub.IsRunning() {
+					continue
+				}
+
+				// Double-check the charge date hasn't moved into the future
+				// (e.g., a paused subscription was activated mid-loop).
+				now2, err := ctx.Now()
+				if err != nil {
+					return sub, err
+				}
+				if next.After(now2) {
+					continue
+				}
+
+				// Billing — child DAG.
+				billingRes, err := client.Run(ctx, "billing-cycle", BillingCycleInput{Subscription: sub},
+					hatchet.WithRunKey(BillingRunKey(sub.OrgId, sub.Id, sub.CyclesProcessed)))
+				if err != nil {
+					return sub, err
+				}
+
+				var chargeResult domain.ChargeResult
+				if err := billingRes.TaskOutput("charge-customer").Into(&chargeResult); err != nil {
+					return sub, err
+				}
+
+				// On a Pending charge, wait for the webhook to deliver the final status.
+				if chargeResult.Status == domain.PaymentStatusPending {
+					webhookKey := WebhookEventKey(sub.OrgId, sub.Id)
+					wr, err := ctx.WaitFor(hatchet.OrCondition(
+						hatchet.SleepCondition(1*time.Hour),
+						hatchet.UserEventCondition(webhookKey, ""),
+					))
+					if err == nil && containsKey(wr.Keys(), webhookKey) {
+						var fromWebhook domain.ChargeResult
+						if err := wr.Unmarshal(webhookKey, &fromWebhook); err == nil {
+							chargeResult = fromWebhook
+						}
+					}
+				}
+
+				updated, err := orderSteps.HandleChargeResult(ctx, sub, chargeResult)
+				if err != nil {
+					return sub, err
+				}
+				if updated.Id != "" {
+					sub = updated
+				}
+			}
+		},
+	)
+}
+
+func isTerminalStatus(s domain.SubscriptionStatus) bool {
+	return s == domain.SubscriptionStatusCancelled ||
+		s == domain.SubscriptionStatusExpired ||
+		s == domain.SubscriptionStatusCompleted
+}
+
+func containsKey(keys []string, target string) bool {
+	for _, k := range keys {
+		if k == target {
+			return true
+		}
+	}
+	return false
+}
+
