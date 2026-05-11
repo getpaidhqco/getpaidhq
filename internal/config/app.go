@@ -103,7 +103,8 @@ func NewApp() (*App, error) {
 	// references to them. The engine-aware variants are constructed below,
 	// after the engine itself exists.
 	// ---------------------------------------------------------------------------
-	subService := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, pubsub, logger)
+	subService := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, gatewayFactory, pubsub, reporter, logger)
+	paymentService := service.NewPaymentService(paymentRepo, logger)
 	orderWorkflowService := service.NewOrderWorkflowService(orderRepo, customerRepo, subRepo, paymentMethodRepo, paymentRepo, pubsub, logger)
 
 	// ---------------------------------------------------------------------------
@@ -112,7 +113,7 @@ func NewApp() (*App, error) {
 	// (which the engine itself does not depend on) are constructed after.
 	// ---------------------------------------------------------------------------
 	webhookSubService := service.NewWebhookSubscriptionService(logger, webhookSubRepo, idempotencyRepo, pubsub)
-	orderActivities := activities.NewOrderActivities(orderWorkflowService, settingRepo, subService, subRepo, pubsub, paymentRepo, gatewayFactory, reporter)
+	orderActivities := activities.NewOrderActivities(orderWorkflowService, subService, paymentService, subRepo, settingRepo)
 	webhookActivities := activities.NewOutgoingWebhookActivities(webhookSubRepo, settingRepo, webhookSubService, pubsub)
 	engine := temporal.NewTemporalEngine(logger, env, orderActivities, reporter, webhookActivities, settingRepo, pubsub)
 

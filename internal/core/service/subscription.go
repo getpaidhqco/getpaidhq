@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
 	"payloop/internal/lib"
@@ -27,7 +28,9 @@ type SubscriptionService struct {
 	customerRepository     port.CustomerRepository
 	subscriptionRepository port.SubscriptionRepository
 	paymentRepository      port.PaymentRepository
+	gatewayFactory         port.GatewayFactory
 	pubsub                 port.PubSub
+	errorReporter          lib.ErrorReporter
 	logger                 port.Logger
 }
 
@@ -39,7 +42,9 @@ func NewSubscriptionService(
 	customerRepository port.CustomerRepository,
 	orderRepository port.OrderRepository,
 	paymentRepository port.PaymentRepository,
+	gatewayFactory port.GatewayFactory,
 	pubsub port.PubSub,
+	errorReporter lib.ErrorReporter,
 	logger port.Logger,
 ) *SubscriptionService {
 
@@ -59,7 +64,9 @@ func NewSubscriptionService(
 		cartRepository:         cartRepository,
 		orderRepository:        orderRepository,
 		subscriptionRepository: subscriptionRepository,
+		gatewayFactory:         gatewayFactory,
 		pubsub:                 pubsub,
+		errorReporter:          errorReporter,
 		logger:                 logger,
 	}
 }
@@ -534,6 +541,131 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 	}
 
 	return newSub, nil
+}
+
+// ChargeForBillingPeriod runs one charge attempt against the gateway for the
+// subscription's current billing cycle and returns a normalized ChargeResult.
+// A non-nil error means the gateway itself failed (e.g. rate limit) and the
+// caller should retry; engine adapters translate that into engine-specific
+// retryable errors.
+func (s *SubscriptionService) ChargeForBillingPeriod(ctx context.Context, currentSub domain.Subscription) (domain.ChargeResult, error) {
+	s.logger.Infof("ChargeForBillingPeriod [%s] amount=%d", currentSub.Id, currentSub.Amount)
+
+	subscription, err := s.subscriptionRepository.FindById(ctx, currentSub.OrgId, currentSub.Id)
+	if err != nil {
+		s.logger.Error("Failed to find subscription", "error", err.Error())
+		return domain.ChargeResult{}, err
+	}
+
+	gw, err := s.gatewayFactory.NewGateway(ctx, subscription.OrgId, string(subscription.PspId))
+	if err != nil {
+		s.logger.Error("Failed to get gateway", "err", err.Error())
+		return domain.ChargeResult{}, err
+	}
+
+	customer, err := s.GetSubscriptionCustomer(ctx, subscription)
+	if err != nil {
+		s.logger.Error("failed to get customer", "error", err.Error())
+		return domain.ChargeResult{}, err
+	}
+
+	paymentMethod, err := s.GetSubscriptionPaymentMethod(ctx, subscription)
+	if err != nil {
+		s.logger.Error("failed to get paymentMethod", "error", err.Error())
+		return domain.ChargeResult{}, err
+	}
+
+	chargeResult := gw.ChargePayment(ctx, domain.ChargePaymentCommand{
+		OrgId:          subscription.OrgId,
+		OrderId:        subscription.OrderId,
+		SubscriptionId: subscription.Id,
+		Amount:         subscription.Amount,
+		Currency:       subscription.Currency,
+		PaymentMethod: domain.GatewayPaymentMethod{
+			PspId:       paymentMethod.Id,
+			Name:        paymentMethod.Name,
+			Type:        string(paymentMethod.Type),
+			IsRecurring: true,
+			Token:       paymentMethod.Token,
+		},
+		Customer: customer,
+	})
+
+	if chargeResult.Status == domain.GatewayError {
+		s.logger.Error("Gateway error, charge should be retried", "error", chargeResult.ErrorReason)
+		s.errorReporter.ReportError(ctx, errors.New("gateway error while charging subscription"), map[string]interface{}{
+			"org_id":          subscription.OrgId,
+			"error":           chargeResult.ErrorReason,
+			"psp":             string(subscription.PspId),
+			"subscription_id": subscription.Id,
+		})
+		return domain.ChargeResult{}, fmt.Errorf("gateway error: %s", chargeResult.ErrorReason)
+	}
+
+	rawData, err := json.Marshal(chargeResult.PspResponse)
+	if err != nil {
+		s.logger.Error("failed to marshal charge result", "error", err.Error())
+	}
+
+	var status domain.PaymentStatus
+	var completedAt time.Time
+	switch chargeResult.Status {
+	case domain.ChargePaymentStatusSuccess:
+		status = domain.PaymentStatusSucceeded
+		completedAt = time.Now()
+	case domain.ChargePaymentStatusPending:
+		status = domain.PaymentStatusPending
+	case domain.ChargePaymentStatusError:
+		status = domain.PaymentStatusFailed
+	}
+
+	return domain.ChargeResult{
+		Psp:         chargeResult.Psp,
+		Amount:      chargeResult.AmountCharged,
+		Status:      status,
+		Currency:    subscription.Currency,
+		ErrorReason: chargeResult.ErrorReason,
+		ErrorCode:   chargeResult.ErrorCode,
+		PspId:       chargeResult.PspId,
+		Reference:   chargeResult.Reference,
+		ProcessedAt: completedAt,
+		RawData:     string(rawData),
+	}, nil
+}
+
+// SendRenewalReminder publishes a renewal reminder event for the subscription
+// after re-reading it from the repository to ensure fresh state.
+func (s *SubscriptionService) SendRenewalReminder(ctx context.Context, orgId string, id string) error {
+	s.logger.Info("SendRenewalReminder", "orgId", orgId, "id", id)
+	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, id)
+	if err != nil {
+		s.logger.Error("Failed to find subscription", "error", err.Error())
+		return err
+	}
+
+	if err := s.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionRenewalReminder, subscription); err != nil {
+		s.logger.Error("Failed to publish reminder event", "error", err.Error())
+		return err
+	}
+	return nil
+}
+
+// MarkAsError transitions the subscription into the error state, recording the
+// causing error onto its metadata.
+func (s *SubscriptionService) MarkAsError(ctx context.Context, subscription domain.Subscription, cause error) error {
+	s.logger.Info("MarkAsError", "orgId", subscription.OrgId, "id", subscription.Id, "err", cause.Error())
+
+	subscription.Status = domain.SubscriptionStatusError
+	if subscription.Metadata == nil {
+		subscription.Metadata = map[string]string{}
+	}
+	subscription.Metadata["error"] = cause.Error()
+
+	if _, err := s.subscriptionRepository.Update(ctx, subscription); err != nil {
+		s.logger.Error("Failed to update subscription", "error", err.Error())
+		return err
+	}
+	return nil
 }
 
 func (s *SubscriptionService) GetRetryPolicy(ctx context.Context, orgId string) domain.RetryPolicy {

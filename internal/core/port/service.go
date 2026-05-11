@@ -16,6 +16,14 @@ type SubscriptionService interface {
 	GetSubscriptionPaymentMethod(ctx context.Context, subscription domain.Subscription) (domain.PaymentMethod, error)
 	HandleSubscriptionChargeSuccess(ctx context.Context, input domain.SubscriptionChargeInput) (domain.Subscription, error)
 	HandleSubscriptionChargeFailure(ctx context.Context, input domain.SubscriptionChargeInput) (domain.Subscription, error)
+	ChargeForBillingPeriod(ctx context.Context, subscription domain.Subscription) (domain.ChargeResult, error)
+	SendRenewalReminder(ctx context.Context, orgId string, id string) error
+	MarkAsError(ctx context.Context, subscription domain.Subscription, cause error) error
+}
+
+// PaymentService handles payment-related operations needed by workflow activities.
+type PaymentService interface {
+	ProcessRefund(ctx context.Context, paymentContext domain.PaymentWebhookContext) (domain.Payment, error)
 }
 
 // WebhookSubscriptionService handles outbound webhook delivery.
