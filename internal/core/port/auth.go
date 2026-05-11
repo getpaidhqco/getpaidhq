@@ -133,6 +133,17 @@ const (
 
 	ActionCreateWebhookSubscription Action = "CreateWebhookSubscription"
 	ActionListWebhookSubscriptions  Action = "ListWebhookSubscriptions"
+
+	ActionListDunningCampaigns         Action = "ListDunningCampaigns"
+	ActionGetDunningCampaign           Action = "GetDunningCampaign"
+	ActionUpdateDunningCampaign        Action = "UpdateDunningCampaign"
+	ActionTriggerDunningAttempt        Action = "TriggerDunningAttempt"
+	ActionListDunningConfigurations    Action = "ListDunningConfigurations"
+	ActionGetDunningConfiguration      Action = "GetDunningConfiguration"
+	ActionCreateDunningConfiguration   Action = "CreateDunningConfiguration"
+	ActionUpdateDunningConfiguration   Action = "UpdateDunningConfiguration"
+	ActionGetCustomerDunningHistory    Action = "GetCustomerDunningHistory"
+	ActionCreatePaymentUpdateToken     Action = "CreatePaymentUpdateToken"
 )
 
 // Authz enforces authorization policies.

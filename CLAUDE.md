@@ -69,11 +69,30 @@ The wrapping happens at the type level (the orchestration service embeds the nar
 
 Two adapters are compiled in; `WORKFLOW_ENGINE` selects at startup. The factory lives in `internal/config/app.go` (right after the narrow services are built).
 
-- **Temporal** — `internal/adapter/temporal/temporal.go` boots a single worker on task queue `events` in namespace `subscriptions`. Workflows: `PaymentSuccessWorkflow`, `SubscriptionChargeReminder`, `SubscriptionWorkflow`, `OutgoingWebhookWorkflow`, `PaymentRefunded`.
-- **Hatchet** — `internal/adapter/hatchet/hatchet.go` boots a single worker named `payloop-events`. Workflows: `payment-success` (DAG), `payment-refunded`, `outgoing-webhook`, `billing-cycle` (DAG), `subscription-charge-reminder` (durable), `subscription-runner` (durable; long-running, one per subscription). The runner sleeps until next charge or until an update/cancel event arrives, then spawns the billing DAG and waits for its result.
-- Engine port: `port.Engine` exposes `StartWorkflow`, `StartSubscriptionWorkflow`, `UpdateSubscriptionWorkflow`, `CancelSubscriptionWorkflow`, `SignalSubscriptionWorkflow`. Adapter logic is engine-specific; the rest of the codebase only sees `port.Engine`.
+- **Temporal** — `internal/adapter/temporal/temporal.go` boots a single worker on task queue `events` in namespace `subscriptions`. Workflows: `PaymentSuccessWorkflow`, `SubscriptionChargeReminder`, `SubscriptionWorkflow`, `OutgoingWebhookWorkflow`, `PaymentRefunded`. The Temporal adapter implements `port.DunningEngine` as stubs that return `ErrUnsupported` — dunning runs in Hatchet only.
+- **Hatchet** — `internal/adapter/hatchet/hatchet.go` boots a single worker named `payloop-events`. Workflows: `payment-success` (DAG), `payment-refunded`, `outgoing-webhook`, `billing-cycle` (DAG), `subscription-charge-reminder` (durable), `subscription-runner` (durable; long-running, one per subscription), `dunning-runner` (durable; long-running, one per failed charge), `dunning-attempt` (DAG; one per retry inside a dunning campaign).
+- Engine ports: `port.Engine` exposes `StartWorkflow`, `StartSubscriptionWorkflow`, `UpdateSubscriptionWorkflow`, `CancelSubscriptionWorkflow`, `SignalSubscriptionWorkflow`. `port.DunningEngine` exposes `StartDunningWorkflow`, `SignalDunningWorkflow`, `CancelDunningWorkflow`. The Hatchet engine type satisfies both; the Temporal engine type satisfies both but its dunning methods are stubs.
 
 **Hatchet update semantics (different from Temporal!).** Today's Temporal `UpdateSubscriptionWorkflow` blocks until the workflow's update handler runs (`WaitForStage: WorkflowUpdateStageCompleted`). The Hatchet equivalent pushes a user event (`update:<updateName>:<orgId>:<subId>`) and returns immediately — fire-and-forget. The durable runner observes the event in its select loop, usually within seconds. Callers in `subscription_orchestration.go` already `pubsub.Publish` after, so downstream observers are unaffected; do **not** assume synchronous acknowledgment when reading post-call state.
+
+### Dunning
+
+`internal/core/domain/dunning*.go`, `internal/core/service/dunning*.go`, `internal/adapter/postgres/dunning_repo.go`, `internal/adapter/hatchet/{steps,workflows}/dunning_*.go`, `internal/adapter/http/dunning_handler.go`.
+
+Failed subscription charges automatically open a `DunningCampaign` (the `DunningOrchestrationService` subscribes to `subscription.payment.charge.failed`) and a `dunning-runner` durable task is started per campaign. The runner walks two phases against a resolved `DunningConfig`:
+
+1. **Immediate retries** — short waits, only when `InitialFailureReason` matches `ImmediateRetries.FailureTypes` (transient / network / rate-limit).
+2. **Progressive retries** — long waits with customer communications dispatched before each attempt.
+
+Each retry inside the runner spawns the `dunning-attempt` DAG (one task: `execute-attempt`), reads back the resulting `DunningAttempt`, and hands it to `DunningService.UpdateCampaignWithAttemptResult` which owns the escalation policy (recover / suspend / cancel). Terminal exits: campaign status ∈ {recovered, failed, cancelled, expired}.
+
+Control signals respected at every wait:
+- `dunning_signal:dunning.pause` / `.resume` / `.cancel` — driven by the HTTP API
+- `dunning_pm_updated:<orgId>:<campaignId>` — driven by payment method update flows; triggers an immediate retry
+
+Configurations are scoped (`organization`, `customer_segment`, `subscription_tier`, `customer`, `ab_test`) and priority-ordered; the active highest-priority config wins. A snapshot is stored on the campaign at start so mid-flight policy changes don't break a running campaign.
+
+Payment-update tokens (`PaymentUpdateToken`) are magic-links delivered to customers as part of dunning communications. Lifecycle endpoints under `/api/payment-tokens/*` (verify / activate) and `/api/admin/subscriptions/:id/payment-tokens` (admin create).
 
 ### Payment gateways
 

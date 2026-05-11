@@ -34,9 +34,10 @@ func NewHatchetEngine(
 	orderSteps *steps.OrderSteps,
 	errorReporter lib.ErrorReporter,
 	webhookSteps *steps.OutgoingWebhookSteps,
+	dunningSteps *steps.DunningSteps,
 	settingRepository port.SettingRepository,
 	pubsub port.PubSub,
-) port.Engine {
+) *Hatchet {
 	logger.Infof("Initializing Hatchet engine [host_port=%s][namespace=%s]", env.HatchetHostPort, env.HatchetNamespace)
 
 	// The Hatchet client auto-reads HATCHET_CLIENT_TOKEN, HATCHET_CLIENT_HOST_PORT,
@@ -57,6 +58,8 @@ func NewHatchetEngine(
 	billingCycleWF := hatchetwf.NewBillingCycleWorkflow(c, orderSteps)
 	reminderWF := hatchetwf.NewSubscriptionChargeReminderWorkflow(c, orderSteps)
 	subscriptionRunnerWF := hatchetwf.NewSubscriptionRunnerWorkflow(c, orderSteps)
+	dunningAttemptWF := hatchetwf.NewDunningAttemptWorkflow(c, dunningSteps)
+	dunningRunnerWF := hatchetwf.NewDunningRunnerWorkflow(c, dunningSteps)
 
 	w, err := c.NewWorker("payloop-events",
 		hatchet.WithWorkflows(
@@ -66,6 +69,8 @@ func NewHatchetEngine(
 			billingCycleWF,
 			reminderWF,
 			subscriptionRunnerWF,
+			dunningAttemptWF,
+			dunningRunnerWF,
 		),
 		hatchet.WithSlots(50),
 		hatchet.WithDurableSlots(500),
@@ -83,7 +88,7 @@ func NewHatchetEngine(
 
 	logger.Infof("Hatchet engine initialized with worker")
 
-	h := Hatchet{
+	h := &Hatchet{
 		logger:            logger,
 		client:            c,
 		worker:            w,
@@ -265,3 +270,70 @@ func (h Hatchet) HandleSubscriptionEvent(topic string, data []byte) error {
 type portError struct{ Msg string }
 
 func (e *portError) Error() string { return e.Msg }
+
+// ---- port.DunningEngine implementation ----
+
+// StartDunningWorkflow spawns the dunning-runner durable task for the
+// caller-created campaign. Returns (workflowName, runId) which the
+// orchestrator persists on the campaign for later signaling/cancellation.
+//
+// The orchestrator passes input.Metadata["campaign_id"] to identify which
+// campaign this run is for; if absent we fall back to subscriptionId-based
+// idempotency.
+func (h Hatchet) StartDunningWorkflow(ctx context.Context, input domain.StartDunningWorkflowInput) (string, string, error) {
+	campaignId := ""
+	if input.Metadata != nil {
+		campaignId = input.Metadata["campaign_id"]
+	}
+	if campaignId == "" {
+		// Fallback: subscription-scoped key (the campaign id will be filled in
+		// by the runner via its first activity if we ever support that flow).
+		campaignId = input.SubscriptionId
+	}
+	runnerInput := hatchetwf.DunningRunnerInput{
+		OrgId:                input.OrgId,
+		CampaignId:           campaignId,
+		SubscriptionId:       input.SubscriptionId,
+		CustomerId:           input.CustomerId,
+		FailedAmount:         input.FailedAmount,
+		Currency:             input.Currency,
+		InitialFailureReason: input.InitialFailureReason,
+		PaymentResult:        input.PaymentResult,
+		Metadata:             input.Metadata,
+	}
+	ref, err := h.client.RunNoWait(ctx, "dunning-runner", runnerInput,
+		hatchet.WithRunKey(hatchetwf.DunningRunKey(input.OrgId, campaignId)),
+	)
+	if err != nil {
+		h.logger.Error("Unable to start dunning-runner", "err", err.Error())
+		return "", "", err
+	}
+	h.logger.Info("Started dunning-runner", "RunID", ref.RunId, "OrgId", input.OrgId, "CampaignId", campaignId)
+	return "dunning-runner", ref.RunId, nil
+}
+
+func (h Hatchet) SignalDunningWorkflow(ctx context.Context, signal string, campaign domain.DunningCampaign, payload any) error {
+	var key string
+	switch signal {
+	case "payment_method.updated":
+		key = hatchetwf.DunningPaymentMethodUpdatedKey(campaign.OrgId, campaign.Id)
+	default:
+		key = hatchetwf.DunningSignalKey(signal, campaign.OrgId, campaign.Id)
+	}
+	h.logger.Debugf("Pushing dunning signal [%s]", key)
+	if err := h.client.Events().Push(ctx, key, payload); err != nil {
+		h.logger.Error("Failed to push dunning signal", "error", err.Error(), "key", key)
+		return err
+	}
+	return nil
+}
+
+func (h Hatchet) CancelDunningWorkflow(ctx context.Context, campaign domain.DunningCampaign) error {
+	key := hatchetwf.DunningSignalKey("dunning.cancel", campaign.OrgId, campaign.Id)
+	h.logger.Debugf("Pushing dunning cancel [%s]", key)
+	if err := h.client.Events().Push(ctx, key, campaign); err != nil {
+		h.logger.Error("Failed to push dunning cancel", "error", err.Error(), "key", key)
+		return err
+	}
+	return nil
+}
