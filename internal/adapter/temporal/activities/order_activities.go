@@ -3,52 +3,44 @@ package activities
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
 	"payloop/internal/adapter/temporal/types"
 	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
-	"payloop/internal/lib"
-	"time"
 )
 
+// OrderActivities is the Temporal-side glue: every method is a thin wrapper
+// around an engine-agnostic service. The wrappers exist only to translate
+// service errors into Temporal-shaped retry decisions and to record activity
+// logs; all business logic lives behind the port-level service interfaces.
 type OrderActivities struct {
-	orderService           port.OrderWorkflowService
-	subscriptionService    port.SubscriptionService
-	subscriptionRepository port.SubscriptionRepository
-	settingRepository      port.SettingRepository
-	paymentRepository      port.PaymentRepository
-	pubsub                 port.PubSub
-	gatewayFactory         port.GatewayFactory
-	errorReporter          lib.ErrorReporter
+	orderService        port.OrderWorkflowService
+	subscriptionService port.SubscriptionService
+	paymentService      port.PaymentService
+	subscriptionRepo    port.SubscriptionRepository
+	settingRepository   port.SettingRepository
 }
 
 func NewOrderActivities(
 	orderService port.OrderWorkflowService,
-	settingRepository port.SettingRepository,
 	subscriptionService port.SubscriptionService,
-	subscriptionRepository port.SubscriptionRepository,
-	pubsub port.PubSub,
-	paymentRepository port.PaymentRepository,
-	gatewayFactory port.GatewayFactory,
-	errorReporter lib.ErrorReporter,
+	paymentService port.PaymentService,
+	subscriptionRepo port.SubscriptionRepository,
+	settingRepository port.SettingRepository,
 ) OrderActivities {
 	return OrderActivities{
-		gatewayFactory:         gatewayFactory,
-		orderService:           orderService,
-		subscriptionService:    subscriptionService,
-		subscriptionRepository: subscriptionRepository,
-		paymentRepository:      paymentRepository,
-		settingRepository:      settingRepository,
-		pubsub:                 pubsub,
-		errorReporter:          errorReporter,
+		orderService:        orderService,
+		subscriptionService: subscriptionService,
+		paymentService:      paymentService,
+		subscriptionRepo:    subscriptionRepo,
+		settingRepository:   settingRepository,
 	}
 }
 
 func (a *OrderActivities) CompleteOrder(ctx context.Context, paymentContext domain.PaymentWebhookContext) (port.WorkflowResult, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("CompleteCheckoutSession", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId)
+	logger.Info("CompleteOrder", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId)
 
 	order, err := a.orderService.CompleteCheckoutSession(ctx, domain.CompleteCheckoutSessionInput{
 		OrgId:          paymentContext.OrgId,
@@ -57,154 +49,41 @@ func (a *OrderActivities) CompleteOrder(ctx context.Context, paymentContext doma
 		Metadata:       nil,
 	})
 	if err != nil {
-		logger.Error("error completing order", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId, "err", err.Error())
 		return port.WorkflowResult{}, temporal.NewNonRetryableApplicationError("Can't mark order as completed", "order", err)
 	}
 
-	return port.WorkflowResult{
-		Success: true,
-		Message: "Order completed",
-		Payload: order,
-	}, nil
+	return port.WorkflowResult{Success: true, Message: "Order completed", Payload: order}, nil
 }
 
 func (a *OrderActivities) HandlePaymentRefundedEvent(ctx context.Context, paymentContext domain.PaymentWebhookContext) (port.WorkflowResult, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("HandlePaymentRefundedEvent", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId)
 
-	// Find the payment
-	payment, err := a.paymentRepository.FindByPspId(ctx, paymentContext.OrgId, paymentContext.Payment.PspId)
+	payment, err := a.paymentService.ProcessRefund(ctx, paymentContext)
 	if err != nil {
-		logger.Error("error finding payment", "OrgId", paymentContext.OrgId, "PspId", paymentContext.Payment.PspId, "err", err.Error())
-		return port.WorkflowResult{}, temporal.NewNonRetryableApplicationError("can't find payment", "payment", err)
+		return port.WorkflowResult{}, temporal.NewApplicationError("Can't process refund", "refund", err)
 	}
 
-	// update the payment status to refunded
-	payment.Status = domain.PaymentStatusRefunded
-	newPayment, err := a.paymentRepository.Update(ctx, payment)
-	if err != nil {
-		logger.Error("error completing order", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId, "err", err.Error())
-		return port.WorkflowResult{}, temporal.NewApplicationError("Can't update payment status", "payment", err)
-	}
-
-	// create the refund record
-	_, err = a.paymentRepository.CreateRefund(ctx, domain.Refund{
-		OrgId:      paymentContext.OrgId,
-		Id:         lib.GenerateId("refund"),
-		PaymentId:  payment.Id,
-		Amount:     paymentContext.Payment.Amount,
-		Currency:   paymentContext.Payment.Currency,
-		RefundedAt: time.Now().UTC(), // paymentContext.Payment.PaidAt,
-		CreatedAt:  time.Now().UTC(),
-		UpdatedAt:  time.Now().UTC(),
-	})
-	if err != nil {
-		logger.Error("error creating refund", "OrgId", paymentContext.OrgId, "PaymentId", payment.Id, "err", err.Error())
-		return port.WorkflowResult{}, temporal.NewApplicationError("Can't create refund record", "refund", err)
-	}
-
-	return port.WorkflowResult{
-		Success: true,
-		Message: "Refund event processing",
-		Payload: newPayment,
-	}, nil
+	return port.WorkflowResult{Success: true, Message: "Refund event processing", Payload: payment}, nil
 }
 
 func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId string, orderId string) ([]domain.Subscription, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("GetOrderSubscriptions: ", "[OrgId]", orgId, "[OrderId]", orderId)
 
-	subs, err := a.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
-
-	return subs, err
+	return a.subscriptionRepo.FindByOrderId(ctx, orgId, orderId)
 }
 
-// ChargeCustomerForBillingPeriod is responsible for charging the customer for the billing period and to
-// update the subscription status to reflect the billing period
+// ChargeCustomerForBillingPeriod delegates to SubscriptionService and rewraps
+// gateway-side failures as retryable Temporal application errors so Temporal's
+// retry policy can kick in.
 func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, currentSub domain.Subscription) (domain.ChargeResult, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("ChargeCustomerForBillingPeriod", "id", currentSub.Id, "Total", currentSub.Amount)
 
-	subscription, err := a.subscriptionRepository.FindById(ctx, currentSub.OrgId, currentSub.Id)
+	result, err := a.subscriptionService.ChargeForBillingPeriod(ctx, currentSub)
 	if err != nil {
-		logger.Error("Failed to find subscription", "error", err.Error())
-		return domain.ChargeResult{}, err
-	}
-
-	gw, err := a.gatewayFactory.NewGateway(ctx, subscription.OrgId, string(subscription.PspId))
-	if err != nil {
-		logger.Error("Failed to get gateway", "err", err.Error())
-		return domain.ChargeResult{}, err
-	}
-
-	customer, err := a.subscriptionService.GetSubscriptionCustomer(ctx, subscription)
-	if err != nil {
-		logger.Error("failed to get customer", "error", err.Error())
-		return domain.ChargeResult{}, err
-	}
-
-	paymentMethod, err := a.subscriptionService.GetSubscriptionPaymentMethod(ctx, subscription)
-	if err != nil {
-		logger.Error("failed to get paymentMethod", "error", err.Error())
-		return domain.ChargeResult{}, err
-	}
-
-	chargeResult := gw.ChargePayment(ctx, domain.ChargePaymentCommand{
-		OrgId:          subscription.OrgId,
-		OrderId:        subscription.OrderId,
-		SubscriptionId: subscription.Id,
-		Amount:         subscription.Amount,
-		Currency:       subscription.Currency,
-		PaymentMethod: domain.GatewayPaymentMethod{
-			PspId:       paymentMethod.Id,
-			Name:        paymentMethod.Name,
-			Type:        string(paymentMethod.Type),
-			IsRecurring: true,
-			Token:       paymentMethod.Token,
-		},
-		Customer: customer,
-	})
-
-	// Gateway errors should be retried by Temporal using the retry policy in the workflow.
-	if chargeResult.Status == domain.GatewayError {
-		logger.Error("Gateway error, returning error so that the charge can be retried", "error", chargeResult.ErrorReason)
-		a.errorReporter.ReportError(ctx, errors.New("gateway error while charging subscription"), map[string]interface{}{
-			"org_id":          subscription.OrgId,
-			"error":           chargeResult.ErrorReason,
-			"psp":             string(subscription.PspId),
-			"subscription_id": subscription.Id,
-		})
-		return domain.ChargeResult{}, temporal.NewApplicationError(chargeResult.ErrorReason, "gateway_error", nil)
-	}
-
-	rawData, err := json.Marshal(chargeResult.PspResponse)
-	if err != nil {
-		logger.Error("failed to marshal charge result", "error", err.Error())
-	}
-
-	var status domain.PaymentStatus
-	var completedAt time.Time
-	switch chargeResult.Status {
-	case domain.ChargePaymentStatusSuccess:
-		status = domain.PaymentStatusSucceeded
-		completedAt = time.Now()
-	case domain.ChargePaymentStatusPending:
-		status = domain.PaymentStatusPending
-	case domain.ChargePaymentStatusError:
-		status = domain.PaymentStatusFailed
-	}
-
-	result := domain.ChargeResult{
-		Psp:         chargeResult.Psp,
-		Amount:      chargeResult.AmountCharged,
-		Status:      status,
-		Currency:    subscription.Currency,
-		ErrorReason: chargeResult.ErrorReason,
-		ErrorCode:   chargeResult.ErrorCode,
-		PspId:       chargeResult.PspId,
-		Reference:   chargeResult.Reference,
-		ProcessedAt: completedAt,
-		RawData:     string(rawData),
+		return domain.ChargeResult{}, temporal.NewApplicationError(err.Error(), "gateway_error", nil)
 	}
 	return result, nil
 }
@@ -218,19 +97,18 @@ func (a *OrderActivities) HandleChargeResult(ctx context.Context, subscription d
 			Subscription: subscription,
 			ChargeResult: chargeResult,
 		})
-	} else {
-		return a.subscriptionService.HandleSubscriptionChargeFailure(ctx, domain.SubscriptionChargeInput{
-			Subscription: subscription,
-			ChargeResult: chargeResult,
-		})
 	}
+	return a.subscriptionService.HandleSubscriptionChargeFailure(ctx, domain.SubscriptionChargeInput{
+		Subscription: subscription,
+		ChargeResult: chargeResult,
+	})
 }
 
 // StoreSubscriptionWorkflowContext stores the Temporal workflow Id and workflow run Id
 // so that the system can query the workflow status later.
 //
-// At the moment this is not an Application level concern, only a Temporal concern, so use the
-// repositories directly here instead of a Service implementation.
+// This is Temporal-specific glue (the Execution type is Temporal's) and stays
+// in the adapter rather than moving down to a service.
 func (a *OrderActivities) StoreSubscriptionWorkflowContext(ctx context.Context, input types.StoreSubscriptionWorkflowContextInput) error {
 	logger := activity.GetLogger(ctx)
 	logger.Info("StoreSubscriptionWorkflowContext", "OrgId", input.OrgId, "SubscriptionId", input.SubscriptionId, "Execution", input.Execution)
@@ -246,44 +124,21 @@ func (a *OrderActivities) StoreSubscriptionWorkflowContext(ctx context.Context, 
 		Type:     "workflow.Execution",
 		Value:    string(executionBytes),
 	})
-
 	return err
 }
 
 func (a *OrderActivities) ErrorState(ctx context.Context, subscription domain.Subscription, err error) error {
 	logger := activity.GetLogger(ctx)
 	logger.Info("ErrorState", "OrgId", subscription.OrgId, "SubscriptionId", subscription.Id, "err", err.Error())
-
-	subscription.Status = domain.SubscriptionStatusError
-	subscription.Metadata["error"] = err.Error()
-
-	_, err = a.subscriptionRepository.Update(ctx, subscription)
-	if err != nil {
-		logger.Error("Failed to update subscription", "error", err.Error())
-		return err
-	}
-
-	return nil
+	return a.subscriptionService.MarkAsError(ctx, subscription, err)
 }
 
 func (a *OrderActivities) GetSubscription(ctx context.Context, orgId string, id string) (domain.Subscription, error) {
-	return a.subscriptionRepository.FindById(ctx, orgId, id)
+	return a.subscriptionRepo.FindById(ctx, orgId, id)
 }
 
 func (a *OrderActivities) ProcessReminderEvent(ctx context.Context, subscription domain.Subscription) error {
 	logger := activity.GetLogger(ctx)
 	logger.Info("ProcessReminderEvent", "OrgId", subscription.OrgId, "SubscriptionId", subscription.Id)
-	subscription, err := a.subscriptionRepository.FindById(ctx, subscription.OrgId, subscription.Id)
-	if err != nil {
-		logger.Error("Failed to find subscription", "error", err.Error())
-		return err
-	}
-
-	err = a.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionRenewalReminder, subscription)
-	if err != nil {
-		logger.Error("Failed to publish reminder event", "error", err.Error())
-		return err
-	}
-
-	return nil
+	return a.subscriptionService.SendRenewalReminder(ctx, subscription.OrgId, subscription.Id)
 }
