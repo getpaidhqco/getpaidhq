@@ -1,5 +1,5 @@
 ARG AWS_ACCOUNT_ID=${AWS_ACCOUNT_ID}
-FROM ${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-1.amazonaws.com/golang-1_24-alpine AS builder
+FROM ${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-1.amazonaws.com/golang-1_26-alpine AS builder
 
 RUN apk add --no-cache git openssh
 # Set the Current Working Directory inside the container
@@ -22,7 +22,7 @@ COPY . .
 RUN go build -o main .
 
 # Start a new stage from scratch
-FROM ${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-1.amazonaws.com/golang-1_24-alpine
+FROM ${AWS_ACCOUNT_ID}.dkr.ecr.eu-west-1.amazonaws.com/golang-1_26-alpine
 
 # Set the Current Working Directory inside the container
 WORKDIR /root/

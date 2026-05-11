@@ -182,8 +182,7 @@ func (s *SubscriptionService) PauseSubscription(ctx context.Context, input domai
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
 		s.logger.Error("Failed to find subscriptions", err.Error())
-		var serr lib.CustomError
-		if errors.As(err, &serr) {
+		if _, ok := errors.AsType[lib.CustomError](err); ok {
 			return domain.Subscription{}, err
 		}
 		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
@@ -221,8 +220,7 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input doma
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
 		s.logger.Error("Failed to find subscriptions", err.Error())
-		var serr lib.CustomError
-		if errors.As(err, &serr) {
+		if _, ok := errors.AsType[lib.CustomError](err); ok {
 			return domain.Subscription{}, err
 		}
 		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
@@ -274,8 +272,7 @@ func (s *SubscriptionService) CancelSubscription(ctx context.Context, input doma
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
 		s.logger.Error("Failed to find subscriptions", err.Error())
-		var serr lib.CustomError
-		if errors.As(err, &serr) {
+		if _, ok := errors.AsType[lib.CustomError](err); ok {
 			return domain.Subscription{}, err
 		}
 		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
@@ -305,8 +302,7 @@ func (s *SubscriptionService) UpdateBillingAnchor(ctx context.Context, input dom
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
 		s.logger.Error("Failed to find subscriptions", err.Error())
-		var serr lib.CustomError
-		if errors.As(err, &serr) {
+		if _, ok := errors.AsType[lib.CustomError](err); ok {
 			return domain.ProrationDetails{}, err
 		}
 		return domain.ProrationDetails{}, lib.NewCustomError(lib.InternalError, "", err)
@@ -452,7 +448,7 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 	subscription := input.Subscription
 	charge := input.ChargeResult
 
-	s.logger.Infof("Subscription [%s] charge failed with reason [%s][%s][chargeResult status = %s][]",
+	s.logger.Infof("Subscription [%s] charge failed with reason [%s][%s][chargeResult status = %s][retries=%d]",
 		subscription.Id, charge.ErrorCode, charge.ErrorReason, charge.Status, subscription.Retries)
 	if subscription.Id == "" {
 		s.logger.Error("Subscription is empty")
@@ -521,7 +517,7 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 		return domain.Subscription{}, err
 	}
 
-	_ = s.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionPaymentChargeFailed, map[string]interface{}{
+	_ = s.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionPaymentChargeFailed, map[string]any{
 		"subscription":  subscription,
 		"charge_result": charge,
 	})
@@ -593,7 +589,7 @@ func (s *SubscriptionService) ChargeForBillingPeriod(ctx context.Context, curren
 
 	if chargeResult.Status == domain.GatewayError {
 		s.logger.Error("Gateway error, charge should be retried", "error", chargeResult.ErrorReason)
-		s.errorReporter.ReportError(ctx, errors.New("gateway error while charging subscription"), map[string]interface{}{
+		s.errorReporter.ReportError(ctx, errors.New("gateway error while charging subscription"), map[string]any{
 			"org_id":          subscription.OrgId,
 			"error":           chargeResult.ErrorReason,
 			"psp":             string(subscription.PspId),

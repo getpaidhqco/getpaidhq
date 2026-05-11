@@ -27,7 +27,7 @@ func (p WebhookParserAdapter) ParseWebhook(ctx context.Context, data []byte) (do
 
 	var payload WebhookPayload
 	if err := json.Unmarshal(data, &payload); err != nil {
-		p.logger.Errorf("failed to unmarshal webhook payload", err.Error())
+		p.logger.Errorf("failed to unmarshal webhook payload: %s", err.Error())
 		return domain.PaymentWebhookContext{}, err
 	}
 
@@ -134,7 +134,7 @@ func (p WebhookParserAdapter) ParseWebhook(ctx context.Context, data []byte) (do
 	return domain.PaymentWebhookContext{}, errors.New("unknown event")
 }
 
-func parseData[T WebhookData](data interface{}) (T, error) {
+func parseData[T WebhookData](data any) (T, error) {
 	var payload T
 	jsonData, err := json.Marshal(data)
 	if err != nil {

@@ -43,7 +43,7 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.
 	// Check if the idempotency key already exists
 	exists, err := s.idempotencyRepo.Exists(ctx, hashHex)
 	if err != nil {
-		s.logger.Errorf("failed to check idempotency key", err.Error())
+		s.logger.Errorf("failed to check idempotency key: %s", err.Error())
 		return port.NewQueueHandlerError("failed to check idempotency key", false, err)
 	}
 	if exists {
@@ -118,7 +118,7 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.
 	// Store the idempotency key
 	err = s.idempotencyRepo.Create(ctx, hashHex, time.Now().Add(24*time.Hour))
 	if err != nil {
-		s.logger.Errorf("failed to store idempotency key", err.Error())
+		s.logger.Errorf("failed to store idempotency key: %s", err.Error())
 		return port.NewQueueHandlerError("failed to store idempotency key", false, err)
 	}
 	return nil

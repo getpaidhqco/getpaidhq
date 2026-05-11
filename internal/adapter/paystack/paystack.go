@@ -107,8 +107,7 @@ func (p Paystack) ChargePayment(ctx context.Context, input domain.ChargePaymentC
 	response, err := client.Transaction.ChargeAuthorization(ctx, request)
 	if err != nil {
 		p.logger.Errorf("failed to charge payment [%s]", err.Error())
-		var paystackErr *pserrors.APIError
-		if errors.As(err, &paystackErr) {
+		if paystackErr, ok := errors.AsType[*pserrors.APIError](err); ok {
 
 			if paystackErr.HTTPStatusCode == 429 {
 				return domain.ChargePaymentResponse{

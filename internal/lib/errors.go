@@ -41,8 +41,7 @@ func NewCustomError(errorType CustomErrorType, message string, err error) Custom
 }
 
 func MapDatabaseError(err error) CustomError {
-	var dbErr DatabaseError
-	if errors.As(err, &dbErr) {
+	if dbErr, ok := errors.AsType[DatabaseError](err); ok {
 		switch dbErr.Code {
 		case NoResults:
 			return CustomError{

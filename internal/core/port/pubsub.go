@@ -10,7 +10,7 @@ import (
 
 // PubSub defines the interface for publish/subscribe messaging.
 type PubSub interface {
-	Publish(orgId string, topic string, message interface{}) error
+	Publish(orgId string, topic string, message any) error
 	Subscribe(topic string, handler func(topic string, data []byte)) (PubSubSubscription, error)
 }
 
@@ -28,7 +28,7 @@ type QueueClient interface {
 }
 
 type QueueMessage struct {
-	Data interface{}      `json:"data"`
+	Data any              `json:"data"`
 	Type QueueMessageType `json:"type"`
 }
 
@@ -72,8 +72,7 @@ func NewQueueHandlerError(message string, retryable bool, err error) error {
 
 // IsRetryable checks if the error is a QueueHandlerError and if it is retryable.
 func IsRetryable(err error) bool {
-	var nonRetryableErr *QueueHandlerError
-	if errors.As(err, &nonRetryableErr) {
+	if nonRetryableErr, ok := errors.AsType[*QueueHandlerError](err); ok {
 		return nonRetryableErr.Retryable
 	}
 	return false

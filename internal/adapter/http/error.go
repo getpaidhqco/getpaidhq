@@ -12,9 +12,9 @@ import (
 // ApiError represents an API error response.
 // swagger:response apiError
 type ApiError struct {
-	Code    string      `json:"code"`
-	Message string      `json:"message"`
-	Details interface{} `json:"details"`
+	Code    string `json:"code"`
+	Message string `json:"message"`
+	Details any    `json:"details"`
 }
 
 func (e ApiError) Error() string {
@@ -40,7 +40,7 @@ func (e ApiError) GetHttpErrorCode() int {
 }
 
 // NewApiError creates a new API error.
-func NewApiError(code lib.CustomErrorType, message string, details interface{}) ApiError {
+func NewApiError(code lib.CustomErrorType, message string, details any) ApiError {
 	return ApiError{
 		Code:    string(code),
 		Message: message,
@@ -50,13 +50,12 @@ func NewApiError(code lib.CustomErrorType, message string, details interface{}) 
 
 // NewApiErrorFromError creates an ApiError from a generic error.
 func NewApiErrorFromError(err error) ApiError {
-	var serr lib.CustomError
 	if errs, ok := err.(validator.ValidationErrors); ok {
 		msg := FormatValidationErrors(errs)
 		return NewApiError(lib.BadRequestError, "Input validation failed", msg)
 	}
 
-	if errors.As(err, &serr) {
+	if serr, ok := errors.AsType[lib.CustomError](err); ok {
 		if serr.Err == nil {
 			return NewApiError(serr.Type, serr.Message, nil)
 		}

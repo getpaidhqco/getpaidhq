@@ -58,8 +58,7 @@ func (s *SubscriptionOrchestrationService) PauseSubscription(ctx context.Context
 
 	err = s.engine.UpdateSubscriptionWorkflow(ctx, "subscription.paused", subscription)
 	if err != nil {
-		var serr lib.CustomError
-		if errors.As(err, &serr) {
+		if _, ok := errors.AsType[lib.CustomError](err); ok {
 			return domain.Subscription{}, err
 		}
 		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
@@ -77,8 +76,7 @@ func (s *SubscriptionOrchestrationService) ResumeSubscription(ctx context.Contex
 
 	err = s.engine.UpdateSubscriptionWorkflow(ctx, port.TopicSubscriptionResumed, newSub)
 	if err != nil {
-		var serr lib.CustomError
-		if errors.As(err, &serr) {
+		if _, ok := errors.AsType[lib.CustomError](err); ok {
 			return domain.Subscription{}, err
 		}
 		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
@@ -97,8 +95,7 @@ func (s *SubscriptionOrchestrationService) CancelSubscription(ctx context.Contex
 	s.logger.Debugf("Updating workflow for subscription %s [%s]", subscription.Id, port.TopicSubscriptionCancelled)
 	err = s.engine.UpdateSubscriptionWorkflow(ctx, port.TopicSubscriptionCancelled, subscription)
 	if err != nil {
-		var serr lib.CustomError
-		if errors.As(err, &serr) {
+		if _, ok := errors.AsType[lib.CustomError](err); ok {
 			return domain.Subscription{}, err
 		}
 		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
@@ -120,8 +117,7 @@ func (s *SubscriptionOrchestrationService) UpdateWorkflowState(ctx context.Conte
 
 	err = s.engine.UpdateSubscriptionWorkflow(ctx, "refresh-state", subscription)
 	if err != nil {
-		var serr lib.CustomError
-		if errors.As(err, &serr) {
+		if _, ok := errors.AsType[lib.CustomError](err); ok {
 			return domain.Subscription{}, err
 		}
 		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, err.Error(), err)

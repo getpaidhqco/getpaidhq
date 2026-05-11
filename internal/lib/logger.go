@@ -32,19 +32,19 @@ type MyLogger struct {
 	logger *slog.Logger
 }
 
-func (l MyLogger) Debug(msg string, keysAndValues ...interface{}) {
+func (l MyLogger) Debug(msg string, keysAndValues ...any) {
 	l.logger.Debug(msg, keysAndValues...)
 }
 
-func (l MyLogger) Info(msg string, keysAndValues ...interface{}) {
+func (l MyLogger) Info(msg string, keysAndValues ...any) {
 	l.logger.Info(msg, keysAndValues...)
 }
 
-func (l MyLogger) Warn(msg string, keysAndValues ...interface{}) {
+func (l MyLogger) Warn(msg string, keysAndValues ...any) {
 	l.logger.Warn(msg, keysAndValues...)
 }
 
-func (l MyLogger) Error(msg string, keysAndValues ...interface{}) {
+func (l MyLogger) Error(msg string, keysAndValues ...any) {
 	l.logger.Error(msg, keysAndValues...)
 }
 
@@ -52,27 +52,27 @@ func (l MyLogger) Sync() error {
 	return nil
 }
 
-func (l MyLogger) Fatalf(msg string, keysAndValues ...interface{}) {
+func (l MyLogger) Fatalf(msg string, keysAndValues ...any) {
 	log.Fatal(msg, keysAndValues)
 }
 
-func (l MyLogger) Fatal(msg string, keysAndValues ...interface{}) {
+func (l MyLogger) Fatal(msg string, keysAndValues ...any) {
 	log.Fatal(msg, keysAndValues)
 }
 
-func (l MyLogger) Infof(template string, args ...interface{}) {
+func (l MyLogger) Infof(template string, args ...any) {
 	l.logger.Info(fmt.Sprintf(template, args...))
 }
-func (l MyLogger) Debugf(template string, args ...interface{}) {
+func (l MyLogger) Debugf(template string, args ...any) {
 	l.logger.Debug(fmt.Sprintf(template, args...))
 }
-func (l MyLogger) Errorf(template string, args ...interface{}) {
+func (l MyLogger) Errorf(template string, args ...any) {
 	l.logger.Error(fmt.Sprintf(template, args...))
 }
-func (l MyLogger) Panicf(template string, args ...interface{}) {
+func (l MyLogger) Panicf(template string, args ...any) {
 	l.logger.Error(fmt.Sprintf(template, args...))
 }
-func (l MyLogger) Warnf(template string, args ...interface{}) {
+func (l MyLogger) Warnf(template string, args ...any) {
 	l.logger.Warn(fmt.Sprintf(template, args...))
 }
 
@@ -127,7 +127,7 @@ func newLogger(env Env, opts ...zap.Option) Logger {
 
 // Write implements io.Writer for gin-framework logging.
 func (l GinLogger) Write(p []byte) (n int, err error) {
-	l.Infof(string(p))
+	l.Info(string(p))
 	return len(p), nil
 }
 

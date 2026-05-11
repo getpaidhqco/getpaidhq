@@ -32,7 +32,7 @@ func NewWebhookParser(
 func (p WebhookParser) ValidateWebhook(ctx context.Context, data []byte) error {
 	var payload WebhookPayload
 	if err := json.Unmarshal(data, &payload); err != nil {
-		p.logger.Errorf("failed to unmarshal webhook payload", err.Error())
+		p.logger.Errorf("failed to unmarshal webhook payload: %s", err.Error())
 		return err
 	}
 	return nil
@@ -41,7 +41,7 @@ func (p WebhookParser) ValidateWebhook(ctx context.Context, data []byte) error {
 func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (domain.PaymentWebhookContext, error) {
 	var payload WebhookPayload
 	if err := json.Unmarshal(data, &payload); err != nil {
-		p.logger.Errorf("failed to unmarshal webhook payload", err.Error())
+		p.logger.Errorf("failed to unmarshal webhook payload: %s", err.Error())
 		return domain.PaymentWebhookContext{}, err
 	}
 
@@ -140,7 +140,7 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (domain.Pa
 			if err != nil {
 				continue
 			}
-			p.logger.Debugf(`Found refund %s -> %s`, refund.ID, refund.Status)
+			p.logger.Debugf(`Found refund %d -> %s`, refund.ID, refund.Status)
 			// we now have the original payment
 			originalPayment = transaction
 			break
@@ -179,14 +179,14 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (domain.Pa
 	return domain.PaymentWebhookContext{}, errors.New("unknown event")
 }
 
-func (p WebhookParser) parseChargeSuccess(data interface{}) (TransactionSuccessful, error) {
+func (p WebhookParser) parseChargeSuccess(data any) (TransactionSuccessful, error) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return TransactionSuccessful{}, err
 	}
 
 	var payload TransactionSuccessful
-	var metadata map[string]interface{}
+	var metadata map[string]any
 	// metadata field is sometimes a string, and sometimes a struct
 	var temp struct {
 		Metadata json.RawMessage `json:"metadata"`
@@ -222,7 +222,7 @@ func (p WebhookParser) parseChargeSuccess(data interface{}) (TransactionSuccessf
 	return payload, nil
 }
 
-func (p WebhookParser) parseRefundProcessed(data interface{}) (RefundProcessed, error) {
+func (p WebhookParser) parseRefundProcessed(data any) (RefundProcessed, error) {
 	jsonData, err := json.Marshal(data)
 	if err != nil {
 		return RefundProcessed{}, err

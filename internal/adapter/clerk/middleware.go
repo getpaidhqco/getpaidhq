@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"payloop/internal/core/port"
 	"payloop/internal/lib"
+	"slices"
 	"strings"
 )
 
@@ -72,12 +73,7 @@ func (m ClerkMiddleware) Setup() {
 }
 
 func isPublicPath(path string) bool {
-	for _, publicPath := range port.PublicPaths {
-		if path == publicPath {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(port.PublicPaths, path)
 }
 
 func MapClerkRoleToUserRole(role string) port.UserRole {
@@ -102,7 +98,7 @@ func (m ClerkMiddleware) Authenticate(ctx context.Context, token string) (port.A
 		m.logger.Error("Error fetching user from Clerk API", "error", err)
 		return port.AuthUser{}, err
 	}
-	m.logger.Infof("Clerk Auth: [%s][%s][%s]", session.ActiveOrganizationID, session.Claims.Subject, user)
+	m.logger.Infof("Clerk Auth: [%s][%s][%+v]", session.ActiveOrganizationID, session.Claims.Subject, user)
 
 	// If the organization ID is not in the token, try to fetch the user's organization memberships
 	clerkOrgId := session.ActiveOrganizationID

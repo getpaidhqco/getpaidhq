@@ -83,7 +83,7 @@ func (p CheckoutDotCom) InitPayment(ctx context.Context, input domain.InitPaymen
 		}
 		// TODO: restore cart field access once cart type is resolved (input.Cart is interface{})
 		response, err := p.client.Hosted.CreateHostedPaymentsPageSession(hosted.HostedPaymentRequest{
-			Amount:              0, // int(input.Cart.Total),
+			Amount:              0,  // int(input.Cart.Total),
 			Currency:            "", // checkout_common.Currency(input.Cart.Currency),
 			PaymentType:         payments.Recurring,
 			Billing:             &billing,
@@ -95,7 +95,7 @@ func (p CheckoutDotCom) InitPayment(ctx context.Context, input domain.InitPaymen
 			SuccessUrl:          "https://example.com/success",
 			CancelUrl:           "https://example.com/failure",
 			FailureUrl:          "https://example.com/failure",
-			Metadata: map[string]interface{}{
+			Metadata: map[string]any{
 				"order_id": input.Order.Id,
 				// "cart_id":  input.Cart.Id,
 				"org_id": input.OrgId,
@@ -110,7 +110,7 @@ func (p CheckoutDotCom) InitPayment(ctx context.Context, input domain.InitPaymen
 
 		p.logger.Info("created Checkout.com payment session", "response", response)
 		return domain.InitPaymentResponse{
-			PspResponse: map[string]interface{}{
+			PspResponse: map[string]any{
 				"redirect": response.Links["redirect"].HRef,
 			},
 		}, nil
@@ -132,7 +132,7 @@ func (p CheckoutDotCom) InitPayment(ctx context.Context, input domain.InitPaymen
 
 		// TODO: restore cart field access once cart type is resolved (input.Cart is interface{})
 		flowRequest := payment_sessions.PaymentSessionsRequest{
-			Amount:              0, // input.Cart.Total,
+			Amount:              0,  // input.Cart.Total,
 			Currency:            "", // checkout_common.Currency(input.Cart.Currency),
 			PaymentType:         payments.Recurring,
 			Billing:             &billing,
@@ -147,7 +147,7 @@ func (p CheckoutDotCom) InitPayment(ctx context.Context, input domain.InitPaymen
 			DisplayName:         "",
 			SuccessUrl:          "https://example.com/success",
 			FailureUrl:          "https://example.com/failure",
-			Metadata: map[string]interface{}{
+			Metadata: map[string]any{
 				"order_id": input.Order.Id,
 				// "cart_id":  input.Cart.Id,
 				"org_id": input.OrgId,
@@ -164,7 +164,7 @@ func (p CheckoutDotCom) InitPayment(ctx context.Context, input domain.InitPaymen
 
 		p.logger.Info("created Checkout.com payment session", "response", response)
 		return domain.InitPaymentResponse{
-			PspResponse: map[string]interface{}{
+			PspResponse: map[string]any{
 				"id":                    response.Id,
 				"payment_session_token": response.PaymentSessionToken,
 			},
@@ -205,7 +205,7 @@ func (p CheckoutDotCom) ChargePayment(ctx context.Context, input domain.ChargePa
 		ProcessingChannelId: p.config.ProcessingChannelId,
 		SuccessUrl:          "https://docs.checkout.com/success",
 		FailureUrl:          "https://docs.checkout.com/failure",
-		Metadata: map[string]interface{}{
+		Metadata: map[string]any{
 			"order_id":        input.OrderId,
 			"org_id":          input.OrgId,
 			"subscription_id": input.SubscriptionId,
@@ -224,8 +224,7 @@ func (p CheckoutDotCom) ChargePayment(ctx context.Context, input domain.ChargePa
 		p.logger.Errorf("Error charging payment: %v", err)
 		errjson, _ := json.Marshal(err)
 		p.logger.Error("errjson", "errjson", string(errjson))
-		var capierr checkout_errors.CheckoutAPIError
-		if errors.As(err, &capierr) {
+		if capierr, ok := errors.AsType[checkout_errors.CheckoutAPIError](err); ok {
 			p.logger.Errorf("capierr.Data.ErrorType: %v", capierr.Data.ErrorType)
 		}
 		return domain.ChargePaymentResponse{

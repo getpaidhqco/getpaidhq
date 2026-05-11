@@ -169,8 +169,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrder
 			Email:     input.Customer.Email,
 		})
 		if err != nil {
-			var derr lib.DatabaseError
-			if errors.As(err, &derr) && derr.Code == lib.UniqueKeyViolation {
+			if derr, ok := errors.AsType[lib.DatabaseError](err); ok && derr.Code == lib.UniqueKeyViolation {
 				customerEntity, err = s.customerRepository.Update(ctx, domain.Customer{
 					OrgId:     orgId,
 					Id:        lib.GenerateId("customer"),
@@ -443,4 +442,3 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input domain.CompleteO
 	_ = s.pubsub.Publish(order.OrgId, port.TopicOrderCompleted, order)
 	return order, nil
 }
-
