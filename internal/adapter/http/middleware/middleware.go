@@ -18,14 +18,12 @@ func NewMiddlewares(
 	dbTrxMiddleware DatabaseTrx,
 	authMiddleware AuthnWrapperMiddleware,
 	authzMiddleware cedar.CedarMiddleware,
-	sentryMiddleware SentryMiddleware,
 ) Middlewares {
 	return Middlewares{
 		corsMiddleware,
 		dbTrxMiddleware,
 		authMiddleware,
 		authzMiddleware,
-		sentryMiddleware,
 	}
 }
 

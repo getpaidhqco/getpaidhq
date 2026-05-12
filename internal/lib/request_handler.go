@@ -1,7 +1,6 @@
 package lib
 
 import (
-	sentrygin "github.com/getsentry/sentry-go/gin"
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
@@ -14,7 +13,7 @@ type RequestHandler struct {
 }
 
 // NewRequestHandler creates a new request handler
-func NewRequestHandler(logger Logger, reporter ErrorReporter) RequestHandler {
+func NewRequestHandler(logger Logger, _ ErrorReporter) RequestHandler {
 	engine := gin.Default()
 	engine.NoRoute(func(c *gin.Context) {
 		c.JSON(http.StatusNotFound, gin.H{
@@ -22,9 +21,6 @@ func NewRequestHandler(logger Logger, reporter ErrorReporter) RequestHandler {
 			"message": "Route not found",
 		})
 	})
-	engine.Use(sentrygin.New(sentrygin.Options{
-		Repanic: true,
-	}))
 	engine.Use(func(c *gin.Context) {
 		logger.Debugf("-------- %s %s", c.Request.Method, c.Request.URL.Path)
 		c.Next()

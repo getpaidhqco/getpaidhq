@@ -6,6 +6,7 @@ import (
 	"payloop/internal/adapter/clerk"
 	"payloop/internal/adapter/cron"
 	handler "payloop/internal/adapter/http"
+	"payloop/internal/adapter/http/middleware"
 	"payloop/internal/adapter/nats"
 	"payloop/internal/adapter/paystack"
 	"payloop/internal/adapter/postgres"
@@ -96,7 +97,6 @@ func NewApp() (*App, error) {
 	gatewayFactory := service.NewGatewayFactory(pspRepo, settingRepo, logger, gatewayAdapters)
 
 	_ = cache
-	_ = authenticators
 
 	// ---------------------------------------------------------------------------
 	// Narrow services (no workflow engine).
@@ -157,7 +157,7 @@ func NewApp() (*App, error) {
 	orgService := service.NewOrgService(orgRepo, pubsub, clerkProvider, customerRepo, settingRepo, metadataRepo, apiKeyRepo, logger)
 	pspService := service.NewPspService(pspRepo, settingRepo, logger, pubsub)
 	webhookService := service.NewWebhookService(logger, gatewayFactory, engine, idempotencyRepo, subRepo)
-	reportService := service.NewReportService(logger, reportRepo, pubsub, queueClient, nil, scheduler, orgRepo) // nil = cdc stream
+	reportService := service.NewReportService(logger, reportRepo, pubsub, queueClient, scheduler, orgRepo)
 	metadataService := service.NewMetadataService(metadataRepo, logger)
 
 	_ = metadataService
@@ -185,6 +185,11 @@ func NewApp() (*App, error) {
 	// HTTP Router
 	// ---------------------------------------------------------------------------
 	router := requestHandler.Gin
+
+	// Global middleware. Order matters: CORS first so OPTIONS preflight
+	// short-circuits before authn; authn second so handlers see `user` in ctx.
+	middleware.NewCorsMiddleware(requestHandler, logger, env).Setup()
+	middleware.NewAuthnWrapperMiddleware(authenticators, requestHandler, logger, env).Setup()
 
 	api := router.Group("/api")
 	healthHandler.RegisterRoutes(api)

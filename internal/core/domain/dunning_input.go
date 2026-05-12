@@ -2,6 +2,11 @@ package domain
 
 // CreateDunningCampaignInput is what the orchestrator passes to
 // DunningService.CreateCampaign when a charge fails.
+//
+// ConfigSnapshot is the dunning policy resolved at start time, serialized as
+// a map for the campaign's JSON column. If non-nil, the runner will use this
+// rather than re-resolving live config on each resume — so a config edit
+// mid-campaign doesn't change the retry cadence the campaign was started under.
 type CreateDunningCampaignInput struct {
 	OrgId                string
 	SubscriptionId       string
@@ -10,6 +15,7 @@ type CreateDunningCampaignInput struct {
 	Currency             string
 	InitialFailureReason string
 	ParentWorkflowId     string
+	ConfigSnapshot       map[string]any
 	Metadata             map[string]string
 }
 

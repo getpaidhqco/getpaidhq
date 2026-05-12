@@ -103,8 +103,24 @@ func (s *DunningOrchestrationService) HandleSubscriptionChargeFailure(topic stri
 // dunning workflow run for it. The campaign's WorkflowId / WorkflowRunId are
 // updated with the engine-provided handles so the orchestrator can address
 // the run later.
+//
+// The dunning config is resolved here (not inside the runner) so the snapshot
+// stored on the campaign reflects the policy in force at campaign start; the
+// runner reads back the snapshot instead of re-resolving live config on every
+// resume.
 func (s *DunningOrchestrationService) StartDunningWorkflow(ctx context.Context, input domain.StartDunningWorkflowInput) (domain.DunningCampaign, error) {
 	s.logger.Info("Starting dunning workflow", "orgId", input.OrgId, "subscriptionId", input.SubscriptionId)
+
+	resolved, err := s.ResolveConfig(ctx, input.OrgId)
+	if err != nil {
+		s.logger.Error("Failed to resolve dunning config at campaign start", "err", err.Error())
+		resolved = domain.DefaultDunningConfig()
+	}
+	snapshot, err := configToMap(resolved)
+	if err != nil {
+		s.logger.Error("Failed to marshal dunning config snapshot", "err", err.Error())
+		snapshot = nil
+	}
 
 	campaign, err := s.CreateCampaign(ctx, domain.CreateDunningCampaignInput{
 		OrgId:                input.OrgId,
@@ -114,6 +130,7 @@ func (s *DunningOrchestrationService) StartDunningWorkflow(ctx context.Context, 
 		Currency:             input.Currency,
 		InitialFailureReason: input.InitialFailureReason,
 		ParentWorkflowId:     input.ParentWorkflowId,
+		ConfigSnapshot:       snapshot,
 		Metadata:             input.Metadata,
 	})
 	if err != nil {

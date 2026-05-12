@@ -180,7 +180,7 @@ type ReportRepository interface {
 	ProcessDailyMetrics(ctx context.Context, d time.Time) error
 }
 
-// DataChangeEvent represents a CDC event from the database.
+// DataChangeEvent represents a data-change event for the reporting pipeline.
 type DataChangeEvent struct {
 	Operation domain.Operation
 	Entity    domain.Entity

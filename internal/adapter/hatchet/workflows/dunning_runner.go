@@ -32,8 +32,10 @@ import (
 func NewDunningRunnerWorkflow(client *hatchet.Client, dunningSteps *steps.DunningSteps) *hatchet.StandaloneTask {
 	return client.NewStandaloneDurableTask("dunning-runner",
 		func(ctx hatchet.DurableContext, input DunningRunnerInput) (domain.DunningCampaign, error) {
-			// Resolve the org's dunning config — defaults if none match.
-			config, err := dunningSteps.ResolveConfig(ctx, input.OrgId)
+			// Load the campaign's config snapshot (taken at campaign start) so
+			// mid-flight config edits don't change cadence on a running
+			// campaign. Falls back to the live config if no snapshot exists.
+			config, err := dunningSteps.LoadConfigForCampaign(ctx, input.OrgId, input.CampaignId)
 			if err != nil {
 				return domain.DunningCampaign{}, err
 			}
@@ -64,8 +66,12 @@ func NewDunningRunnerWorkflow(client *hatchet.Client, dunningSteps *steps.Dunnin
 						return campaign, nil
 					}
 					if action == dunningActionPaused {
-						if err := waitForResume(ctx, resumeKey, cancelKey); err != nil {
+						resumeAction, err := waitForResume(ctx, resumeKey, cancelKey)
+						if err != nil {
 							return campaign, err
+						}
+						if resumeAction == dunningActionCancel {
+							return campaign, nil
 						}
 					}
 
@@ -104,8 +110,12 @@ func NewDunningRunnerWorkflow(client *hatchet.Client, dunningSteps *steps.Dunnin
 						return campaign, nil
 					}
 					if action == dunningActionPaused {
-						if err := waitForResume(ctx, resumeKey, cancelKey); err != nil {
+						resumeAction, err := waitForResume(ctx, resumeKey, cancelKey)
+						if err != nil {
 							return campaign, err
+						}
+						if resumeAction == dunningActionCancel {
+							return campaign, nil
 						}
 					}
 
@@ -132,8 +142,11 @@ func NewDunningRunnerWorkflow(client *hatchet.Client, dunningSteps *steps.Dunnin
 				}
 			}
 
-			// Exhausted all attempts.
-			final, err := dunningSteps.MarkCampaignFailed(ctx, input.OrgId, input.CampaignId, "all_attempts_failed")
+			// Exhausted all attempts. Cancel the subscription too — without
+			// this, configs where MaxAttempts < CancelAfterAttempt (or
+			// CancelAfterAttempt == 0) silently leave Active subscriptions
+			// behind that no future billing-cycle can ever charge.
+			final, err := dunningSteps.FailCampaignAndCancelSubscription(ctx, input.OrgId, input.CampaignId, "all_attempts_failed")
 			if err != nil {
 				return campaign, err
 			}
@@ -183,22 +196,24 @@ func awaitDunningInterval(ctx hatchet.DurableContext, wait time.Duration, pauseK
 	return dunningActionTimer, nil
 }
 
-// waitForResume blocks until a resume signal fires, returning early on cancel.
-func waitForResume(ctx hatchet.DurableContext, resumeKey, cancelKey string) error {
+// waitForResume blocks until a resume or cancel signal fires. Returns the
+// action that woke it so the caller can stop the runner on cancel rather than
+// proceed with the next attempt.
+func waitForResume(ctx hatchet.DurableContext, resumeKey, cancelKey string) (dunningAction, error) {
 	for {
 		res, err := ctx.WaitFor(hatchet.OrCondition(
 			hatchet.UserEventCondition(resumeKey, ""),
 			hatchet.UserEventCondition(cancelKey, ""),
 		))
 		if err != nil {
-			return err
+			return dunningActionTimer, err
 		}
 		keys := res.Keys()
 		if containsKey(keys, cancelKey) {
-			return nil
+			return dunningActionCancel, nil
 		}
 		if containsKey(keys, resumeKey) {
-			return nil
+			return dunningActionTimer, nil
 		}
 	}
 }

@@ -197,6 +197,6 @@ The Postgres init script (`docker/init/01-create-databases.sql`) recreates `getp
 
 ### Reporting database
 
-`getpaidhq_reports` is created but no CDC stream is wired up while we're local. Reads against the reporting schema will return empty data until that's restored.
+`getpaidhq_reports` is created but no trigger mechanism is wired up to populate it yet. Reads against the reporting schema will return empty data until a replacement is in place.
 
 See `CLAUDE.md` for architectural conventions, the engine-construction-order pattern, and gotchas before making changes.

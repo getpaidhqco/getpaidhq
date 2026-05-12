@@ -103,14 +103,15 @@ Adapter registry in `app.go`: `map[domain.Gateway]port.GatewayAdapter` with `dom
 - Authentication: `port.Authenticator` implementations are pluggable. Currently only Clerk is constructed in `app.go`; the `authenticators` slice is the FX-tag substitute referenced in the README. (Cognito and apikey adapters exist but are not wired.)
 - Authorization: Cedar via `internal/adapter/cedar/`. Policies live in `policy.cedar` at repo root (copied into the Docker image). Handler signatures take `authzEngine` and call it before mutating actions — see `OrderHandler`, `CustomerHandler`, etc.
 
-### Two databases + CDC
+### Two databases
 
 - `DATABASE_URL` → `payloop` (operational), `REPORTING_DATABASE_URL` → `payloop_reporting` (reports). If the reporting URL fails to connect, the code falls back to the operational DB (see `app.go:48`).
-- CDC keeps reporting in sync via Postgres logical replication. The README has the manual recovery steps (drop `cdc_pub` publication, terminate replication backend, drop `cdc_slot2`) for when the CDC stream service redeploys.
+- The trigger that populates the reporting DB has been removed; `ReportService.ProcessDataChange` is still in place and will be hooked up to a replacement mechanism later.
 
 ## Conventions and gotchas
 
-- `internal/config/app.go` ignores some constructed services with `_ = ...` (e.g., `metadataService`, `userService`, `cache`, `authenticators`). They are constructed for side-effects or because their dependencies are needed elsewhere; don't delete them without checking.
+- `internal/config/app.go` ignores some constructed services with `_ = ...` (e.g., `metadataService`, `userService`, `cache`). They are constructed for side-effects or because their dependencies are needed elsewhere; don't delete them without checking.
+- Global HTTP middleware is wired in `NewApp()` just before the `/api` router group is created: CORS first (so OPTIONS preflight short-circuits) then `AuthnWrapperMiddleware` (sets `"user"` in the gin context for downstream handlers). Adding a new global middleware means calling its `Setup()` in that block. The `middleware.Middlewares` / `NewMiddlewares` factory in `internal/adapter/http/middleware/middleware.go` is an FX-era holdover and unused — `DatabaseTrx` there does not compile against the current `*gorm.DB` (expects `lib.Database`) and `CedarMiddleware.Setup()` is a no-op.
 - Logger is `port.Logger` (a thin facade); zap is the backing impl via `internal/lib/logger.go`. Use the injected logger, not `log` or `fmt.Println`.
 - Env loading: `lib.NewEnv()` loads `.env` via godotenv then binds known keys via viper. Add new env vars by extending the `Env` struct **and** calling `viper.BindEnv` in `NewEnv()`. Local-only setup uses `WORKFLOW_ENGINE=hatchet`. Hatchet vars (`HATCHET_CLIENT_TOKEN`, `HATCHET_CLIENT_HOST_PORT`, `HATCHET_CLIENT_NAMESPACE`, `HATCHET_CLIENT_TLS_STRATEGY`) are the canonical names the Hatchet SDK auto-reads.
 - `.env.example` lists every var the app reads. The active `.env` is gitignored; previous environment-specific copies (`.env.local`, `.env.prod`, `.env.test`, `docker/.env`) live under `.temp/` while we run local-only, and will be restored once we redo the deployment.

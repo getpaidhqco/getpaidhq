@@ -22,9 +22,12 @@ func NewDunningSteps(logger port.Logger, dunningService port.DunningService) *Du
 	}
 }
 
-func (s *DunningSteps) ResolveConfig(ctx context.Context, orgId string) (domain.DunningConfig, error) {
-	s.logger.Info("ResolveDunningConfig", "orgId", orgId)
-	return s.dunningService.ResolveConfig(ctx, orgId)
+// LoadConfigForCampaign reads the config snapshot stored on the campaign at
+// start time; falls back to the org's live config if none was snapshotted
+// (e.g. for campaigns started before snapshotting existed).
+func (s *DunningSteps) LoadConfigForCampaign(ctx context.Context, orgId, campaignId string) (domain.DunningConfig, error) {
+	s.logger.Info("LoadDunningConfigForCampaign", "orgId", orgId, "campaignId", campaignId)
+	return s.dunningService.LoadConfigForCampaign(ctx, orgId, campaignId)
 }
 
 func (s *DunningSteps) ExecuteAttempt(ctx context.Context, orgId, campaignId string, attemptType domain.DunningAttemptType) (domain.DunningAttempt, error) {
@@ -42,43 +45,15 @@ func (s *DunningSteps) SendCommunication(ctx context.Context, orgId, campaignId 
 	return s.dunningService.SendCommunication(ctx, orgId, campaignId, attemptNumber)
 }
 
-func (s *DunningSteps) PauseCampaign(ctx context.Context, orgId, campaignId string) (domain.DunningCampaign, error) {
-	s.logger.Info("PauseDunningCampaign", "campaignId", campaignId)
-	return s.dunningService.PauseCampaign(ctx, domain.PauseDunningCampaignInput{
-		OrgId:      orgId,
-		CampaignId: campaignId,
-		Reason:     "engine_pause",
-	})
-}
-
-func (s *DunningSteps) ResumeCampaign(ctx context.Context, orgId, campaignId string) (domain.DunningCampaign, error) {
-	s.logger.Info("ResumeDunningCampaign", "campaignId", campaignId)
-	return s.dunningService.ResumeCampaign(ctx, domain.ResumeDunningCampaignInput{
-		OrgId:      orgId,
-		CampaignId: campaignId,
-		Reason:     "engine_resume",
-	})
-}
-
-func (s *DunningSteps) CancelCampaign(ctx context.Context, orgId, campaignId string) (domain.DunningCampaign, error) {
-	s.logger.Info("CancelDunningCampaign", "campaignId", campaignId)
-	return s.dunningService.CancelCampaign(ctx, domain.CancelDunningCampaignInput{
-		OrgId:      orgId,
-		CampaignId: campaignId,
-		Reason:     "engine_cancel",
-	})
-}
-
-func (s *DunningSteps) TriggerImmediateRetry(ctx context.Context, orgId, campaignId string) (domain.DunningAttempt, error) {
-	s.logger.Info("TriggerImmediateRetry", "campaignId", campaignId)
-	return s.dunningService.TriggerManualAttempt(ctx, domain.TriggerManualAttemptInput{
-		OrgId:       orgId,
-		CampaignId:  campaignId,
-		TriggeredBy: "payment_method_updated",
-	})
-}
-
 func (s *DunningSteps) MarkCampaignFailed(ctx context.Context, orgId, campaignId, reason string) (domain.DunningCampaign, error) {
 	s.logger.Info("MarkCampaignFailed", "campaignId", campaignId, "reason", reason)
 	return s.dunningService.MarkCampaignFailed(ctx, orgId, campaignId, reason)
+}
+
+// FailCampaignAndCancelSubscription is the terminal exit when retries exhaust
+// without an explicit cancellation threshold catching it first — both
+// mutations happen together so the subscription doesn't outlive its dunning.
+func (s *DunningSteps) FailCampaignAndCancelSubscription(ctx context.Context, orgId, campaignId, reason string) (domain.DunningCampaign, error) {
+	s.logger.Info("FailCampaignAndCancelSubscription", "campaignId", campaignId, "reason", reason)
+	return s.dunningService.FailCampaignAndCancelSubscription(ctx, orgId, campaignId, reason)
 }

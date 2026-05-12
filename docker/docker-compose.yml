@@ -41,6 +41,11 @@ services:
     image: ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
     environment:
       DATABASE_URL: "postgresql://postgres:postgres@postgresql:5432/hatchet?sslmode=disable"
+      # gRPC default port is 7070 and default bind is 127.0.0.1 (loopback inside
+      # the container). Override both so the gRPC server is reachable from the
+      # host on the same port the broadcast address and client config use.
+      SERVER_GRPC_PORT: "7077"
+      SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
       SERVER_GRPC_INSECURE: "t"
       SERVER_GRPC_BROADCAST_ADDRESS: "localhost:7077"
       SERVER_AUTH_SET_EMAIL_VERIFIED: "t"
@@ -54,6 +59,11 @@ services:
     ports:
       - "8888:8888"
       - "7077:7077"
+    # Persist auto-generated encryption keys + server config across container
+    # recreations so admin-issued tokens stay valid (entrypoint quickstart runs
+    # with --overwrite=false and skips regeneration if /config exists).
+    volumes:
+      - hatchet-config:/config
 
 networks:
   payloop-network:
@@ -62,3 +72,4 @@ networks:
 
 volumes:
   getpaidhq-pgdata:
+  hatchet-config:

@@ -62,6 +62,10 @@ type DunningService interface {
 	UpdateCampaign(ctx context.Context, campaign domain.DunningCampaign) (domain.DunningCampaign, error)
 	MarkCampaignRecovered(ctx context.Context, orgId string, campaignId string, recoveryMethod string, recoveredAmount int64) (domain.DunningCampaign, error)
 	MarkCampaignFailed(ctx context.Context, orgId string, campaignId string, finalFailureReason string) (domain.DunningCampaign, error)
+	// FailCampaignAndCancelSubscription marks the campaign Failed and cancels
+	// the underlying subscription in one shot. Used by the runner when both
+	// retry phases exhaust without crossing an explicit escalation threshold.
+	FailCampaignAndCancelSubscription(ctx context.Context, orgId string, campaignId string, finalFailureReason string) (domain.DunningCampaign, error)
 
 	// Attempts
 	ListAttemptsByCampaign(ctx context.Context, orgId string, campaignId string, p domain.Pagination) ([]domain.DunningAttempt, int, error)
@@ -85,6 +89,10 @@ type DunningService interface {
 	ListConfigurations(ctx context.Context, orgId string, p domain.Pagination) ([]domain.DunningConfiguration, int, error)
 	UpdateConfiguration(ctx context.Context, input domain.UpdateDunningConfigurationInput) (domain.DunningConfiguration, error)
 	ResolveConfig(ctx context.Context, orgId string) (domain.DunningConfig, error)
+	// LoadConfigForCampaign prefers the snapshot stored on the campaign at
+	// start time; falls back to ResolveConfig if the snapshot is empty (e.g.
+	// for in-flight campaigns started before the snapshot field was populated).
+	LoadConfigForCampaign(ctx context.Context, orgId string, campaignId string) (domain.DunningConfig, error)
 
 	// Customer history
 	GetCustomerDunningHistory(ctx context.Context, orgId string, customerId string) (domain.CustomerDunningHistory, error)

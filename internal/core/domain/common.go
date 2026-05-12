@@ -25,7 +25,7 @@ const (
 	Paystack       Gateway = "Paystack"
 )
 
-// CDC Entity and Operation types for change data capture.
+// Entity and Operation types for data-change events.
 type Entity string
 
 const (

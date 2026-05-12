@@ -14,7 +14,6 @@ type ReportService struct {
 	pubsub           port.PubSub
 	queueClient      port.QueueClient
 	orgRepository    port.OrgRepository
-	cdcStream        port.CdcStream
 }
 
 func NewReportService(
@@ -22,7 +21,6 @@ func NewReportService(
 	reportRepository port.ReportRepository,
 	pubsub port.PubSub,
 	queueClient port.QueueClient,
-	cdcStream port.CdcStream,
 	scheduler port.Scheduler,
 	orgRepository port.OrgRepository,
 ) *ReportService {
@@ -31,7 +29,6 @@ func NewReportService(
 		reportRepository: reportRepository,
 		pubsub:           pubsub,
 		queueClient:      queueClient,
-		cdcStream:        cdcStream,
 		orgRepository:    orgRepository,
 	}
 
@@ -42,8 +39,6 @@ func NewReportService(
 		logger.Errorf("Failed to schedule task: %v", err)
 		panic(err)
 	}
-
-	cdcStream.Start(context.Background(), service.MapCdcStream)
 
 	_, err = pubsub.Subscribe(">", service.HandlePublishedEvent)
 	if err != nil {
@@ -138,17 +133,6 @@ func (s *ReportService) HandlePublishedEvent(_ string, data []byte) {
 
 	//s.ProcessDataChange(data)
 
-}
-
-func (s *ReportService) MapCdcStream(op string, entity string, newObj any, oldObj any) {
-
-	event := port.DataChangeEvent{
-		Operation: domain.Operation(op),
-		Entity:    domain.Entity(entity),
-		NewObject: newObj,
-		OldObject: oldObj,
-	}
-	s.ProcessDataChange(event)
 }
 
 func (s *ReportService) ProcessDataChange(event port.DataChangeEvent) {

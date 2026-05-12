@@ -27,7 +27,6 @@ func NewWebhookHandler(service *service.WebhookService, logger port.Logger) *Web
 // RegisterRoutes registers webhook routes on the given router group.
 func (u *WebhookHandler) RegisterRoutes(rg *gin.RouterGroup) {
 	rg.POST("/notify", u.Process)
-	rg.POST("/notify/cdc", u.Process)
 }
 
 func (u *WebhookHandler) Process(c *gin.Context) {

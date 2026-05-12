@@ -27,8 +27,6 @@ require (
 
 require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.15
-	github.com/getsentry/sentry-go v0.45.1
-	github.com/getsentry/sentry-go/gin v0.31.1
 	github.com/hatchet-dev/hatchet v0.86.5
 	github.com/joho/godotenv v1.5.1
 	github.com/mdwt/paystack-go v0.4.0
@@ -69,6 +67,7 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.13 // indirect
 	github.com/getkin/kin-openapi v0.135.0 // indirect
+	github.com/getsentry/sentry-go v0.45.1 // indirect
 	github.com/gin-contrib/sse v1.0.0 // indirect
 	github.com/go-jose/go-jose/v3 v3.0.3 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect

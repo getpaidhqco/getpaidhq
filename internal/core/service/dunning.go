@@ -78,6 +78,7 @@ func (s *DunningService) CreateCampaign(ctx context.Context, input domain.Create
 		Currency:             input.Currency,
 		InitialFailureReason: input.InitialFailureReason,
 		StartedAt:            now,
+		ConfigSnapshot:       input.ConfigSnapshot,
 		Metadata:             input.Metadata,
 		CreatedAt:            now,
 		UpdatedAt:            now,
@@ -215,6 +216,30 @@ func (s *DunningService) MarkCampaignFailed(ctx context.Context, orgId, campaign
 	}
 	_ = s.pubsub.Publish(updated.OrgId, port.TopicDunningCampaignFailed, port.NewDunningCampaignEvent(updated))
 	return updated, nil
+}
+
+// FailCampaignAndCancelSubscription cancels the subscription, then marks the
+// campaign failed. Used by the runner when retries exhaust without an explicit
+// CancelAfterAttempt threshold cancelling the subscription first — without
+// this the subscription would be left Active with no successful charges ever
+// going through.
+func (s *DunningService) FailCampaignAndCancelSubscription(ctx context.Context, orgId, campaignId, finalFailureReason string) (domain.DunningCampaign, error) {
+	campaign, err := s.FindCampaignById(ctx, orgId, campaignId)
+	if err != nil {
+		return domain.DunningCampaign{}, err
+	}
+	if subscription, err := s.subscriptionRepository.FindById(ctx, orgId, campaign.SubscriptionId); err == nil {
+		if subscription.Status != domain.SubscriptionStatusCancelled {
+			subscription.Status = domain.SubscriptionStatusCancelled
+			subscription.CancelledAt = time.Now().UTC()
+			if _, err := s.subscriptionRepository.Update(ctx, subscription); err != nil {
+				s.logger.Error("Failed to cancel subscription on dunning exhaustion", "err", err.Error())
+			}
+		}
+	} else {
+		s.logger.Error("Subscription not found while exhausting dunning", "err", err.Error())
+	}
+	return s.MarkCampaignFailed(ctx, orgId, campaignId, finalFailureReason)
 }
 
 // ---- Attempts ----
@@ -375,9 +400,15 @@ func (s *DunningService) UpdateCampaignWithAttemptResult(ctx context.Context, at
 		if err != nil {
 			return domain.DunningCampaign{}, err
 		}
+		// Reactivate the subscription if dunning had suspended it. We look up
+		// the live status rather than trusting the runner's hint — the hint
+		// says "the runner thinks it crossed the suspension threshold," not
+		// "the subscription is in fact suspended." We publish the real
+		// OldStatus so consumers see an honest transition.
 		if attemptContext.WasSubscriptionSuspended {
 			subscription, err := s.subscriptionRepository.FindById(ctx, campaign.OrgId, campaign.SubscriptionId)
-			if err == nil {
+			if err == nil && subscription.Status != domain.SubscriptionStatusActive {
+				oldStatus := subscription.Status
 				subscription.Status = domain.SubscriptionStatusActive
 				if _, err := s.subscriptionRepository.Update(ctx, subscription); err != nil {
 					s.logger.Error("Failed to reactivate subscription", "err", err.Error())
@@ -387,7 +418,7 @@ func (s *DunningService) UpdateCampaignWithAttemptResult(ctx context.Context, at
 						CampaignId:     campaign.Id,
 						SubscriptionId: subscription.Id,
 						CustomerId:     campaign.CustomerId,
-						OldStatus:      domain.SubscriptionStatusUnpaid,
+						OldStatus:      oldStatus,
 						NewStatus:      domain.SubscriptionStatusActive,
 					})
 				}
@@ -411,6 +442,35 @@ func (s *DunningService) UpdateCampaignWithAttemptResult(ctx context.Context, at
 
 	isFinalNotice := config.EscalationRules.FinalNoticeAttempt > 0 && attemptContext.AttemptNumber >= config.EscalationRules.FinalNoticeAttempt
 	shouldSuspend := config.EscalationRules.SuspendAfterAttempt > 0 && attemptContext.AttemptNumber >= config.EscalationRules.SuspendAfterAttempt
+
+	// Persist the suspension the first time we cross the threshold. The
+	// shouldSuspend flag is "should be suspended by now" — load the
+	// subscription and only flip it if it isn't already Unpaid (or in a
+	// terminal status that would make suspension nonsensical).
+	if shouldSuspend {
+		if subscription, err := s.subscriptionRepository.FindById(ctx, campaign.OrgId, campaign.SubscriptionId); err == nil {
+			if subscription.Status != domain.SubscriptionStatusUnpaid &&
+				subscription.Status != domain.SubscriptionStatusCancelled &&
+				subscription.Status != domain.SubscriptionStatusExpired &&
+				subscription.Status != domain.SubscriptionStatusCompleted {
+				oldStatus := subscription.Status
+				subscription.Status = domain.SubscriptionStatusUnpaid
+				if _, err := s.subscriptionRepository.Update(ctx, subscription); err != nil {
+					s.logger.Error("Failed to suspend subscription during dunning", "err", err.Error())
+				} else {
+					_ = s.pubsub.Publish(campaign.OrgId, port.TopicDunningSubscriptionSuspended, port.DunningSubscriptionEvent{
+						OrgId:          campaign.OrgId,
+						CampaignId:     campaign.Id,
+						SubscriptionId: subscription.Id,
+						CustomerId:     campaign.CustomerId,
+						OldStatus:      oldStatus,
+						NewStatus:      domain.SubscriptionStatusUnpaid,
+					})
+				}
+			}
+		}
+	}
+
 	_ = s.pubsub.Publish(campaign.OrgId, port.TopicDunningAttemptFailed, port.NewDunningAttemptEvent(attempt, campaign.CustomerId, shouldSuspend, isFinalNotice))
 	return campaign, nil
 }
@@ -662,6 +722,26 @@ func (s *DunningService) ResolveConfig(ctx context.Context, orgId string) (domai
 		}
 	}
 	return domain.DefaultDunningConfig(), nil
+}
+
+// LoadConfigForCampaign returns the dunning config the campaign was started
+// under. Prefers the snapshot persisted on the campaign at creation time so
+// mid-flight config edits don't change cadence for already-running campaigns.
+// Falls back to ResolveConfig for campaigns started before snapshotting
+// existed.
+func (s *DunningService) LoadConfigForCampaign(ctx context.Context, orgId, campaignId string) (domain.DunningConfig, error) {
+	campaign, err := s.FindCampaignById(ctx, orgId, campaignId)
+	if err != nil {
+		return domain.DunningConfig{}, err
+	}
+	if len(campaign.ConfigSnapshot) > 0 {
+		if cfg, err := configFromMap(campaign.ConfigSnapshot); err == nil {
+			return cfg, nil
+		} else {
+			s.logger.Error("Failed to decode campaign config snapshot, falling back to live config", "campaignId", campaignId, "err", err.Error())
+		}
+	}
+	return s.ResolveConfig(ctx, orgId)
 }
 
 // ---- Customer history ----

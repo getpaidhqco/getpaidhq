@@ -56,7 +56,7 @@ func GetPrimaryRole(roles []UserRole) UserRole {
 	return primaryRole
 }
 
-var PublicPaths = []string{"/api/health", "/api/notify", "/api/notify/cdc"}
+var PublicPaths = []string{"/api/health", "/api/notify"}
 
 func IsPublicPath(path string) bool {
 	return slices.Contains(PublicPaths, path)
