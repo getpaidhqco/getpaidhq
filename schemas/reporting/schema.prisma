@@ -10,7 +10,6 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("REPORTING_DATABASE_URL")
 }
 
 enum PriceCategory {
@@ -74,9 +73,9 @@ model DailyMetric {
   pastDueTotal Int    @default(0) @map("past_due_total")
   pastDueCount Int    @default(0) @map("past_due_count")
 
-  customerCount    Int   @default(0) @map("customer_count")
-  churnCount       Int   @default(0) @map("churn_count")
-  churnTotal       Int   @default(0) @map("churn_total")
+  customerCount Int @default(0) @map("customer_count")
+  churnCount    Int @default(0) @map("churn_count")
+  churnTotal    Int @default(0) @map("churn_total")
 
   aveRevenuePerUser     Float    @default(0.0) @map("ave_revenue_per_user")
   customerLifetimeValue Int      @default(0) @map("customer_lifetime_value")

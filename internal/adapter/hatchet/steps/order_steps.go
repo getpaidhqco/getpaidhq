@@ -2,19 +2,9 @@ package steps
 
 import (
 	"context"
-	"encoding/json"
 	"payloop/internal/core/domain"
 	"payloop/internal/core/port"
 )
-
-// StoreSubscriptionWorkflowContextInput is the input for persisting the Hatchet
-// run id of a subscription-runner task to the settings table.
-type StoreSubscriptionWorkflowContextInput struct {
-	OrgId          string
-	SubscriptionId string
-	RunID          string
-	WorkflowName   string
-}
 
 // OrderSteps is the Hatchet-side glue for order/subscription business logic.
 // Each method is a thin wrapper around an engine-agnostic narrow service so
@@ -91,29 +81,6 @@ func (s *OrderSteps) HandleChargeResult(ctx context.Context, sub domain.Subscrip
 		Subscription: sub,
 		ChargeResult: result,
 	})
-}
-
-// StoreSubscriptionWorkflowContext persists the Hatchet run id for a per-
-// subscription durable task so it can be looked up later for hard-cancel or
-// observability.
-func (s *OrderSteps) StoreSubscriptionWorkflowContext(ctx context.Context, input StoreSubscriptionWorkflowContextInput) error {
-	s.logger.Info("StoreSubscriptionWorkflowContext", "OrgId", input.OrgId, "SubscriptionId", input.SubscriptionId, "RunID", input.RunID)
-	payload := map[string]string{
-		"run_id":        input.RunID,
-		"workflow_name": input.WorkflowName,
-	}
-	b, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	_, err = s.settingRepository.Create(ctx, domain.Setting{
-		OrgId:    input.OrgId,
-		ParentId: input.SubscriptionId,
-		Id:       "hatchet-workflow",
-		Type:     "hatchet.RunRef",
-		Value:    string(b),
-	})
-	return err
 }
 
 func (s *OrderSteps) ErrorState(ctx context.Context, sub domain.Subscription, runErr error) error {

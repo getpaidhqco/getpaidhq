@@ -16,13 +16,13 @@ import (
 //  1. complete-order:        Mark the order paid and capture its row.
 //  2. get-subscriptions:     Load any subscriptions tied to the order.
 //  3. spawn-subscription-runner:
-//                            Spawn the long-running subscription-runner durable
-//                            task with a deterministic run key, then persist
-//                            the run id in the settings table for later lookup.
+//                            Start the long-running subscription-runner durable
+//                            task via the engine port — same code path as the
+//                            HTTP /orders/:id/complete handler.
 //
 // As in the Temporal version, only the first subscription is processed —
 // preserving today's behaviour intentionally.
-func NewPaymentSuccessWorkflow(client *hatchet.Client, orderSteps *steps.OrderSteps) *hatchet.Workflow {
+func NewPaymentSuccessWorkflow(client *hatchet.Client, orderSteps *steps.OrderSteps, engine port.Engine) *hatchet.Workflow {
 	wf := client.NewWorkflow("payment-success")
 
 	completeOrder := wf.NewTask("complete-order",
@@ -55,21 +55,8 @@ func NewPaymentSuccessWorkflow(client *hatchet.Client, orderSteps *steps.OrderSt
 			}
 			sub := subs[0]
 
-			ref, err := client.RunNoWait(ctx, "subscription-runner", sub,
-				hatchet.WithRunKey(SubscriptionRunKey(sub.OrgId, sub.Id)),
-			)
-			if err != nil {
-				return port.WorkflowResult{}, fmt.Errorf("spawn subscription-runner: %w", err)
-			}
-
-			err = orderSteps.StoreSubscriptionWorkflowContext(ctx, steps.StoreSubscriptionWorkflowContextInput{
-				OrgId:          sub.OrgId,
-				SubscriptionId: sub.Id,
-				RunID:          ref.RunId,
-				WorkflowName:   "subscription-runner",
-			})
-			if err != nil {
-				return port.WorkflowResult{}, fmt.Errorf("store run id: %w", err)
+			if err := engine.StartSubscriptionWorkflow(ctx, sub); err != nil {
+				return port.WorkflowResult{}, fmt.Errorf("start subscription workflow: %w", err)
 			}
 
 			return port.WorkflowResult{Success: true, Message: "spawned subscription-runner"}, nil

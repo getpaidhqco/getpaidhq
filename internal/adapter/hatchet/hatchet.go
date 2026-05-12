@@ -20,12 +20,11 @@ import (
 // services (SubscriptionOrchestrationService, OrderService, WebhookService)
 // take the resulting port.Engine.
 type Hatchet struct {
-	logger            port.Logger
-	client            *hatchet.Client
-	worker            *hatchet.Worker
-	errorReporter     lib.ErrorReporter
-	settingRepository port.SettingRepository
-	pubsub            port.PubSub
+	logger        port.Logger
+	client        *hatchet.Client
+	worker        *hatchet.Worker
+	errorReporter lib.ErrorReporter
+	pubsub        port.PubSub
 }
 
 func NewHatchetEngine(
@@ -35,7 +34,6 @@ func NewHatchetEngine(
 	errorReporter lib.ErrorReporter,
 	webhookSteps *steps.OutgoingWebhookSteps,
 	dunningSteps *steps.DunningSteps,
-	settingRepository port.SettingRepository,
 	pubsub port.PubSub,
 ) *Hatchet {
 	logger.Infof("Initializing Hatchet engine [host_port=%s][namespace=%s]", env.HatchetHostPort, env.HatchetNamespace)
@@ -50,9 +48,17 @@ func NewHatchetEngine(
 		panic(err)
 	}
 
-	// Build workflows. The runner needs the client so it can spawn child
-	// workflows; the other workflows only need their step deps.
-	paymentSuccessWF := hatchetwf.NewPaymentSuccessWorkflow(c, orderSteps)
+	// Build the engine first so workflow definitions that need to call back
+	// through the port (e.g. payment-success spawning the subscription runner)
+	// can be wired with the engine reference.
+	h := &Hatchet{
+		logger:        logger,
+		client:        c,
+		errorReporter: errorReporter,
+		pubsub:        pubsub,
+	}
+
+	paymentSuccessWF := hatchetwf.NewPaymentSuccessWorkflow(c, orderSteps, h)
 	paymentRefundedWF := hatchetwf.NewPaymentRefundedWorkflow(c, orderSteps)
 	outgoingWebhookWF := hatchetwf.NewOutgoingWebhookWorkflow(c, webhookSteps)
 	billingCycleWF := hatchetwf.NewBillingCycleWorkflow(c, orderSteps)
@@ -79,6 +85,7 @@ func NewHatchetEngine(
 		logger.Error("Unable to create Hatchet worker", "err", err.Error())
 		panic(err)
 	}
+	h.worker = w
 
 	go func() {
 		if err := w.StartBlocking(context.Background()); err != nil {
@@ -87,15 +94,6 @@ func NewHatchetEngine(
 	}()
 
 	logger.Infof("Hatchet engine initialized with worker")
-
-	h := &Hatchet{
-		logger:            logger,
-		client:            c,
-		worker:            w,
-		errorReporter:     errorReporter,
-		settingRepository: settingRepository,
-		pubsub:            pubsub,
-	}
 
 	_, err = pubsub.Subscribe("subscription.*", func(topic string, data []byte) {
 		if err := h.HandleSubscriptionEvent(topic, data); err != nil {
@@ -171,23 +169,7 @@ func (h Hatchet) StartSubscriptionWorkflow(ctx context.Context, sub domain.Subsc
 		return err
 	}
 	h.logger.Info("Started subscription-runner", "RunID", ref.RunId, "OrgId", sub.OrgId, "SubscriptionId", sub.Id)
-
-	payload := map[string]string{
-		"run_id":        ref.RunId,
-		"workflow_name": "subscription-runner",
-	}
-	b, err := json.Marshal(payload)
-	if err != nil {
-		return err
-	}
-	_, err = h.settingRepository.Create(ctx, domain.Setting{
-		OrgId:    sub.OrgId,
-		ParentId: sub.Id,
-		Id:       "hatchet-workflow",
-		Type:     "hatchet.RunRef",
-		Value:    string(b),
-	})
-	return err
+	return nil
 }
 
 func (h Hatchet) UpdateSubscriptionWorkflow(ctx context.Context, updateName string, sub domain.Subscription) error {

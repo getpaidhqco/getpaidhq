@@ -8,7 +8,6 @@ require (
 	github.com/aws/aws-sdk-go-v2/service/sqs v1.37.15
 	github.com/cedar-policy/cedar-go v1.1.0
 	github.com/checkout/checkout-sdk-go v1.4.0
-	github.com/clerkinc/clerk-sdk-go v1.49.1
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/gin-gonic/gin v1.10.1
 	github.com/go-playground/validator/v10 v10.30.2
@@ -27,6 +26,7 @@ require (
 
 require (
 	github.com/aws/aws-sdk-go-v2/credentials v1.19.15
+	github.com/clerk/clerk-sdk-go/v2 v2.6.0
 	github.com/hatchet-dev/hatchet v0.86.5
 	github.com/joho/godotenv v1.5.1
 	github.com/mdwt/paystack-go v0.4.0
@@ -69,7 +69,7 @@ require (
 	github.com/getkin/kin-openapi v0.135.0 // indirect
 	github.com/getsentry/sentry-go v0.45.1 // indirect
 	github.com/gin-contrib/sse v1.0.0 // indirect
-	github.com/go-jose/go-jose/v3 v3.0.3 // indirect
+	github.com/go-jose/go-jose/v3 v3.0.4 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.21.0 // indirect
