@@ -18,6 +18,16 @@ func GenerateId(resource string) string {
 		return "ci_" + ksuid.New().String()
 	case "payment_method":
 		return "pm_" + ksuid.New().String()
+	case "dunning_campaign":
+		return "dun_" + ksuid.New().String()
+	case "dunning_attempt":
+		return "datt_" + ksuid.New().String()
+	case "dunning_communication":
+		return "dcom_" + ksuid.New().String()
+	case "dunning_configuration":
+		return "dcfg_" + ksuid.New().String()
+	case "payment_update_token":
+		return "tok_" + ksuid.New().String()
 	default:
 		return resource + "_" + ksuid.New().String()
 	}

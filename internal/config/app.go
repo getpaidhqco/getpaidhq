@@ -72,6 +72,7 @@ func NewApp() (*App, error) {
 	pspRepo := postgres.NewPspRepo(db)
 	metadataRepo := postgres.NewMetadataStoreRepo(db)
 	reportRepo := postgres.NewReportRepo(reportDB)
+	dunningRepo := postgres.NewDunningRepo(db)
 
 	// ---------------------------------------------------------------------------
 	// Infrastructure adapters
@@ -108,6 +109,7 @@ func NewApp() (*App, error) {
 	subService := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, gatewayFactory, pubsub, reporter, logger)
 	paymentService := service.NewPaymentService(paymentRepo, logger)
 	orderWorkflowService := service.NewOrderWorkflowService(orderRepo, customerRepo, subRepo, paymentMethodRepo, paymentRepo, pubsub, logger)
+	dunningService := service.NewDunningService(dunningRepo, subRepo, customerRepo, paymentRepo, subService, gatewayFactory, pubsub, reporter, logger)
 
 	// ---------------------------------------------------------------------------
 	// Workflow engine: activities are wired to the narrow services above; the
@@ -119,22 +121,33 @@ func NewApp() (*App, error) {
 	// Both Temporal and Hatchet adapters are compiled in; WORKFLOW_ENGINE selects
 	// which one is started. The narrow services above are engine-agnostic — only
 	// the activity/step wrappers and the engine itself differ.
+	//
+	// Dunning workflows are Hatchet-only at the moment; the Temporal adapter's
+	// DunningEngine methods return ErrUnsupported so the orchestration service
+	// still runs (it creates campaigns in the DB) but no workflow is spawned.
 	var engine port.Engine
+	var dunningEngine port.DunningEngine
 	switch env.WorkflowEngine {
 	case "hatchet":
 		orderSteps := hatchetsteps.NewOrderSteps(logger, orderWorkflowService, subService, paymentService, subRepo, settingRepo)
 		webhookSteps := hatchetsteps.NewOutgoingWebhookSteps(logger, webhookSubRepo, settingRepo, webhookSubService, pubsub)
-		engine = hatchet.NewHatchetEngine(logger, env, orderSteps, reporter, webhookSteps, settingRepo, pubsub)
+		dunningSteps := hatchetsteps.NewDunningSteps(logger, dunningService)
+		h := hatchet.NewHatchetEngine(logger, env, orderSteps, reporter, webhookSteps, dunningSteps, settingRepo, pubsub)
+		engine = h
+		dunningEngine = h
 	default:
 		orderActivities := activities.NewOrderActivities(orderWorkflowService, subService, paymentService, subRepo, settingRepo)
 		webhookActivities := activities.NewOutgoingWebhookActivities(webhookSubRepo, settingRepo, webhookSubService, pubsub)
-		engine = temporal.NewTemporalEngine(logger, env, orderActivities, reporter, webhookActivities, settingRepo, pubsub)
+		t := temporal.NewTemporalEngine(logger, env, orderActivities, reporter, webhookActivities, settingRepo, pubsub)
+		engine = t
+		dunningEngine = t.(port.DunningEngine)
 	}
 
 	// ---------------------------------------------------------------------------
 	// Engine-aware services and the rest.
 	// ---------------------------------------------------------------------------
 	subOrchestrationService := service.NewSubscriptionOrchestrationService(subService, engine, logger)
+	dunningOrchestrationService := service.NewDunningOrchestrationService(dunningService, dunningEngine, pubsub, reporter, logger)
 	orderService := service.NewOrderService(engine, sessionRepo, priceRepo, cartRepo, orderRepo, customerRepo, subRepo, paymentRepo, paymentMethodRepo, productRepo, gatewayFactory, pubsub, logger)
 	customerService := service.NewCustomerService(customerRepo, paymentMethodRepo, pubsub, logger, scheduler)
 	productService := service.NewProductService(productRepo, variantRepo, priceRepo, cartRepo, logger, pubsub)
@@ -166,6 +179,7 @@ func NewApp() (*App, error) {
 	reportHandler := handler.NewReportHandler(reportService, logger)
 	pspHandler := handler.NewPspHandler(pspService, logger, authzEngine)
 	paymentMethodHandler := handler.NewPaymentMethodHandler(customerHandler)
+	dunningHandler := handler.NewDunningHandler(dunningOrchestrationService, subService, logger, authzEngine)
 
 	// ---------------------------------------------------------------------------
 	// HTTP Router
@@ -186,6 +200,7 @@ func NewApp() (*App, error) {
 	reportHandler.RegisterRoutes(api)
 	pspHandler.RegisterRoutes(api)
 	paymentMethodHandler.RegisterRoutes(api)
+	dunningHandler.RegisterRoutes(api)
 
 	return &App{
 		Router: router,
