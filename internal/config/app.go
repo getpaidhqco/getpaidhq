@@ -1,25 +1,25 @@
 package config
 
 import (
-	"payloop/internal/adapter/cedar"
-	"payloop/internal/adapter/checkout_com"
-	"payloop/internal/adapter/clerk"
-	"payloop/internal/adapter/cron"
-	handler "payloop/internal/adapter/http"
-	"payloop/internal/adapter/http/middleware"
-	"payloop/internal/adapter/nats"
-	"payloop/internal/adapter/paystack"
-	"payloop/internal/adapter/postgres"
-	"payloop/internal/adapter/redis"
-	"payloop/internal/adapter/sqs"
-	"payloop/internal/adapter/hatchet"
-	hatchetsteps "payloop/internal/adapter/hatchet/steps"
-	"payloop/internal/adapter/temporal"
-	"payloop/internal/adapter/temporal/activities"
-	"payloop/internal/core/domain"
-	"payloop/internal/core/port"
-	"payloop/internal/core/service"
-	"payloop/internal/lib"
+	"getpaidhq/internal/adapter/cedar"
+	"getpaidhq/internal/adapter/checkout_com"
+	"getpaidhq/internal/adapter/clerk"
+	"getpaidhq/internal/adapter/cron"
+	handler "getpaidhq/internal/adapter/http"
+	"getpaidhq/internal/adapter/http/middleware"
+	"getpaidhq/internal/adapter/nats"
+	"getpaidhq/internal/adapter/paystack"
+	"getpaidhq/internal/adapter/postgres"
+	"getpaidhq/internal/adapter/redis"
+	"getpaidhq/internal/adapter/sqs"
+	"getpaidhq/internal/adapter/hatchet"
+	hatchetsteps "getpaidhq/internal/adapter/hatchet/steps"
+	"getpaidhq/internal/adapter/temporal"
+	"getpaidhq/internal/adapter/temporal/activities"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/core/service"
+	"getpaidhq/internal/lib"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -129,10 +129,9 @@ func NewApp() (*App, error) {
 	var dunningEngine port.DunningEngine
 	switch env.WorkflowEngine {
 	case "hatchet":
-		orderSteps := hatchetsteps.NewOrderSteps(logger, orderWorkflowService, subService, paymentService, subRepo, settingRepo)
 		webhookSteps := hatchetsteps.NewOutgoingWebhookSteps(logger, webhookSubRepo, settingRepo, webhookSubService, pubsub)
 		dunningSteps := hatchetsteps.NewDunningSteps(logger, dunningService)
-		h := hatchet.NewHatchetEngine(logger, env, orderSteps, reporter, webhookSteps, dunningSteps, pubsub)
+		h := hatchet.NewHatchetEngine(logger, env, orderWorkflowService, subService, paymentService, subRepo, reporter, webhookSteps, dunningSteps, pubsub)
 		engine = h
 		dunningEngine = h
 	default:

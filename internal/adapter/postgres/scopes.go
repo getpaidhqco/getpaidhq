@@ -2,7 +2,7 @@ package postgres
 
 import (
 	"gorm.io/gorm"
-	"payloop/internal/core/domain"
+	"getpaidhq/internal/core/domain"
 )
 
 func OrgScope(orgId string) func(db *gorm.DB) *gorm.DB {

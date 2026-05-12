@@ -3,7 +3,7 @@ package activities
 import (
 	"context"
 	"go.temporal.io/sdk/activity"
-	"payloop/internal/core/port"
+	"getpaidhq/internal/core/port"
 )
 
 type OutgoingWebhookActivities struct {

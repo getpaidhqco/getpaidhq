@@ -6,10 +6,10 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"payloop/internal/core/domain"
-	"payloop/internal/core/port"
-	"payloop/internal/core/service"
-	"payloop/internal/lib"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/core/service"
+	"getpaidhq/internal/lib"
 )
 
 type DunningHandler struct {

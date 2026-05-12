@@ -8,7 +8,7 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
-	"payloop/internal/lib"
+	"getpaidhq/internal/lib"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"

@@ -3,7 +3,7 @@ package handler
 import (
 	"time"
 
-	"payloop/internal/core/domain"
+	"getpaidhq/internal/core/domain"
 )
 
 // ---- requests ----

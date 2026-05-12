@@ -5,8 +5,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"payloop/internal/core/port"
-	"payloop/internal/core/service"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/core/service"
 )
 
 // ReportHandler handles HTTP requests for reports.

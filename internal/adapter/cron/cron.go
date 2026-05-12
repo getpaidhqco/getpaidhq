@@ -4,8 +4,8 @@ import (
 	"fmt"
 
 	"github.com/robfig/cron/v3"
-	"payloop/internal/core/port"
-	"payloop/internal/lib"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 )
 
 type CronScheduler struct {

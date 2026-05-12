@@ -3,7 +3,7 @@ package redis
 import (
 	"context"
 	"github.com/redis/go-redis/v9"
-	"payloop/internal/core/port"
+	"getpaidhq/internal/core/port"
 	"time"
 )
 

@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	paystacklib "github.com/mdwt/paystack-go"
-	"payloop/internal/core/domain"
-	"payloop/internal/core/port"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
 	"strconv"
 	"time"
 )

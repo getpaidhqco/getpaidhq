@@ -3,9 +3,9 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 
-	"payloop/internal/core/domain"
-	"payloop/internal/core/port"
-	"payloop/internal/core/service"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/core/service"
 )
 
 // CartHandler handles HTTP requests for domain.

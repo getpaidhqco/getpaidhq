@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 
-	"payloop/internal/core/domain"
+	"getpaidhq/internal/core/domain"
 )
 
 // errDunningNotImplemented is returned by the Temporal adapter for every
 // dunning-engine call. Dunning is currently a Hatchet-only feature; running
-// payloop on Temporal disables the dunning workflow path. The orchestration
+// getpaidhq on Temporal disables the dunning workflow path. The orchestration
 // service still creates campaigns in the DB but no workflow is started.
 var errDunningNotImplemented = errors.New("dunning workflows are not implemented on the Temporal engine; switch WORKFLOW_ENGINE=hatchet")
 

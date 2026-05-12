@@ -3,9 +3,9 @@ package workflows
 import (
 	"fmt"
 	temporalio "go.temporal.io/sdk/temporal"
-	"payloop/internal/adapter/temporal/activities"
-	"payloop/internal/core/domain"
-	"payloop/internal/core/port"
+	"getpaidhq/internal/adapter/temporal/activities"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
 	"time"
 
 	temporal_wf "go.temporal.io/sdk/workflow"

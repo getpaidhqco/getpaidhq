@@ -6,7 +6,7 @@ import (
 
 	"github.com/go-playground/validator/v10"
 
-	"payloop/internal/lib"
+	"getpaidhq/internal/lib"
 )
 
 // ApiError represents an API error response.

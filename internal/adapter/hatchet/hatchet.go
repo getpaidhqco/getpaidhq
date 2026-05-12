@@ -3,22 +3,20 @@ package hatchet
 import (
 	"context"
 	"encoding/json"
-	hatchetwf "payloop/internal/adapter/hatchet/workflows"
-	"payloop/internal/adapter/hatchet/steps"
-	"payloop/internal/core/domain"
-	"payloop/internal/core/port"
-	"payloop/internal/lib"
+	"getpaidhq/internal/adapter/hatchet/steps"
+	hatchetwf "getpaidhq/internal/adapter/hatchet/workflows"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
 // Hatchet implements port.Engine using Hatchet as the workflow runtime.
 //
-// Construction order is preserved from the Temporal adapter: narrow services
-// produce orderSteps + webhookSteps, those are passed in here, this engine
-// builds the workflow definitions + starts the worker, and the engine-aware
-// services (SubscriptionOrchestrationService, OrderService, WebhookService)
-// take the resulting port.Engine.
+// Workflow factories are wired with the narrow services they need directly;
+// there is no intermediate "steps" bundle for the order/subscription path.
+// Outgoing-webhook and dunning workflows still use their own step bundles.
 type Hatchet struct {
 	logger        port.Logger
 	client        *hatchet.Client
@@ -30,7 +28,10 @@ type Hatchet struct {
 func NewHatchetEngine(
 	logger port.Logger,
 	env lib.Env,
-	orderSteps *steps.OrderSteps,
+	orderService port.OrderWorkflowService,
+	subscriptionService port.SubscriptionService,
+	paymentService port.PaymentService,
+	subscriptionRepo port.SubscriptionRepository,
 	errorReporter lib.ErrorReporter,
 	webhookSteps *steps.OutgoingWebhookSteps,
 	dunningSteps *steps.DunningSteps,
@@ -58,16 +59,16 @@ func NewHatchetEngine(
 		pubsub:        pubsub,
 	}
 
-	paymentSuccessWF := hatchetwf.NewPaymentSuccessWorkflow(c, orderSteps, h)
-	paymentRefundedWF := hatchetwf.NewPaymentRefundedWorkflow(c, orderSteps)
+	paymentSuccessWF := hatchetwf.NewPaymentSuccessWorkflow(c, orderService, subscriptionRepo, h)
+	paymentRefundedWF := hatchetwf.NewPaymentRefundedWorkflow(c, paymentService)
 	outgoingWebhookWF := hatchetwf.NewOutgoingWebhookWorkflow(c, webhookSteps)
-	billingCycleWF := hatchetwf.NewBillingCycleWorkflow(c, orderSteps)
-	reminderWF := hatchetwf.NewSubscriptionChargeReminderWorkflow(c, orderSteps)
-	subscriptionRunnerWF := hatchetwf.NewSubscriptionRunnerWorkflow(c, orderSteps)
+	billingCycleWF := hatchetwf.NewBillingCycleWorkflow(c, subscriptionService)
+	reminderWF := hatchetwf.NewSubscriptionChargeReminderWorkflow(c, subscriptionService)
+	subscriptionRunnerWF := hatchetwf.NewSubscriptionRunnerWorkflow(c, subscriptionService)
 	dunningAttemptWF := hatchetwf.NewDunningAttemptWorkflow(c, dunningSteps)
 	dunningRunnerWF := hatchetwf.NewDunningRunnerWorkflow(c, dunningSteps)
 
-	w, err := c.NewWorker("payloop-events",
+	w, err := c.NewWorker("getpaidhq-events",
 		hatchet.WithWorkflows(
 			paymentSuccessWF,
 			paymentRefundedWF,

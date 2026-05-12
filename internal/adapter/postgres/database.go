@@ -4,7 +4,7 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	"payloop/internal/core/port"
+	"getpaidhq/internal/core/port"
 )
 
 func NewDatabase(dsn string, log port.Logger) (*gorm.DB, error) {

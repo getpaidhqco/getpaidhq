@@ -2,9 +2,9 @@ package checkout_com
 
 import (
 	"encoding/json"
-	"payloop/internal/core/domain"
-	"payloop/internal/core/port"
-	"payloop/internal/lib"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 )
 
 // Adapter implements port.GatewayAdapter for Checkout.com.

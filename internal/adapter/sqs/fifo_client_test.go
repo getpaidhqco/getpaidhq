@@ -2,8 +2,8 @@ package sqs
 
 import (
 	"github.com/stretchr/testify/assert"
-	"payloop/internal/core/port"
-	"payloop/internal/lib"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 	"testing"
 	"time"
 )

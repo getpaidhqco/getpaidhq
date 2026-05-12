@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
-	"payloop/internal/adapter/temporal/types"
-	"payloop/internal/core/domain"
-	"payloop/internal/core/port"
+	"getpaidhq/internal/adapter/temporal/types"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
 )
 
 // OrderActivities is the Temporal-side glue: every method is a thin wrapper

@@ -4,7 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"payloop/internal/core/domain"
+	"getpaidhq/internal/core/domain"
 	"time"
 )
 

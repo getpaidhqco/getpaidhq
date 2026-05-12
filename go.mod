@@ -1,4 +1,4 @@
-module payloop
+module getpaidhq
 
 go 1.26
 

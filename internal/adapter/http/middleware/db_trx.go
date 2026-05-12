@@ -9,8 +9,8 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"payloop/internal/core/port"
-	"payloop/internal/lib"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 )
 
 // DatabaseTrx wraps every request in a database transaction.

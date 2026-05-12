@@ -1,7 +1,7 @@
 package port
 
 import (
-	"payloop/internal/core/domain"
+	"getpaidhq/internal/core/domain"
 )
 
 // DunningCampaignEvent is published on campaign lifecycle transitions

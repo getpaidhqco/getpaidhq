@@ -1,8 +1,8 @@
 package workflows
 
 import (
-	"payloop/internal/adapter/hatchet/steps"
-	"payloop/internal/core/port"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
 	"time"
 
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
@@ -12,23 +12,23 @@ import (
 // (durably — survives worker restarts) and then sends the renewal reminder.
 // Spawned with RunNoWait and a deterministic run key by the subscription
 // runner so the parent never blocks on it.
-func NewSubscriptionChargeReminderWorkflow(client *hatchet.Client, orderSteps *steps.OrderSteps) *hatchet.StandaloneTask {
+func NewSubscriptionChargeReminderWorkflow(client *hatchet.Client, subscriptionService port.SubscriptionService) *hatchet.StandaloneTask {
 	return client.NewStandaloneDurableTask("subscription-charge-reminder",
-		func(ctx hatchet.DurableContext, input ReminderInput) (port.WorkflowResult, error) {
+		func(ctx hatchet.DurableContext, input ReminderInput) (domain.Subscription, error) {
 			now, err := ctx.Now()
 			if err != nil {
-				return port.WorkflowResult{}, err
+				return input.Subscription, err
 			}
 			wait := input.ReminderAt.Sub(now)
 			if wait > 0 {
 				if _, err := ctx.SleepFor(wait); err != nil {
-					return port.WorkflowResult{}, err
+					return input.Subscription, err
 				}
 			}
-			if err := orderSteps.ProcessReminderEvent(ctx, input.Subscription); err != nil {
-				return port.WorkflowResult{Success: false}, err
+			if err := subscriptionService.SendRenewalReminder(ctx, input.Subscription.OrgId, input.Subscription.Id); err != nil {
+				return input.Subscription, err
 			}
-			return port.WorkflowResult{Success: true, Message: "reminder sent"}, nil
+			return input.Subscription, nil
 		},
 		hatchet.WithExecutionTimeout(10*time.Second),
 	)

@@ -6,8 +6,8 @@ import (
 	"github.com/dgrijalva/jwt-go"
 	"github.com/gin-gonic/gin"
 	"net/http"
-	"payloop/internal/core/port"
-	"payloop/internal/lib"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 	"strings"
 )
 

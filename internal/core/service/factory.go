@@ -2,9 +2,9 @@ package service
 
 import (
 	"context"
-	"payloop/internal/core/domain"
-	"payloop/internal/core/port"
-	"payloop/internal/lib"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 )
 
 // GatewayFactory creates payment gateway instances from stored PSP configuration.

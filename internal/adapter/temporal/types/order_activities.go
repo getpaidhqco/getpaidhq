@@ -3,8 +3,8 @@ package types
 import (
 	"context"
 	temporal_workflow "go.temporal.io/sdk/workflow"
-	"payloop/internal/core/domain"
-	"payloop/internal/core/port"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
 )
 
 type StoreSubscriptionWorkflowContextInput struct {

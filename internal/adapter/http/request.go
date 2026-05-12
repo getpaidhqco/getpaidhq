@@ -6,7 +6,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 
-	"payloop/internal/core/domain"
+	"getpaidhq/internal/core/domain"
 )
 
 // ---------------------------------------------------------------------------

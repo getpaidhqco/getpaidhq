@@ -2,7 +2,7 @@ package postgres
 
 import (
 	"gorm.io/gorm"
-	"payloop/internal/core/port"
+	"getpaidhq/internal/core/port"
 )
 
 type UserRepo struct {

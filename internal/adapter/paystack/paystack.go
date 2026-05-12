@@ -8,8 +8,8 @@ import (
 	pscommon "github.com/mdwt/paystack-go/common"
 	pserrors "github.com/mdwt/paystack-go/errors"
 	"github.com/mdwt/paystack-go/transactions"
-	"payloop/internal/core/domain"
-	"payloop/internal/core/port"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
 	"strconv"
 )
 

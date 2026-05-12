@@ -3,7 +3,7 @@ package handler
 import (
 	"github.com/gin-gonic/gin"
 
-	"payloop/internal/core/port"
+	"getpaidhq/internal/core/port"
 )
 
 // HealthHandler handles health check requests.

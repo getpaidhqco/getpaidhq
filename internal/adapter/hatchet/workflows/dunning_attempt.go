@@ -3,8 +3,8 @@ package workflows
 import (
 	"time"
 
-	"payloop/internal/adapter/hatchet/steps"
-	"payloop/internal/core/domain"
+	"getpaidhq/internal/adapter/hatchet/steps"
+	"getpaidhq/internal/core/domain"
 
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )

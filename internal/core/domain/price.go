@@ -1,7 +1,7 @@
 package domain
 
 import (
-	"payloop/internal/lib"
+	"getpaidhq/internal/lib"
 	"time"
 )
 

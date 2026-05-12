@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"payloop/internal/core/domain"
-	"payloop/internal/core/port"
-	"payloop/internal/lib"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 )
 
 // DunningService is the narrow, engine-agnostic dunning aggregate root.

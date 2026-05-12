@@ -1,7 +1,7 @@
 package middleware
 
 import (
-	"payloop/internal/adapter/cedar"
+	"getpaidhq/internal/adapter/cedar"
 )
 
 // IMiddleware is the interface that all middlewares must implement.

@@ -2,7 +2,7 @@ package domain
 
 import (
 	"maps"
-	"payloop/internal/lib"
+	"getpaidhq/internal/lib"
 	"time"
 )
 

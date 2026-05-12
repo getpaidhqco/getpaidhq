@@ -1,7 +1,7 @@
 package main
 
 import (
-	"payloop/internal/config"
+	"getpaidhq/internal/config"
 )
 
 func main() {

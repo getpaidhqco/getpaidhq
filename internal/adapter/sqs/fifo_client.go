@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/credentials"
-	"payloop/internal/core/port"
-	"payloop/internal/lib"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 
 	"time"
 
@@ -122,7 +122,7 @@ func (c SQSFifoClient) SendMessage(ctx context.Context, data port.QueueMessage) 
 	rsp, err := c.client.SendMessage(ctx, &sqs.SendMessageInput{
 		QueueUrl:       aws.String(queueUrl),
 		MessageBody:    aws.String(string(messageBody)),
-		MessageGroupId: aws.String("payloop"),
+		MessageGroupId: aws.String("getpaidhq"),
 	})
 	if err != nil {
 		return lib.NewCustomError(lib.InternalError, "failed to send message", err)

@@ -14,8 +14,8 @@ import (
 	"github.com/checkout/checkout-sdk-go/payments/nas"
 	"github.com/checkout/checkout-sdk-go/payments/nas/sources"
 	payment_sessions "github.com/checkout/checkout-sdk-go/payments/sessions"
-	"payloop/internal/core/domain"
-	"payloop/internal/core/port"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
 )
 
 type CheckoutDotCom struct {

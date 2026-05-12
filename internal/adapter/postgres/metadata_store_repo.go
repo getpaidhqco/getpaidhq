@@ -4,8 +4,8 @@ import (
 	"context"
 
 	"gorm.io/gorm"
-	"payloop/internal/core/domain"
-	"payloop/internal/core/port"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
 )
 
 type MetadataStoreRepo struct {

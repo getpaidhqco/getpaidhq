@@ -25,7 +25,7 @@ Selecting the workflow engine:
 - First-time bootstrap (after the stack is up):
   1. The default tenant + admin user are seeded automatically. Tenant id is in the `Tenant` table of the `hatchet` DB (slug `default`).
   2. Mint a token: `docker exec hatchet-lite /hatchet-admin --config /config token create --name local-dev --tenant-id <tenant-id>`. The `--config /config` flag is required to load the auto-generated encryption keyset.
-  3. Set in `.env`: `HATCHET_CLIENT_TOKEN=<token>`. The other client vars (`HATCHET_CLIENT_HOST_PORT=localhost:7077`, `HATCHET_CLIENT_NAMESPACE=payloop`, `HATCHET_CLIENT_TLS_STRATEGY=none`) are already there.
+  3. Set in `.env`: `HATCHET_CLIENT_TOKEN=<token>`. The other client vars (`HATCHET_CLIENT_HOST_PORT=localhost:7077`, `HATCHET_CLIENT_NAMESPACE=getpaidhq`, `HATCHET_CLIENT_TLS_STRATEGY=none`) are already there.
 
 Database schema (Prisma is the source of truth, no migrations — clean-slate `db push` only):
 - `pnpm prisma:push` — push operational schema (`schemas/getpaidhq/schema.prisma`) to `DATABASE_URL`.
@@ -70,7 +70,7 @@ The wrapping happens at the type level (the orchestration service embeds the nar
 Two adapters are compiled in; `WORKFLOW_ENGINE` selects at startup. The factory lives in `internal/config/app.go` (right after the narrow services are built).
 
 - **Temporal** — `internal/adapter/temporal/temporal.go` boots a single worker on task queue `events` in namespace `subscriptions`. Workflows: `PaymentSuccessWorkflow`, `SubscriptionChargeReminder`, `SubscriptionWorkflow`, `OutgoingWebhookWorkflow`, `PaymentRefunded`. The Temporal adapter implements `port.DunningEngine` as stubs that return `ErrUnsupported` — dunning runs in Hatchet only.
-- **Hatchet** — `internal/adapter/hatchet/hatchet.go` boots a single worker named `payloop-events`. Workflows: `payment-success` (DAG), `payment-refunded`, `outgoing-webhook`, `billing-cycle` (DAG), `subscription-charge-reminder` (durable), `subscription-runner` (durable; long-running, one per subscription), `dunning-runner` (durable; long-running, one per failed charge), `dunning-attempt` (DAG; one per retry inside a dunning campaign).
+- **Hatchet** — `internal/adapter/hatchet/hatchet.go` boots a single worker named `getpaidhq-events`. Workflows: `payment-success` (DAG), `payment-refunded`, `outgoing-webhook`, `billing-cycle` (DAG), `subscription-charge-reminder` (durable), `subscription-runner` (durable; long-running, one per subscription), `dunning-runner` (durable; long-running, one per failed charge), `dunning-attempt` (DAG; one per retry inside a dunning campaign).
 - Engine ports: `port.Engine` exposes `StartWorkflow`, `StartSubscriptionWorkflow`, `UpdateSubscriptionWorkflow`, `CancelSubscriptionWorkflow`, `SignalSubscriptionWorkflow`. `port.DunningEngine` exposes `StartDunningWorkflow`, `SignalDunningWorkflow`, `CancelDunningWorkflow`. The Hatchet engine type satisfies both; the Temporal engine type satisfies both but its dunning methods are stubs.
 
 **Hatchet update semantics (different from Temporal!).** Today's Temporal `UpdateSubscriptionWorkflow` blocks until the workflow's update handler runs (`WaitForStage: WorkflowUpdateStageCompleted`). The Hatchet equivalent pushes a user event (`update:<updateName>:<orgId>:<subId>`) and returns immediately — fire-and-forget. The durable runner observes the event in its select loop, usually within seconds. Callers in `subscription_orchestration.go` already `pubsub.Publish` after, so downstream observers are unaffected; do **not** assume synchronous acknowledgment when reading post-call state.
@@ -105,7 +105,7 @@ Adapter registry in `app.go`: `map[domain.Gateway]port.GatewayAdapter` with `dom
 
 ### Two databases
 
-- `DATABASE_URL` → `payloop` (operational), `REPORTING_DATABASE_URL` → `payloop_reporting` (reports). If the reporting URL fails to connect, the code falls back to the operational DB (see `app.go:48`).
+- `DATABASE_URL` → `getpaidhq` (operational), `REPORTING_DATABASE_URL` → `getpaidhq_reports` (reports). If the reporting URL fails to connect, the code falls back to the operational DB (see `app.go:48`).
 - The trigger that populates the reporting DB has been removed; `ReportService.ProcessDataChange` is still in place and will be hooked up to a replacement mechanism later.
 
 ## Conventions and gotchas

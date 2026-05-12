@@ -5,8 +5,8 @@ import (
 	"go.temporal.io/api/enums/v1"
 	temporalio "go.temporal.io/sdk/temporal"
 	"log/slog"
-	"payloop/internal/adapter/temporal/activities"
-	"payloop/internal/core/domain"
+	"getpaidhq/internal/adapter/temporal/activities"
+	"getpaidhq/internal/core/domain"
 	"time"
 
 	"go.temporal.io/sdk/workflow"

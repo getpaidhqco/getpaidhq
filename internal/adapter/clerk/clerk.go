@@ -7,9 +7,9 @@ import (
 	"github.com/clerk/clerk-sdk-go/v2/organization"
 	"github.com/clerk/clerk-sdk-go/v2/organizationmembership"
 
-	"payloop/internal/core/domain"
-	"payloop/internal/core/port"
-	"payloop/internal/lib"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 )
 
 // ClerkClient implements port.AuthProvider against the Clerk Backend API

@@ -1,8 +1,8 @@
 package cedar
 
 import (
-	"payloop/internal/core/port"
-	"payloop/internal/lib"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 )
 
 type CedarMiddleware struct {

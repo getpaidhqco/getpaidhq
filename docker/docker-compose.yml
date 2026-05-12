@@ -16,7 +16,7 @@ services:
       POSTGRES_DB: getpaidhq
     image: postgres:17
     networks:
-      - payloop-network
+      - getpaidhq-network
     # Host port 6432 is mapped to the container's 5432 to avoid clashing with
     # other local Postgres containers running on the default port.
     ports:
@@ -55,7 +55,7 @@ services:
       SERVER_DEFAULT_ENGINE_VERSION: "V1"
       SERVER_URL: "http://localhost:8888"
     networks:
-      - payloop-network
+      - getpaidhq-network
     ports:
       - "8888:8888"
       - "7077:7077"
@@ -66,9 +66,9 @@ services:
       - hatchet-config:/config
 
 networks:
-  payloop-network:
+  getpaidhq-network:
     driver: bridge
-    name: payloop-network
+    name: getpaidhq-network
 
 volumes:
   getpaidhq-pgdata:

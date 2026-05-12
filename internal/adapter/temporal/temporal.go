@@ -8,11 +8,11 @@ import (
 	"go.temporal.io/sdk/worker"
 	temporal "go.temporal.io/sdk/workflow"
 	"log/slog"
-	"payloop/internal/adapter/temporal/activities"
-	"payloop/internal/adapter/temporal/workflows"
-	"payloop/internal/core/domain"
-	"payloop/internal/core/port"
-	"payloop/internal/lib"
+	"getpaidhq/internal/adapter/temporal/activities"
+	"getpaidhq/internal/adapter/temporal/workflows"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 )
 
 type Temporal struct {

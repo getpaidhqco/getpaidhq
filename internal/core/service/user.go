@@ -1,7 +1,7 @@
 package service
 
 import (
-	"payloop/internal/core/port"
+	"getpaidhq/internal/core/port"
 )
 
 type UserService struct {

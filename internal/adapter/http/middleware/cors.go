@@ -3,8 +3,8 @@ package middleware
 import (
 	cors "github.com/rs/cors/wrapper/gin"
 
-	"payloop/internal/core/port"
-	"payloop/internal/lib"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 )
 
 // CorsMiddleware handles CORS configuration.

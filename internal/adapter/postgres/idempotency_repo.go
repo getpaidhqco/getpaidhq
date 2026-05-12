@@ -5,7 +5,7 @@ import (
 	"time"
 
 	"gorm.io/gorm"
-	"payloop/internal/core/port"
+	"getpaidhq/internal/core/port"
 )
 
 type IdempotencyKeyEntity struct {

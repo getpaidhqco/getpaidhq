@@ -2,8 +2,8 @@ package nats
 
 import (
 	"github.com/stretchr/testify/assert"
-	"payloop/internal/core/domain"
-	"payloop/internal/lib"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/lib"
 	"testing"
 	"time"
 )

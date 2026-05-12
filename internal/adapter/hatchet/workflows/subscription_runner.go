@@ -1,8 +1,8 @@
 package workflows
 
 import (
-	"payloop/internal/adapter/hatchet/steps"
-	"payloop/internal/core/domain"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
 	"time"
 
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
@@ -23,11 +23,11 @@ import (
 //     payload and the loop restarts with that state.
 //  4. When the sleep wins, spawn the billing-cycle DAG and await ChargeResult.
 //  5. If ChargeResult.Status is Pending, wait up to 1h for a webhook event.
-//  6. Hand the (possibly webhook-updated) ChargeResult to HandleChargeResult.
+//  6. Hand the (possibly webhook-updated) ChargeResult to SubscriptionService.
 //  7. Loop.
 //
 // Terminal exit: Cancelled, Expired, or a cancel:<sub> event.
-func NewSubscriptionRunnerWorkflow(client *hatchet.Client, orderSteps *steps.OrderSteps) *hatchet.StandaloneTask {
+func NewSubscriptionRunnerWorkflow(client *hatchet.Client, subscriptionService port.SubscriptionService) *hatchet.StandaloneTask {
 	return client.NewStandaloneDurableTask("subscription-runner",
 		func(ctx hatchet.DurableContext, sub domain.Subscription) (domain.Subscription, error) {
 			for {
@@ -76,7 +76,7 @@ func NewSubscriptionRunnerWorkflow(client *hatchet.Client, orderSteps *steps.Ord
 					return sub, err
 				}
 
-				keysSeen := waitResult.Keys()
+				keysSeen := waitedKeys(waitResult)
 				if containsKey(keysSeen, cancelKey) {
 					return sub, nil
 				}
@@ -85,7 +85,7 @@ func NewSubscriptionRunnerWorkflow(client *hatchet.Client, orderSteps *steps.Ord
 				for _, k := range []string{pausedKey, resumedKey, cancelledKey, activatedKey, refreshKey} {
 					if containsKey(keysSeen, k) {
 						var updated domain.Subscription
-						if err := waitResult.Unmarshal(k, &updated); err == nil && updated.Id != "" {
+						if err := unmarshalWaited(waitResult, k, &updated); err == nil && updated.Id != "" {
 							sub = updated
 						}
 						eventFired = true
@@ -137,15 +137,21 @@ func NewSubscriptionRunnerWorkflow(client *hatchet.Client, orderSteps *steps.Ord
 						hatchet.SleepCondition(1*time.Hour),
 						hatchet.UserEventCondition(webhookKey, ""),
 					))
-					if err == nil && containsKey(wr.Keys(), webhookKey) {
+					if err == nil && containsKey(waitedKeys(wr), webhookKey) {
 						var fromWebhook domain.ChargeResult
-						if err := wr.Unmarshal(webhookKey, &fromWebhook); err == nil {
+						if err := unmarshalWaited(wr, webhookKey, &fromWebhook); err == nil {
 							chargeResult = fromWebhook
 						}
 					}
 				}
 
-				updated, err := orderSteps.HandleChargeResult(ctx, sub, chargeResult)
+				chargeInput := domain.SubscriptionChargeInput{Subscription: sub, ChargeResult: chargeResult}
+				var updated domain.Subscription
+				if chargeResult.Status == domain.PaymentStatusSucceeded {
+					updated, err = subscriptionService.HandleSubscriptionChargeSuccess(ctx, chargeInput)
+				} else {
+					updated, err = subscriptionService.HandleSubscriptionChargeFailure(ctx, chargeInput)
+				}
 				if err != nil {
 					return sub, err
 				}
@@ -171,4 +177,3 @@ func containsKey(keys []string, target string) bool {
 	}
 	return false
 }
-

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"payloop/internal/core/domain"
+	"getpaidhq/internal/core/domain"
 )
 
 // PubSub defines the interface for publish/subscribe messaging.

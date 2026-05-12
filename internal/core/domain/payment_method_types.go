@@ -2,7 +2,7 @@ package domain
 
 import (
 	"encoding/json"
-	"payloop/internal/lib"
+	"getpaidhq/internal/lib"
 	"strconv"
 	"time"
 )

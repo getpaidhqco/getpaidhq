@@ -5,8 +5,8 @@ import (
 	"io"
 	"log"
 	"os"
-	"payloop/internal/core/port"
-	"payloop/internal/lib"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 )
 
 type CedarAuthz struct {

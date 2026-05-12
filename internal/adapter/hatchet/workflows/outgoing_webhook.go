@@ -1,8 +1,8 @@
 package workflows
 
 import (
-	"payloop/internal/adapter/hatchet/steps"
-	"payloop/internal/core/port"
+	"getpaidhq/internal/adapter/hatchet/steps"
+	"getpaidhq/internal/core/port"
 	"time"
 
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
