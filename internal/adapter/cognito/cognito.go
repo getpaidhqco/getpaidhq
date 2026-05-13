@@ -8,21 +8,16 @@ import (
 	"fmt"
 	"math/big"
 	"net/http"
-	"getpaidhq/internal/lib"
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
-	"github.com/gin-gonic/gin"
+
+	"getpaidhq/internal/lib"
 )
 
 var (
 	ErrInvalidParam = errors.New("invalid param")
 )
-
-type Client interface {
-	VerifyToken(tokenStr string) (*jwt.Token, error)
-	Authorize(c *gin.Context)
-}
 
 type Cognito struct {
 	// AWS App Client Id

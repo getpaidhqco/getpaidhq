@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/rs/cors"
 
@@ -9,8 +10,10 @@ import (
 	"getpaidhq/internal/lib"
 )
 
-// CorsMiddleware builds the project's CORS handler. It is a thin wrapper
-// over github.com/rs/cors so the configuration lives in one place.
+// CorsMiddleware builds the project's CORS handler. Origins are
+// read from the ALLOWED_ORIGINS env var (comma-separated). An explicit
+// "*" entry enables permissive CORS for development; an empty value
+// rejects every cross-origin request.
 type CorsMiddleware struct {
 	logger port.Logger
 	env    lib.Env
@@ -22,11 +25,49 @@ func NewCorsMiddleware(logger port.Logger, env lib.Env) CorsMiddleware {
 
 // Handler returns a net/http middleware suitable for fuego.WithGlobalMiddlewares.
 func (m CorsMiddleware) Handler() func(http.Handler) http.Handler {
-	m.logger.Info("Setting up cors middleware")
-	return cors.New(cors.Options{
-		AllowCredentials: true,
-		AllowOriginFunc:  func(origin string) bool { return true },
+	allowed := parseOrigins(m.env.AllowedOrigins)
+	openCors := contains(allowed, "*")
+
+	opts := cors.Options{
+		AllowCredentials: !openCors, // wildcard + credentials is illegal per CORS spec
 		AllowedHeaders:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "HEAD", "PATCH", "OPTIONS", "DELETE"},
-	}).Handler
+	}
+
+	switch {
+	case openCors:
+		m.logger.Info("CORS configured with wildcard origin (ALLOWED_ORIGINS=\"*\")")
+		opts.AllowOriginFunc = func(string) bool { return true }
+	case len(allowed) == 0:
+		m.logger.Info("CORS configured with no allowed origins (ALLOWED_ORIGINS unset)")
+		opts.AllowOriginFunc = func(string) bool { return false }
+	default:
+		m.logger.Info("CORS allowed origins", "origins", allowed)
+		opts.AllowedOrigins = allowed
+	}
+
+	return cors.New(opts).Handler
+}
+
+func parseOrigins(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if v := strings.TrimSpace(p); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func contains(haystack []string, needle string) bool {
+	for _, v := range haystack {
+		if v == needle {
+			return true
+		}
+	}
+	return false
 }

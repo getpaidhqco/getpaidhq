@@ -32,6 +32,10 @@ type Env struct {
 	HatchetHostPort     string `mapstructure:"HATCHET_CLIENT_HOST_PORT"`
 	HatchetNamespace    string `mapstructure:"HATCHET_CLIENT_NAMESPACE"`
 	HatchetTLSStrategy  string `mapstructure:"HATCHET_CLIENT_TLS_STRATEGY"`
+
+	// AllowedOrigins is a comma-separated list of CORS origins. When empty,
+	// only same-origin requests succeed; "*" enables open CORS (dev only).
+	AllowedOrigins string `mapstructure:"ALLOWED_ORIGINS"`
 }
 
 // NewEnv creates a new environment
@@ -69,6 +73,7 @@ func NewEnv() Env {
 	viper.BindEnv("HATCHET_CLIENT_HOST_PORT")
 	viper.BindEnv("HATCHET_CLIENT_NAMESPACE")
 	viper.BindEnv("HATCHET_CLIENT_TLS_STRATEGY")
+	viper.BindEnv("ALLOWED_ORIGINS")
 	err = viper.Unmarshal(&env)
 	if err != nil {
 		log.Println("☠️ cannot read configuration file, reading from environment")
