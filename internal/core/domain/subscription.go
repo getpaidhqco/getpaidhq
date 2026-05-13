@@ -9,14 +9,14 @@ import (
 type CreateSubscriptionInput struct {
 	OrgId string `json:"org_id"`
 
-	PaymentMethodId string `json:"payment_method_id" binding:"required"`
+	PaymentMethodId string `json:"payment_method_id" validate:"required"`
 	Activate        bool   `json:"activate"`
 
-	Amount   int64  `json:"amount" binding:"required"`
-	Currency string `json:"currency" binding:"required"`
+	Amount   int64  `json:"amount" validate:"required"`
+	Currency string `json:"currency" validate:"required"`
 
-	BillingInterval    BillingInterval `json:"billing_interval" binding:"required"`
-	BillingIntervalQty int             `json:"billing_interval_qty" binding:"required"`
+	BillingInterval    BillingInterval `json:"billing_interval" validate:"required"`
+	BillingIntervalQty int             `json:"billing_interval_qty" validate:"required"`
 	Cycles             int             `json:"cycles"`
 
 	TrialInterval    BillingInterval `json:"trial_interval"`

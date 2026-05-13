@@ -1,43 +1,34 @@
 package handler
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
+	"github.com/go-fuego/fuego/option"
 
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
 )
 
-// OrgHandler handles HTTP requests for organizations.
 type OrgHandler struct {
 	service *service.OrgService
 	logger  port.Logger
 }
 
-// NewOrgHandler creates a new OrgHandler.
 func NewOrgHandler(service *service.OrgService, logger port.Logger) *OrgHandler {
-	return &OrgHandler{
-		service: service,
-		logger:  logger,
-	}
+	return &OrgHandler{service: service, logger: logger}
 }
 
-// RegisterRoutes registers organization routes on the given router group.
-func (u *OrgHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.POST("/organizations", u.Create)
+func (u *OrgHandler) RegisterRoutes(s *fuego.Server) {
+	g := fuego.Group(s, "/organizations", option.Tags("Organizations"))
+	fuego.Post(g, "", u.Create, option.Summary("Create an organization"))
 }
 
-func (u *OrgHandler) Create(c *gin.Context) {
-	var input CreateOrgInput
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+func (u *OrgHandler) Create(c fuego.ContextWithBody[CreateOrgInput]) (any, error) {
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
+	if err != nil {
+		return nil, err
 	}
-
-	t, err := u.service.Create(c.Request.Context(), port.CreateOrgInput{
+	t, err := u.service.Create(c.Context(), port.CreateOrgInput{
 		Owner:    authUser,
 		Name:     input.Name,
 		Country:  input.Country,
@@ -45,10 +36,7 @@ func (u *OrgHandler) Create(c *gin.Context) {
 		Metadata: input.Metadata,
 	})
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return nil, NewApiErrorFromError(err)
 	}
-
-	c.JSON(200, t)
+	return t, nil
 }

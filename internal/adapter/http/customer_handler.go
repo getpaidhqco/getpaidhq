@@ -1,9 +1,8 @@
 package handler
 
 import (
-	"net/http"
-
-	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
+	"github.com/go-fuego/fuego/option"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
@@ -24,140 +23,94 @@ func NewCustomerHandler(customerService *service.CustomerService, logger port.Lo
 	}
 }
 
-func (cc *CustomerHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/customers", cc.List)
-	rg.GET("/customers/:id", cc.Get)
-	rg.POST("/customers", cc.Create)
-	rg.POST("/customers/:id/payment-methods", cc.CreateCustomerPaymentMethod)
-	rg.PUT("/customers/:id/payment-methods/:pmid", cc.UpdateCustomerPaymentMethod)
+func (cc *CustomerHandler) RegisterRoutes(s *fuego.Server) {
+	g := fuego.Group(s, "/customers", option.Tags("Customers"))
+	fuego.Get(g, "", cc.List, option.Summary("List customers"))
+	fuego.Get(g, "/{id}", cc.Get, option.Summary("Get a customer"))
+	fuego.Post(g, "", cc.Create, option.Summary("Create a customer"))
+	fuego.Post(g, "/{id}/payment-methods", cc.CreateCustomerPaymentMethod, option.Summary("Add a payment method to a customer"))
+	fuego.Put(g, "/{id}/payment-methods/{pmid}", cc.UpdateCustomerPaymentMethod, option.Summary("Update a customer's payment method"))
 }
 
-func (cc *CustomerHandler) Create(c *gin.Context) {
-	var input domain.CreateCustomerInput
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
-	}
-
-	customer, err := cc.customerService.Create(c.Request.Context(), authUser.OrgId, input)
+func (cc *CustomerHandler) Create(c fuego.ContextWithBody[domain.CreateCustomerInput]) (domain.Customer, error) {
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return domain.Customer{}, err
 	}
 
-	c.JSON(http.StatusOK, customer)
+	customer, err := cc.customerService.Create(c.Context(), authUser.OrgId, input)
+	if err != nil {
+		return domain.Customer{}, NewApiErrorFromError(err)
+	}
+	return customer, nil
 }
 
-func (cc *CustomerHandler) CreateCustomerPaymentMethod(c *gin.Context) {
-	var input domain.CreatePaymentMethodInput
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-	customerId := c.Param("id")
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+func (cc *CustomerHandler) CreateCustomerPaymentMethod(c fuego.ContextWithBody[domain.CreatePaymentMethodInput]) (domain.PaymentMethod, error) {
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
+	if err != nil {
+		return domain.PaymentMethod{}, err
 	}
-
 	input.OrgId = authUser.OrgId
-	input.CustomerId = customerId
+	input.CustomerId = c.PathParam("id")
 
-	paymentMethod, err := cc.customerService.CreatePaymentMethod(c.Request.Context(), authUser.OrgId, input)
+	pm, err := cc.customerService.CreatePaymentMethod(c.Context(), authUser.OrgId, input)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return domain.PaymentMethod{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(http.StatusOK, paymentMethod)
+	return pm, nil
 }
 
-func (cc *CustomerHandler) UpdateCustomerPaymentMethod(c *gin.Context) {
-	var input domain.UpdatePaymentMethodInput
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-	customerId := c.Param("id")
-	pmId := c.Param("pmid")
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+func (cc *CustomerHandler) UpdateCustomerPaymentMethod(c fuego.ContextWithBody[domain.UpdatePaymentMethodInput]) (domain.PaymentMethod, error) {
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
+	if err != nil {
+		return domain.PaymentMethod{}, err
 	}
-
 	input.OrgId = authUser.OrgId
-	input.CustomerId = customerId
-	input.PaymentMethodId = pmId
+	input.CustomerId = c.PathParam("id")
+	input.PaymentMethodId = c.PathParam("pmid")
 
-	paymentMethod, err := cc.customerService.UpdatePaymentMethod(c.Request.Context(), authUser.OrgId, input)
+	pm, err := cc.customerService.UpdatePaymentMethod(c.Context(), authUser.OrgId, input)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return domain.PaymentMethod{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(http.StatusOK, paymentMethod)
+	return pm, nil
 }
 
-func (cc *CustomerHandler) GetCustomerPaymentMethod(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-	paymentMethodId := c.Param("id")
-
-	paymentMethod, err := cc.customerService.GetPaymentMethod(c.Request.Context(), authUser.OrgId, paymentMethodId)
+func (cc *CustomerHandler) GetCustomerPaymentMethod(c fuego.ContextNoBody) (domain.PaymentMethod, error) {
+	authUser := AuthUserFrom(c)
+	pm, err := cc.customerService.GetPaymentMethod(c.Context(), authUser.OrgId, c.PathParam("id"))
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return domain.PaymentMethod{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(http.StatusOK, paymentMethod)
+	return pm, nil
 }
 
-func (cc *CustomerHandler) Get(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-	customerId := c.Param("id")
-
-	customer, err := cc.customerService.Get(c.Request.Context(), authUser.OrgId, customerId)
+func (cc *CustomerHandler) Get(c fuego.ContextNoBody) (CustomerResponse, error) {
+	authUser := AuthUserFrom(c)
+	customer, err := cc.customerService.Get(c.Context(), authUser.OrgId, c.PathParam("id"))
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return CustomerResponse{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(http.StatusOK, NewCustomerFromEntity(customer))
+	return NewCustomerFromEntity(customer), nil
 }
 
-func (cc *CustomerHandler) List(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+func (cc *CustomerHandler) List(c fuego.ContextNoBody) (ListResponse, error) {
+	authUser := AuthUserFrom(c)
 	pagination := GetPagination(c)
 
-	customers, total, err := cc.customerService.List(c.Request.Context(), authUser.OrgId, pagination)
+	customers, total, err := cc.customerService.List(c.Context(), authUser.OrgId, pagination)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return ListResponse{}, NewApiErrorFromError(err)
 	}
-
 	customerResponses := make([]CustomerResponse, len(customers))
 	for i, customer := range customers {
 		customerResponses[i] = NewCustomerFromEntity(customer)
 	}
-
-	c.JSON(http.StatusOK, ListResponse{
+	return ListResponse{
 		Data: customerResponses,
-		Meta: Meta{
-			Total: total,
-			Page:  pagination.Page,
-			Limit: pagination.Limit,
-		},
-	})
+		Meta: Meta{Total: total, Page: pagination.Page, Limit: pagination.Limit},
+	}, nil
 }

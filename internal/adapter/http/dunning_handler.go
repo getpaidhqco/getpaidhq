@@ -1,10 +1,13 @@
 package handler
 
 import (
+	"net"
 	"net/http"
+	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
+	"github.com/go-fuego/fuego/option"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
@@ -33,227 +36,215 @@ func NewDunningHandler(
 	}
 }
 
-func (h *DunningHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/dunning/campaigns", h.ListCampaigns)
-	rg.GET("/dunning/campaigns/:id", h.GetCampaign)
-	rg.PATCH("/dunning/campaigns/:id", h.UpdateCampaign)
-	rg.GET("/dunning/campaigns/:id/attempts", h.ListCampaignAttempts)
-	rg.POST("/dunning/campaigns/:id/attempts", h.TriggerManualAttempt)
-	rg.GET("/dunning/campaigns/:id/communications", h.ListCampaignCommunications)
+func (h *DunningHandler) RegisterRoutes(s *fuego.Server) {
+	campaigns := fuego.Group(s, "/dunning/campaigns", option.Tags("Dunning Campaigns"))
+	fuego.Get(campaigns, "", h.ListCampaigns, option.Summary("List dunning campaigns"))
+	fuego.Get(campaigns, "/{id}", h.GetCampaign, option.Summary("Get a dunning campaign"))
+	fuego.Patch(campaigns, "/{id}", h.UpdateCampaign, option.Summary("Update a dunning campaign"))
+	fuego.Get(campaigns, "/{id}/attempts", h.ListCampaignAttempts, option.Summary("List dunning campaign attempts"))
+	fuego.Post(campaigns, "/{id}/attempts", h.TriggerManualAttempt, option.Summary("Trigger a manual dunning attempt"))
+	fuego.Get(campaigns, "/{id}/communications", h.ListCampaignCommunications, option.Summary("List dunning campaign communications"))
 
-	rg.POST("/payment-tokens/verify", h.VerifyPaymentToken)
-	rg.POST("/payment-tokens/activate", h.ActivatePaymentToken)
-	rg.POST("/admin/subscriptions/:id/payment-tokens", h.CreatePaymentToken)
+	tokens := fuego.Group(s, "/payment-tokens", option.Tags("Payment Update Tokens"))
+	fuego.Post(tokens, "/verify", h.VerifyPaymentToken, option.Summary("Verify a payment update token"))
+	fuego.Post(tokens, "/activate", h.ActivatePaymentToken, option.Summary("Activate a payment update token"))
 
-	rg.GET("/dunning/configurations", h.ListConfigurations)
-	rg.GET("/dunning/configurations/:id", h.GetConfiguration)
-	rg.POST("/dunning/configurations", h.CreateConfiguration)
-	rg.PATCH("/dunning/configurations/:id", h.UpdateConfiguration)
+	adminTokens := fuego.Group(s, "/admin/subscriptions", option.Tags("Payment Update Tokens"))
+	fuego.Post(adminTokens, "/{id}/payment-tokens", h.CreatePaymentToken, option.Summary("Admin: create a payment update token"))
 
-	rg.GET("/customers/:id/dunning-history", h.GetCustomerDunningHistory)
+	configs := fuego.Group(s, "/dunning/configurations", option.Tags("Dunning Configurations"))
+	fuego.Get(configs, "", h.ListConfigurations, option.Summary("List dunning configurations"))
+	fuego.Get(configs, "/{id}", h.GetConfiguration, option.Summary("Get a dunning configuration"))
+	fuego.Post(configs, "", h.CreateConfiguration, option.Summary("Create a dunning configuration"))
+	fuego.Patch(configs, "/{id}", h.UpdateConfiguration, option.Summary("Update a dunning configuration"))
+
+	customers := fuego.Group(s, "/customers", option.Tags("Dunning"))
+	fuego.Get(customers, "/{id}/dunning-history", h.GetCustomerDunningHistory, option.Summary("Get a customer's dunning history"))
+}
+
+type dunningList struct {
+	Data  any `json:"data"`
+	Total int `json:"total"`
 }
 
 // ---- Campaigns ----
 
-func (h *DunningHandler) ListCampaigns(c *gin.Context) {
-	authUser := mustAuthUser(c)
+func (h *DunningHandler) ListCampaigns(c fuego.ContextNoBody) (dunningList, error) {
+	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionListDunningCampaigns, "") {
-		writeNotAllowed(c)
-		return
+		return dunningList{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
 	}
 	pagination := GetPagination(c)
-	campaigns, total, err := h.dunningService.ListCampaigns(c.Request.Context(), authUser.OrgId, pagination)
+	campaigns, total, err := h.dunningService.ListCampaigns(c.Context(), authUser.OrgId, pagination)
 	if err != nil {
-		writeApiErr(c, err)
-		return
+		return dunningList{}, NewApiErrorFromError(err)
 	}
 	out := make([]DunningCampaignResponse, 0, len(campaigns))
 	for _, c := range campaigns {
 		out = append(out, NewDunningCampaignResponse(c))
 	}
-	c.JSON(http.StatusOK, gin.H{"data": out, "total": total})
+	return dunningList{Data: out, Total: total}, nil
 }
 
-func (h *DunningHandler) GetCampaign(c *gin.Context) {
-	authUser := mustAuthUser(c)
-	if !h.authz.Enforce(authUser, port.ActionGetDunningCampaign, c.Param("id")) {
-		writeNotAllowed(c)
-		return
+func (h *DunningHandler) GetCampaign(c fuego.ContextNoBody) (DunningCampaignResponse, error) {
+	authUser := AuthUserFrom(c)
+	id := c.PathParam("id")
+	if !h.authz.Enforce(authUser, port.ActionGetDunningCampaign, id) {
+		return DunningCampaignResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
 	}
-	campaign, err := h.dunningService.FindCampaignById(c.Request.Context(), authUser.OrgId, c.Param("id"))
+	campaign, err := h.dunningService.FindCampaignById(c.Context(), authUser.OrgId, id)
 	if err != nil {
-		writeApiErr(c, err)
-		return
+		return DunningCampaignResponse{}, NewApiErrorFromError(err)
 	}
-	c.JSON(http.StatusOK, NewDunningCampaignResponse(campaign))
+	return NewDunningCampaignResponse(campaign), nil
 }
 
-func (h *DunningHandler) UpdateCampaign(c *gin.Context) {
-	authUser := mustAuthUser(c)
-	if !h.authz.Enforce(authUser, port.ActionUpdateDunningCampaign, c.Param("id")) {
-		writeNotAllowed(c)
-		return
+func (h *DunningHandler) UpdateCampaign(c fuego.ContextWithBody[UpdateDunningCampaignRequest]) (DunningCampaignResponse, error) {
+	authUser := AuthUserFrom(c)
+	id := c.PathParam("id")
+	if !h.authz.Enforce(authUser, port.ActionUpdateDunningCampaign, id) {
+		return DunningCampaignResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
 	}
-	var input UpdateDunningCampaignRequest
-	if err := c.ShouldBindJSON(&input); err != nil {
-		writeApiErr(c, err)
-		return
+	input, err := c.Body()
+	if err != nil {
+		return DunningCampaignResponse{}, err
 	}
 
 	var campaign domain.DunningCampaign
-	var err error
 	switch input.Status {
 	case "paused":
-		campaign, err = h.dunningService.PauseCampaign(c.Request.Context(), domain.PauseDunningCampaignInput{
-			OrgId:      authUser.OrgId,
-			CampaignId: c.Param("id"),
-			Reason:     input.Reason,
+		campaign, err = h.dunningService.PauseCampaign(c.Context(), domain.PauseDunningCampaignInput{
+			OrgId: authUser.OrgId, CampaignId: id, Reason: input.Reason,
 		})
 	case "active":
-		campaign, err = h.dunningService.ResumeCampaign(c.Request.Context(), domain.ResumeDunningCampaignInput{
-			OrgId:      authUser.OrgId,
-			CampaignId: c.Param("id"),
-			Reason:     input.Reason,
+		campaign, err = h.dunningService.ResumeCampaign(c.Context(), domain.ResumeDunningCampaignInput{
+			OrgId: authUser.OrgId, CampaignId: id, Reason: input.Reason,
 		})
 	case "cancelled":
-		campaign, err = h.dunningService.CancelCampaign(c.Request.Context(), domain.CancelDunningCampaignInput{
-			OrgId:      authUser.OrgId,
-			CampaignId: c.Param("id"),
-			Reason:     input.Reason,
+		campaign, err = h.dunningService.CancelCampaign(c.Context(), domain.CancelDunningCampaignInput{
+			OrgId: authUser.OrgId, CampaignId: id, Reason: input.Reason,
 		})
 	default:
-		writeApiErr(c, lib.NewCustomError(lib.BadRequestError, "Invalid status, must be one of active|paused|cancelled", nil))
-		return
+		return DunningCampaignResponse{}, NewApiErrorFromError(
+			lib.NewCustomError(lib.BadRequestError, "Invalid status, must be one of active|paused|cancelled", nil))
 	}
 	if err != nil {
-		writeApiErr(c, err)
-		return
+		return DunningCampaignResponse{}, NewApiErrorFromError(err)
 	}
-	c.JSON(http.StatusOK, NewDunningCampaignResponse(campaign))
+	return NewDunningCampaignResponse(campaign), nil
 }
 
 // ---- Attempts ----
 
-func (h *DunningHandler) ListCampaignAttempts(c *gin.Context) {
-	authUser := mustAuthUser(c)
-	if !h.authz.Enforce(authUser, port.ActionGetDunningCampaign, c.Param("id")) {
-		writeNotAllowed(c)
-		return
+func (h *DunningHandler) ListCampaignAttempts(c fuego.ContextNoBody) (dunningList, error) {
+	authUser := AuthUserFrom(c)
+	id := c.PathParam("id")
+	if !h.authz.Enforce(authUser, port.ActionGetDunningCampaign, id) {
+		return dunningList{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
 	}
 	pagination := GetPagination(c)
-	attempts, total, err := h.dunningService.ListAttemptsByCampaign(c.Request.Context(), authUser.OrgId, c.Param("id"), pagination)
+	attempts, total, err := h.dunningService.ListAttemptsByCampaign(c.Context(), authUser.OrgId, id, pagination)
 	if err != nil {
-		writeApiErr(c, err)
-		return
+		return dunningList{}, NewApiErrorFromError(err)
 	}
 	out := make([]DunningAttemptResponse, 0, len(attempts))
 	for _, a := range attempts {
 		out = append(out, NewDunningAttemptResponse(a))
 	}
-	c.JSON(http.StatusOK, gin.H{"data": out, "total": total})
+	return dunningList{Data: out, Total: total}, nil
 }
 
-func (h *DunningHandler) TriggerManualAttempt(c *gin.Context) {
-	authUser := mustAuthUser(c)
-	if !h.authz.Enforce(authUser, port.ActionTriggerDunningAttempt, c.Param("id")) {
-		writeNotAllowed(c)
-		return
+func (h *DunningHandler) TriggerManualAttempt(c fuego.ContextWithBody[TriggerManualAttemptRequest]) (DunningAttemptResponse, error) {
+	authUser := AuthUserFrom(c)
+	id := c.PathParam("id")
+	if !h.authz.Enforce(authUser, port.ActionTriggerDunningAttempt, id) {
+		return DunningAttemptResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
 	}
-	var input TriggerManualAttemptRequest
-	if err := c.ShouldBindJSON(&input); err != nil {
-		writeApiErr(c, err)
-		return
+	input, err := c.Body()
+	if err != nil {
+		return DunningAttemptResponse{}, err
 	}
-	attempt, err := h.dunningService.TriggerManualAttempt(c.Request.Context(), domain.TriggerManualAttemptInput{
+	attempt, err := h.dunningService.TriggerManualAttempt(c.Context(), domain.TriggerManualAttemptInput{
 		OrgId:           authUser.OrgId,
-		CampaignId:      c.Param("id"),
+		CampaignId:      id,
 		PaymentMethodId: input.PaymentMethodID,
 		TriggeredBy:     authUser.Id,
 	})
 	if err != nil {
-		writeApiErr(c, err)
-		return
+		return DunningAttemptResponse{}, NewApiErrorFromError(err)
 	}
-	c.JSON(http.StatusOK, NewDunningAttemptResponse(attempt))
+	return NewDunningAttemptResponse(attempt), nil
 }
 
 // ---- Communications ----
 
-func (h *DunningHandler) ListCampaignCommunications(c *gin.Context) {
-	authUser := mustAuthUser(c)
-	if !h.authz.Enforce(authUser, port.ActionGetDunningCampaign, c.Param("id")) {
-		writeNotAllowed(c)
-		return
+func (h *DunningHandler) ListCampaignCommunications(c fuego.ContextNoBody) (dunningList, error) {
+	authUser := AuthUserFrom(c)
+	id := c.PathParam("id")
+	if !h.authz.Enforce(authUser, port.ActionGetDunningCampaign, id) {
+		return dunningList{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
 	}
 	pagination := GetPagination(c)
-	comms, total, err := h.dunningService.ListCommunicationsByCampaign(c.Request.Context(), authUser.OrgId, c.Param("id"), pagination)
+	comms, total, err := h.dunningService.ListCommunicationsByCampaign(c.Context(), authUser.OrgId, id, pagination)
 	if err != nil {
-		writeApiErr(c, err)
-		return
+		return dunningList{}, NewApiErrorFromError(err)
 	}
 	out := make([]DunningCommunicationResponse, 0, len(comms))
 	for _, cm := range comms {
 		out = append(out, NewDunningCommunicationResponse(cm))
 	}
-	c.JSON(http.StatusOK, gin.H{"data": out, "total": total})
+	return dunningList{Data: out, Total: total}, nil
 }
 
 // ---- Tokens ----
 
-func (h *DunningHandler) VerifyPaymentToken(c *gin.Context) {
-	authUser := mustAuthUser(c)
-	var input VerifyPaymentTokenRequest
-	if err := c.ShouldBindJSON(&input); err != nil {
-		writeApiErr(c, err)
-		return
-	}
-	token, err := h.dunningService.VerifyPaymentUpdateToken(c.Request.Context(), authUser.OrgId, input.TokenID)
+func (h *DunningHandler) VerifyPaymentToken(c fuego.ContextWithBody[VerifyPaymentTokenRequest]) (PaymentUpdateTokenResponse, error) {
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
 	if err != nil {
-		writeApiErr(c, err)
-		return
+		return PaymentUpdateTokenResponse{}, err
 	}
-	c.JSON(http.StatusOK, NewPaymentUpdateTokenResponse(token))
+	token, err := h.dunningService.VerifyPaymentUpdateToken(c.Context(), authUser.OrgId, input.TokenID)
+	if err != nil {
+		return PaymentUpdateTokenResponse{}, NewApiErrorFromError(err)
+	}
+	return NewPaymentUpdateTokenResponse(token), nil
 }
 
-func (h *DunningHandler) ActivatePaymentToken(c *gin.Context) {
-	authUser := mustAuthUser(c)
-	var input ActivatePaymentTokenRequest
-	if err := c.ShouldBindJSON(&input); err != nil {
-		writeApiErr(c, err)
-		return
+func (h *DunningHandler) ActivatePaymentToken(c fuego.ContextWithBody[ActivatePaymentTokenRequest]) (PaymentUpdateTokenResponse, error) {
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
+	if err != nil {
+		return PaymentUpdateTokenResponse{}, err
 	}
-	token, err := h.dunningService.ActivatePaymentUpdateToken(c.Request.Context(), domain.ActivatePaymentUpdateTokenInput{
+	token, err := h.dunningService.ActivatePaymentUpdateToken(c.Context(), domain.ActivatePaymentUpdateTokenInput{
 		OrgId:   authUser.OrgId,
 		TokenId: input.TokenID,
-		UsedIp:  c.ClientIP(),
+		UsedIp:  clientIP(c.Request()),
 	})
 	if err != nil {
-		writeApiErr(c, err)
-		return
+		return PaymentUpdateTokenResponse{}, NewApiErrorFromError(err)
 	}
-	c.JSON(http.StatusOK, NewPaymentUpdateTokenResponse(token))
+	return NewPaymentUpdateTokenResponse(token), nil
 }
 
-func (h *DunningHandler) CreatePaymentToken(c *gin.Context) {
-	authUser := mustAuthUser(c)
-	if !h.authz.Enforce(authUser, port.ActionCreatePaymentUpdateToken, c.Param("id")) {
-		writeNotAllowed(c)
-		return
+func (h *DunningHandler) CreatePaymentToken(c fuego.ContextWithBody[CreatePaymentTokenRequest]) (PaymentUpdateTokenResponse, error) {
+	authUser := AuthUserFrom(c)
+	id := c.PathParam("id")
+	if !h.authz.Enforce(authUser, port.ActionCreatePaymentUpdateToken, id) {
+		return PaymentUpdateTokenResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
 	}
-	var input CreatePaymentTokenRequest
-	if err := c.ShouldBindJSON(&input); err != nil {
-		writeApiErr(c, err)
-		return
-	}
-
-	// Resolve the subscription to find the customer id.
-	subscription, err := h.subscriptionService.FindById(c.Request.Context(), authUser.OrgId, c.Param("id"))
+	input, err := c.Body()
 	if err != nil {
-		writeApiErr(c, err)
-		return
+		return PaymentUpdateTokenResponse{}, err
 	}
 
-	token, err := h.dunningService.CreatePaymentUpdateToken(c.Request.Context(), domain.CreatePaymentUpdateTokenInput{
+	subscription, err := h.subscriptionService.FindById(c.Context(), authUser.OrgId, id)
+	if err != nil {
+		return PaymentUpdateTokenResponse{}, NewApiErrorFromError(err)
+	}
+
+	token, err := h.dunningService.CreatePaymentUpdateToken(c.Context(), domain.CreatePaymentUpdateTokenInput{
 		OrgId:          authUser.OrgId,
 		SubscriptionId: subscription.Id,
 		CustomerId:     subscription.CustomerId,
@@ -267,59 +258,54 @@ func (h *DunningHandler) CreatePaymentToken(c *gin.Context) {
 		CreatedBy:      authUser.Id,
 	})
 	if err != nil {
-		writeApiErr(c, err)
-		return
+		return PaymentUpdateTokenResponse{}, NewApiErrorFromError(err)
 	}
-	c.JSON(http.StatusCreated, NewPaymentUpdateTokenResponse(token))
+	c.SetStatus(201)
+	return NewPaymentUpdateTokenResponse(token), nil
 }
 
 // ---- Configurations ----
 
-func (h *DunningHandler) ListConfigurations(c *gin.Context) {
-	authUser := mustAuthUser(c)
+func (h *DunningHandler) ListConfigurations(c fuego.ContextNoBody) (dunningList, error) {
+	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionListDunningConfigurations, "") {
-		writeNotAllowed(c)
-		return
+		return dunningList{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
 	}
 	pagination := GetPagination(c)
-	cfgs, total, err := h.dunningService.ListConfigurations(c.Request.Context(), authUser.OrgId, pagination)
+	cfgs, total, err := h.dunningService.ListConfigurations(c.Context(), authUser.OrgId, pagination)
 	if err != nil {
-		writeApiErr(c, err)
-		return
+		return dunningList{}, NewApiErrorFromError(err)
 	}
 	out := make([]DunningConfigurationResponse, 0, len(cfgs))
 	for _, cfg := range cfgs {
 		out = append(out, NewDunningConfigurationResponse(cfg))
 	}
-	c.JSON(http.StatusOK, gin.H{"data": out, "total": total})
+	return dunningList{Data: out, Total: total}, nil
 }
 
-func (h *DunningHandler) GetConfiguration(c *gin.Context) {
-	authUser := mustAuthUser(c)
-	if !h.authz.Enforce(authUser, port.ActionGetDunningConfiguration, c.Param("id")) {
-		writeNotAllowed(c)
-		return
+func (h *DunningHandler) GetConfiguration(c fuego.ContextNoBody) (DunningConfigurationResponse, error) {
+	authUser := AuthUserFrom(c)
+	id := c.PathParam("id")
+	if !h.authz.Enforce(authUser, port.ActionGetDunningConfiguration, id) {
+		return DunningConfigurationResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
 	}
-	cfg, err := h.dunningService.GetConfiguration(c.Request.Context(), authUser.OrgId, c.Param("id"))
+	cfg, err := h.dunningService.GetConfiguration(c.Context(), authUser.OrgId, id)
 	if err != nil {
-		writeApiErr(c, err)
-		return
+		return DunningConfigurationResponse{}, NewApiErrorFromError(err)
 	}
-	c.JSON(http.StatusOK, NewDunningConfigurationResponse(cfg))
+	return NewDunningConfigurationResponse(cfg), nil
 }
 
-func (h *DunningHandler) CreateConfiguration(c *gin.Context) {
-	authUser := mustAuthUser(c)
+func (h *DunningHandler) CreateConfiguration(c fuego.ContextWithBody[CreateDunningConfigurationRequest]) (DunningConfigurationResponse, error) {
+	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionCreateDunningConfiguration, "") {
-		writeNotAllowed(c)
-		return
+		return DunningConfigurationResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
 	}
-	var input CreateDunningConfigurationRequest
-	if err := c.ShouldBindJSON(&input); err != nil {
-		writeApiErr(c, err)
-		return
+	input, err := c.Body()
+	if err != nil {
+		return DunningConfigurationResponse{}, err
 	}
-	cfg, err := h.dunningService.CreateConfiguration(c.Request.Context(), domain.CreateDunningConfigurationInput{
+	cfg, err := h.dunningService.CreateConfiguration(c.Context(), domain.CreateDunningConfigurationInput{
 		OrgId:            authUser.OrgId,
 		Name:             input.Name,
 		Description:      input.Description,
@@ -332,26 +318,25 @@ func (h *DunningHandler) CreateConfiguration(c *gin.Context) {
 		CreatedBy:        authUser.Id,
 	})
 	if err != nil {
-		writeApiErr(c, err)
-		return
+		return DunningConfigurationResponse{}, NewApiErrorFromError(err)
 	}
-	c.JSON(http.StatusCreated, NewDunningConfigurationResponse(cfg))
+	c.SetStatus(201)
+	return NewDunningConfigurationResponse(cfg), nil
 }
 
-func (h *DunningHandler) UpdateConfiguration(c *gin.Context) {
-	authUser := mustAuthUser(c)
-	if !h.authz.Enforce(authUser, port.ActionUpdateDunningConfiguration, c.Param("id")) {
-		writeNotAllowed(c)
-		return
+func (h *DunningHandler) UpdateConfiguration(c fuego.ContextWithBody[UpdateDunningConfigurationRequest]) (DunningConfigurationResponse, error) {
+	authUser := AuthUserFrom(c)
+	id := c.PathParam("id")
+	if !h.authz.Enforce(authUser, port.ActionUpdateDunningConfiguration, id) {
+		return DunningConfigurationResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
 	}
-	var input UpdateDunningConfigurationRequest
-	if err := c.ShouldBindJSON(&input); err != nil {
-		writeApiErr(c, err)
-		return
+	input, err := c.Body()
+	if err != nil {
+		return DunningConfigurationResponse{}, err
 	}
-	cfg, err := h.dunningService.UpdateConfiguration(c.Request.Context(), domain.UpdateDunningConfigurationInput{
+	cfg, err := h.dunningService.UpdateConfiguration(c.Context(), domain.UpdateDunningConfigurationInput{
 		OrgId:            authUser.OrgId,
-		Id:               c.Param("id"),
+		Id:               id,
 		Name:             input.Name,
 		Description:      input.Description,
 		Priority:         input.Priority,
@@ -363,43 +348,24 @@ func (h *DunningHandler) UpdateConfiguration(c *gin.Context) {
 		AbTestPercentage: input.AbTestPercentage,
 	})
 	if err != nil {
-		writeApiErr(c, err)
-		return
+		return DunningConfigurationResponse{}, NewApiErrorFromError(err)
 	}
-	c.JSON(http.StatusOK, NewDunningConfigurationResponse(cfg))
+	return NewDunningConfigurationResponse(cfg), nil
 }
 
 // ---- Customer history ----
 
-func (h *DunningHandler) GetCustomerDunningHistory(c *gin.Context) {
-	authUser := mustAuthUser(c)
-	if !h.authz.Enforce(authUser, port.ActionGetCustomerDunningHistory, c.Param("id")) {
-		writeNotAllowed(c)
-		return
+func (h *DunningHandler) GetCustomerDunningHistory(c fuego.ContextNoBody) (CustomerDunningHistoryResponse, error) {
+	authUser := AuthUserFrom(c)
+	id := c.PathParam("id")
+	if !h.authz.Enforce(authUser, port.ActionGetCustomerDunningHistory, id) {
+		return CustomerDunningHistoryResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
 	}
-	history, err := h.dunningService.GetCustomerDunningHistory(c.Request.Context(), authUser.OrgId, c.Param("id"))
+	history, err := h.dunningService.GetCustomerDunningHistory(c.Context(), authUser.OrgId, id)
 	if err != nil {
-		writeApiErr(c, err)
-		return
+		return CustomerDunningHistoryResponse{}, NewApiErrorFromError(err)
 	}
-	c.JSON(http.StatusOK, NewCustomerDunningHistoryResponse(history))
-}
-
-// ---- helpers ----
-
-func mustAuthUser(c *gin.Context) port.AuthUser {
-	user, _ := c.Get("user")
-	return user.(port.AuthUser)
-}
-
-func writeApiErr(c *gin.Context, err error) {
-	apiErr := NewApiErrorFromError(err)
-	c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-}
-
-func writeNotAllowed(c *gin.Context) {
-	apiErr := NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
-	c.JSON(apiErr.GetHttpErrorCode(), apiErr)
+	return NewCustomerDunningHistoryResponse(history), nil
 }
 
 // timeOrZero is a tiny helper so DTOs don't ship as 0001-01-01T00:00:00Z.
@@ -408,4 +374,22 @@ func timeOrZero(t time.Time) time.Time {
 		return time.Time{}
 	}
 	return t.UTC()
+}
+
+// clientIP resolves the request's originating IP using the common reverse-
+// proxy headers, falling back to RemoteAddr.
+func clientIP(r *http.Request) string {
+	if v := r.Header.Get("X-Real-IP"); v != "" {
+		return v
+	}
+	if v := r.Header.Get("X-Forwarded-For"); v != "" {
+		if idx := strings.Index(v, ","); idx >= 0 {
+			return strings.TrimSpace(v[:idx])
+		}
+		return strings.TrimSpace(v)
+	}
+	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		return host
+	}
+	return r.RemoteAddr
 }

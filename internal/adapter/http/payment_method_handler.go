@@ -1,24 +1,21 @@
 package handler
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
+	"github.com/go-fuego/fuego/option"
 )
 
-// PaymentMethodHandler handles HTTP requests for standalone payment method endpoints.
-// It delegates to the CustomerHandler for the actual implementation since payment methods
-// are managed through the customer service.
+// PaymentMethodHandler exposes the standalone /payment-methods/{id} GET
+// endpoint by delegating to the CustomerHandler implementation.
 type PaymentMethodHandler struct {
 	customerHandler *CustomerHandler
 }
 
-// NewPaymentMethodHandler creates a new PaymentMethodHandler.
 func NewPaymentMethodHandler(customerHandler *CustomerHandler) *PaymentMethodHandler {
-	return &PaymentMethodHandler{
-		customerHandler: customerHandler,
-	}
+	return &PaymentMethodHandler{customerHandler: customerHandler}
 }
 
-// RegisterRoutes registers standalone payment method routes on the given router group.
-func (s *PaymentMethodHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/payment-methods/:id", s.customerHandler.GetCustomerPaymentMethod)
+func (s *PaymentMethodHandler) RegisterRoutes(srv *fuego.Server) {
+	g := fuego.Group(srv, "/payment-methods", option.Tags("Payment Methods"))
+	fuego.Get(g, "/{id}", s.customerHandler.GetCustomerPaymentMethod, option.Summary("Get a payment method"))
 }

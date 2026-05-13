@@ -14,14 +14,14 @@ func (Session) TableName() string { return "sessions" }
 
 type CreateSessionInput struct {
 	OrgId    string            `json:"org_id"`
-	Currency string            `json:"currency" binding:"required"`
-	Country  string            `json:"country" binding:"required"`
+	Currency string            `json:"currency" validate:"required"`
+	Country  string            `json:"country" validate:"required"`
 	Metadata map[string]string `json:"metadata"`
 }
 
 type CreateSessionRequest struct {
-	Currency string            `json:"currency" binding:"required"`
-	Country  string            `json:"country" binding:"required"`
+	Currency string            `json:"currency" validate:"required"`
+	Country  string            `json:"country" validate:"required"`
 	Metadata map[string]string `json:"metadata"`
 }
 

@@ -2,7 +2,7 @@ package domain
 
 // CreateCustomerInput is the input for creating a customer.
 type CreateCustomerInput struct {
-	Email          string            `json:"email" binding:"required"`
+	Email          string            `json:"email" validate:"required"`
 	FirstName      string            `json:"first_name"`
 	LastName       string            `json:"last_name"`
 	BillingAddress Address           `json:"billing_address"`
@@ -14,11 +14,11 @@ type CreateCustomerInput struct {
 type CreatePaymentMethodInput struct {
 	OrgId          string            `json:"org_id"`
 	CustomerId     string            `json:"customer_id"`
-	Psp            string            `json:"psp" binding:"required"`
-	Name           string            `json:"name" binding:"required"`
-	Type           PaymentMethodType `json:"type" binding:"required"`
+	Psp            string            `json:"psp" validate:"required"`
+	Name           string            `json:"name" validate:"required"`
+	Type           PaymentMethodType `json:"type" validate:"required"`
 	Details        any               `json:"details"`
-	Token          string            `json:"token" binding:"required"`
+	Token          string            `json:"token" validate:"required"`
 	IsDefault      bool              `json:"is_default"`
 	BillingAddress Address           `json:"billing_address"`
 	Metadata       map[string]string `json:"metadata"`

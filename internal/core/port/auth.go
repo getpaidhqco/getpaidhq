@@ -64,7 +64,6 @@ func IsPublicPath(path string) bool {
 
 // Authenticator validates tokens and returns an authenticated user.
 type Authenticator interface {
-	Setup()
 	Authenticate(ctx context.Context, token string) (AuthUser, error)
 }
 

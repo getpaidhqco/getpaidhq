@@ -1,89 +1,60 @@
 package handler
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
+	"github.com/go-fuego/fuego/option"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
 )
 
-// CartHandler handles HTTP requests for domain.
 type CartHandler struct {
 	cartService *service.CartService
 	logger      port.Logger
 }
 
-// NewCartHandler creates a new CartHandler.
 func NewCartHandler(cartService *service.CartService, logger port.Logger) *CartHandler {
-	return &CartHandler{
-		cartService: cartService,
-		logger:      logger,
-	}
+	return &CartHandler{cartService: cartService, logger: logger}
 }
 
-// RegisterRoutes registers cart routes on the given router group.
-func (o *CartHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.POST("/carts/:id/add", o.AddProduct)
-	rg.POST("/carts/:id/remove", o.RemoveItem)
+func (o *CartHandler) RegisterRoutes(s *fuego.Server) {
+	g := fuego.Group(s, "/carts", option.Tags("Carts"))
+	fuego.Post(g, "/{id}/add", o.AddProduct, option.Summary("Add a product to a cart"))
+	fuego.Post(g, "/{id}/remove", o.RemoveItem, option.Summary("Remove an item from a cart"))
 }
 
-func (o *CartHandler) AddProduct(c *gin.Context) {
-	var input AddItemRequest
-	cartId := c.Param("id")
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+func (o *CartHandler) AddProduct(c fuego.ContextWithBody[AddItemRequest]) (CartResponse, error) {
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
+	if err != nil {
+		return CartResponse{}, err
 	}
-
-	qty := input.Quantity
-	if qty <= 0 {
-		qty = 1
-	}
-	_ = qty // original code assigned but only used AddProductCommand.Quantity
-
-	cart, err := o.cartService.AddProduct(c.Request.Context(), domain.AddProductCommand{
-		OrgId:     orgId,
-		CartId:    cartId,
+	cart, err := o.cartService.AddProduct(c.Context(), domain.AddProductCommand{
+		OrgId:     authUser.OrgId,
+		CartId:    c.PathParam("id"),
 		ProductId: input.ProductId,
 		PriceId:   input.PriceId,
 		Quantity:  input.Quantity,
 	})
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return CartResponse{}, NewApiErrorFromError(err)
 	}
-
-	response := ToCartResponse(cart)
-	c.JSON(200, response)
+	return ToCartResponse(cart), nil
 }
 
-func (o *CartHandler) RemoveItem(c *gin.Context) {
-	var input RemoveItemRequest
-	cartId := c.Param("id")
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+func (o *CartHandler) RemoveItem(c fuego.ContextWithBody[RemoveItemRequest]) (CartResponse, error) {
+	input, err := c.Body()
+	if err != nil {
+		return CartResponse{}, err
 	}
-
-	cart, err := o.cartService.RemoveItem(c.Request.Context(), domain.RemoveItemCommand{
+	cart, err := o.cartService.RemoveItem(c.Context(), domain.RemoveItemCommand{
 		OrgId:  input.OrgId,
-		CartId: cartId,
+		CartId: c.PathParam("id"),
 		Id:     input.Id,
 	})
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return CartResponse{}, NewApiErrorFromError(err)
 	}
-
-	response := ToCartResponse(cart)
-	c.JSON(200, response)
+	return ToCartResponse(cart), nil
 }

@@ -1,9 +1,8 @@
 package handler
 
 import (
-	"net/http"
-
-	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
+	"github.com/go-fuego/fuego/option"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
@@ -16,7 +15,6 @@ type SubscriptionHandler struct {
 	logger      port.Logger
 }
 
-// NewSubscriptionHandler creates a new SubscriptionHandler.
 func NewSubscriptionHandler(subscriptionService *service.SubscriptionOrchestrationService, logger port.Logger) *SubscriptionHandler {
 	return &SubscriptionHandler{
 		subsService: subscriptionService,
@@ -24,222 +22,154 @@ func NewSubscriptionHandler(subscriptionService *service.SubscriptionOrchestrati
 	}
 }
 
-// RegisterRoutes registers subscription routes on the given router group.
-func (s *SubscriptionHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/subscriptions", s.List)
-	rg.GET("/subscriptions/:id", s.Get)
-	rg.GET("/subscriptions/:id/payments", s.ListPayments)
-	rg.PUT("/subscriptions/:id/pause", s.Pause)
-	rg.PUT("/subscriptions/:id/cancel", s.Cancel)
-	rg.PUT("/subscriptions/:id/resume", s.Resume)
-	rg.PATCH("/subscriptions/:id/billing-anchor", s.UpdateBillingAnchor)
-	rg.PATCH("/subscriptions/:id", s.Update)
+func (s *SubscriptionHandler) RegisterRoutes(srv *fuego.Server) {
+	g := fuego.Group(srv, "/subscriptions", option.Tags("Subscriptions"))
+	fuego.Get(g, "", s.List, option.Summary("List subscriptions"))
+	fuego.Get(g, "/{id}", s.Get, option.Summary("Get a subscription"))
+	fuego.Get(g, "/{id}/payments", s.ListPayments, option.Summary("List subscription payments"))
+	fuego.Put(g, "/{id}/pause", s.Pause, option.Summary("Pause a subscription"))
+	fuego.Put(g, "/{id}/cancel", s.Cancel, option.Summary("Cancel a subscription"))
+	fuego.Put(g, "/{id}/resume", s.Resume, option.Summary("Resume a subscription"))
+	fuego.Patch(g, "/{id}/billing-anchor", s.UpdateBillingAnchor, option.Summary("Update subscription billing anchor"))
+	fuego.Patch(g, "/{id}", s.Update, option.Summary("Update subscription metadata"))
 }
 
-func (s *SubscriptionHandler) Get(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-	orgId := authUser.OrgId
-	subscriptionId := c.Param("id")
-
-	subscription, err := s.subsService.FindById(c.Request.Context(), orgId, subscriptionId)
+func (s *SubscriptionHandler) Get(c fuego.ContextNoBody) (SubscriptionResponse, error) {
+	authUser := AuthUserFrom(c)
+	subscription, err := s.subsService.FindById(c.Context(), authUser.OrgId, c.PathParam("id"))
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return SubscriptionResponse{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(200, NewSubscriptionFromEntity(subscription))
+	return NewSubscriptionFromEntity(subscription), nil
 }
 
-// Update lets you change subscription settings that have no impact on the billed amount.
-func (s *SubscriptionHandler) Update(c *gin.Context) {
-	var input domain.UpdateSubscriptionRequest
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
-	id := c.Param("id")
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+func (s *SubscriptionHandler) Update(c fuego.ContextWithBody[domain.UpdateSubscriptionRequest]) (domain.Subscription, error) {
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
+	if err != nil {
+		return domain.Subscription{}, err
 	}
 
-	subscription, err := s.subsService.Update(c.Request.Context(), domain.UpdateSubscriptionInput{
-		OrgId:    orgId,
-		Id:       id,
+	subscription, err := s.subsService.Update(c.Context(), domain.UpdateSubscriptionInput{
+		OrgId:    authUser.OrgId,
+		Id:       c.PathParam("id"),
 		Status:   input.Status,
 		Metadata: input.Metadata,
 	})
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": err.Error(),
-		})
-		return
+		return domain.Subscription{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(200, subscription)
+	return subscription, nil
 }
 
-func (s *SubscriptionHandler) Pause(c *gin.Context) {
-	var input PauseSubscriptionRequest
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
-	id := c.Param("id")
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+func (s *SubscriptionHandler) Pause(c fuego.ContextWithBody[PauseSubscriptionRequest]) (domain.Subscription, error) {
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
+	if err != nil {
+		return domain.Subscription{}, err
 	}
 
-	subscription, err := s.subsService.PauseSubscription(c.Request.Context(), domain.PauseSubscriptionInput{
-		OrgId:  orgId,
-		Id:     id,
+	subscription, err := s.subsService.PauseSubscription(c.Context(), domain.PauseSubscriptionInput{
+		OrgId:  authUser.OrgId,
+		Id:     c.PathParam("id"),
 		Reason: input.Reason,
 	})
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return domain.Subscription{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(200, subscription)
+	return subscription, nil
 }
 
-func (s *SubscriptionHandler) Resume(c *gin.Context) {
-	var input ResumeSubscriptionRequest
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
-	id := c.Param("id")
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+func (s *SubscriptionHandler) Resume(c fuego.ContextWithBody[ResumeSubscriptionRequest]) (domain.Subscription, error) {
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
+	if err != nil {
+		return domain.Subscription{}, err
 	}
 
-	subscription, err := s.subsService.ResumeSubscription(c.Request.Context(), domain.ResumeSubscriptionInput{
-		OrgId:          orgId,
-		Id:             id,
+	subscription, err := s.subsService.ResumeSubscription(c.Context(), domain.ResumeSubscriptionInput{
+		OrgId:          authUser.OrgId,
+		Id:             c.PathParam("id"),
 		ResumeBehavior: input.ResumeBehavior,
 	})
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return domain.Subscription{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(200, subscription)
+	return subscription, nil
 }
 
-func (s *SubscriptionHandler) Cancel(c *gin.Context) {
-	var input PauseSubscriptionRequest
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
-	id := c.Param("id")
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+func (s *SubscriptionHandler) Cancel(c fuego.ContextWithBody[PauseSubscriptionRequest]) (SubscriptionResponse, error) {
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
+	if err != nil {
+		return SubscriptionResponse{}, err
 	}
 
-	subscription, err := s.subsService.CancelSubscription(c.Request.Context(), domain.CancelSubscriptionInput{
-		OrgId:  orgId,
-		Id:     id,
+	subscription, err := s.subsService.CancelSubscription(c.Context(), domain.CancelSubscriptionInput{
+		OrgId:  authUser.OrgId,
+		Id:     c.PathParam("id"),
 		Reason: input.Reason,
 	})
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return SubscriptionResponse{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(200, NewSubscriptionFromEntity(subscription))
+	return NewSubscriptionFromEntity(subscription), nil
 }
 
-func (s *SubscriptionHandler) UpdateBillingAnchor(c *gin.Context) {
-	var input UpdateBillingAnchorRequest
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
-	id := c.Param("id")
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
-	}
-
-	prorationDetails, err := s.subsService.UpdateBillingAnchor(
-		c.Request.Context(),
-		domain.UpdateBillingAnchorInput{
-			OrgId:         orgId,
-			Id:            id,
-			BillingAnchor: input.BillingAnchor,
-			ProrationMode: input.ProrationMode,
-		})
+func (s *SubscriptionHandler) UpdateBillingAnchor(c fuego.ContextWithBody[UpdateBillingAnchorRequest]) (ProrationDetailsResponse, error) {
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return ProrationDetailsResponse{}, err
 	}
 
-	c.JSON(200, NewProrationDetailsFromEntity(prorationDetails))
+	prorationDetails, err := s.subsService.UpdateBillingAnchor(c.Context(), domain.UpdateBillingAnchorInput{
+		OrgId:         authUser.OrgId,
+		Id:            c.PathParam("id"),
+		BillingAnchor: input.BillingAnchor,
+		ProrationMode: input.ProrationMode,
+	})
+	if err != nil {
+		return ProrationDetailsResponse{}, NewApiErrorFromError(err)
+	}
+	return NewProrationDetailsFromEntity(prorationDetails), nil
 }
 
-func (s *SubscriptionHandler) List(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+func (s *SubscriptionHandler) List(c fuego.ContextNoBody) (ListResponse, error) {
+	authUser := AuthUserFrom(c)
 	pagination := GetPagination(c)
 
-	subs, total, err := s.subsService.List(c.Request.Context(), orgId, pagination)
+	subs, total, err := s.subsService.List(c.Context(), authUser.OrgId, pagination)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return ListResponse{}, NewApiErrorFromError(err)
 	}
-	var subscriptionResponses = make([]SubscriptionResponse, 0, len(subs))
+	subscriptionResponses := make([]SubscriptionResponse, 0, len(subs))
 	for _, sub := range subs {
 		subscriptionResponses = append(subscriptionResponses, NewSubscriptionFromEntity(sub))
 	}
-
-	c.JSON(200, ListResponse{
+	return ListResponse{
 		Data: subscriptionResponses,
-		Meta: Meta{
-			Total: total,
-			Page:  pagination.Page,
-			Limit: pagination.Limit,
-		},
-	})
+		Meta: Meta{Total: total, Page: pagination.Page, Limit: pagination.Limit},
+	}, nil
 }
 
-func (s *SubscriptionHandler) ListPayments(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+func (s *SubscriptionHandler) ListPayments(c fuego.ContextNoBody) (ListResponse, error) {
+	authUser := AuthUserFrom(c)
 	pagination := GetPagination(c)
-	id := c.Param("id")
 
-	payments, total, err := s.subsService.FindSubscriptionPayments(c.Request.Context(), domain.EntityKey{
-		OrgId: orgId,
-		Id:    id,
+	payments, total, err := s.subsService.FindSubscriptionPayments(c.Context(), domain.EntityKey{
+		OrgId: authUser.OrgId,
+		Id:    c.PathParam("id"),
 	}, pagination)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return ListResponse{}, NewApiErrorFromError(err)
 	}
-	var rsp []PaymentResponse
+	rsp := make([]PaymentResponse, 0, len(payments))
 	for _, p := range payments {
 		rsp = append(rsp, NewPaymentFromEntity(p))
 	}
-
-	c.JSON(200, ListResponse{
+	return ListResponse{
 		Data: rsp,
-		Meta: Meta{
-			Total: total,
-			Page:  pagination.Page,
-			Limit: pagination.Limit,
-		},
-	})
+		Meta: Meta{Total: total, Page: pagination.Page, Limit: pagination.Limit},
+	}, nil
 }

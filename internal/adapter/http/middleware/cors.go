@@ -1,38 +1,32 @@
 package middleware
 
 import (
-	cors "github.com/rs/cors/wrapper/gin"
+	"net/http"
+
+	"github.com/rs/cors"
 
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
 )
 
-// CorsMiddleware handles CORS configuration.
+// CorsMiddleware builds the project's CORS handler. It is a thin wrapper
+// over github.com/rs/cors so the configuration lives in one place.
 type CorsMiddleware struct {
-	handler lib.RequestHandler
-	logger  port.Logger
-	env     lib.Env
+	logger port.Logger
+	env    lib.Env
 }
 
-// NewCorsMiddleware creates a new CorsMiddleware.
-func NewCorsMiddleware(handler lib.RequestHandler, logger port.Logger, env lib.Env) CorsMiddleware {
-	return CorsMiddleware{
-		handler: handler,
-		logger:  logger,
-		env:     env,
-	}
+func NewCorsMiddleware(logger port.Logger, env lib.Env) CorsMiddleware {
+	return CorsMiddleware{logger: logger, env: env}
 }
 
-// Setup registers the CORS middleware on the gin engine.
-func (m CorsMiddleware) Setup() {
+// Handler returns a net/http middleware suitable for fuego.WithGlobalMiddlewares.
+func (m CorsMiddleware) Handler() func(http.Handler) http.Handler {
 	m.logger.Info("Setting up cors middleware")
-
-	debug := false
-	m.handler.Gin.Use(cors.New(cors.Options{
+	return cors.New(cors.Options{
 		AllowCredentials: true,
 		AllowOriginFunc:  func(origin string) bool { return true },
 		AllowedHeaders:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "HEAD", "PATCH", "OPTIONS", "DELETE"},
-		Debug:            debug,
-	}))
+	}).Handler
 }

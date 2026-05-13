@@ -1,75 +1,95 @@
 package middleware
 
 import (
+	"context"
 	"errors"
 	"net/http"
-
-	"github.com/gin-gonic/gin"
 
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
 )
 
-// AuthnWrapperMiddleware combines authn middlewares so that token-based and API key auth
-// can be used interchangeably.
+// ctxKey is an unexported type so collisions with other packages' keys are
+// impossible. Use the exported AuthUserKey constant to read the value.
+type ctxKey int
+
+// AuthUserKey is the context key under which a successfully authenticated
+// port.AuthUser is stored by AuthnWrapperMiddleware.
+const AuthUserKey ctxKey = 1
+
+// AuthnWrapperMiddleware tries each configured authenticator in order
+// against the incoming Authorization / x-api-key header. The first
+// successful one wins; otherwise the request is rejected with 401.
 type AuthnWrapperMiddleware struct {
-	handler   lib.RequestHandler
 	authnList []port.Authenticator
 	logger    port.Logger
 	env       lib.Env
 }
 
-// NewAuthnWrapperMiddleware creates a new AuthnWrapperMiddleware.
 func NewAuthnWrapperMiddleware(
 	authenticators []port.Authenticator,
-	handler lib.RequestHandler,
 	logger port.Logger,
 	env lib.Env,
 ) AuthnWrapperMiddleware {
 	return AuthnWrapperMiddleware{
 		authnList: authenticators,
-		handler:   handler,
 		logger:    logger,
 		env:       env,
 	}
 }
 
-// Setup registers the authentication wrapper middleware on the gin engine.
-func (m AuthnWrapperMiddleware) Setup() {
+// Handler returns the middleware suitable for fuego.WithGlobalMiddlewares.
+func (m AuthnWrapperMiddleware) Handler() func(http.Handler) http.Handler {
 	m.logger.Info("Setting up authn wrapper middleware")
-	m.handler.Gin.Use(func(c *gin.Context) {
-		isAuthenticated := false
-
-		for _, authenticator := range m.authnList {
-			token := c.GetHeader("Authorization")
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			token := r.Header.Get("Authorization")
 			if token == "" {
-				token = c.GetHeader("x-api-key")
+				token = r.Header.Get("x-api-key")
 			}
 
-			user, err := authenticator.Authenticate(c.Request.Context(), token)
-			if err != nil {
-				// special case for onboarding required
-				if errors.Is(err, port.ErrOnboardingRequired) &&
-					c.Request.Method == http.MethodPost &&
-					c.FullPath() == "/api/organizations" {
-					isAuthenticated = true
-					c.Set("user", user)
-					break
+			var (
+				user          port.AuthUser
+				authenticated bool
+			)
+			for _, authenticator := range m.authnList {
+				u, err := authenticator.Authenticate(r.Context(), token)
+				if err != nil {
+					// Onboarding bypass: a fresh Clerk user with no active
+					// org needs to create one before any other API call is
+					// possible. Let POST /api/organizations through with the
+					// partial AuthUser so the org-creation handler can run.
+					if errors.Is(err, port.ErrOnboardingRequired) &&
+						r.Method == http.MethodPost &&
+						r.URL.Path == "/api/organizations" {
+						user = u
+						authenticated = true
+						break
+					}
+					continue
 				}
-				continue
+				user = u
+				authenticated = true
+				break
 			}
 
-			c.Set("user", user)
-			isAuthenticated = true
-			break
-		}
+			if !authenticated {
+				m.logger.Error("Authentication failed", "message", "unauthorized access")
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusUnauthorized)
+				_, _ = w.Write([]byte(`{"code":"authentication_error","message":"unauthorized","details":null}`))
+				return
+			}
 
-		if !isAuthenticated {
-			m.logger.Error("Authentication failed", "message", "unauthorized access")
-			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"message": "unauthorized"})
-			return
-		}
+			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), AuthUserKey, user)))
+		})
+	}
+}
 
-		c.Next()
-	})
+// AuthUserFrom retrieves the authenticated user previously stored on the
+// request context by AuthnWrapperMiddleware. The boolean is false when no
+// authn middleware was on the request path (e.g. in tests).
+func AuthUserFrom(ctx context.Context) (port.AuthUser, bool) {
+	u, ok := ctx.Value(AuthUserKey).(port.AuthUser)
+	return u, ok
 }
