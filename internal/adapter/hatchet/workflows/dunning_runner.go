@@ -10,9 +10,9 @@ import (
 )
 
 // NewDunningRunnerWorkflow builds the per-campaign long-running dunning
-// runner. It replaces the Temporal DunningWorkflow.
+// runner.
 //
-// Two-phase design (matches the original):
+// Two-phase design:
 //
 //  1. **Immediate retries** — short, technical-failure-only retries with
 //     intervals from config.ImmediateRetries.Intervals. Used when the initial

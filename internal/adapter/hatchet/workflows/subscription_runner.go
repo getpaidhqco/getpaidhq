@@ -9,7 +9,7 @@ import (
 )
 
 // NewSubscriptionRunnerWorkflow builds the per-subscription long-running
-// durable task. It replaces the Temporal SubscriptionWorkflow.
+// durable task.
 //
 // On each iteration:
 //

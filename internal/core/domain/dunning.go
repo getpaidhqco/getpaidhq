@@ -82,8 +82,7 @@ type DunningCampaign struct {
 	SubscriptionId string `gorm:"column:subscription_id" json:"subscription_id"`
 	CustomerId     string `gorm:"column:customer_id" json:"customer_id"`
 
-	// WorkflowId / WorkflowRunId identify the running engine workflow handle
-	// (Hatchet run id, Temporal workflow+run pair). Engine-agnostic field name.
+	// WorkflowId / WorkflowRunId identify the running engine workflow handle.
 	WorkflowId       string `gorm:"column:workflow_id" json:"workflow_id"`
 	WorkflowRunId    string `gorm:"column:workflow_run_id" json:"workflow_run_id"`
 	ParentWorkflowId string `gorm:"column:parent_workflow_id" json:"parent_workflow_id,omitempty"`

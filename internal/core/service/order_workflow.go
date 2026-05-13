@@ -10,9 +10,9 @@ import (
 )
 
 // OrderWorkflowService handles webhook-driven order completion. It does NOT
-// hold the workflow engine: this method is invoked from a Temporal activity,
-// and the activity is registered with the very engine that dispatches it —
-// so depending on the engine here would create a construction-time cycle.
+// hold the workflow engine: this method is invoked from a workflow step, and
+// the step is registered with the very engine that dispatches it — so depending
+// on the engine here would create a construction-time cycle.
 //
 // HTTP-driven order completion (which DOES start subscription workflows) lives
 // on OrderService.

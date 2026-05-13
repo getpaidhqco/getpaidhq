@@ -35,3 +35,7 @@ docker/.env
 node_modules
 
 .serena/
+
+# Claude Code: ignore personal settings + auth, keep team-shared settings.json/agents/commands
+.claude/settings.local.json
+.claude/.credentials.json

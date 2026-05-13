@@ -16,8 +16,6 @@ import (
 	"getpaidhq/internal/adapter/postgres"
 	"getpaidhq/internal/adapter/redis"
 	"getpaidhq/internal/adapter/sqs"
-	"getpaidhq/internal/adapter/temporal"
-	"getpaidhq/internal/adapter/temporal/activities"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
@@ -107,22 +105,11 @@ func NewApp() (*App, error) {
 
 	webhookSubService := service.NewWebhookSubscriptionService(logger, webhookSubRepo, idempotencyRepo, pubsub)
 
-	var engine port.Engine
-	var dunningEngine port.DunningEngine
-	switch env.WorkflowEngine {
-	case "hatchet":
-		webhookSteps := hatchetsteps.NewOutgoingWebhookSteps(logger, webhookSubRepo, settingRepo, webhookSubService, pubsub)
-		dunningSteps := hatchetsteps.NewDunningSteps(logger, dunningService)
-		h := hatchet.NewHatchetEngine(logger, env, orderWorkflowService, subService, paymentService, subRepo, reporter, webhookSteps, dunningSteps, pubsub)
-		engine = h
-		dunningEngine = h
-	default:
-		orderActivities := activities.NewOrderActivities(orderWorkflowService, subService, paymentService, subRepo, settingRepo)
-		webhookActivities := activities.NewOutgoingWebhookActivities(webhookSubRepo, settingRepo, webhookSubService, pubsub)
-		t := temporal.NewTemporalEngine(logger, env, orderActivities, reporter, webhookActivities, settingRepo, pubsub)
-		engine = t
-		dunningEngine = t.(port.DunningEngine)
-	}
+	webhookSteps := hatchetsteps.NewOutgoingWebhookSteps(logger, webhookSubRepo, settingRepo, webhookSubService, pubsub)
+	dunningSteps := hatchetsteps.NewDunningSteps(logger, dunningService)
+	h := hatchet.NewHatchetEngine(logger, env, orderWorkflowService, subService, paymentService, subRepo, reporter, webhookSteps, dunningSteps, pubsub)
+	var engine port.Engine = h
+	var dunningEngine port.DunningEngine = h
 
 	// ---------------------------------------------------------------------------
 	// Engine-aware services and the rest.

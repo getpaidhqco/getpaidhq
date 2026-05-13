@@ -9,7 +9,7 @@ import (
 )
 
 // NewPaymentRefundedWorkflow handles a single refund event. One step, retried
-// indefinitely on failure (mirrors the Temporal version's lack of a max-attempts).
+// indefinitely on failure (no max-attempts).
 func NewPaymentRefundedWorkflow(client *hatchet.Client, paymentService port.PaymentService) *hatchet.StandaloneTask {
 	return client.NewStandaloneTask("payment-refunded",
 		func(ctx hatchet.Context, input PaymentRefundedInput) (domain.Payment, error) {

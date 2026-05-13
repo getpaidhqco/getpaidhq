@@ -14,7 +14,7 @@ import (
 // and read-side queries.
 //
 // The webhook-driven CompleteCheckoutSession path lives on
-// OrderWorkflowService — that path is invoked from a Temporal activity, so
+// OrderWorkflowService — that path is invoked from a workflow step, so
 // it cannot depend on the engine that dispatches it. Splitting the two
 // avoids a construction-time cycle.
 type OrderService struct {

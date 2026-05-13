@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project
 
-Payloop is a Go subscription-billing backend. HTTP API on Gin, Temporal **or** Hatchet for subscription/webhook workflows (selected at startup via `WORKFLOW_ENGINE`), PostgreSQL via GORM, NATS pub/sub, Redis cache, Cedar for authorization, Paystack + Checkout.com as payment gateways, Clerk for auth.
+Payloop is a Go subscription-billing backend. HTTP API on Fuego, Hatchet for durable subscription/webhook workflows, PostgreSQL via GORM, NATS pub/sub, Redis cache, Cedar for authorization, Paystack + Checkout.com as payment gateways, Clerk for auth.
 
 The README's "Architecture" section is partly outdated — see "Architecture" below for what the code actually does.
 
@@ -20,8 +20,8 @@ Local stack (single Postgres shared by app + Hatchet, plus Hatchet Lite):
 - `docker compose -f docker/docker-compose.yml up -d` — required services. Hatchet UI at `localhost:8888`, Hatchet gRPC at `localhost:7077`, Postgres at `localhost:6432`.
 - The shared Postgres exposes three databases (auto-created by `docker/init/01-create-databases.sql`): `getpaidhq` (app), `getpaidhq_reports` (reporting), `hatchet` (Hatchet's own internal store).
 
-Selecting the workflow engine:
-- `WORKFLOW_ENGINE=hatchet` is the only supported value for local now. The Temporal Go adapter is still compiled in but unused — it will be removed when migration is done.
+Workflow engine bootstrap:
+- `WORKFLOW_ENGINE=hatchet` (the only supported engine; default in `lib.NewEnv()`).
 - First-time bootstrap (after the stack is up):
   1. The default tenant + admin user are seeded automatically. Tenant id is in the `Tenant` table of the `hatchet` DB (slug `default`).
   2. Mint a token: `docker exec hatchet-lite /hatchet-admin --config /config token create --name local-dev --tenant-id <tenant-id>`. The `--config /config` flag is required to load the auto-generated encryption keyset.
@@ -34,7 +34,7 @@ Database schema (Prisma is the source of truth, no migrations — clean-slate `d
 - There are no Prisma migrations checked in. `db push` syncs the schema directly. The previous migrations were thrown away as part of the local-only reset; once we deploy again, migrations will be regenerated from this base.
 
 Tunnels & deploy (require AWS profiles + bastion PEM):
-- `pnpm tunnel:test` / `pnpm tunnel:prod` — SSH tunnel to test/prod (DB 7777, API 8888, Temporal UI 9999, Redis 6379 on test).
+- `pnpm tunnel:test` / `pnpm tunnel:prod` — SSH tunnel to test/prod (DB 7777, API 8888, Redis 6379 on test).
 - `pnpm deploy:test` / `pnpm deploy:prod` — kicks off the CodeBuild pipeline.
 
 ## Architecture
@@ -44,7 +44,7 @@ Ports-and-adapters (hexagonal), not the four-layer DDD split the README describe
 - `internal/core/domain/` — entities, value objects, domain logic. Pure Go, no infra imports.
 - `internal/core/port/` — interfaces the core depends on (`Repository`, `PubSub`, `Cache`, `Engine`, `GatewayAdapter`, `Authenticator`, `Scheduler`, etc.). Adapters implement these.
 - `internal/core/service/` — application services. Take ports in their constructors. This is where business orchestration lives.
-- `internal/adapter/{postgres,redis,nats,sqs,temporal,cedar,clerk,cognito,apikey,checkout_com,paystack,cron,http,memory}/` — concrete implementations of ports.
+- `internal/adapter/{postgres,redis,nats,sqs,hatchet,cedar,clerk,cognito,apikey,checkout_com,paystack,cron,http,memory}/` — concrete implementations of ports.
 - `internal/lib/` — cross-cutting helpers (`Env`, `Logger`, `ErrorReporter`, `RequestHandler`, validator).
 - `internal/config/app.go` — wiring.
 
@@ -54,26 +54,25 @@ The README says "Uses Uber's FX library for dependency injection." That is **no 
 
 ### The narrow-vs-orchestration service pattern (load-bearing — read before touching subscription/order code)
 
-There is a deliberate construction-order cycle: Temporal **activities** call into services, but the Temporal **engine** is what dispatches activities. If a service depended on the engine, it could not be passed into the activity that is then registered with the engine.
+There is a deliberate construction-order cycle: Hatchet **workflow steps** call into services, but the Hatchet **engine** is what dispatches those steps. If a service depended on the engine, it could not be passed into the step that is then registered with the engine.
 
 The pattern in `internal/config/app.go` (and documented in `internal/core/service/subscription_orchestration.go`):
 
-1. Build "narrow" services first that **do not** hold the engine: `SubscriptionService`, `PaymentService`, `OrderWorkflowService`. Activities receive these.
-2. Build the activities (`OrderActivities`, `OutgoingWebhookActivities`) holding refs to narrow services.
-3. Build the Temporal engine, registering those activities.
+1. Build "narrow" services first that **do not** hold the engine: `SubscriptionService`, `PaymentService`, `OrderWorkflowService`. Steps receive these.
+2. Build the step bundles (`OutgoingWebhookSteps`, `DunningSteps`) holding refs to narrow services.
+3. Build the Hatchet engine, registering those steps.
 4. Build "engine-aware" wrappers / services last: `SubscriptionOrchestrationService` embeds `*SubscriptionService` and adds engine signaling; `OrderService` takes the engine directly. HTTP handlers depend on the engine-aware variants.
 
 The wrapping happens at the type level (the orchestration service embeds the narrow one), so the cycle is broken statically, not papered over with setters. Preserve this — don't shortcut by giving the narrow service a back-pointer to the engine.
 
 ### Workflow engine
 
-Two adapters are compiled in; `WORKFLOW_ENGINE` selects at startup. The factory lives in `internal/config/app.go` (right after the narrow services are built).
+Hatchet is the only engine. The wiring lives in `internal/config/app.go` (right after the narrow services are built).
 
-- **Temporal** — `internal/adapter/temporal/temporal.go` boots a single worker on task queue `events` in namespace `subscriptions`. Workflows: `PaymentSuccessWorkflow`, `SubscriptionChargeReminder`, `SubscriptionWorkflow`, `OutgoingWebhookWorkflow`, `PaymentRefunded`. The Temporal adapter implements `port.DunningEngine` as stubs that return `ErrUnsupported` — dunning runs in Hatchet only.
-- **Hatchet** — `internal/adapter/hatchet/hatchet.go` boots a single worker named `getpaidhq-events`. Workflows: `payment-success` (DAG), `payment-refunded`, `outgoing-webhook`, `billing-cycle` (DAG), `subscription-charge-reminder` (durable), `subscription-runner` (durable; long-running, one per subscription), `dunning-runner` (durable; long-running, one per failed charge), `dunning-attempt` (DAG; one per retry inside a dunning campaign).
-- Engine ports: `port.Engine` exposes `StartWorkflow`, `StartSubscriptionWorkflow`, `UpdateSubscriptionWorkflow`, `CancelSubscriptionWorkflow`, `SignalSubscriptionWorkflow`. `port.DunningEngine` exposes `StartDunningWorkflow`, `SignalDunningWorkflow`, `CancelDunningWorkflow`. The Hatchet engine type satisfies both; the Temporal engine type satisfies both but its dunning methods are stubs.
+- `internal/adapter/hatchet/hatchet.go` boots a single worker named `getpaidhq-events`. Workflows: `payment-success` (DAG), `payment-refunded`, `outgoing-webhook`, `billing-cycle` (DAG), `subscription-charge-reminder` (durable), `subscription-runner` (durable; long-running, one per subscription), `dunning-runner` (durable; long-running, one per failed charge), `dunning-attempt` (DAG; one per retry inside a dunning campaign).
+- Engine ports: `port.Engine` exposes `StartWorkflow`, `StartSubscriptionWorkflow`, `UpdateSubscriptionWorkflow`, `CancelSubscriptionWorkflow`, `SignalSubscriptionWorkflow`. `port.DunningEngine` exposes `StartDunningWorkflow`, `SignalDunningWorkflow`, `CancelDunningWorkflow`. The Hatchet engine type satisfies both.
 
-**Hatchet update semantics (different from Temporal!).** Today's Temporal `UpdateSubscriptionWorkflow` blocks until the workflow's update handler runs (`WaitForStage: WorkflowUpdateStageCompleted`). The Hatchet equivalent pushes a user event (`update:<updateName>:<orgId>:<subId>`) and returns immediately — fire-and-forget. The durable runner observes the event in its select loop, usually within seconds. Callers in `subscription_orchestration.go` already `pubsub.Publish` after, so downstream observers are unaffected; do **not** assume synchronous acknowledgment when reading post-call state.
+**Update semantics — fire-and-forget.** `UpdateSubscriptionWorkflow` pushes a user event (`update:<updateName>:<orgId>:<subId>`) and returns immediately; the durable runner observes the event in its select loop, usually within seconds. Callers in `subscription_orchestration.go` `pubsub.Publish` after, so downstream observers are unaffected; do **not** assume synchronous acknowledgment when reading post-call state.
 
 ### Dunning
 
@@ -113,7 +112,6 @@ Adapter registry in `app.go`: `map[domain.Gateway]port.GatewayAdapter` with `dom
 - `internal/config/app.go` ignores some constructed services with `_ = ...` (e.g., `metadataService`, `userService`, `cache`). They are constructed for side-effects or because their dependencies are needed elsewhere; don't delete them without checking.
 - HTTP layer runs on [`go-fuego/fuego`](https://github.com/go-fuego/fuego) — Gin was removed. The OpenAPI spec is generated from typed handler signatures (`fuego.ContextWithBody[T]` / `fuego.ContextNoBody`) and committed as `openapi.yml` via `go run ./cmd/openapi-export`. Swagger UI is served at `/swagger/` by the running app.
 - Server wiring lives in `internal/config/server.go` (`BuildServer`) and is shared by `NewApp()` and the exporter. Global middleware order in `BuildServer`: CORS (rs/cors, configured via `ALLOWED_ORIGINS` — comma-separated allowlist, `*` enables wildcard for dev only) then `AuthnWrapperMiddleware`, which stores the resolved `port.AuthUser` on `r.Context()` under the typed `middleware.AuthUserKey`. Handlers read it via `handler.AuthUserFrom(c)`. Onboarding bypass for `POST /api/organizations` on `ErrOnboardingRequired` is preserved inside that middleware.
-- Pin `toolchain go1.26.3` in `go.mod` — Go 1.26.0 ICEs in the SSA register allocator on Fuego's generic `transform[B]` for the `UpdatePaymentMethodInput` body shape (`map[string]string` + `domain.Address`). Fixed in 1.26.3, no source workaround needed.
 - The HTTP layer no longer wraps each request in a DB transaction. The previous `DatabaseTrx` middleware was already FX-era dead code that didn't compile against the current `*gorm.DB`. Transactional consistency is the repository/service layer's responsibility — adapters that need atomic multi-statement work should open their own `tx := db.Begin()` inside the service method, or use `lib.Database.WithTx` once that lands.
 - Request validation runs against a single `*validator.Validate` built by `lib.NewValidator(logger)`; the `iso4217` rule is registered there. DTOs use `validate:"..."` struct tags (renamed from gin's `binding:"..."`).
 - Error envelope: handlers return `ApiError` (`{code,message,details}`); Fuego is wired with `fuego.WithErrorSerializer(handler.ApiErrorSerializer)` so its own `BadRequestError`/`UnauthorizedError`/etc. also marshal in the same shape.

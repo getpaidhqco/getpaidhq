@@ -8,8 +8,7 @@ import (
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
-// NewOutgoingWebhookWorkflow delivers a single outbound webhook with retry.
-// Mirrors the Temporal OutgoingWebhookWorkflow retry policy
+// NewOutgoingWebhookWorkflow delivers a single outbound webhook with retry
 // (MaximumAttempts: 5, InitialInterval: 1 minute, BackoffCoefficient: 1.0).
 func NewOutgoingWebhookWorkflow(client *hatchet.Client, whSteps *steps.OutgoingWebhookSteps) *hatchet.StandaloneTask {
 	return client.NewStandaloneTask("outgoing-webhook",

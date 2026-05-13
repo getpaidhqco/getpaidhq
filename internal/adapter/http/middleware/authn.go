@@ -43,6 +43,13 @@ func (m AuthnWrapperMiddleware) Handler() func(http.Handler) http.Handler {
 	m.logger.Info("Setting up authn wrapper middleware")
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// CORS preflight requests carry no auth headers by design.
+			// Skip authn and let the CORS layer (or the route) respond.
+			if r.Method == http.MethodOptions {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			token := r.Header.Get("Authorization")
 			if token == "" {
 				token = r.Header.Get("x-api-key")
@@ -51,10 +58,12 @@ func (m AuthnWrapperMiddleware) Handler() func(http.Handler) http.Handler {
 			var (
 				user          port.AuthUser
 				authenticated bool
+				lastErr       error
 			)
 			for _, authenticator := range m.authnList {
 				u, err := authenticator.Authenticate(r.Context(), token)
 				if err != nil {
+					lastErr = err
 					// Onboarding bypass: a fresh Clerk user with no active
 					// org needs to create one before any other API call is
 					// possible. Let POST /api/organizations through with the
@@ -74,7 +83,11 @@ func (m AuthnWrapperMiddleware) Handler() func(http.Handler) http.Handler {
 			}
 
 			if !authenticated {
-				m.logger.Error("Authentication failed", "message", "unauthorized access")
+				reason := "no token"
+				if lastErr != nil {
+					reason = lastErr.Error()
+				}
+				m.logger.Error("Authentication failed", "reason", reason, "path", r.URL.Path, "method", r.Method, "has_authorization", r.Header.Get("Authorization") != "", "has_api_key", r.Header.Get("x-api-key") != "")
 				w.Header().Set("Content-Type", "application/json")
 				w.WriteHeader(http.StatusUnauthorized)
 				_, _ = w.Write([]byte(`{"code":"authentication_error","message":"unauthorized","details":null}`))

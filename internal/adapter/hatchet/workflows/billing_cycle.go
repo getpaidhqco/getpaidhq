@@ -13,8 +13,8 @@ import (
 // returned ChargeResult; the wait-for-webhook + handle-result steps live in
 // the runner (DAG steps cannot use DurableContext).
 //
-// Mirrors the Temporal workflow's retry shape: long backoff, effectively
-// unlimited retries while transient gateway errors persist.
+// Long backoff with effectively unlimited retries while transient gateway
+// errors persist.
 func NewBillingCycleWorkflow(client *hatchet.Client, subscriptionService port.SubscriptionService) *hatchet.Workflow {
 	wf := client.NewWorkflow("billing-cycle")
 

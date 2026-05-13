@@ -220,7 +220,6 @@ func (h Hatchet) SignalSubscriptionWorkflow(ctx context.Context, signal string, 
 
 // HandleSubscriptionEvent fans incoming "subscription.*" pubsub topics into
 // Hatchet update events so the per-subscription durable runner picks them up.
-// Mirrors the Temporal adapter's HandleSubscriptionEvent.
 func (h Hatchet) HandleSubscriptionEvent(topic string, data []byte) error {
 	h.logger.Infof("Received topic [%s]", topic)
 

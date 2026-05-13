@@ -5,7 +5,7 @@ import (
 	"getpaidhq/internal/core/domain"
 )
 
-// Engine is the interface for the workflow orchestration engine (e.g., Temporal).
+// Engine is the interface for the workflow orchestration engine.
 type Engine interface {
 	StartWorkflow(ctx context.Context, id WorkflowType, payload any) (WorkflowResult, error)
 	StartSubscriptionWorkflow(ctx context.Context, subscription domain.Subscription) error

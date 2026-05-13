@@ -2,7 +2,7 @@
 
 Payloop is a Go subscription-billing backend. HTTP API on Gin, Hatchet for durable subscription/webhook workflows, PostgreSQL via GORM, NATS pub/sub, Redis cache, Cedar for authorization, Paystack + Checkout.com as payment gateways, Clerk for auth.
 
-> **Status**: we're currently running local-only while we rework the deployment story. AWS pipelines, prod tunnels, and the Temporal adapter are paused — Temporal Go code is still compiled but never instantiated and will be removed once the migration is complete.
+> **Status**: we're currently running local-only while we rework the deployment story. AWS pipelines and prod tunnels are paused.
 
 ## Table of contents
 
@@ -28,8 +28,7 @@ internal/
 │   └── service/  # application services (business orchestration)
 ├── adapter/
 │   ├── postgres/      # GORM repository implementations
-│   ├── hatchet/       # workflow engine adapter (active)
-│   ├── temporal/      # legacy workflow engine (compiled, unused — will be removed)
+│   ├── hatchet/       # workflow engine adapter
 │   ├── redis/         # cache adapter
 │   ├── nats/          # pub/sub adapter
 │   ├── sqs/           # AWS SQS adapter (FIFO event queue)

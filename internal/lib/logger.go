@@ -131,7 +131,3 @@ func (l GinLogger) Write(p []byte) (n int, err error) {
 	return len(p), nil
 }
 
-// GetZapLogger returns the underlying zap.Logger for adapters that need it (e.g. Temporal).
-func GetZapLogger() *zap.Logger {
-	return zapLogger
-}

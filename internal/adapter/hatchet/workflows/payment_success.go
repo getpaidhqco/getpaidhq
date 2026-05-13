@@ -19,8 +19,8 @@ import (
 //                            task via the engine port — same code path as the
 //                            HTTP /orders/:id/complete handler.
 //
-// As in the Temporal version, only the first subscription is processed —
-// preserving today's behaviour intentionally.
+// Only the first subscription is processed — preserving today's behaviour
+// intentionally.
 func NewPaymentSuccessWorkflow(
 	client *hatchet.Client,
 	orderService port.OrderWorkflowService,
