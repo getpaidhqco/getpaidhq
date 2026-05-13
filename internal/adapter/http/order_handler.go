@@ -3,7 +3,8 @@ package handler
 import (
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
+	"github.com/go-fuego/fuego/option"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
@@ -18,7 +19,6 @@ type OrderHandler struct {
 	authz   port.Authz
 }
 
-// NewOrderHandler creates a new OrderHandler.
 func NewOrderHandler(orderService *service.OrderService, logger port.Logger, authz port.Authz) *OrderHandler {
 	return &OrderHandler{
 		service: orderService,
@@ -27,46 +27,39 @@ func NewOrderHandler(orderService *service.OrderService, logger port.Logger, aut
 	}
 }
 
-// RegisterRoutes registers order routes on the given router group.
-func (o *OrderHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.POST("/orders", o.CreateOrder)
-	rg.POST("/orders/:id/complete", o.CompleteOrder)
-	rg.GET("/orders/:id", o.Get)
-	rg.GET("/orders", o.List)
-	rg.GET("/orders/:id/subscriptions", o.ListSubscriptions)
+func (o *OrderHandler) RegisterRoutes(s *fuego.Server) {
+	g := fuego.Group(s, "/orders", option.Tags("Orders"))
+	fuego.Post(g, "", o.CreateOrder, option.Summary("Create an order"))
+	fuego.Post(g, "/{id}/complete", o.CompleteOrder, option.Summary("Complete an order"))
+	fuego.Get(g, "/{id}", o.Get, option.Summary("Get an order"))
+	fuego.Get(g, "", o.List, option.Summary("List orders"))
+	fuego.Get(g, "/{id}/subscriptions", o.ListSubscriptions, option.Summary("List subscriptions for an order"))
 }
 
-func (o *OrderHandler) CreateOrder(c *gin.Context) {
-	var input CreateOrderRequest
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
+type CreateOrderResponse struct {
+	Order OrderResponse `json:"order"`
+	Psp   any           `json:"psp"`
+}
 
-	allowed := o.authz.Enforce(authUser, port.ActionCreateOrder, "")
-	if !allowed {
-		apiErr := NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+func (o *OrderHandler) CreateOrder(c fuego.ContextWithBody[CreateOrderRequest]) (CreateOrderResponse, error) {
+	authUser := AuthUserFrom(c)
+	if !o.authz.Enforce(authUser, port.ActionCreateOrder, "") {
+		return CreateOrderResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
 	}
 
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+	input, err := c.Body()
+	if err != nil {
+		return CreateOrderResponse{}, err
 	}
 
 	if input.SessionId == "" && len(input.Cart.Items) == 0 {
-		apiErr := NewApiError(lib.ValidationError, "You must specify cart or session_id", nil)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return CreateOrderResponse{}, NewApiError(lib.ValidationError, "You must specify cart or session_id", nil)
 	}
-
 	if len(input.Cart.Items) > 0 && input.Cart.Currency == "" {
-		apiErr := NewApiError(lib.ValidationError, "Currency is required", nil)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return CreateOrderResponse{}, NewApiError(lib.ValidationError, "Currency is required", nil)
 	}
 
-	rsp, err := o.service.CreateOrder(c.Request.Context(), domain.CreateOrderInput{
+	rsp, err := o.service.CreateOrder(c.Context(), domain.CreateOrderInput{
 		OrgId:    authUser.OrgId,
 		Currency: input.Cart.Currency,
 		Customer: domain.CreateOrderCommandCustomer{
@@ -85,48 +78,38 @@ func (o *OrderHandler) CreateOrder(c *gin.Context) {
 		Options:         input.Options,
 	})
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return CreateOrderResponse{}, NewApiErrorFromError(err)
 	}
 
-	c.JSON(200, map[string]any{
-		"order": NewOrderFromEntity(rsp.Order),
-		"psp":   rsp.Psp.PspResponse,
-	})
+	return CreateOrderResponse{
+		Order: NewOrderFromEntity(rsp.Order),
+		Psp:   rsp.Psp.PspResponse,
+	}, nil
 }
 
-func (o *OrderHandler) CompleteOrder(c *gin.Context) {
-	var input CompleteOrderRequest
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-	id := c.Param("id")
+func (o *OrderHandler) CompleteOrder(c fuego.ContextWithBody[CompleteOrderRequest]) (OrderResponse, error) {
+	authUser := AuthUserFrom(c)
+	id := c.PathParam("id")
 
-	allowed := o.authz.Enforce(authUser, port.ActionCreateOrder, "")
-	if !allowed {
-		apiErr := NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+	if !o.authz.Enforce(authUser, port.ActionCreateOrder, "") {
+		return OrderResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
 	}
 
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+	input, err := c.Body()
+	if err != nil {
+		return OrderResponse{}, err
 	}
 
 	var completedAt time.Time
 	if input.Payment.CompletedAt != "" {
-		parsed, err := time.Parse(time.RFC3339, input.Payment.CompletedAt)
-		if err != nil {
-			apiErr := NewApiError(lib.ValidationError, "Invalid completed_at format", nil)
-			c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-			return
+		parsed, perr := time.Parse(time.RFC3339, input.Payment.CompletedAt)
+		if perr != nil {
+			return OrderResponse{}, NewApiError(lib.ValidationError, "Invalid completed_at format", nil)
 		}
 		completedAt = parsed
 	}
 
-	rsp, err := o.service.CompleteOrder(c.Request.Context(), domain.CompleteOrderInput{
+	rsp, err := o.service.CompleteOrder(c.Context(), domain.CompleteOrderInput{
 		OrgId:           authUser.OrgId,
 		Id:              id,
 		PaymentMethodId: input.PaymentMethodId,
@@ -162,74 +145,63 @@ func (o *OrderHandler) CompleteOrder(c *gin.Context) {
 		Metadata: input.Metadata,
 	})
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return OrderResponse{}, NewApiErrorFromError(err)
 	}
 
-	c.JSON(200, NewOrderFromEntity(rsp))
+	return NewOrderFromEntity(rsp), nil
 }
 
-func (o *OrderHandler) ListSubscriptions(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-	id := c.Param("id")
+type OrderSubscriptionsResponse struct {
+	Subscriptions []domain.Subscription `json:"subscriptions"`
+}
 
-	allowed := o.authz.Enforce(authUser, port.ActionListOrderSubscriptions, "")
-	if !allowed {
-		apiErr := NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+func (o *OrderHandler) ListSubscriptions(c fuego.ContextNoBody) ([]domain.Subscription, error) {
+	authUser := AuthUserFrom(c)
+	id := c.PathParam("id")
+
+	if !o.authz.Enforce(authUser, port.ActionListOrderSubscriptions, "") {
+		return nil, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
 	}
 
-	rsp, err := o.service.ListOrderSubscriptions(c.Request.Context(), authUser.OrgId, id)
+	rsp, err := o.service.ListOrderSubscriptions(c.Context(), authUser.OrgId, id)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return nil, NewApiErrorFromError(err)
 	}
 
-	c.JSON(200, rsp)
+	return rsp, nil
 }
 
-func (o *OrderHandler) List(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+func (o *OrderHandler) List(c fuego.ContextNoBody) (ListResponse, error) {
+	authUser := AuthUserFrom(c)
 	pagination := GetPagination(c)
 
-	ords, total, err := o.service.List(c.Request.Context(), orgId, pagination)
+	ords, total, err := o.service.List(c.Context(), authUser.OrgId, pagination)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return ListResponse{}, NewApiErrorFromError(err)
 	}
-	var orderRsp = make([]OrderResponse, 0, len(ords))
+	orderRsp := make([]OrderResponse, 0, len(ords))
 	for _, order := range ords {
 		orderRsp = append(orderRsp, NewOrderFromEntity(order))
 	}
 
-	c.JSON(200, ListResponse{
+	return ListResponse{
 		Data: orderRsp,
 		Meta: Meta{
 			Total: total,
 			Page:  pagination.Page,
 			Limit: pagination.Limit,
 		},
-	})
+	}, nil
 }
 
-func (o *OrderHandler) Get(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-	orgId := authUser.OrgId
-	id := c.Param("id")
+func (o *OrderHandler) Get(c fuego.ContextNoBody) (OrderResponse, error) {
+	authUser := AuthUserFrom(c)
+	id := c.PathParam("id")
 
-	order, err := o.service.FindById(c.Request.Context(), orgId, id)
+	order, err := o.service.FindById(c.Context(), authUser.OrgId, id)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return OrderResponse{}, NewApiErrorFromError(err)
 	}
 
-	c.JSON(200, NewOrderFromEntity(order))
+	return NewOrderFromEntity(order), nil
 }

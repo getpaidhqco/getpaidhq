@@ -3,201 +3,125 @@ package handler
 import (
 	"time"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
+	"github.com/go-fuego/fuego/option"
 
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
+	"getpaidhq/internal/lib"
 )
 
-// ReportHandler handles HTTP requests for reports.
 type ReportHandler struct {
 	reportService *service.ReportService
 	logger        port.Logger
 }
 
-// NewReportHandler creates a new ReportHandler.
 func NewReportHandler(reportService *service.ReportService, logger port.Logger) *ReportHandler {
-	return &ReportHandler{
-		reportService: reportService,
-		logger:        logger,
-	}
+	return &ReportHandler{reportService: reportService, logger: logger}
 }
 
-// RegisterRoutes registers report routes on the given router group.
-func (s *ReportHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/reports/revenue/mrr", s.GetMRR)
-	rg.GET("/reports/revenue/arr", s.GetARR)
-	rg.GET("/reports/active-subscribers", s.GetSubscribers)
-	rg.GET("/reports/refunds", s.GetRefundTotals)
-	rg.GET("/reports/churn/totals", s.GetCustomerChurnTotals)
-	rg.GET("/reports/churn/rates", s.GetCustomerChurnRates)
+func (s *ReportHandler) RegisterRoutes(srv *fuego.Server) {
+	g := fuego.Group(srv, "/reports", option.Tags("Reports"))
+	dateRange := option.Group(
+		option.Query("start_date", "Inclusive start date (YYYY-MM-DD)"),
+		option.Query("end_date", "Inclusive end date (YYYY-MM-DD)"),
+	)
+	fuego.Get(g, "/revenue/mrr", s.GetMRR, option.Summary("Monthly recurring revenue"), dateRange)
+	fuego.Get(g, "/revenue/arr", s.GetARR, option.Summary("Annual recurring revenue"), dateRange)
+	fuego.Get(g, "/active-subscribers", s.GetSubscribers, option.Summary("Active subscribers"), dateRange)
+	fuego.Get(g, "/refunds", s.GetRefundTotals, option.Summary("Refund totals"), dateRange)
+	fuego.Get(g, "/churn/totals", s.GetCustomerChurnTotals, option.Summary("Customer churn totals"), dateRange)
+	fuego.Get(g, "/churn/rates", s.GetCustomerChurnRates, option.Summary("Customer churn rates"), dateRange)
 }
 
-func (s *ReportHandler) GetMRR(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-
-	startTime, err := time.Parse(time.DateOnly, c.Query("start_date"))
+func parseDateRange[B, P any](c fuego.Context[B, P]) (time.Time, time.Time, error) {
+	startTime, err := time.Parse(time.DateOnly, c.QueryParam("start_date"))
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return time.Time{}, time.Time{}, NewApiError(lib.BadRequestError, "Invalid start_date (expected YYYY-MM-DD)", err.Error())
 	}
-	endTime, err := time.Parse(time.DateOnly, c.Query("end_date"))
+	endTime, err := time.Parse(time.DateOnly, c.QueryParam("end_date"))
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return time.Time{}, time.Time{}, NewApiError(lib.BadRequestError, "Invalid end_date (expected YYYY-MM-DD)", err.Error())
 	}
 	startTime = startTime.Truncate(24 * time.Hour)
 	endTime = endTime.Add(24 * time.Hour).Truncate(24 * time.Hour).Add(-time.Nanosecond)
-
-	mrr, err := s.reportService.GetMonthlyRecurringRevenue(c.Request.Context(), authUser.OrgId, startTime, endTime)
-	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
-	}
-
-	c.JSON(200, mrr)
+	return startTime, endTime, nil
 }
 
-func (s *ReportHandler) GetARR(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-	startTime, err := time.Parse(time.DateOnly, c.Query("start_date"))
+func (s *ReportHandler) GetMRR(c fuego.ContextNoBody) (any, error) {
+	authUser := AuthUserFrom(c)
+	start, end, err := parseDateRange(c)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return nil, err
 	}
-	endTime, err := time.Parse(time.DateOnly, c.Query("end_date"))
+	out, err := s.reportService.GetMonthlyRecurringRevenue(c.Context(), authUser.OrgId, start, end)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return nil, NewApiErrorFromError(err)
 	}
-	startTime = startTime.Truncate(24 * time.Hour)
-	endTime = endTime.Add(24 * time.Hour).Truncate(24 * time.Hour).Add(-time.Nanosecond)
-
-	arr, err := s.reportService.GetAnnualRecurringRevenue(c.Request.Context(), authUser.OrgId, startTime, endTime)
-	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
-	}
-
-	c.JSON(200, arr)
+	return out, nil
 }
 
-func (s *ReportHandler) GetSubscribers(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-	startTime, err := time.Parse(time.DateOnly, c.Query("start_date"))
+func (s *ReportHandler) GetARR(c fuego.ContextNoBody) (any, error) {
+	authUser := AuthUserFrom(c)
+	start, end, err := parseDateRange(c)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return nil, err
 	}
-	endTime, err := time.Parse(time.DateOnly, c.Query("end_date"))
+	out, err := s.reportService.GetAnnualRecurringRevenue(c.Context(), authUser.OrgId, start, end)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return nil, NewApiErrorFromError(err)
 	}
-	startTime = startTime.Truncate(24 * time.Hour)
-	endTime = endTime.Add(24 * time.Hour).Truncate(24 * time.Hour).Add(-time.Nanosecond)
-
-	arr, err := s.reportService.GetActiveSubscribers(c.Request.Context(), authUser.OrgId, startTime, endTime)
-	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
-	}
-
-	c.JSON(200, arr)
+	return out, nil
 }
 
-func (s *ReportHandler) GetRefundTotals(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-	startTime, err := time.Parse(time.DateOnly, c.Query("start_date"))
+func (s *ReportHandler) GetSubscribers(c fuego.ContextNoBody) (any, error) {
+	authUser := AuthUserFrom(c)
+	start, end, err := parseDateRange(c)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return nil, err
 	}
-	endTime, err := time.Parse(time.DateOnly, c.Query("end_date"))
+	out, err := s.reportService.GetActiveSubscribers(c.Context(), authUser.OrgId, start, end)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return nil, NewApiErrorFromError(err)
 	}
-	startTime = startTime.Truncate(24 * time.Hour)
-	endTime = endTime.Add(24 * time.Hour).Truncate(24 * time.Hour).Add(-time.Nanosecond)
-
-	arr, err := s.reportService.GetRefundTotals(c.Request.Context(), authUser.OrgId, startTime, endTime)
-	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
-	}
-
-	c.JSON(200, arr)
+	return out, nil
 }
 
-func (s *ReportHandler) GetCustomerChurnTotals(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-	startTime, err := time.Parse(time.DateOnly, c.Query("start_date"))
+func (s *ReportHandler) GetRefundTotals(c fuego.ContextNoBody) (any, error) {
+	authUser := AuthUserFrom(c)
+	start, end, err := parseDateRange(c)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return nil, err
 	}
-	endTime, err := time.Parse(time.DateOnly, c.Query("end_date"))
+	out, err := s.reportService.GetRefundTotals(c.Context(), authUser.OrgId, start, end)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return nil, NewApiErrorFromError(err)
 	}
-	startTime = startTime.Truncate(24 * time.Hour)
-	endTime = endTime.Add(24 * time.Hour).Truncate(24 * time.Hour).Add(-time.Nanosecond)
-
-	arr, err := s.reportService.GetCustomerChurnTotals(c.Request.Context(), authUser.OrgId, startTime, endTime)
-	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
-	}
-
-	c.JSON(200, arr)
+	return out, nil
 }
 
-func (s *ReportHandler) GetCustomerChurnRates(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-	startTime, err := time.Parse(time.DateOnly, c.Query("start_date"))
+func (s *ReportHandler) GetCustomerChurnTotals(c fuego.ContextNoBody) (any, error) {
+	authUser := AuthUserFrom(c)
+	start, end, err := parseDateRange(c)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return nil, err
 	}
-	endTime, err := time.Parse(time.DateOnly, c.Query("end_date"))
+	out, err := s.reportService.GetCustomerChurnTotals(c.Context(), authUser.OrgId, start, end)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return nil, NewApiErrorFromError(err)
 	}
-	startTime = startTime.Truncate(24 * time.Hour)
-	endTime = endTime.Add(24 * time.Hour).Truncate(24 * time.Hour).Add(-time.Nanosecond)
+	return out, nil
+}
 
-	arr, err := s.reportService.GetCustomerChurnRates(c.Request.Context(), authUser.OrgId, startTime, endTime)
+func (s *ReportHandler) GetCustomerChurnRates(c fuego.ContextNoBody) (any, error) {
+	authUser := AuthUserFrom(c)
+	start, end, err := parseDateRange(c)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return nil, err
 	}
-
-	c.JSON(200, arr)
+	out, err := s.reportService.GetCustomerChurnRates(c.Context(), authUser.OrgId, start, end)
+	if err != nil {
+		return nil, NewApiErrorFromError(err)
+	}
+	return out, nil
 }

@@ -1,8 +1,8 @@
 package handler
 
 import (
-	"github.com/gin-gonic/gin"
-	"net/http"
+	"github.com/go-fuego/fuego"
+	"github.com/go-fuego/fuego/option"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
@@ -17,7 +17,6 @@ type ProductHandler struct {
 	authz          port.Authz
 }
 
-// NewProductHandler creates a new ProductHandler.
 func NewProductHandler(productService *service.ProductService, logger port.Logger, authz port.Authz) *ProductHandler {
 	return &ProductHandler{
 		productService: productService,
@@ -26,184 +25,123 @@ func NewProductHandler(productService *service.ProductService, logger port.Logge
 	}
 }
 
-// RegisterRoutes registers product, variant, and price routes on the given router group.
-func (s *ProductHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	// Product routes
-	rg.GET("/products", s.checkAuthz(port.ActionListProducts), s.List)
-	rg.GET("/products/:id", s.checkAuthz(port.ActionGetProduct), s.Get)
-	rg.POST("/products", s.checkAuthz(port.ActionCreateProduct), s.Create)
-	rg.PATCH("/products/:id", s.checkAuthz(port.ActionUpdateProduct), s.Update)
-	rg.DELETE("/products/:id", s.checkAuthz(port.ActionDeleteProduct), s.Delete)
+func (s *ProductHandler) RegisterRoutes(srv *fuego.Server) {
+	products := fuego.Group(srv, "/products", option.Tags("Products"))
+	fuego.Get(products, "", s.List, option.Summary("List products"))
+	fuego.Get(products, "/{id}", s.Get, option.Summary("Get a product"))
+	fuego.Post(products, "", s.Create, option.Summary("Create a product"))
+	fuego.Patch(products, "/{id}", s.Update, option.Summary("Update a product"))
+	fuego.Delete(products, "/{id}", s.Delete, option.Summary("Delete a product"))
+	fuego.Get(products, "/{id}/variants", s.ListVariants, option.Summary("List variants of a product"))
+	fuego.Post(products, "/{id}/variants", s.CreateVariant, option.Summary("Add a variant to a product"))
 
-	// Variant routes
-	rg.GET("/variants/:variantId", s.checkAuthz(port.ActionGetVariant), s.GetVariant)
-	rg.GET("/products/:id/variants", s.checkAuthz(port.ActionListVariants), s.ListVariants)
-	rg.POST("/products/:id/variants", s.checkAuthz(port.ActionCreateVariant), s.CreateVariant)
-	rg.PUT("/variants/:variantId", s.checkAuthz(port.ActionUpdateVariant), s.UpdateVariant)
-	rg.DELETE("/variants/:variantId", s.checkAuthz(port.ActionDeleteVariant), s.DeleteVariant)
+	variants := fuego.Group(srv, "/variants", option.Tags("Variants"))
+	fuego.Get(variants, "/{variantId}", s.GetVariant, option.Summary("Get a variant"))
+	fuego.Put(variants, "/{variantId}", s.UpdateVariant, option.Summary("Update a variant"))
+	fuego.Delete(variants, "/{variantId}", s.DeleteVariant, option.Summary("Delete a variant"))
+	fuego.Get(variants, "/{variantId}/prices", s.ListPrices, option.Summary("List prices of a variant"))
 
-	// Price routes
-	rg.GET("/prices/:priceId", s.checkAuthz(port.ActionGetPrice), s.GetPrice)
-	rg.GET("/variants/:variantId/prices", s.checkAuthz(port.ActionListPrices), s.ListPrices)
-	rg.POST("/prices", s.checkAuthz(port.ActionCreatePrice), s.CreatePrice)
-	rg.PATCH("/prices/:priceId", s.checkAuthz(port.ActionUpdatePrice), s.UpdatePrice)
-	rg.DELETE("/prices/:priceId", s.checkAuthz(port.ActionDeletePrice), s.DeletePrice)
+	prices := fuego.Group(srv, "/prices", option.Tags("Prices"))
+	fuego.Get(prices, "/{priceId}", s.GetPrice, option.Summary("Get a price"))
+	fuego.Post(prices, "", s.CreatePrice, option.Summary("Create a price"))
+	fuego.Patch(prices, "/{priceId}", s.UpdatePrice, option.Summary("Update a price"))
+	fuego.Delete(prices, "/{priceId}", s.DeletePrice, option.Summary("Delete a price"))
 }
 
-func (s *ProductHandler) checkAuthz(action port.Action) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		user, _ := c.Get("user")
-		authUser := user.(port.AuthUser)
-		allowed := s.authz.Enforce(authUser, action, "")
-		if !allowed {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Unauthorized",
-			})
-			c.Abort()
-			return
-		}
-		c.Next()
+func enforce[B, P any](c fuego.Context[B, P], authz port.Authz, action port.Action) error {
+	if !authz.Enforce(AuthUserFrom(c), action, "") {
+		return NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
 	}
+	return nil
 }
 
-func (s *ProductHandler) Get(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-	orgId := authUser.OrgId
-	id := c.Param("id")
-
-	product, err := s.productService.FindById(c.Request.Context(), orgId, id)
+func (s *ProductHandler) Get(c fuego.ContextNoBody) (ProductResponse, error) {
+	if err := enforce(c, s.authz, port.ActionGetProduct); err != nil {
+		return ProductResponse{}, err
+	}
+	authUser := AuthUserFrom(c)
+	product, err := s.productService.FindById(c.Context(), authUser.OrgId, c.PathParam("id"))
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return ProductResponse{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(200, NewProductFromEntity(product))
+	return NewProductFromEntity(product), nil
 }
 
-func (s *ProductHandler) Create(c *gin.Context) {
-	var input domain.CreateProductInput
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-
-	allowed := s.authz.Enforce(authUser, port.ActionCreateProduct, "")
-	if !allowed {
-		apiErr := NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+func (s *ProductHandler) Create(c fuego.ContextWithBody[domain.CreateProductInput]) (ProductResponse, error) {
+	if err := enforce(c, s.authz, port.ActionCreateProduct); err != nil {
+		return ProductResponse{}, err
 	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
-	}
-
-	product, err := s.productService.CreateProduct(c.Request.Context(), authUser.OrgId, input)
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return ProductResponse{}, err
 	}
-
-	c.JSON(200, NewProductFromEntity(product))
+	product, err := s.productService.CreateProduct(c.Context(), authUser.OrgId, input)
+	if err != nil {
+		return ProductResponse{}, NewApiErrorFromError(err)
+	}
+	return NewProductFromEntity(product), nil
 }
 
-func (s *ProductHandler) List(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
+func (s *ProductHandler) List(c fuego.ContextNoBody) (ListResponse, error) {
+	if err := enforce(c, s.authz, port.ActionListProducts); err != nil {
+		return ListResponse{}, err
+	}
+	authUser := AuthUserFrom(c)
 	pagination := GetPagination(c)
-
-	prods, total, err := s.productService.List(c.Request.Context(), orgId, pagination)
+	prods, total, err := s.productService.List(c.Context(), authUser.OrgId, pagination)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return ListResponse{}, NewApiErrorFromError(err)
 	}
-
 	products := make([]ProductResponse, len(prods))
 	for i, prod := range prods {
 		products[i] = NewProductFromEntity(prod)
 	}
-
-	c.JSON(200, ListResponse{
+	return ListResponse{
 		Data: products,
-		Meta: Meta{
-			Total: total,
-			Page:  pagination.Page,
-			Limit: pagination.Limit,
-		},
-	})
+		Meta: Meta{Total: total, Page: pagination.Page, Limit: pagination.Limit},
+	}, nil
 }
 
-func (s *ProductHandler) Update(c *gin.Context) {
-	var input domain.UpdateProductInput
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-	orgId := authUser.OrgId
-	id := c.Param("id")
-
-	allowed := s.authz.Enforce(authUser, port.ActionUpdateProduct, "")
-	if !allowed {
-		apiErr := NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+func (s *ProductHandler) Update(c fuego.ContextWithBody[domain.UpdateProductInput]) (ProductResponse, error) {
+	if err := enforce(c, s.authz, port.ActionUpdateProduct); err != nil {
+		return ProductResponse{}, err
 	}
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
-	}
-
-	product, err := s.productService.UpdateProduct(c.Request.Context(), orgId, id, input)
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return ProductResponse{}, err
 	}
-
-	c.JSON(200, NewProductFromEntity(product))
-}
-
-func (s *ProductHandler) Delete(c *gin.Context) {
-	user, _ := c.Get("user")
-	authUser := user.(port.AuthUser)
-	orgId := authUser.OrgId
-	id := c.Param("id")
-
-	allowed := s.authz.Enforce(authUser, port.ActionDeleteProduct, "")
-	if !allowed {
-		apiErr := NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
-	}
-
-	err := s.productService.DeleteProduct(c.Request.Context(), orgId, id)
+	product, err := s.productService.UpdateProduct(c.Context(), authUser.OrgId, c.PathParam("id"), input)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return ProductResponse{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(204, nil)
+	return NewProductFromEntity(product), nil
 }
 
-// CreatePrice creates a new price for a variant.
-func (s *ProductHandler) CreatePrice(c *gin.Context) {
-	var input CreatePriceRequest
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+func (s *ProductHandler) Delete(c fuego.ContextNoBody) (struct{}, error) {
+	if err := enforce(c, s.authz, port.ActionDeleteProduct); err != nil {
+		return struct{}{}, err
 	}
+	authUser := AuthUserFrom(c)
+	if err := s.productService.DeleteProduct(c.Context(), authUser.OrgId, c.PathParam("id")); err != nil {
+		return struct{}{}, NewApiErrorFromError(err)
+	}
+	c.SetStatus(204)
+	return struct{}{}, nil
+}
 
-	price, err := s.productService.CreateProductPrice(c.Request.Context(), domain.CreatePriceInput{
-		OrgId:              orgId,
+func (s *ProductHandler) CreatePrice(c fuego.ContextWithBody[CreatePriceRequest]) (domain.Price, error) {
+	if err := enforce(c, s.authz, port.ActionCreatePrice); err != nil {
+		return domain.Price{}, err
+	}
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
+	if err != nil {
+		return domain.Price{}, err
+	}
+	price, err := s.productService.CreateProductPrice(c.Context(), domain.CreatePriceInput{
+		OrgId:              authUser.OrgId,
 		VariantId:          input.VariantId,
 		Category:           input.Category,
 		Label:              input.Label,
@@ -222,69 +160,50 @@ func (s *ProductHandler) CreatePrice(c *gin.Context) {
 	})
 	if err != nil {
 		s.logger.Error("Failed to create price", err.Error())
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return domain.Price{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(200, price)
+	return price, nil
 }
 
-// GetPrice gets a price by ID.
-func (s *ProductHandler) GetPrice(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
-	id := c.Param("id")
-
-	price, err := s.productService.GetPrice(c.Request.Context(), orgId, id)
+func (s *ProductHandler) GetPrice(c fuego.ContextNoBody) (domain.Price, error) {
+	if err := enforce(c, s.authz, port.ActionGetPrice); err != nil {
+		return domain.Price{}, err
+	}
+	authUser := AuthUserFrom(c)
+	price, err := s.productService.GetPrice(c.Context(), authUser.OrgId, c.PathParam("priceId"))
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return domain.Price{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(200, price)
+	return price, nil
 }
 
-// ListPrices lists all prices for a variant.
-func (s *ProductHandler) ListPrices(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
-	variantId := c.Param("variantId")
+func (s *ProductHandler) ListPrices(c fuego.ContextNoBody) (ListResponse, error) {
+	if err := enforce(c, s.authz, port.ActionListPrices); err != nil {
+		return ListResponse{}, err
+	}
+	authUser := AuthUserFrom(c)
 	pagination := GetPagination(c)
-
-	prices, total, err := s.productService.ListPrices(c.Request.Context(), orgId, variantId, pagination)
+	prices, total, err := s.productService.ListPrices(c.Context(), authUser.OrgId, c.PathParam("variantId"), pagination)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return ListResponse{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(200, ListResponse{
+	return ListResponse{
 		Data: prices,
-		Meta: Meta{
-			Total: total,
-			Page:  pagination.Page,
-			Limit: pagination.Limit,
-		},
-	})
+		Meta: Meta{Total: total, Page: pagination.Page, Limit: pagination.Limit},
+	}, nil
 }
 
-// UpdatePrice updates a price.
-func (s *ProductHandler) UpdatePrice(c *gin.Context) {
-	var input CreatePriceRequest
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
-	id := c.Param("priceId")
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+func (s *ProductHandler) UpdatePrice(c fuego.ContextWithBody[CreatePriceRequest]) (domain.Price, error) {
+	if err := enforce(c, s.authz, port.ActionUpdatePrice); err != nil {
+		return domain.Price{}, err
 	}
-
-	price, err := s.productService.UpdatePrice(c.Request.Context(), orgId, id, domain.CreatePriceInput{
-		OrgId:              orgId,
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
+	if err != nil {
+		return domain.Price{}, err
+	}
+	price, err := s.productService.UpdatePrice(c.Context(), authUser.OrgId, c.PathParam("priceId"), domain.CreatePriceInput{
+		OrgId:              authUser.OrgId,
 		VariantId:          input.VariantId,
 		Category:           input.Category,
 		Scheme:             input.Scheme,
@@ -302,128 +221,91 @@ func (s *ProductHandler) UpdatePrice(c *gin.Context) {
 		Metadata:           input.Metadata,
 	})
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return domain.Price{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(200, price)
+	return price, nil
 }
 
-// DeletePrice deletes a price.
-func (s *ProductHandler) DeletePrice(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
-	id := c.Param("priceId")
+func (s *ProductHandler) DeletePrice(c fuego.ContextNoBody) (struct{}, error) {
+	if err := enforce(c, s.authz, port.ActionDeletePrice); err != nil {
+		return struct{}{}, err
+	}
+	authUser := AuthUserFrom(c)
+	if err := s.productService.DeletePrice(c.Context(), authUser.OrgId, c.PathParam("priceId")); err != nil {
+		return struct{}{}, NewApiErrorFromError(err)
+	}
+	c.SetStatus(204)
+	return struct{}{}, nil
+}
 
-	err := s.productService.DeletePrice(c.Request.Context(), orgId, id)
+func (s *ProductHandler) CreateVariant(c fuego.ContextWithBody[domain.CreateVariantInput]) (domain.Variant, error) {
+	if err := enforce(c, s.authz, port.ActionCreateVariant); err != nil {
+		return domain.Variant{}, err
+	}
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return domain.Variant{}, err
 	}
-
-	c.JSON(204, nil)
-}
-
-// CreateVariant creates a new variant for a product.
-func (s *ProductHandler) CreateVariant(c *gin.Context) {
-	var input domain.CreateVariantInput
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
-	productId := c.Param("productId")
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
-	}
-
-	variant, err := s.productService.CreateVariant(c.Request.Context(), orgId, productId, input)
+	variant, err := s.productService.CreateVariant(c.Context(), authUser.OrgId, c.PathParam("id"), input)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return domain.Variant{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(200, variant)
+	return variant, nil
 }
 
-// GetVariant gets a variant by ID.
-func (s *ProductHandler) GetVariant(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
-	id := c.Param("id")
-
-	variant, err := s.productService.GetVariant(c.Request.Context(), orgId, id)
+func (s *ProductHandler) GetVariant(c fuego.ContextNoBody) (domain.Variant, error) {
+	if err := enforce(c, s.authz, port.ActionGetVariant); err != nil {
+		return domain.Variant{}, err
+	}
+	authUser := AuthUserFrom(c)
+	variant, err := s.productService.GetVariant(c.Context(), authUser.OrgId, c.PathParam("variantId"))
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return domain.Variant{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(200, variant)
+	return variant, nil
 }
 
-// ListVariants lists all variants for a product.
-func (s *ProductHandler) ListVariants(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
-	productId := c.Param("productId")
+func (s *ProductHandler) ListVariants(c fuego.ContextNoBody) (ListResponse, error) {
+	if err := enforce(c, s.authz, port.ActionListVariants); err != nil {
+		return ListResponse{}, err
+	}
+	authUser := AuthUserFrom(c)
 	pagination := GetPagination(c)
-
-	variants, total, err := s.productService.ListVariants(c.Request.Context(), orgId, productId, pagination)
+	variants, total, err := s.productService.ListVariants(c.Context(), authUser.OrgId, c.PathParam("id"), pagination)
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return ListResponse{}, NewApiErrorFromError(err)
 	}
-
-	c.JSON(200, ListResponse{
+	return ListResponse{
 		Data: variants,
-		Meta: Meta{
-			Total: total,
-			Page:  pagination.Page,
-			Limit: pagination.Limit,
-		},
-	})
+		Meta: Meta{Total: total, Page: pagination.Page, Limit: pagination.Limit},
+	}, nil
 }
 
-// UpdateVariant updates a variant.
-func (s *ProductHandler) UpdateVariant(c *gin.Context) {
-	var input domain.UpdateVariantInput
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
-	id := c.Param("id")
-
-	if err := c.ShouldBindJSON(&input); err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+func (s *ProductHandler) UpdateVariant(c fuego.ContextWithBody[domain.UpdateVariantInput]) (domain.Variant, error) {
+	if err := enforce(c, s.authz, port.ActionUpdateVariant); err != nil {
+		return domain.Variant{}, err
 	}
-
-	variant, err := s.productService.UpdateVariant(c.Request.Context(), orgId, id, input)
+	authUser := AuthUserFrom(c)
+	input, err := c.Body()
 	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+		return domain.Variant{}, err
 	}
-
-	c.JSON(200, variant)
+	variant, err := s.productService.UpdateVariant(c.Context(), authUser.OrgId, c.PathParam("variantId"), input)
+	if err != nil {
+		return domain.Variant{}, NewApiErrorFromError(err)
+	}
+	return variant, nil
 }
 
-// DeleteVariant deletes a variant.
-func (s *ProductHandler) DeleteVariant(c *gin.Context) {
-	user, _ := c.Get("user")
-	orgId := user.(port.AuthUser).OrgId
-	id := c.Param("id")
-
-	err := s.productService.DeleteVariant(c.Request.Context(), orgId, id)
-	if err != nil {
-		apiErr := NewApiErrorFromError(err)
-		c.JSON(apiErr.GetHttpErrorCode(), apiErr)
-		return
+func (s *ProductHandler) DeleteVariant(c fuego.ContextNoBody) (struct{}, error) {
+	if err := enforce(c, s.authz, port.ActionDeleteVariant); err != nil {
+		return struct{}{}, err
 	}
-
-	c.JSON(204, nil)
+	authUser := AuthUserFrom(c)
+	if err := s.productService.DeleteVariant(c.Context(), authUser.OrgId, c.PathParam("variantId")); err != nil {
+		return struct{}{}, NewApiErrorFromError(err)
+	}
+	c.SetStatus(204)
+	return struct{}{}, nil
 }

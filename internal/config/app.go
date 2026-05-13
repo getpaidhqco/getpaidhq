@@ -1,33 +1,32 @@
 package config
 
 import (
+	"github.com/go-fuego/fuego"
+	"gorm.io/gorm"
+
 	"getpaidhq/internal/adapter/cedar"
 	"getpaidhq/internal/adapter/checkout_com"
 	"getpaidhq/internal/adapter/clerk"
 	"getpaidhq/internal/adapter/cron"
+	"getpaidhq/internal/adapter/hatchet"
+	hatchetsteps "getpaidhq/internal/adapter/hatchet/steps"
 	handler "getpaidhq/internal/adapter/http"
-	"getpaidhq/internal/adapter/http/middleware"
 	"getpaidhq/internal/adapter/nats"
 	"getpaidhq/internal/adapter/paystack"
 	"getpaidhq/internal/adapter/postgres"
 	"getpaidhq/internal/adapter/redis"
 	"getpaidhq/internal/adapter/sqs"
-	"getpaidhq/internal/adapter/hatchet"
-	hatchetsteps "getpaidhq/internal/adapter/hatchet/steps"
 	"getpaidhq/internal/adapter/temporal"
 	"getpaidhq/internal/adapter/temporal/activities"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
 	"getpaidhq/internal/lib"
-
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 )
 
 // App holds all wired dependencies for the application.
 type App struct {
-	Router *gin.Engine
+	Server *fuego.Server
 	DB     *gorm.DB
 	Env    lib.Env
 }
@@ -37,7 +36,7 @@ func NewApp() (*App, error) {
 	env := lib.NewEnv()
 	logger := lib.GetLogger()
 	reporter := lib.NewErrorReporter(logger)
-	requestHandler := lib.NewRequestHandler(logger, reporter)
+	httpValidator := lib.NewValidator(logger)
 
 	// ---------------------------------------------------------------------------
 	// Database
@@ -85,7 +84,7 @@ func NewApp() (*App, error) {
 	queueClient := sqs.NewSQSFifoClient(logger, env)
 
 	// Auth
-	clerkAuth := clerk.NewClerkMiddleware(requestHandler, logger, env, metadataRepo)
+	clerkAuth := clerk.NewClerkMiddleware(logger, env, metadataRepo)
 	clerkProvider := clerk.NewClerkClient(env, logger, metadataRepo)
 	authenticators := []port.Authenticator{clerkAuth}
 
@@ -100,31 +99,14 @@ func NewApp() (*App, error) {
 
 	// ---------------------------------------------------------------------------
 	// Narrow services (no workflow engine).
-	//
-	// These are constructed first so that Temporal activities — which are
-	// dispatched by the engine and therefore cannot depend on it — can hold
-	// references to them. The engine-aware variants are constructed below,
-	// after the engine itself exists.
 	// ---------------------------------------------------------------------------
 	subService := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, gatewayFactory, pubsub, reporter, logger)
 	paymentService := service.NewPaymentService(paymentRepo, logger)
 	orderWorkflowService := service.NewOrderWorkflowService(orderRepo, customerRepo, subRepo, paymentMethodRepo, paymentRepo, pubsub, logger)
 	dunningService := service.NewDunningService(dunningRepo, subRepo, customerRepo, paymentRepo, subService, gatewayFactory, pubsub, reporter, logger)
 
-	// ---------------------------------------------------------------------------
-	// Workflow engine: activities are wired to the narrow services above; the
-	// engine is then constructed with the activities. Engine-aware services
-	// (which the engine itself does not depend on) are constructed after.
-	// ---------------------------------------------------------------------------
 	webhookSubService := service.NewWebhookSubscriptionService(logger, webhookSubRepo, idempotencyRepo, pubsub)
 
-	// Both Temporal and Hatchet adapters are compiled in; WORKFLOW_ENGINE selects
-	// which one is started. The narrow services above are engine-agnostic — only
-	// the activity/step wrappers and the engine itself differ.
-	//
-	// Dunning workflows are Hatchet-only at the moment; the Temporal adapter's
-	// DunningEngine methods return ErrUnsupported so the orchestration service
-	// still runs (it creates campaigns in the DB) but no workflow is spawned.
 	var engine port.Engine
 	var dunningEngine port.DunningEngine
 	switch env.WorkflowEngine {
@@ -165,59 +147,44 @@ func NewApp() (*App, error) {
 	// ---------------------------------------------------------------------------
 	// HTTP Handlers
 	// ---------------------------------------------------------------------------
-	healthHandler := handler.NewHealthHandler(logger)
-	orderHandler := handler.NewOrderHandler(orderService, logger, authzEngine)
-	subscriptionHandler := handler.NewSubscriptionHandler(subOrchestrationService, logger)
 	customerHandler := handler.NewCustomerHandler(customerService, logger, authzEngine)
-	productHandler := handler.NewProductHandler(productService, logger, authzEngine)
-	cartHandler := handler.NewCartHandler(cartService, logger)
-	sessionHandler := handler.NewSessionHandler(sessionService, logger, authzEngine)
-	webhookHandler := handler.NewWebhookHandler(webhookService, logger)
-	webhookSubHandler := handler.NewWebhookSubscriptionHandler(webhookSubService, logger, authzEngine)
-	orgHandler := handler.NewOrgHandler(orgService, logger)
-	reportHandler := handler.NewReportHandler(reportService, logger)
-	pspHandler := handler.NewPspHandler(pspService, logger, authzEngine)
-	paymentMethodHandler := handler.NewPaymentMethodHandler(customerHandler)
-	dunningHandler := handler.NewDunningHandler(dunningOrchestrationService, subService, logger, authzEngine)
+	handlers := Handlers{
+		Health:        handler.NewHealthHandler(logger),
+		Order:         handler.NewOrderHandler(orderService, logger, authzEngine),
+		Subscription:  handler.NewSubscriptionHandler(subOrchestrationService, logger),
+		Customer:      customerHandler,
+		Product:       handler.NewProductHandler(productService, logger, authzEngine),
+		Cart:          handler.NewCartHandler(cartService, logger),
+		Session:       handler.NewSessionHandler(sessionService, logger, authzEngine),
+		Webhook:       handler.NewWebhookHandler(webhookService, logger),
+		WebhookSub:    handler.NewWebhookSubscriptionHandler(webhookSubService, logger, authzEngine),
+		Org:           handler.NewOrgHandler(orgService, logger),
+		Report:        handler.NewReportHandler(reportService, logger),
+		Psp:           handler.NewPspHandler(pspService, logger, authzEngine),
+		PaymentMethod: handler.NewPaymentMethodHandler(customerHandler),
+		Dunning:       handler.NewDunningHandler(dunningOrchestrationService, subService, logger, authzEngine),
+	}
 
-	// ---------------------------------------------------------------------------
-	// HTTP Router
-	// ---------------------------------------------------------------------------
-	router := requestHandler.Gin
-
-	// Global middleware. Order matters: CORS first so OPTIONS preflight
-	// short-circuits before authn; authn second so handlers see `user` in ctx.
-	middleware.NewCorsMiddleware(requestHandler, logger, env).Setup()
-	middleware.NewAuthnWrapperMiddleware(authenticators, requestHandler, logger, env).Setup()
-
-	api := router.Group("/api")
-	healthHandler.RegisterRoutes(api)
-	orderHandler.RegisterRoutes(api)
-	subscriptionHandler.RegisterRoutes(api)
-	customerHandler.RegisterRoutes(api)
-	productHandler.RegisterRoutes(api)
-	cartHandler.RegisterRoutes(api)
-	sessionHandler.RegisterRoutes(api)
-	webhookHandler.RegisterRoutes(api)
-	webhookSubHandler.RegisterRoutes(api)
-	orgHandler.RegisterRoutes(api)
-	reportHandler.RegisterRoutes(api)
-	pspHandler.RegisterRoutes(api)
-	paymentMethodHandler.RegisterRoutes(api)
-	dunningHandler.RegisterRoutes(api)
+	port := env.ServerPort
+	if port == "" {
+		port = "8080"
+	}
+	server := BuildServer(ServerDeps{
+		Addr:           ":" + port,
+		Logger:         logger,
+		Validator:      httpValidator,
+		Authenticators: authenticators,
+		Env:            env,
+	}, handlers)
 
 	return &App{
-		Router: router,
+		Server: server,
 		DB:     db,
 		Env:    env,
 	}, nil
 }
 
-// Run starts the HTTP server on the configured port.
+// Run starts the HTTP server.
 func (a *App) Run() error {
-	portNum := a.Env.ServerPort
-	if portNum == "" {
-		portNum = "8080"
-	}
-	return a.Router.Run(":" + portNum)
+	return a.Server.Run()
 }

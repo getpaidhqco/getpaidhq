@@ -1,9 +1,12 @@
 package handler
 
 import (
+	"encoding/json"
 	"io"
+	"net/http"
 
-	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
+	"github.com/go-fuego/fuego/option"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
@@ -16,35 +19,33 @@ type WebhookHandler struct {
 	logger         port.Logger
 }
 
-// NewWebhookHandler creates a new WebhookHandler.
 func NewWebhookHandler(service *service.WebhookService, logger port.Logger) *WebhookHandler {
-	return &WebhookHandler{
-		webhookService: service,
-		logger:         logger,
-	}
+	return &WebhookHandler{webhookService: service, logger: logger}
 }
 
-// RegisterRoutes registers webhook routes on the given router group.
-func (u *WebhookHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.POST("/notify", u.Process)
+// RegisterRoutes registers the raw-body webhook endpoint. PSPs sign the
+// unparsed body, so the route is wired through PostStd which skips
+// Fuego's JSON binder.
+func (u *WebhookHandler) RegisterRoutes(s *fuego.Server) {
+	fuego.PostStd(s, "/notify", u.Process,
+		option.Tags("Webhooks"),
+		option.Summary("PSP webhook receiver"),
+		option.Query("p", "PSP identifier"),
+	)
 }
 
-func (u *WebhookHandler) Process(c *gin.Context) {
-	jsonData, err := io.ReadAll(c.Request.Body)
-	_ = err
-
-	queryParams := c.Request.URL.Query()
-	psp := queryParams.Get("p")
+func (u *WebhookHandler) Process(w http.ResponseWriter, r *http.Request) {
+	jsonData, _ := io.ReadAll(r.Body)
+	psp := r.URL.Query().Get("p")
 
 	u.logger.Debug("Processing webhook")
-	err = u.webhookService.HandlePaymentWebhook(c.Request.Context(), port.PaymentWebhookPayload{
+	if err := u.webhookService.HandlePaymentWebhook(r.Context(), port.PaymentWebhookPayload{
 		Psp:  domain.Gateway(psp),
 		Data: string(jsonData),
-	})
-	if err != nil {
-		// log the error and report it, but always respond positively to the webhook
+	}); err != nil {
 		u.logger.Errorf("Error processing webhook: %s", err.Error())
 	}
 
-	c.JSON(200, map[string]string{"status": "success"})
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
 }

@@ -1,38 +1,73 @@
 package middleware
 
 import (
-	cors "github.com/rs/cors/wrapper/gin"
+	"net/http"
+	"strings"
+
+	"github.com/rs/cors"
 
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
 )
 
-// CorsMiddleware handles CORS configuration.
+// CorsMiddleware builds the project's CORS handler. Origins are
+// read from the ALLOWED_ORIGINS env var (comma-separated). An explicit
+// "*" entry enables permissive CORS for development; an empty value
+// rejects every cross-origin request.
 type CorsMiddleware struct {
-	handler lib.RequestHandler
-	logger  port.Logger
-	env     lib.Env
+	logger port.Logger
+	env    lib.Env
 }
 
-// NewCorsMiddleware creates a new CorsMiddleware.
-func NewCorsMiddleware(handler lib.RequestHandler, logger port.Logger, env lib.Env) CorsMiddleware {
-	return CorsMiddleware{
-		handler: handler,
-		logger:  logger,
-		env:     env,
-	}
+func NewCorsMiddleware(logger port.Logger, env lib.Env) CorsMiddleware {
+	return CorsMiddleware{logger: logger, env: env}
 }
 
-// Setup registers the CORS middleware on the gin engine.
-func (m CorsMiddleware) Setup() {
-	m.logger.Info("Setting up cors middleware")
+// Handler returns a net/http middleware suitable for fuego.WithGlobalMiddlewares.
+func (m CorsMiddleware) Handler() func(http.Handler) http.Handler {
+	allowed := parseOrigins(m.env.AllowedOrigins)
+	openCors := contains(allowed, "*")
 
-	debug := false
-	m.handler.Gin.Use(cors.New(cors.Options{
-		AllowCredentials: true,
-		AllowOriginFunc:  func(origin string) bool { return true },
+	opts := cors.Options{
+		AllowCredentials: !openCors, // wildcard + credentials is illegal per CORS spec
 		AllowedHeaders:   []string{"*"},
 		AllowedMethods:   []string{"GET", "POST", "PUT", "HEAD", "PATCH", "OPTIONS", "DELETE"},
-		Debug:            debug,
-	}))
+	}
+
+	switch {
+	case openCors:
+		m.logger.Info("CORS configured with wildcard origin (ALLOWED_ORIGINS=\"*\")")
+		opts.AllowOriginFunc = func(string) bool { return true }
+	case len(allowed) == 0:
+		m.logger.Info("CORS configured with no allowed origins (ALLOWED_ORIGINS unset)")
+		opts.AllowOriginFunc = func(string) bool { return false }
+	default:
+		m.logger.Info("CORS allowed origins", "origins", allowed)
+		opts.AllowedOrigins = allowed
+	}
+
+	return cors.New(opts).Handler
+}
+
+func parseOrigins(raw string) []string {
+	if raw == "" {
+		return nil
+	}
+	parts := strings.Split(raw, ",")
+	out := make([]string, 0, len(parts))
+	for _, p := range parts {
+		if v := strings.TrimSpace(p); v != "" {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+func contains(haystack []string, needle string) bool {
+	for _, v := range haystack {
+		if v == needle {
+			return true
+		}
+	}
+	return false
 }

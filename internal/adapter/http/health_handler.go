@@ -1,7 +1,8 @@
 package handler
 
 import (
-	"github.com/gin-gonic/gin"
+	"github.com/go-fuego/fuego"
+	"github.com/go-fuego/fuego/option"
 
 	"getpaidhq/internal/core/port"
 )
@@ -11,18 +12,21 @@ type HealthHandler struct {
 	logger port.Logger
 }
 
-// NewHealthHandler creates a new HealthHandler.
 func NewHealthHandler(logger port.Logger) *HealthHandler {
-	return &HealthHandler{
-		logger: logger,
-	}
+	return &HealthHandler{logger: logger}
 }
 
-// RegisterRoutes registers health routes on the given router group.
-func (u *HealthHandler) RegisterRoutes(rg *gin.RouterGroup) {
-	rg.GET("/health", u.Healthcheck)
+func (u *HealthHandler) RegisterRoutes(s *fuego.Server) {
+	fuego.Get(s, "/health", u.Healthcheck,
+		option.Summary("Liveness probe"),
+		option.Tags("Health"),
+	)
 }
 
-func (u *HealthHandler) Healthcheck(c *gin.Context) {
-	c.JSON(200, map[string]string{"status": "ok"})
+type HealthResponse struct {
+	Status string `json:"status"`
+}
+
+func (u *HealthHandler) Healthcheck(_ fuego.ContextNoBody) (HealthResponse, error) {
+	return HealthResponse{Status: "ok"}, nil
 }

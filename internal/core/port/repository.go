@@ -214,19 +214,19 @@ type CreateOrgInput struct {
 
 // CreateMetadataInput represents the input for creating a metadata entry.
 type CreateMetadataInput struct {
-	OrgId      string `json:"org_id" binding:"required"`
-	ParentId   string `json:"parent_id" binding:"required"`
-	ParentType string `json:"parent_type" binding:"required"`
-	Key        string `json:"key" binding:"required"`
-	Value      string `json:"value" binding:"required"`
+	OrgId      string `json:"org_id" validate:"required"`
+	ParentId   string `json:"parent_id" validate:"required"`
+	ParentType string `json:"parent_type" validate:"required"`
+	Key        string `json:"key" validate:"required"`
+	Value      string `json:"value" validate:"required"`
 	Namespace  string `json:"namespace"`
 }
 
 // UpdateMetadataInput represents the input for updating a metadata entry.
 type UpdateMetadataInput struct {
-	OrgId     string `json:"org_id" binding:"required"`
-	ParentId  string `json:"parent_id" binding:"required"`
-	Key       string `json:"key" binding:"required"`
-	Value     string `json:"value" binding:"required"`
+	OrgId     string `json:"org_id" validate:"required"`
+	ParentId  string `json:"parent_id" validate:"required"`
+	Key       string `json:"key" validate:"required"`
+	Value     string `json:"value" validate:"required"`
 	Namespace string `json:"namespace"`
 }

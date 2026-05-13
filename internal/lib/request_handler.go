@@ -1,37 +1,17 @@
 package lib
 
 import (
-	"github.com/gin-gonic/gin"
-	"github.com/gin-gonic/gin/binding"
 	"github.com/go-playground/validator/v10"
-	"net/http"
 )
 
-// RequestHandler function
-type RequestHandler struct {
-	Gin *gin.Engine
-}
-
-// NewRequestHandler creates a new request handler
-func NewRequestHandler(logger Logger, _ ErrorReporter) RequestHandler {
-	engine := gin.Default()
-	engine.NoRoute(func(c *gin.Context) {
-		c.JSON(http.StatusNotFound, gin.H{
-			"code":    "not_found",
-			"message": "Route not found",
-		})
-	})
-	engine.Use(func(c *gin.Context) {
-		logger.Debugf("-------- %s %s", c.Request.Method, c.Request.URL.Path)
-		c.Next()
-	})
-	// Register custom validations
-	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		err := v.RegisterValidation("iso4217", ValidateCurrency)
-		if err != nil {
-			logger.Errorf("Failed to register custom validator: %v", err)
-		}
+// NewValidator builds the shared *validator.Validate instance with the
+// project's custom rules (currently the ISO 4217 currency check). The
+// returned validator is wired into Fuego at server construction so every
+// DTO bound through Fuego's body decoder is validated the same way.
+func NewValidator(logger Logger) *validator.Validate {
+	v := validator.New(validator.WithRequiredStructEnabled())
+	if err := v.RegisterValidation("iso4217", ValidateCurrency); err != nil {
+		logger.Errorf("register iso4217 validator: %v", err)
 	}
-
-	return RequestHandler{Gin: engine}
+	return v
 }

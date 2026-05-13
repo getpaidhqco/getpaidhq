@@ -9,7 +9,7 @@ import (
 // ---- requests ----
 
 type UpdateDunningCampaignRequest struct {
-	Status string `json:"status" binding:"required,oneof=active paused cancelled"`
+	Status string `json:"status" validate:"required,oneof=active paused cancelled"`
 	Reason string `json:"reason"`
 }
 
@@ -18,11 +18,11 @@ type TriggerManualAttemptRequest struct {
 }
 
 type VerifyPaymentTokenRequest struct {
-	TokenID string `json:"token_id" binding:"required"`
+	TokenID string `json:"token_id" validate:"required"`
 }
 
 type ActivatePaymentTokenRequest struct {
-	TokenID string `json:"token_id" binding:"required"`
+	TokenID string `json:"token_id" validate:"required"`
 }
 
 type CreatePaymentTokenRequest struct {
@@ -34,12 +34,12 @@ type CreatePaymentTokenRequest struct {
 }
 
 type CreateDunningConfigurationRequest struct {
-	Name             string                    `json:"name" binding:"required"`
+	Name             string                    `json:"name" validate:"required"`
 	Description      string                    `json:"description"`
 	Priority         int                       `json:"priority"`
-	AppliesTo        domain.DunningConfigScope `json:"applies_to" binding:"required"`
+	AppliesTo        domain.DunningConfigScope `json:"applies_to" validate:"required"`
 	TargetRules      map[string]any            `json:"target_rules"`
-	Config           domain.DunningConfig      `json:"config" binding:"required"`
+	Config           domain.DunningConfig      `json:"config" validate:"required"`
 	IsAbTest         bool                      `json:"is_ab_test"`
 	AbTestPercentage float64                   `json:"ab_test_percentage"`
 }
