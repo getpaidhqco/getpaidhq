@@ -18,7 +18,7 @@ func NewSettingRepo(db *gorm.DB) port.SettingRepository {
 
 func (r *SettingRepo) FindById(ctx context.Context, orgId string, parentId string, id string) (domain.Setting, error) {
 	var setting domain.Setting
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("parent_id = ? AND id = ?", parentId, id).
 		First(&setting).Error
@@ -26,7 +26,7 @@ func (r *SettingRepo) FindById(ctx context.Context, orgId string, parentId strin
 }
 
 func (r *SettingRepo) Create(ctx context.Context, entity domain.Setting) (domain.Setting, error) {
-	err := r.db.WithContext(ctx).Create(&entity).Error
+	err := dbFromCtx(ctx, r.db).Create(&entity).Error
 	if err != nil {
 		return domain.Setting{}, err
 	}

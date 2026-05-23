@@ -50,6 +50,8 @@ func NewApp() (*App, error) {
 		reportDB = db
 	}
 
+	txManager := postgres.NewTxManager(db)
+
 	// ---------------------------------------------------------------------------
 	// Repositories
 	// ---------------------------------------------------------------------------
@@ -145,7 +147,7 @@ func NewApp() (*App, error) {
 	// ---------------------------------------------------------------------------
 	subOrchestrationService := service.NewSubscriptionOrchestrationService(subService, engine, logger)
 	dunningOrchestrationService := service.NewDunningOrchestrationService(dunningService, dunningEngine, pubsub, reporter, logger)
-	orderService := service.NewOrderService(engine, sessionRepo, priceRepo, cartRepo, orderRepo, customerRepo, subRepo, paymentRepo, paymentMethodRepo, productRepo, gatewayFactory, pubsub, logger)
+	orderService := service.NewOrderService(txManager, engine, sessionRepo, priceRepo, cartRepo, orderRepo, customerRepo, subRepo, paymentRepo, paymentMethodRepo, productRepo, gatewayFactory, pubsub, logger)
 	customerService := service.NewCustomerService(customerRepo, paymentMethodRepo, pubsub, logger, scheduler)
 	productService := service.NewProductService(productRepo, variantRepo, priceRepo, cartRepo, logger, pubsub)
 	sessionService := service.NewSessionService(sessionRepo, cartRepo, logger, pubsub)

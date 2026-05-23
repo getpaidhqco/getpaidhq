@@ -17,7 +17,7 @@ func NewPriceRepo(db *gorm.DB) port.PriceRepository {
 }
 
 func (r *PriceRepo) Create(ctx context.Context, entity domain.Price) (domain.Price, error) {
-	err := r.db.WithContext(ctx).Create(&entity).Error
+	err := dbFromCtx(ctx, r.db).Create(&entity).Error
 	if err != nil {
 		return domain.Price{}, err
 	}
@@ -26,7 +26,7 @@ func (r *PriceRepo) Create(ctx context.Context, entity domain.Price) (domain.Pri
 
 func (r *PriceRepo) FindById(ctx context.Context, orgId string, id string) (domain.Price, error) {
 	var price domain.Price
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&price).Error
@@ -36,14 +36,14 @@ func (r *PriceRepo) FindById(ctx context.Context, orgId string, id string) (doma
 func (r *PriceRepo) FindByVariantId(ctx context.Context, orgId string, variantId string, p domain.Pagination) ([]domain.Price, int, error) {
 	var prices []domain.Price
 	var count int64
-	err := r.db.WithContext(ctx).Model(&domain.Price{}).
+	err := dbFromCtx(ctx, r.db).Model(&domain.Price{}).
 		Scopes(OrgScope(orgId)).
 		Where("variant_id = ?", variantId).
 		Count(&count).Error
 	if err != nil {
 		return nil, 0, err
 	}
-	err = r.db.WithContext(ctx).
+	err = dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId), Paginate(p)).
 		Where("variant_id = ?", variantId).
 		Find(&prices).Error
@@ -51,7 +51,7 @@ func (r *PriceRepo) FindByVariantId(ctx context.Context, orgId string, variantId
 }
 
 func (r *PriceRepo) Update(ctx context.Context, entity domain.Price) (domain.Price, error) {
-	err := r.db.WithContext(ctx).Save(&entity).Error
+	err := dbFromCtx(ctx, r.db).Save(&entity).Error
 	if err != nil {
 		return domain.Price{}, err
 	}
@@ -59,7 +59,7 @@ func (r *PriceRepo) Update(ctx context.Context, entity domain.Price) (domain.Pri
 }
 
 func (r *PriceRepo) Delete(ctx context.Context, orgId string, id string) error {
-	return r.db.WithContext(ctx).
+	return dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		Delete(&domain.Price{}).Error

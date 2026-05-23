@@ -18,7 +18,7 @@ func NewPspRepo(db *gorm.DB) port.PspRepository {
 
 func (r *PspRepo) FindById(ctx context.Context, orgId string, id string) (domain.PspConfig, error) {
 	var config domain.PspConfig
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&config).Error
@@ -26,7 +26,7 @@ func (r *PspRepo) FindById(ctx context.Context, orgId string, id string) (domain
 }
 
 func (r *PspRepo) Create(ctx context.Context, input domain.PspConfig) (domain.PspConfig, error) {
-	err := r.db.WithContext(ctx).Create(&input).Error
+	err := dbFromCtx(ctx, r.db).Create(&input).Error
 	if err != nil {
 		return domain.PspConfig{}, err
 	}

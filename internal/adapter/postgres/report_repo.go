@@ -19,7 +19,7 @@ func NewReportRepo(db *gorm.DB) port.ReportRepository {
 
 func (r *ReportRepo) GetMRR(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error) {
 	var results []domain.RecurringRevenue
-	err := r.db.WithContext(ctx).Raw(`
+	err := dbFromCtx(ctx, r.db).Raw(`
 		SELECT period, total, count, growth_mom, type
 		FROM daily_metrics
 		WHERE org_id = ? AND type = 'mrr' AND period BETWEEN ? AND ?
@@ -30,7 +30,7 @@ func (r *ReportRepo) GetMRR(ctx context.Context, orgId string, startDate time.Ti
 
 func (r *ReportRepo) GetARR(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error) {
 	var results []domain.RecurringRevenue
-	err := r.db.WithContext(ctx).Raw(`
+	err := dbFromCtx(ctx, r.db).Raw(`
 		SELECT period, total, count, growth_mom, type
 		FROM daily_metrics
 		WHERE org_id = ? AND type = 'arr' AND period BETWEEN ? AND ?
@@ -41,7 +41,7 @@ func (r *ReportRepo) GetARR(ctx context.Context, orgId string, startDate time.Ti
 
 func (r *ReportRepo) GetActiveSubscribers(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error) {
 	var results []domain.RecurringRevenue
-	err := r.db.WithContext(ctx).Raw(`
+	err := dbFromCtx(ctx, r.db).Raw(`
 		SELECT period, total, count, growth_mom, type
 		FROM daily_metrics
 		WHERE org_id = ? AND type = 'active_subscribers' AND period BETWEEN ? AND ?
@@ -52,7 +52,7 @@ func (r *ReportRepo) GetActiveSubscribers(ctx context.Context, orgId string, sta
 
 func (r *ReportRepo) GetRefundTotals(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error) {
 	var results []domain.RecurringRevenue
-	err := r.db.WithContext(ctx).Raw(`
+	err := dbFromCtx(ctx, r.db).Raw(`
 		SELECT period, total, count, growth_mom, type
 		FROM daily_metrics
 		WHERE org_id = ? AND type = 'refunds' AND period BETWEEN ? AND ?
@@ -63,7 +63,7 @@ func (r *ReportRepo) GetRefundTotals(ctx context.Context, orgId string, startDat
 
 func (r *ReportRepo) GetCustomerChurnTotals(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error) {
 	var results []domain.RecurringRevenue
-	err := r.db.WithContext(ctx).Raw(`
+	err := dbFromCtx(ctx, r.db).Raw(`
 		SELECT period, total, count, growth_mom, type
 		FROM daily_metrics
 		WHERE org_id = ? AND type = 'customer_churn' AND period BETWEEN ? AND ?
@@ -74,7 +74,7 @@ func (r *ReportRepo) GetCustomerChurnTotals(ctx context.Context, orgId string, s
 
 func (r *ReportRepo) GetCustomerChurnRates(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error) {
 	var results []domain.RecurringRevenue
-	err := r.db.WithContext(ctx).Raw(`
+	err := dbFromCtx(ctx, r.db).Raw(`
 		SELECT period, total, count, growth_mom, type
 		FROM daily_metrics
 		WHERE org_id = ? AND type = 'customer_churn_rate' AND period BETWEEN ? AND ?
@@ -84,7 +84,7 @@ func (r *ReportRepo) GetCustomerChurnRates(ctx context.Context, orgId string, st
 }
 
 func (r *ReportRepo) UpsertSubscription(ctx context.Context, entity domain.Subscription) error {
-	return r.db.WithContext(ctx).Raw(`
+	return dbFromCtx(ctx, r.db).Raw(`
 		INSERT INTO report_subscriptions (org_id, id, status, currency, amount, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (org_id, id) DO UPDATE SET
@@ -96,7 +96,7 @@ func (r *ReportRepo) UpsertSubscription(ctx context.Context, entity domain.Subsc
 }
 
 func (r *ReportRepo) UpsertPayment(ctx context.Context, entity domain.Payment) error {
-	return r.db.WithContext(ctx).Raw(`
+	return dbFromCtx(ctx, r.db).Raw(`
 		INSERT INTO report_payments (org_id, id, status, currency, amount, completed_at, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (org_id, id) DO UPDATE SET
@@ -109,7 +109,7 @@ func (r *ReportRepo) UpsertPayment(ctx context.Context, entity domain.Payment) e
 }
 
 func (r *ReportRepo) UpsertCustomer(ctx context.Context, entity domain.Customer) error {
-	return r.db.WithContext(ctx).Raw(`
+	return dbFromCtx(ctx, r.db).Raw(`
 		INSERT INTO report_customers (org_id, id, email, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?)
 		ON CONFLICT (org_id, id) DO UPDATE SET
@@ -119,7 +119,7 @@ func (r *ReportRepo) UpsertCustomer(ctx context.Context, entity domain.Customer)
 }
 
 func (r *ReportRepo) UpsertRefund(ctx context.Context, entity domain.Refund) error {
-	return r.db.WithContext(ctx).Raw(`
+	return dbFromCtx(ctx, r.db).Raw(`
 		INSERT INTO report_refunds (org_id, id, payment_id, amount, currency, refunded_at, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (org_id, id) DO UPDATE SET
@@ -131,7 +131,7 @@ func (r *ReportRepo) UpsertRefund(ctx context.Context, entity domain.Refund) err
 }
 
 func (r *ReportRepo) UpsertCustomerCohort(ctx context.Context, entity domain.CustomerCohort) error {
-	return r.db.WithContext(ctx).Raw(`
+	return dbFromCtx(ctx, r.db).Raw(`
 		INSERT INTO report_customer_cohorts (org_id, customer_id, cohort_id, cohort_value, joined_at, created_at, updated_at)
 		VALUES (?, ?, ?, ?, ?, ?, ?)
 		ON CONFLICT (org_id, customer_id, cohort_id) DO UPDATE SET
@@ -141,7 +141,7 @@ func (r *ReportRepo) UpsertCustomerCohort(ctx context.Context, entity domain.Cus
 }
 
 func (r *ReportRepo) StoreDailyMetrics(ctx context.Context, input port.ProcessDailyMetricsInput) error {
-	return r.db.WithContext(ctx).Exec(`
+	return dbFromCtx(ctx, r.db).Exec(`
 		INSERT INTO daily_metrics (org_id, period, type, total, count)
 		SELECT ?, ?, type, COALESCE(SUM(total), 0), COALESCE(COUNT(*), 0)
 		FROM (
@@ -157,7 +157,7 @@ func (r *ReportRepo) StoreDailyMetrics(ctx context.Context, input port.ProcessDa
 }
 
 func (r *ReportRepo) ProcessDailyMetrics(ctx context.Context, d time.Time) error {
-	return r.db.WithContext(ctx).Exec(`
+	return dbFromCtx(ctx, r.db).Exec(`
 		INSERT INTO daily_metrics (org_id, period, type, total, count)
 		SELECT org_id, ?, 'mrr', COALESCE(SUM(amount), 0), COUNT(*)
 		FROM report_subscriptions

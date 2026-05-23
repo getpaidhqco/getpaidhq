@@ -134,7 +134,7 @@ func (s *CustomerService) CreatePaymentMethod(ctx context.Context, orgId string,
 	newPaymentMethod, err := s.paymentMethodRepository.Create(ctx, paymentMethod)
 	if err != nil {
 		s.logger.Error("Failed to create payment method: ", "err", err)
-		return domain.PaymentMethod{}, lib.MapDatabaseError(err)
+		return domain.PaymentMethod{}, lib.NewCustomError(lib.InternalError, "An internal error occurred", err)
 	}
 
 	if input.IsDefault {
@@ -144,7 +144,7 @@ func (s *CustomerService) CreatePaymentMethod(ctx context.Context, orgId string,
 		_, err = s.customerRepository.Update(ctx, customer)
 		if err != nil {
 			s.logger.Error("Failed to update customer: ", "err", err)
-			return domain.PaymentMethod{}, lib.MapDatabaseError(err)
+			return domain.PaymentMethod{}, lib.NewCustomError(lib.InternalError, "An internal error occurred", err)
 		}
 	}
 
@@ -189,7 +189,7 @@ func (s *CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string,
 	newPaymentMethod, err := s.paymentMethodRepository.Update(ctx, paymentMethod)
 	if err != nil {
 		s.logger.Error("Failed to update payment method: ", "err", err)
-		return domain.PaymentMethod{}, lib.MapDatabaseError(err)
+		return domain.PaymentMethod{}, lib.NewCustomError(lib.InternalError, "An internal error occurred", err)
 	}
 
 	if input.IsDefault {
@@ -199,7 +199,7 @@ func (s *CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string,
 		_, err = s.customerRepository.Update(ctx, customer)
 		if err != nil {
 			s.logger.Error("Failed to update customer: ", "err", err)
-			return domain.PaymentMethod{}, lib.MapDatabaseError(err)
+			return domain.PaymentMethod{}, lib.NewCustomError(lib.InternalError, "An internal error occurred", err)
 		}
 	}
 

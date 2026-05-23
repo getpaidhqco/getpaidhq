@@ -18,6 +18,7 @@ import (
 // it cannot depend on the engine that dispatches it. Splitting the two
 // avoids a construction-time cycle.
 type OrderService struct {
+	tx                      port.TxManager
 	engine                  port.Engine
 	sessionRepository       port.SessionRepository
 	cartRepository          port.CartRepository
@@ -34,6 +35,7 @@ type OrderService struct {
 }
 
 func NewOrderService(
+	tx port.TxManager,
 	engine port.Engine,
 	sessionRepository port.SessionRepository,
 	priceRepository port.PriceRepository,
@@ -49,6 +51,7 @@ func NewOrderService(
 	logger port.Logger,
 ) *OrderService {
 	return &OrderService{
+		tx:                      tx,
 		engine:                  engine,
 		customerRepository:      customerRepository,
 		paymentMethodRepository: paymentMethodRepository,
@@ -169,23 +172,8 @@ func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrder
 			Email:     input.Customer.Email,
 		})
 		if err != nil {
-			if derr, ok := errors.AsType[lib.DatabaseError](err); ok && derr.Code == lib.UniqueKeyViolation {
-				customerEntity, err = s.customerRepository.Update(ctx, domain.Customer{
-					OrgId:     orgId,
-					Id:        lib.GenerateId("customer"),
-					FirstName: input.Customer.FirstName,
-					LastName:  input.Customer.LastName,
-					Phone:     input.Customer.Phone,
-					Email:     input.Customer.Email,
-				})
-				if err != nil {
-					s.logger.Error("Failed to update customer", err.Error())
-					return domain.CreateOrderResponse{}, err
-				}
-			} else {
-				s.logger.Error("Failed to create customer", err.Error())
-				return domain.CreateOrderResponse{}, err
-			}
+			s.logger.Error("Failed to create customer", err.Error())
+			return domain.CreateOrderResponse{}, err
 		}
 	}
 
@@ -314,131 +302,151 @@ func (s *OrderService) ListOrderSubscriptions(ctx context.Context, orgId string,
 
 // CompleteOrder marks a pending order as completed and activates subscriptions.
 // No payment is involved - subscriptions start charging using the specified payment methods.
+//
+// DB writes (order update, payment method find/create, payment+subscription
+// state per sub) run inside a single transaction. Post-commit side effects
+// (subscription workflow starts and the order.completed pubsub event) fire
+// only after the tx commits — running them inside would orphan workflows
+// and pubsub messages on rollback.
 func (s *OrderService) CompleteOrder(ctx context.Context, input domain.CompleteOrderInput) (domain.Order, error) {
 	s.logger.Infof("Completing order [%s][%s]", input.OrgId, input.Id)
 
-	order, err := s.orderRepository.FindById(ctx, input.OrgId, input.Id)
+	var order domain.Order
+	var activated []domain.Subscription
+
+	err := s.tx.RunInTx(ctx, func(ctx context.Context) error {
+		var err error
+		order, err = s.orderRepository.FindById(ctx, input.OrgId, input.Id)
+		if err != nil {
+			return errors.New("order not found")
+		}
+
+		if order.Status != domain.OrderStatusPending {
+			return lib.NewCustomError(lib.BadRequestError, "Order is not pending", nil)
+		}
+		if input.PaymentMethodId == "" && input.PaymentMethod.Token == "" {
+			return lib.NewCustomError(lib.BadRequestError, "You need to provide payment method or payment method ID", nil)
+		}
+
+		order.Status = domain.OrderStatusCompleted
+		order.UpdatedAt = time.Now()
+		order.SetMetadata(input.Metadata)
+
+		if _, err = s.orderRepository.Update(ctx, order); err != nil {
+			s.logger.Error("Failed to update order", err.Error())
+			return err
+		}
+
+		var paymentMethod domain.PaymentMethod
+		if input.PaymentMethodId != "" {
+			paymentMethod, err = s.customerRepository.FindPaymentMethodById(ctx, order.OrgId, input.PaymentMethodId)
+			if err != nil {
+				s.logger.Error("Failed to find payment method", err.Error())
+				return lib.NewCustomError(lib.NotFoundError, "Payment method not found", err)
+			}
+		}
+
+		if input.PaymentMethod.Token != "" {
+			var expireAt time.Time
+			if input.PaymentMethod.Details != nil {
+				details, err := domain.ParsePaymentMethodDetails(input.PaymentMethod.Type, input.PaymentMethod.Details)
+				if err != nil {
+					return lib.NewCustomError(lib.BadRequestError, "Invalid card details", err)
+				}
+				expireAt = details.GetExpiryDate()
+				s.logger.Debugf("This payment method expires at: %v", expireAt)
+			}
+
+			paymentMethod, err = s.paymentMethodRepository.Create(ctx, domain.PaymentMethod{
+				OrgId:          order.OrgId,
+				Id:             lib.GenerateId("pm"),
+				Psp:            input.PaymentMethod.Psp,
+				Status:         domain.PaymentMethodStatusActive,
+				ExpireAt:       expireAt,
+				Metadata:       input.PaymentMethod.Metadata,
+				Name:           input.PaymentMethod.Name,
+				CustomerId:     order.CustomerId,
+				BillingAddress: domain.Address{},
+				Type:           input.PaymentMethod.Type,
+				Token:          input.PaymentMethod.Token,
+				Details:        input.PaymentMethod.Details,
+				CreatedAt:      time.Now().UTC(),
+				UpdatedAt:      time.Now().UTC(),
+			})
+			if err != nil {
+				s.logger.Error("Failed to create payment method", err.Error())
+				return err
+			}
+			s.logger.Debugf(`Created payment method [%s] for order [%s]`, paymentMethod.Id, order.Id)
+		}
+
+		subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, input.OrgId, input.Id)
+		if err != nil {
+			s.logger.Info("no subscriptions to process", err.Error())
+		}
+
+		activated = make([]domain.Subscription, 0, len(subscriptions))
+		for _, subscription := range subscriptions {
+			s.logger.Debugf("Setting subscription [%s] to active", subscription.Id)
+
+			subscription.PaymentMethodId = paymentMethod.Id
+			subscription.SetMetadata(input.Metadata)
+
+			firstPaymentCharged := input.Payment.Amount > 0
+			var payment domain.Payment
+			if firstPaymentCharged {
+				payment = domain.Payment{
+					OrgId:          input.OrgId,
+					Id:             lib.GenerateId("pmt"),
+					Psp:            subscription.PspId,
+					Recurring:      true,
+					PspId:          input.Payment.PspId,
+					Reference:      input.Payment.Reference,
+					OrderId:        input.Id,
+					SubscriptionId: subscription.Id,
+					Status:         domain.PaymentStatusSucceeded,
+					Currency:       input.Payment.Currency,
+					Amount:         input.Payment.Amount,
+					PspFee:         0,
+					PlatformFee:    0,
+					NetAmount:      input.Payment.Amount,
+					Metadata:       input.Payment.Metadata,
+					CompletedAt:    input.Payment.CompletedAt,
+					CreatedAt:      time.Now().UTC(),
+					UpdatedAt:      time.Now().UTC(),
+				}
+				payment, err = s.paymentRepository.Create(ctx, payment)
+				if err != nil {
+					s.logger.Error("Failed to create payment", err.Error())
+					return err
+				}
+			}
+
+			subscription.SetActive(payment)
+			s.logger.Infof("Subscription [%s] activated. firstPaymentCharged=%t", subscription.Id, firstPaymentCharged)
+			newSub, err := s.subscriptionRepository.Update(ctx, subscription)
+			if err != nil {
+				s.logger.Error("Failed to update subscription", "err", err.Error())
+				return err
+			}
+			activated = append(activated, newSub)
+		}
+		return nil
+	})
 	if err != nil {
-		return domain.Order{}, errors.New("order not found")
-	}
-
-	if order.Status != domain.OrderStatusPending {
-		return domain.Order{}, lib.NewCustomError(lib.BadRequestError, "Order is not pending", nil)
-	}
-	if input.PaymentMethodId == "" && input.PaymentMethod.Token == "" {
-		return domain.Order{}, lib.NewCustomError(lib.BadRequestError, "You need to provide payment method or payment method ID", nil)
-	}
-
-	order.Status = domain.OrderStatusCompleted
-	order.UpdatedAt = time.Now()
-	order.SetMetadata(input.Metadata)
-
-	_, err = s.orderRepository.Update(ctx, order)
-	if err != nil {
-		s.logger.Error("Failed to update order", err.Error())
 		return domain.Order{}, err
 	}
 
-	var paymentMethod domain.PaymentMethod
-	if input.PaymentMethodId != "" {
-		paymentMethod, err = s.customerRepository.FindPaymentMethodById(ctx, order.OrgId, input.PaymentMethodId)
-		if err != nil {
-			s.logger.Error("Failed to find payment method", err.Error())
-			return domain.Order{}, lib.NewCustomError(lib.NotFoundError, "Payment method not found", err)
+	// Post-commit side effects. Failures here are logged, not returned —
+	// the order is already committed, so a non-2xx response would mislead
+	// the caller into thinking the action didn't happen.
+	for _, sub := range activated {
+		if startErr := s.engine.StartSubscriptionWorkflow(ctx, sub); startErr != nil {
+			s.logger.Errorf("Failed to start subscription workflow for %s: %v", sub.Id, startErr)
 		}
 	}
-
-	if input.PaymentMethod.Token != "" {
-		var expireAt time.Time
-		if input.PaymentMethod.Details != nil {
-			details, err := domain.ParsePaymentMethodDetails(input.PaymentMethod.Type, input.PaymentMethod.Details)
-			if err != nil {
-				return domain.Order{}, lib.NewCustomError(lib.BadRequestError, "Invalid card details", err)
-			}
-			expireAt = details.GetExpiryDate()
-			s.logger.Debugf("This payment method expires at: %v", expireAt)
-		}
-
-		paymentMethod, err = s.paymentMethodRepository.Create(ctx, domain.PaymentMethod{
-			OrgId:          order.OrgId,
-			Id:             lib.GenerateId("pm"),
-			Psp:            input.PaymentMethod.Psp,
-			Status:         domain.PaymentMethodStatusActive,
-			ExpireAt:       expireAt,
-			Metadata:       input.PaymentMethod.Metadata,
-			Name:           input.PaymentMethod.Name,
-			CustomerId:     order.CustomerId,
-			BillingAddress: domain.Address{},
-			Type:           input.PaymentMethod.Type,
-			Token:          input.PaymentMethod.Token,
-			Details:        input.PaymentMethod.Details,
-			CreatedAt:      time.Now().UTC(),
-			UpdatedAt:      time.Now().UTC(),
-		})
-		if err != nil {
-			s.logger.Error("Failed to create payment method", err.Error())
-			return domain.Order{}, err
-		}
-		s.logger.Debugf(`Created payment method [%s] for order [%s]`, paymentMethod.Id, order.Id)
+	if pubErr := s.pubsub.Publish(order.OrgId, port.TopicOrderCompleted, order); pubErr != nil {
+		s.logger.Errorf("Failed to publish %s for order %s: %v", port.TopicOrderCompleted, order.Id, pubErr)
 	}
-
-	subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, input.OrgId, input.Id)
-	if err != nil {
-		s.logger.Info("no subscriptions to process", err.Error())
-	}
-
-	for _, subscription := range subscriptions {
-		s.logger.Debugf("Setting subscription [%s] to active", subscription.Id)
-
-		subscription.PaymentMethodId = paymentMethod.Id
-		subscription.SetMetadata(input.Metadata)
-
-		firstPaymentCharged := input.Payment.Amount > 0
-		var payment domain.Payment
-		if firstPaymentCharged {
-			payment = domain.Payment{
-				OrgId:          input.OrgId,
-				Id:             lib.GenerateId("pmt"),
-				Psp:            subscription.PspId,
-				Recurring:      true,
-				PspId:          input.Payment.PspId,
-				Reference:      input.Payment.Reference,
-				OrderId:        input.Id,
-				SubscriptionId: subscription.Id,
-				Status:         domain.PaymentStatusSucceeded,
-				Currency:       input.Payment.Currency,
-				Amount:         input.Payment.Amount,
-				PspFee:         0,
-				PlatformFee:    0,
-				NetAmount:      input.Payment.Amount,
-				Metadata:       input.Payment.Metadata,
-				CompletedAt:    input.Payment.CompletedAt,
-				CreatedAt:      time.Now().UTC(),
-				UpdatedAt:      time.Now().UTC(),
-			}
-			payment, err = s.paymentRepository.Create(ctx, payment)
-			if err != nil {
-				s.logger.Error("Failed to create payment", err.Error())
-				return domain.Order{}, err
-			}
-		}
-
-		subscription.SetActive(payment)
-		s.logger.Infof("Subscription [%s] activated. firstPaymentCharged=%t", subscription.Id, firstPaymentCharged)
-		newSub, err := s.subscriptionRepository.Update(ctx, subscription)
-		if err != nil {
-			s.logger.Error("Failed to update subscription", "err", err.Error())
-			return domain.Order{}, err
-		}
-
-		s.logger.Debugf("Starting subscription workflow")
-		err = s.engine.StartSubscriptionWorkflow(ctx, newSub)
-		if err != nil {
-			s.logger.Errorf("Failed to start workflow %v", err.Error())
-			return domain.Order{}, err
-		}
-	}
-
-	_ = s.pubsub.Publish(order.OrgId, port.TopicOrderCompleted, order)
 	return order, nil
 }

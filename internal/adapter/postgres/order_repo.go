@@ -18,7 +18,7 @@ func NewOrderRepo(db *gorm.DB) port.OrderRepository {
 
 func (r *OrderRepo) FindById(ctx context.Context, orgId string, id string) (domain.Order, error) {
 	var order domain.Order
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		Preload("Customer").
@@ -28,7 +28,7 @@ func (r *OrderRepo) FindById(ctx context.Context, orgId string, id string) (doma
 }
 
 func (r *OrderRepo) Create(ctx context.Context, entity domain.Order) (domain.Order, error) {
-	err := r.db.WithContext(ctx).Create(&entity).Error
+	err := dbFromCtx(ctx, r.db).Create(&entity).Error
 	if err != nil {
 		return domain.Order{}, err
 	}
@@ -36,7 +36,7 @@ func (r *OrderRepo) Create(ctx context.Context, entity domain.Order) (domain.Ord
 }
 
 func (r *OrderRepo) Update(ctx context.Context, entity domain.Order) (domain.Order, error) {
-	err := r.db.WithContext(ctx).Save(&entity).Error
+	err := dbFromCtx(ctx, r.db).Save(&entity).Error
 	if err != nil {
 		return domain.Order{}, err
 	}
@@ -46,13 +46,13 @@ func (r *OrderRepo) Update(ctx context.Context, entity domain.Order) (domain.Ord
 func (r *OrderRepo) Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Order, int, error) {
 	var orders []domain.Order
 	var count int64
-	err := r.db.WithContext(ctx).Model(&domain.Order{}).
+	err := dbFromCtx(ctx, r.db).Model(&domain.Order{}).
 		Scopes(OrgScope(orgId)).
 		Count(&count).Error
 	if err != nil {
 		return nil, 0, err
 	}
-	err = r.db.WithContext(ctx).
+	err = dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId), Paginate(p)).
 		Preload("Customer").
 		Preload("Items").
@@ -62,7 +62,7 @@ func (r *OrderRepo) Find(ctx context.Context, orgId string, p domain.Pagination)
 
 func (r *OrderRepo) FindOrderItemById(ctx context.Context, orgId string, id string) (domain.OrderItem, error) {
 	var item domain.OrderItem
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		Preload("Price").
@@ -71,7 +71,7 @@ func (r *OrderRepo) FindOrderItemById(ctx context.Context, orgId string, id stri
 }
 
 func (r *OrderRepo) CreateOrderItem(ctx context.Context, entity domain.OrderItem) (domain.OrderItem, error) {
-	err := r.db.WithContext(ctx).Create(&entity).Error
+	err := dbFromCtx(ctx, r.db).Create(&entity).Error
 	if err != nil {
 		return domain.OrderItem{}, err
 	}
@@ -79,7 +79,7 @@ func (r *OrderRepo) CreateOrderItem(ctx context.Context, entity domain.OrderItem
 }
 
 func (r *OrderRepo) UpdateOrderItem(ctx context.Context, entity domain.OrderItem) (domain.OrderItem, error) {
-	err := r.db.WithContext(ctx).Save(&entity).Error
+	err := dbFromCtx(ctx, r.db).Save(&entity).Error
 	if err != nil {
 		return domain.OrderItem{}, err
 	}
@@ -88,7 +88,7 @@ func (r *OrderRepo) UpdateOrderItem(ctx context.Context, entity domain.OrderItem
 
 func (r *OrderRepo) FindOrderItemsByOrderId(ctx context.Context, orgId string, orderId string) ([]domain.OrderItem, error) {
 	var items []domain.OrderItem
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("order_id = ?", orderId).
 		Preload("Price").

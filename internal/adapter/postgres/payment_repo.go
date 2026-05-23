@@ -18,7 +18,7 @@ func NewPaymentRepo(db *gorm.DB) port.PaymentRepository {
 
 func (r *PaymentRepo) FindById(ctx context.Context, orgId string, id string) (domain.Payment, error) {
 	var payment domain.Payment
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&payment).Error
@@ -27,7 +27,7 @@ func (r *PaymentRepo) FindById(ctx context.Context, orgId string, id string) (do
 
 func (r *PaymentRepo) FindByPspId(ctx context.Context, orgId string, id string) (domain.Payment, error) {
 	var payment domain.Payment
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("psp_id = ?", id).
 		First(&payment).Error
@@ -36,7 +36,7 @@ func (r *PaymentRepo) FindByPspId(ctx context.Context, orgId string, id string) 
 
 func (r *PaymentRepo) ListByPspId(ctx context.Context, psp domain.Gateway, pspId string) ([]domain.Payment, error) {
 	var payments []domain.Payment
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Where("psp = ? AND psp_id = ?", psp, pspId).
 		Find(&payments).Error
 	return payments, err
@@ -45,14 +45,14 @@ func (r *PaymentRepo) ListByPspId(ctx context.Context, psp domain.Gateway, pspId
 func (r *PaymentRepo) FindBySubscriptionId(ctx context.Context, orgId string, id string, p domain.Pagination) ([]domain.Payment, int, error) {
 	var payments []domain.Payment
 	var count int64
-	err := r.db.WithContext(ctx).Model(&domain.Payment{}).
+	err := dbFromCtx(ctx, r.db).Model(&domain.Payment{}).
 		Scopes(OrgScope(orgId)).
 		Where("subscription_id = ?", id).
 		Count(&count).Error
 	if err != nil {
 		return nil, 0, err
 	}
-	err = r.db.WithContext(ctx).
+	err = dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId), Paginate(p)).
 		Where("subscription_id = ?", id).
 		Find(&payments).Error
@@ -60,7 +60,7 @@ func (r *PaymentRepo) FindBySubscriptionId(ctx context.Context, orgId string, id
 }
 
 func (r *PaymentRepo) Create(ctx context.Context, entity domain.Payment) (domain.Payment, error) {
-	err := r.db.WithContext(ctx).Create(&entity).Error
+	err := dbFromCtx(ctx, r.db).Create(&entity).Error
 	if err != nil {
 		return domain.Payment{}, err
 	}
@@ -68,7 +68,7 @@ func (r *PaymentRepo) Create(ctx context.Context, entity domain.Payment) (domain
 }
 
 func (r *PaymentRepo) Update(ctx context.Context, entity domain.Payment) (domain.Payment, error) {
-	err := r.db.WithContext(ctx).Save(&entity).Error
+	err := dbFromCtx(ctx, r.db).Save(&entity).Error
 	if err != nil {
 		return domain.Payment{}, err
 	}
@@ -76,12 +76,12 @@ func (r *PaymentRepo) Update(ctx context.Context, entity domain.Payment) (domain
 }
 
 func (r *PaymentRepo) CreateRefund(ctx context.Context, refund domain.Refund) (domain.Refund, error) {
-	err := r.db.WithContext(ctx).Create(&refund).Error
+	err := dbFromCtx(ctx, r.db).Create(&refund).Error
 	if err != nil {
 		return domain.Refund{}, err
 	}
 	var created domain.Refund
-	err = r.db.WithContext(ctx).
+	err = dbFromCtx(ctx, r.db).
 		Where("id = ?", refund.Id).
 		First(&created).Error
 	return created, err

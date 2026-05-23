@@ -109,7 +109,7 @@ func (o *OrderHandler) CompleteOrder(c fuego.ContextWithBody[CompleteOrderReques
 		completedAt = parsed
 	}
 
-	rsp, err := o.service.CompleteOrder(c.Context(), domain.CompleteOrderInput{
+	order, err := o.service.CompleteOrder(c.Context(), domain.CompleteOrderInput{
 		OrgId:           authUser.OrgId,
 		Id:              id,
 		PaymentMethodId: input.PaymentMethodId,
@@ -148,7 +148,7 @@ func (o *OrderHandler) CompleteOrder(c fuego.ContextWithBody[CompleteOrderReques
 		return OrderResponse{}, NewApiErrorFromError(err)
 	}
 
-	return NewOrderFromEntity(rsp), nil
+	return NewOrderFromEntity(order), nil
 }
 
 type OrderSubscriptionsResponse struct {

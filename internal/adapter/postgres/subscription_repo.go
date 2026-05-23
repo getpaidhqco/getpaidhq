@@ -18,7 +18,7 @@ func NewSubscriptionRepo(db *gorm.DB) port.SubscriptionRepository {
 
 func (r *SubscriptionRepo) FindById(ctx context.Context, orgId string, id string) (domain.Subscription, error) {
 	var sub domain.Subscription
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		Preload("Customer").
@@ -27,7 +27,7 @@ func (r *SubscriptionRepo) FindById(ctx context.Context, orgId string, id string
 }
 
 func (r *SubscriptionRepo) Create(ctx context.Context, entity domain.Subscription) (domain.Subscription, error) {
-	err := r.db.WithContext(ctx).Create(&entity).Error
+	err := dbFromCtx(ctx, r.db).Create(&entity).Error
 	if err != nil {
 		return domain.Subscription{}, err
 	}
@@ -35,7 +35,7 @@ func (r *SubscriptionRepo) Create(ctx context.Context, entity domain.Subscriptio
 }
 
 func (r *SubscriptionRepo) Update(ctx context.Context, entity domain.Subscription) (domain.Subscription, error) {
-	err := r.db.WithContext(ctx).Save(&entity).Error
+	err := dbFromCtx(ctx, r.db).Save(&entity).Error
 	if err != nil {
 		return domain.Subscription{}, err
 	}
@@ -44,7 +44,7 @@ func (r *SubscriptionRepo) Update(ctx context.Context, entity domain.Subscriptio
 
 func (r *SubscriptionRepo) FindByOrderId(ctx context.Context, orgId string, orderId string) ([]domain.Subscription, error) {
 	var subs []domain.Subscription
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("order_id = ?", orderId).
 		Find(&subs).Error
@@ -54,13 +54,13 @@ func (r *SubscriptionRepo) FindByOrderId(ctx context.Context, orgId string, orde
 func (r *SubscriptionRepo) Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Subscription, int, error) {
 	var subs []domain.Subscription
 	var count int64
-	err := r.db.WithContext(ctx).Model(&domain.Subscription{}).
+	err := dbFromCtx(ctx, r.db).Model(&domain.Subscription{}).
 		Scopes(OrgScope(orgId)).
 		Count(&count).Error
 	if err != nil {
 		return nil, 0, err
 	}
-	err = r.db.WithContext(ctx).
+	err = dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId), Paginate(p)).
 		Preload("Customer").
 		Find(&subs).Error

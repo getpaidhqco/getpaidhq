@@ -18,7 +18,7 @@ func NewCartRepo(db *gorm.DB) port.CartRepository {
 
 func (r *CartRepo) FindById(ctx context.Context, orgId string, id string) (domain.Cart, error) {
 	var cart domain.Cart
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&cart).Error
@@ -26,7 +26,7 @@ func (r *CartRepo) FindById(ctx context.Context, orgId string, id string) (domai
 }
 
 func (r *CartRepo) Create(ctx context.Context, input domain.Cart) (domain.Cart, error) {
-	err := r.db.WithContext(ctx).Create(&input).Error
+	err := dbFromCtx(ctx, r.db).Create(&input).Error
 	if err != nil {
 		return domain.Cart{}, err
 	}
@@ -34,7 +34,7 @@ func (r *CartRepo) Create(ctx context.Context, input domain.Cart) (domain.Cart, 
 }
 
 func (r *CartRepo) Update(ctx context.Context, input domain.Cart) (domain.Cart, error) {
-	err := r.db.WithContext(ctx).Save(&input).Error
+	err := dbFromCtx(ctx, r.db).Save(&input).Error
 	if err != nil {
 		return domain.Cart{}, err
 	}

@@ -27,7 +27,7 @@ func NewIdempotencyKeyRepo(db *gorm.DB) port.IdempotencyKeyRepository {
 
 func (r *IdempotencyKeyRepo) Exists(ctx context.Context, key string) (bool, error) {
 	var count int64
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Model(&IdempotencyKeyEntity{}).
 		Where("key = ? AND expires_at > ?", key, time.Now()).
 		Count(&count).Error
@@ -42,5 +42,5 @@ func (r *IdempotencyKeyRepo) Create(ctx context.Context, key string, expiresAt t
 		Key:       key,
 		ExpiresAt: expiresAt,
 	}
-	return r.db.WithContext(ctx).Create(&entity).Error
+	return dbFromCtx(ctx, r.db).Create(&entity).Error
 }

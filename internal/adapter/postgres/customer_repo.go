@@ -18,7 +18,7 @@ func NewCustomerRepo(db *gorm.DB) port.CustomerRepository {
 
 func (r *CustomerRepo) FindById(ctx context.Context, orgId string, id string) (domain.Customer, error) {
 	var customer domain.Customer
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&customer).Error
@@ -27,7 +27,7 @@ func (r *CustomerRepo) FindById(ctx context.Context, orgId string, id string) (d
 
 func (r *CustomerRepo) FindByEmail(ctx context.Context, orgId string, email string) (domain.Customer, error) {
 	var customer domain.Customer
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("email = ?", email).
 		First(&customer).Error
@@ -35,7 +35,7 @@ func (r *CustomerRepo) FindByEmail(ctx context.Context, orgId string, email stri
 }
 
 func (r *CustomerRepo) Create(ctx context.Context, entity domain.Customer) (domain.Customer, error) {
-	err := r.db.WithContext(ctx).Create(&entity).Error
+	err := dbFromCtx(ctx, r.db).Create(&entity).Error
 	if err != nil {
 		return domain.Customer{}, err
 	}
@@ -43,7 +43,7 @@ func (r *CustomerRepo) Create(ctx context.Context, entity domain.Customer) (doma
 }
 
 func (r *CustomerRepo) Update(ctx context.Context, entity domain.Customer) (domain.Customer, error) {
-	err := r.db.WithContext(ctx).Save(&entity).Error
+	err := dbFromCtx(ctx, r.db).Save(&entity).Error
 	if err != nil {
 		return domain.Customer{}, err
 	}
@@ -53,13 +53,13 @@ func (r *CustomerRepo) Update(ctx context.Context, entity domain.Customer) (doma
 func (r *CustomerRepo) List(ctx context.Context, orgId string, pagination domain.Pagination) ([]domain.Customer, int, error) {
 	var customers []domain.Customer
 	var count int64
-	err := r.db.WithContext(ctx).Model(&domain.Customer{}).
+	err := dbFromCtx(ctx, r.db).Model(&domain.Customer{}).
 		Scopes(OrgScope(orgId)).
 		Count(&count).Error
 	if err != nil {
 		return nil, 0, err
 	}
-	err = r.db.WithContext(ctx).
+	err = dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId), Paginate(pagination)).
 		Find(&customers).Error
 	return customers, int(count), err
@@ -67,7 +67,7 @@ func (r *CustomerRepo) List(ctx context.Context, orgId string, pagination domain
 
 func (r *CustomerRepo) FindPaymentMethodById(ctx context.Context, orgId string, id string) (domain.PaymentMethod, error) {
 	var pm domain.PaymentMethod
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&pm).Error
@@ -81,7 +81,7 @@ func (r *CustomerRepo) AddToCohort(ctx context.Context, orgId string, customerId
 		CohortId:    cohortId,
 		CohortValue: cohortValue,
 	}
-	err := r.db.WithContext(ctx).Create(&cc).Error
+	err := dbFromCtx(ctx, r.db).Create(&cc).Error
 	if err != nil {
 		return domain.Customer{}, err
 	}
@@ -90,7 +90,7 @@ func (r *CustomerRepo) AddToCohort(ctx context.Context, orgId string, customerId
 
 func (r *CustomerRepo) FindCohortById(ctx context.Context, orgId string, id string) (domain.Cohort, error) {
 	var cohort domain.Cohort
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&cohort).Error
@@ -98,7 +98,7 @@ func (r *CustomerRepo) FindCohortById(ctx context.Context, orgId string, id stri
 }
 
 func (r *CustomerRepo) CreateCohort(ctx context.Context, input domain.Cohort) (domain.Cohort, error) {
-	err := r.db.WithContext(ctx).Create(&input).Error
+	err := dbFromCtx(ctx, r.db).Create(&input).Error
 	if err != nil {
 		return domain.Cohort{}, err
 	}
@@ -106,7 +106,7 @@ func (r *CustomerRepo) CreateCohort(ctx context.Context, input domain.Cohort) (d
 }
 
 func (r *CustomerRepo) UpdateCohort(ctx context.Context, input domain.Cohort) (domain.Cohort, error) {
-	err := r.db.WithContext(ctx).Save(&input).Error
+	err := dbFromCtx(ctx, r.db).Save(&input).Error
 	if err != nil {
 		return domain.Cohort{}, err
 	}
@@ -114,7 +114,7 @@ func (r *CustomerRepo) UpdateCohort(ctx context.Context, input domain.Cohort) (d
 }
 
 func (r *CustomerRepo) DeleteCohort(ctx context.Context, input domain.Cohort) (domain.Cohort, error) {
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(input.OrgId)).
 		Where("id = ?", input.Id).
 		Delete(&domain.Cohort{}).Error

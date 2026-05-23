@@ -18,7 +18,7 @@ func NewProductRepo(db *gorm.DB) port.ProductRepository {
 
 func (r *ProductRepo) FindById(ctx context.Context, orgId string, id string) (domain.Product, error) {
 	var product domain.Product
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		Preload("Variants").
@@ -28,7 +28,7 @@ func (r *ProductRepo) FindById(ctx context.Context, orgId string, id string) (do
 }
 
 func (r *ProductRepo) Create(ctx context.Context, product domain.Product) (domain.Product, error) {
-	err := r.db.WithContext(ctx).Create(&product).Error
+	err := dbFromCtx(ctx, r.db).Create(&product).Error
 	if err != nil {
 		return domain.Product{}, err
 	}
@@ -38,13 +38,13 @@ func (r *ProductRepo) Create(ctx context.Context, product domain.Product) (domai
 func (r *ProductRepo) Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Product, int, error) {
 	var products []domain.Product
 	var count int64
-	err := r.db.WithContext(ctx).Model(&domain.Product{}).
+	err := dbFromCtx(ctx, r.db).Model(&domain.Product{}).
 		Scopes(OrgScope(orgId)).
 		Count(&count).Error
 	if err != nil {
 		return nil, 0, err
 	}
-	err = r.db.WithContext(ctx).
+	err = dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId), Paginate(p)).
 		Preload("Variants").
 		Preload("Variants.Prices").
@@ -53,7 +53,7 @@ func (r *ProductRepo) Find(ctx context.Context, orgId string, p domain.Paginatio
 }
 
 func (r *ProductRepo) Update(ctx context.Context, product domain.Product) (domain.Product, error) {
-	err := r.db.WithContext(ctx).Save(&product).Error
+	err := dbFromCtx(ctx, r.db).Save(&product).Error
 	if err != nil {
 		return domain.Product{}, err
 	}
@@ -61,7 +61,7 @@ func (r *ProductRepo) Update(ctx context.Context, product domain.Product) (domai
 }
 
 func (r *ProductRepo) Delete(ctx context.Context, orgId string, id string) error {
-	return r.db.WithContext(ctx).
+	return dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		Delete(&domain.Product{}).Error

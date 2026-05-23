@@ -19,7 +19,7 @@ func NewPaymentMethodRepo(db *gorm.DB) port.PaymentMethodRepository {
 
 func (r *PaymentMethodRepo) FindById(ctx context.Context, orgId string, id string) (domain.PaymentMethod, error) {
 	var pm domain.PaymentMethod
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&pm).Error
@@ -27,7 +27,7 @@ func (r *PaymentMethodRepo) FindById(ctx context.Context, orgId string, id strin
 }
 
 func (r *PaymentMethodRepo) Create(ctx context.Context, entity domain.PaymentMethod) (domain.PaymentMethod, error) {
-	err := r.db.WithContext(ctx).Create(&entity).Error
+	err := dbFromCtx(ctx, r.db).Create(&entity).Error
 	if err != nil {
 		return domain.PaymentMethod{}, err
 	}
@@ -35,7 +35,7 @@ func (r *PaymentMethodRepo) Create(ctx context.Context, entity domain.PaymentMet
 }
 
 func (r *PaymentMethodRepo) Update(ctx context.Context, entity domain.PaymentMethod) (domain.PaymentMethod, error) {
-	err := r.db.WithContext(ctx).Save(&entity).Error
+	err := dbFromCtx(ctx, r.db).Save(&entity).Error
 	if err != nil {
 		return domain.PaymentMethod{}, err
 	}
@@ -44,7 +44,7 @@ func (r *PaymentMethodRepo) Update(ctx context.Context, entity domain.PaymentMet
 
 func (r *PaymentMethodRepo) FindExpiringPaymentMethods(ctx context.Context, expiry time.Time) ([]domain.PaymentMethod, error) {
 	var methods []domain.PaymentMethod
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Where("expire_at <= ? AND expire_at > ?", expiry, time.Time{}).
 		Find(&methods).Error
 	return methods, err

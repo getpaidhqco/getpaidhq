@@ -17,7 +17,7 @@ func NewWebhookSubscriptionRepo(db *gorm.DB) port.WebhookSubscriptionRepository 
 }
 
 func (r *WebhookSubscriptionRepo) Create(ctx context.Context, subscription domain.WebhookSubscription) (domain.WebhookSubscription, error) {
-	err := r.db.WithContext(ctx).Create(&subscription).Error
+	err := dbFromCtx(ctx, r.db).Create(&subscription).Error
 	if err != nil {
 		return domain.WebhookSubscription{}, err
 	}
@@ -26,7 +26,7 @@ func (r *WebhookSubscriptionRepo) Create(ctx context.Context, subscription domai
 
 func (r *WebhookSubscriptionRepo) GetByID(ctx context.Context, orgId string, id string) (domain.WebhookSubscription, error) {
 	var ws domain.WebhookSubscription
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Where("org_id = ? AND id = ?", orgId, id).
 		First(&ws).Error
 	return ws, err
@@ -36,14 +36,14 @@ func (r *WebhookSubscriptionRepo) FindByEvent(ctx context.Context, orgId string,
 	var subs []domain.WebhookSubscription
 	// Use a raw query to find webhook subscriptions where the events array contains the given event.
 	// This assumes a PostgreSQL array column or a JSON column for events.
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Where("org_id = ? AND ? = ANY(events)", orgId, event).
 		Find(&subs).Error
 	return subs, err
 }
 
 func (r *WebhookSubscriptionRepo) Update(ctx context.Context, subscription domain.WebhookSubscription) (domain.WebhookSubscription, error) {
-	err := r.db.WithContext(ctx).Save(&subscription).Error
+	err := dbFromCtx(ctx, r.db).Save(&subscription).Error
 	if err != nil {
 		return domain.WebhookSubscription{}, err
 	}
@@ -51,7 +51,7 @@ func (r *WebhookSubscriptionRepo) Update(ctx context.Context, subscription domai
 }
 
 func (r *WebhookSubscriptionRepo) Delete(ctx context.Context, id string) error {
-	return r.db.WithContext(ctx).
+	return dbFromCtx(ctx, r.db).
 		Where("id = ?", id).
 		Delete(&domain.WebhookSubscription{}).Error
 }

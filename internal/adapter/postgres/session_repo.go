@@ -18,7 +18,7 @@ func NewSessionRepo(db *gorm.DB) port.SessionRepository {
 
 func (r *SessionRepo) FindById(ctx context.Context, orgId string, id string) (domain.Session, error) {
 	var session domain.Session
-	err := r.db.WithContext(ctx).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&session).Error
@@ -26,7 +26,7 @@ func (r *SessionRepo) FindById(ctx context.Context, orgId string, id string) (do
 }
 
 func (r *SessionRepo) Create(ctx context.Context, input domain.Session) (domain.Session, error) {
-	err := r.db.WithContext(ctx).Create(&input).Error
+	err := dbFromCtx(ctx, r.db).Create(&input).Error
 	if err != nil {
 		return domain.Session{}, err
 	}
