@@ -7,6 +7,7 @@ import (
 	enums "go.temporal.io/api/enums/v1"
 	serviceerror "go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
+	temporallog "go.temporal.io/sdk/log"
 	"go.temporal.io/sdk/worker"
 
 	"getpaidhq/internal/adapter/temporal/activities"
@@ -43,7 +44,7 @@ func NewTemporalEngine(
 	c, err := client.NewLazyClient(client.Options{
 		HostPort:  env.TemporalHost,
 		Namespace: env.TemporalNamespace,
-		Logger:    NewZapAdapter(lib.GetZapLogger()),
+		Logger:    temporallog.NewStructuredLogger(lib.GetSlogLogger()),
 	})
 	if err != nil {
 		logger.Error("Unable to create Temporal client", "err", err.Error())

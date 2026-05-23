@@ -2,40 +2,32 @@ package lib
 
 import (
 	"fmt"
-	slogzap "github.com/samber/slog-zap/v2"
-	"go.uber.org/zap"
-	"go.uber.org/zap/zapcore"
 	"log"
 	"log/slog"
+	"os"
 )
 
 var (
 	globalLogger Logger
-	zapLogger    *zap.Logger
+	slogLogger   *slog.Logger
 )
-
-// GinLogger wraps Logger for gin-framework's io.Writer interface.
-type GinLogger struct {
-	Logger
-}
 
 // GetLogger returns the global logger instance, creating it if needed.
 func GetLogger() Logger {
 	if globalLogger == nil {
-		ll := newLogger(NewEnv(), zap.WithCaller(true))
-		globalLogger = ll
+		globalLogger = newLogger(NewEnv())
 	}
 	return globalLogger
 }
 
-// GetZapLogger returns the underlying *zap.Logger so adapters that need a zap
-// instance (e.g. the Temporal SDK ZapAdapter) can wrap it. Triggers logger
-// initialization on first call.
-func GetZapLogger() *zap.Logger {
-	if zapLogger == nil {
+// GetSlogLogger returns the underlying *slog.Logger so adapters that need a
+// raw slog instance (e.g. the Temporal SDK structured-logger adapter) can use
+// it. Triggers logger initialization on first call.
+func GetSlogLogger() *slog.Logger {
+	if slogLogger == nil {
 		_ = GetLogger()
 	}
-	return zapLogger
+	return slogLogger
 }
 
 type MyLogger struct {
@@ -86,58 +78,67 @@ func (l MyLogger) Warnf(template string, args ...any) {
 	l.logger.Warn(fmt.Sprintf(template, args...))
 }
 
-// newLogger sets up the structured logger backed by zap.
-func newLogger(env Env, opts ...zap.Option) Logger {
-	config := zap.NewDevelopmentConfig()
-	logOutput := env.LogOutput
+// newLogger sets up the structured logger backed by log/slog.
+func newLogger(env Env) Logger {
+	level := parseLogLevel(env.LogLevel)
+	output := resolveLogOutput(env)
 
+	handlerOpts := &slog.HandlerOptions{
+		Level:     level,
+		AddSource: true,
+	}
+
+	var handler slog.Handler
 	if env.Env == "development" {
-		config.EncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+		handler = slog.NewTextHandler(output, withoutTime(handlerOpts))
+	} else {
+		handler = slog.NewJSONHandler(output, handlerOpts)
 	}
 
-	if env.Env == "production" && logOutput != "" {
-		config.OutputPaths = []string{logOutput}
-	}
+	slogLogger = slog.New(handler)
+	return MyLogger{logger: slogLogger}
+}
 
-	logLevel := env.LogLevel
-	level := zap.PanicLevel
-	switch logLevel {
+func parseLogLevel(level string) slog.Level {
+	switch level {
 	case "debug":
-		level = zapcore.DebugLevel
+		return slog.LevelDebug
 	case "info":
-		level = zapcore.InfoLevel
+		return slog.LevelInfo
 	case "warn":
-		level = zapcore.WarnLevel
+		return slog.LevelWarn
 	case "error":
-		level = zapcore.ErrorLevel
+		return slog.LevelError
 	case "fatal":
-		level = zapcore.FatalLevel
+		// slog has no Fatal level; map to Error. Fatal/Fatalf on the Logger
+		// interface still terminates via the stdlib log package.
+		return slog.LevelError
 	default:
-		level = zap.PanicLevel
-	}
-	opts = append(opts, zap.AddStacktrace(zapcore.FatalLevel))
-	config.Level.SetLevel(level)
-
-	if env.Env != "development" {
-		config.EncoderConfig.TimeKey = ""
-	}
-
-	zapLogger, _ = config.Build(opts...)
-	handler := slogzap.Option{
-		Level:     slog.LevelDebug,
-		Logger:    zapLogger,
-		AddSource: false,
-	}.NewZapHandler()
-
-	l := slog.New(handler)
-	return MyLogger{
-		logger: l,
+		// Unknown level → silence everything below panic.
+		return slog.LevelError + 4
 	}
 }
 
-// Write implements io.Writer for gin-framework logging.
-func (l GinLogger) Write(p []byte) (n int, err error) {
-	l.Info(string(p))
-	return len(p), nil
+func resolveLogOutput(env Env) *os.File {
+	if env.Env == "production" && env.LogOutput != "" {
+		if f, err := os.OpenFile(env.LogOutput, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644); err == nil {
+			return f
+		}
+	}
+	return os.Stderr
 }
 
+func withoutTime(opts *slog.HandlerOptions) *slog.HandlerOptions {
+	clone := *opts
+	prev := clone.ReplaceAttr
+	clone.ReplaceAttr = func(groups []string, a slog.Attr) slog.Attr {
+		if len(groups) == 0 && a.Key == slog.TimeKey {
+			return slog.Attr{}
+		}
+		if prev != nil {
+			return prev(groups, a)
+		}
+		return a
+	}
+	return &clone
+}
