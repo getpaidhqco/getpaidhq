@@ -180,14 +180,6 @@ type ReportRepository interface {
 	ProcessDailyMetrics(ctx context.Context, d time.Time) error
 }
 
-// DataChangeEvent represents a data-change event for the reporting pipeline.
-type DataChangeEvent struct {
-	Operation domain.Operation
-	Entity    domain.Entity
-	NewObject any
-	OldObject any
-}
-
 // ProcessDailyMetricsInput is the input for processing daily reporting metrics.
 type ProcessDailyMetricsInput struct {
 	OrgId    string    `json:"org_id"`

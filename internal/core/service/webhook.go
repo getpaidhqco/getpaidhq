@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 	"time"
 )
 
@@ -44,7 +45,7 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.
 	exists, err := s.idempotencyRepo.Exists(ctx, hashHex)
 	if err != nil {
 		s.logger.Errorf("failed to check idempotency key: %s", err.Error())
-		return port.NewQueueHandlerError("failed to check idempotency key", false, err)
+		return lib.NewCustomError(lib.InternalError, "failed to check idempotency key", err)
 	}
 	if exists {
 		s.logger.Info("Webhook already processed")
@@ -54,19 +55,19 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.
 	parser := s.gatewayFactory.NewWebhookParser(payload.Psp)
 	if parser == nil {
 		s.logger.Error("failed to create webhook parser")
-		return port.NewQueueHandlerError("failed to create webhook parser", false, err)
+		return lib.NewCustomError(lib.InternalError, "failed to create webhook parser", err)
 	}
 
 	err = parser.ValidateWebhook(ctx, []byte(payload.Data))
 	if err != nil {
 		s.logger.Error("Failed to validate webhook", err.Error())
-		return port.NewQueueHandlerError("Failed to validate webhook", false, err)
+		return lib.NewCustomError(lib.InternalError, "Failed to validate webhook", err)
 	}
 
 	webhook, err := parser.ParseWebhook(ctx, []byte(payload.Data))
 	if err != nil {
 		s.logger.Error("failed to parse webhook", "err", err.Error())
-		return port.NewQueueHandlerError("failed to parse webhook", false, err)
+		return lib.NewCustomError(lib.InternalError, "failed to parse webhook", err)
 	}
 
 	s.logger.Infof("Webhook parsed [%s][%s][%s][%s]", webhook.OrgId, webhook.OrderId, webhook.Psp, webhook.Type)
@@ -119,7 +120,7 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.
 	err = s.idempotencyRepo.Create(ctx, hashHex, time.Now().Add(24*time.Hour))
 	if err != nil {
 		s.logger.Errorf("failed to store idempotency key: %s", err.Error())
-		return port.NewQueueHandlerError("failed to store idempotency key", false, err)
+		return lib.NewCustomError(lib.InternalError, "failed to store idempotency key", err)
 	}
 	return nil
 }
