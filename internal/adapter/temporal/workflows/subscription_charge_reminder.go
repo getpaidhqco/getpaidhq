@@ -1,39 +1,33 @@
 package workflows
 
 import (
-	"fmt"
+	"time"
+
 	temporalio "go.temporal.io/sdk/temporal"
+	temporal "go.temporal.io/sdk/workflow"
+
 	"getpaidhq/internal/adapter/temporal/activities"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"time"
-
-	temporal_wf "go.temporal.io/sdk/workflow"
 )
 
-func SubscriptionChargeReminder(ctx temporal_wf.Context, subscription domain.Subscription, reminderTime time.Time) (port.WorkflowResult, error) {
-	logger := temporal_wf.GetLogger(ctx)
-	logger.Info("SubscriptionChargeReminder started, waiting for reminder time", "reminderTime", reminderTime)
+// SubscriptionChargeReminder sleeps until the reminder time and then sends the
+// renewal reminder. Mirrors
+// internal/adapter/hatchet/workflows/subscription_charge_reminder.go.
+func SubscriptionChargeReminder(ctx temporal.Context, input ReminderInput) (port.WorkflowResult, error) {
+	logger := temporal.GetLogger(ctx)
+	logger.Info("SubscriptionChargeReminder scheduled", "subscriptionId", input.Subscription.Id, "reminderAt", input.ReminderAt)
 
-	valid := true
-
-	duration := reminderTime.Sub(temporal_wf.Now(ctx))
-	ok, err := temporal_wf.AwaitWithTimeout(ctx, duration, func() bool {
-		rollover := temporal_wf.GetInfo(ctx).GetContinueAsNewSuggested()
-		return !valid || rollover
-	})
-	if err != nil {
-		logger.Error("Reminder interrupted, not processing", "Error", err)
-		return port.WorkflowResult{Success: false}, err
-	}
-	if !ok {
-		logger.Info(fmt.Sprintf("REMINDER EMAIL FOR [%s][%s]", subscription.OrgId, subscription.Id))
+	wait := input.ReminderAt.Sub(temporal.Now(ctx))
+	if wait > 0 {
+		if err := temporal.Sleep(ctx, wait); err != nil {
+			return port.WorkflowResult{}, err
+		}
 	}
 
-	var a *activities.OrderActivities
-	// ACTIVITY
-	// Complete the Order
-	ctx1 := temporal_wf.WithActivityOptions(ctx, temporal_wf.ActivityOptions{
+	var act *activities.OrderActivities
+
+	actCtx := temporal.WithActivityOptions(ctx, temporal.ActivityOptions{
 		StartToCloseTimeout: 10 * time.Second,
 		RetryPolicy: &temporalio.RetryPolicy{
 			InitialInterval:    time.Minute,
@@ -41,18 +35,11 @@ func SubscriptionChargeReminder(ctx temporal_wf.Context, subscription domain.Sub
 			MaximumAttempts:    1,
 		},
 	})
-	err = temporal_wf.ExecuteActivity(ctx1, a.ProcessReminderEvent, subscription).
-		Get(ctx1, nil)
-	if err != nil {
-		logger.Error("[SubscriptionChargeReminder] failed with error: ", "Error", err.Error())
-		return port.WorkflowResult{
-			Success: false,
-		}, temporalio.NewNonRetryableApplicationError("SubscriptionChargeReminder failed", "", err)
+	if err := temporal.ExecuteActivity(actCtx, act.ProcessReminderEvent, input.Subscription).
+		Get(actCtx, nil); err != nil {
+		return port.WorkflowResult{}, temporalio.NewNonRetryableApplicationError("SubscriptionChargeReminder failed", "reminder", err)
 	}
 
-	return port.WorkflowResult{
-		Success: true,
-		Message: "sent",
-		Payload: nil,
-	}, nil
+	_ = domain.Subscription{}
+	return port.WorkflowResult{Success: true, Message: "sent"}, nil
 }

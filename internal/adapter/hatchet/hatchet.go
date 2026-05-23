@@ -2,7 +2,6 @@ package hatchet
 
 import (
 	"context"
-	"encoding/json"
 	"getpaidhq/internal/adapter/hatchet/steps"
 	hatchetwf "getpaidhq/internal/adapter/hatchet/workflows"
 	"getpaidhq/internal/core/domain"
@@ -12,17 +11,20 @@ import (
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
-// Hatchet implements port.Engine using Hatchet as the workflow runtime.
+// Hatchet implements port.Engine and port.DunningEngine using Hatchet as the
+// workflow runtime.
 //
 // Workflow factories are wired with the narrow services they need directly;
 // there is no intermediate "steps" bundle for the order/subscription path.
 // Outgoing-webhook and dunning workflows still use their own step bundles.
+//
+// Pubsub fan-in to engine signals is handled by SubscriptionEventBridge in
+// the service layer, not by this adapter.
 type Hatchet struct {
 	logger        port.Logger
 	client        *hatchet.Client
 	worker        *hatchet.Worker
 	errorReporter lib.ErrorReporter
-	pubsub        port.PubSub
 }
 
 func NewHatchetEngine(
@@ -35,7 +37,6 @@ func NewHatchetEngine(
 	errorReporter lib.ErrorReporter,
 	webhookSteps *steps.OutgoingWebhookSteps,
 	dunningSteps *steps.DunningSteps,
-	pubsub port.PubSub,
 ) *Hatchet {
 	logger.Infof("Initializing Hatchet engine [host_port=%s][namespace=%s]", env.HatchetHostPort, env.HatchetNamespace)
 
@@ -56,7 +57,6 @@ func NewHatchetEngine(
 		logger:        logger,
 		client:        c,
 		errorReporter: errorReporter,
-		pubsub:        pubsub,
 	}
 
 	paymentSuccessWF := hatchetwf.NewPaymentSuccessWorkflow(c, orderService, subscriptionRepo, h)
@@ -95,17 +95,6 @@ func NewHatchetEngine(
 	}()
 
 	logger.Infof("Hatchet engine initialized with worker")
-
-	_, err = pubsub.Subscribe("subscription.*", func(topic string, data []byte) {
-		if err := h.HandleSubscriptionEvent(topic, data); err != nil {
-			logger.Error("Failed to handle subscription event", "error", err.Error())
-		}
-	})
-	if err != nil {
-		logger.Error("Failed to subscribe to subscription.* topic", "error", err.Error())
-		panic(err)
-	}
-
 	return h
 }
 
@@ -214,37 +203,6 @@ func (h Hatchet) SignalSubscriptionWorkflow(ctx context.Context, signal string, 
 	if err := h.client.Events().Push(ctx, key, payload); err != nil {
 		h.logger.Error("Failed to push signal event", "error", err.Error(), "key", key)
 		return err
-	}
-	return nil
-}
-
-// HandleSubscriptionEvent fans incoming "subscription.*" pubsub topics into
-// Hatchet update events so the per-subscription durable runner picks them up.
-func (h Hatchet) HandleSubscriptionEvent(topic string, data []byte) error {
-	h.logger.Infof("Received topic [%s]", topic)
-
-	var eventData port.PubSubPayload
-	if err := json.Unmarshal(data, &eventData); err != nil {
-		h.logger.Error("Failed to unmarshal event data", "error", err.Error())
-		return err
-	}
-
-	dataBytes, err := json.Marshal(eventData.Data)
-	if err != nil {
-		h.logger.Error("Failed to marshal subscription data", "error", err.Error())
-		return err
-	}
-	var sub domain.Subscription
-	if err := json.Unmarshal(dataBytes, &sub); err != nil {
-		h.logger.Error("Failed to unmarshal event data to Subscription", "error", err.Error())
-		return err
-	}
-
-	switch topic {
-	case "subscription.paused":
-		return h.UpdateSubscriptionWorkflow(context.Background(), topic, sub)
-	default:
-		h.logger.Infof("No handler for topic %s", topic)
 	}
 	return nil
 }

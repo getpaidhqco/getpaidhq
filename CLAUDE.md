@@ -21,8 +21,9 @@ Local stack (single Postgres shared by app + Hatchet, plus Hatchet Lite):
 - The shared Postgres exposes three databases (auto-created by `docker/init/01-create-databases.sql`): `getpaidhq` (app), `getpaidhq_reports` (reporting), `hatchet` (Hatchet's own internal store).
 
 Workflow engine bootstrap:
-- `WORKFLOW_ENGINE=hatchet` (the only supported engine; default in `lib.NewEnv()`).
-- First-time bootstrap (after the stack is up):
+- `WORKFLOW_ENGINE=hatchet` (default) or `WORKFLOW_ENGINE=temporal`. Both adapters provide parity over the same workflow surface (per-subscription runner, billing cycle, per-campaign dunning runner + attempt, payment success/refunded, outgoing webhooks, charge reminder). Only one engine runs at a time; `internal/config/app.go` switches on `WORKFLOW_ENGINE` and constructs adapter-specific shim layers (Hatchet "steps" or Temporal "activities") around the same engine-agnostic services.
+- Temporal env vars: `TEMPORAL_HOST` (default `localhost:7233`), `TEMPORAL_NAMESPACE` (default `getpaidhq`), `TEMPORAL_TASK_QUEUE` (default `getpaidhq-events`). The local docker stack does not currently run a Temporal server; `WORKFLOW_ENGINE=temporal` expects one available at `TEMPORAL_HOST`.
+- Hatchet first-time bootstrap (after the stack is up):
   1. The default tenant + admin user are seeded automatically. Tenant id is in the `Tenant` table of the `hatchet` DB (slug `default`).
   2. Mint a token: `docker exec hatchet-lite /hatchet-admin --config /config token create --name local-dev --tenant-id <tenant-id>`. The `--config /config` flag is required to load the auto-generated encryption keyset.
   3. Set in `.env`: `HATCHET_CLIENT_TOKEN=<token>`. The other client vars (`HATCHET_CLIENT_HOST_PORT=localhost:7077`, `HATCHET_CLIENT_NAMESPACE=getpaidhq`, `HATCHET_CLIENT_TLS_STRATEGY=none`) are already there.
@@ -67,10 +68,13 @@ The wrapping happens at the type level (the orchestration service embeds the nar
 
 ### Workflow engine
 
-Hatchet is the only engine. The wiring lives in `internal/config/app.go` (right after the narrow services are built).
+Two interchangeable engines: **Hatchet** (default) and **Temporal**. Selection lives in `internal/config/app.go` via `switch env.WorkflowEngine`. Each adapter wraps the engine-agnostic services in its own shim layer.
 
-- `internal/adapter/hatchet/hatchet.go` boots a single worker named `getpaidhq-events`. Workflows: `payment-success` (DAG), `payment-refunded`, `outgoing-webhook`, `billing-cycle` (DAG), `subscription-charge-reminder` (durable), `subscription-runner` (durable; long-running, one per subscription), `dunning-runner` (durable; long-running, one per failed charge), `dunning-attempt` (DAG; one per retry inside a dunning campaign).
-- Engine ports: `port.Engine` exposes `StartWorkflow`, `StartSubscriptionWorkflow`, `UpdateSubscriptionWorkflow`, `CancelSubscriptionWorkflow`, `SignalSubscriptionWorkflow`. `port.DunningEngine` exposes `StartDunningWorkflow`, `SignalDunningWorkflow`, `CancelDunningWorkflow`. The Hatchet engine type satisfies both.
+- `internal/adapter/hatchet/hatchet.go` boots a single Hatchet worker named `getpaidhq-events`. Workflows: `payment-success` (DAG), `payment-refunded`, `outgoing-webhook`, `billing-cycle` (DAG), `subscription-charge-reminder` (durable), `subscription-runner` (durable; long-running, one per subscription), `dunning-runner` (durable; long-running, one per failed charge), `dunning-attempt` (DAG; one per retry inside a dunning campaign). Hatchet-specific glue lives under `internal/adapter/hatchet/steps/` (one struct per service, thin wrappers calling the service interface).
+- `internal/adapter/temporal/temporal.go` boots a single Temporal worker on `TEMPORAL_TASK_QUEUE`. The workflow set mirrors Hatchet 1:1 (`SubscriptionWorkflow`, `BillingCycleWorkflow`, `SubscriptionChargeReminder`, `DunningRunnerWorkflow`, `DunningAttemptWorkflow`, `PaymentSuccessWorkflow`, `PaymentRefunded`, `OutgoingWebhookWorkflow`). Temporal-specific glue lives under `internal/adapter/temporal/activities/` and matches the Hatchet steps file-for-file.
+- Engine ports: `port.Engine` exposes `StartWorkflow`, `StartSubscriptionWorkflow`, `UpdateSubscriptionWorkflow`, `CancelSubscriptionWorkflow`, `SignalSubscriptionWorkflow`. `port.DunningEngine` exposes `StartDunningWorkflow`, `SignalDunningWorkflow`, `CancelDunningWorkflow`. Both Hatchet and Temporal types satisfy both interfaces.
+- Workflow ids / signal names are deterministic (`SubscriptionWorkflowID`, `DunningWorkflowID`, etc. in each adapter's `workflows/keys.go`). Combined with `WorkflowIDReusePolicy=ALLOW_DUPLICATE` + `WorkflowIDConflictPolicy=USE_EXISTING` on Temporal — and `WithRunKey` on Hatchet — `Start*Workflow` is idempotent.
+- Pubsub fan-in from `subscription.*` topics into engine signals is owned by `service.SubscriptionEventBridge`, **not** by the adapters. Add new topic→signal mappings there.
 
 **Update semantics — fire-and-forget.** `UpdateSubscriptionWorkflow` pushes a user event (`update:<updateName>:<orgId>:<subId>`) and returns immediately; the durable runner observes the event in its select loop, usually within seconds. Callers in `subscription_orchestration.go` `pubsub.Publish` after, so downstream observers are unaffected; do **not** assume synchronous acknowledgment when reading post-call state.
 

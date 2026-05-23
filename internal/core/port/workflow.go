@@ -5,7 +5,13 @@ import (
 	"getpaidhq/internal/core/domain"
 )
 
-// Engine is the interface for the workflow orchestration engine.
+// Engine is the workflow orchestration surface used by services.
+//
+// Hatchet and Temporal each provide a concrete implementation. Engine carries
+// the subscription lifecycle methods (per-aggregate durable runner) plus a
+// generic one-shot StartWorkflow for fire-and-forget DAG-style flows. The
+// dunning surface lives on port.DunningEngine to keep this interface small;
+// both adapters' concrete types satisfy both interfaces.
 type Engine interface {
 	StartWorkflow(ctx context.Context, id WorkflowType, payload any) (WorkflowResult, error)
 	StartSubscriptionWorkflow(ctx context.Context, subscription domain.Subscription) error
@@ -19,12 +25,14 @@ type WorkflowService interface {
 	HandleOutboundWebhook(topic string, data []byte)
 }
 
+// WorkflowResult is the engine-agnostic return shape from a one-shot workflow.
 type WorkflowResult struct {
 	Success bool
 	Message string
 	Payload any
 }
 
+// WorkflowType identifies a one-shot workflow registered with the engine.
 type WorkflowType string
 
 const (
@@ -43,34 +51,4 @@ type OutgoingWebhookPayload struct {
 // PaymentRefundedPayload is the payload for the payment refunded workflow.
 type PaymentRefundedPayload struct {
 	Refund domain.Refund
-}
-
-// PaymentSuccessWorkflow defines the interface for the payment success workflow.
-type PaymentSuccessWorkflow interface {
-	CompleteOrder(ctx context.Context, order domain.Order) (domain.Order, error)
-}
-
-// CompleteOrderStepInput is the input for the complete order workflow step.
-type CompleteOrderStepInput struct {
-	PaymentContext PaymentWebhookContext
-}
-
-// Workflow represents a runnable workflow.
-type Workflow interface {
-	Start(ctx any, payload any) (WorkflowResult, error)
-}
-
-// WorkflowSteps defines the steps that can be executed within a workflow.
-type WorkflowSteps interface {
-	CompleteOrder(ctx context.Context, data CompleteOrderStepInput) (WorkflowResult, error)
-}
-
-// WorkflowPayload wraps data and steps for workflow execution.
-type WorkflowPayload struct {
-	Data  any
-	Steps WorkflowSteps
-}
-
-// PaymentSuccessWorkflowPayload is the payload for the payment success workflow.
-type PaymentSuccessWorkflowPayload struct {
 }

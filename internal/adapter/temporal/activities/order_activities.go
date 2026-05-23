@@ -3,9 +3,10 @@ package activities
 import (
 	"context"
 	"encoding/json"
+
 	"go.temporal.io/sdk/activity"
 	"go.temporal.io/sdk/temporal"
-	"getpaidhq/internal/adapter/temporal/types"
+
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 )
@@ -14,12 +15,13 @@ import (
 // around an engine-agnostic service. The wrappers exist only to translate
 // service errors into Temporal-shaped retry decisions and to record activity
 // logs; all business logic lives behind the port-level service interfaces.
+//
+// This is the Temporal mirror of internal/adapter/hatchet/steps/*.go.
 type OrderActivities struct {
 	orderService        port.OrderWorkflowService
 	subscriptionService port.SubscriptionService
 	paymentService      port.PaymentService
 	subscriptionRepo    port.SubscriptionRepository
-	settingRepository   port.SettingRepository
 }
 
 func NewOrderActivities(
@@ -27,18 +29,16 @@ func NewOrderActivities(
 	subscriptionService port.SubscriptionService,
 	paymentService port.PaymentService,
 	subscriptionRepo port.SubscriptionRepository,
-	settingRepository port.SettingRepository,
 ) OrderActivities {
 	return OrderActivities{
 		orderService:        orderService,
 		subscriptionService: subscriptionService,
 		paymentService:      paymentService,
 		subscriptionRepo:    subscriptionRepo,
-		settingRepository:   settingRepository,
 	}
 }
 
-func (a *OrderActivities) CompleteOrder(ctx context.Context, paymentContext domain.PaymentWebhookContext) (port.WorkflowResult, error) {
+func (a *OrderActivities) CompleteOrder(ctx context.Context, paymentContext domain.PaymentWebhookContext) (domain.Order, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("CompleteOrder", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId)
 
@@ -49,28 +49,25 @@ func (a *OrderActivities) CompleteOrder(ctx context.Context, paymentContext doma
 		Metadata:       nil,
 	})
 	if err != nil {
-		return port.WorkflowResult{}, temporal.NewNonRetryableApplicationError("Can't mark order as completed", "order", err)
+		return domain.Order{}, temporal.NewNonRetryableApplicationError("Can't mark order as completed", "order", err)
 	}
-
-	return port.WorkflowResult{Success: true, Message: "Order completed", Payload: order}, nil
+	return order, nil
 }
 
-func (a *OrderActivities) HandlePaymentRefundedEvent(ctx context.Context, paymentContext domain.PaymentWebhookContext) (port.WorkflowResult, error) {
+func (a *OrderActivities) HandlePaymentRefundedEvent(ctx context.Context, paymentContext domain.PaymentWebhookContext) (domain.Payment, error) {
 	logger := activity.GetLogger(ctx)
 	logger.Info("HandlePaymentRefundedEvent", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId)
 
 	payment, err := a.paymentService.ProcessRefund(ctx, paymentContext)
 	if err != nil {
-		return port.WorkflowResult{}, temporal.NewApplicationError("Can't process refund", "refund", err)
+		return domain.Payment{}, temporal.NewApplicationError("Can't process refund", "refund", err)
 	}
-
-	return port.WorkflowResult{Success: true, Message: "Refund event processing", Payload: payment}, nil
+	return payment, nil
 }
 
 func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId string, orderId string) ([]domain.Subscription, error) {
 	logger := activity.GetLogger(ctx)
-	logger.Info("GetOrderSubscriptions: ", "[OrgId]", orgId, "[OrderId]", orderId)
-
+	logger.Info("GetOrderSubscriptions", "OrgId", orgId, "OrderId", orderId)
 	return a.subscriptionRepo.FindByOrderId(ctx, orgId, orderId)
 }
 
@@ -104,33 +101,10 @@ func (a *OrderActivities) HandleChargeResult(ctx context.Context, subscription d
 	})
 }
 
-// StoreSubscriptionWorkflowContext stores the Temporal workflow Id and workflow run Id
-// so that the system can query the workflow status later.
-//
-// This is Temporal-specific glue (the Execution type is Temporal's) and stays
-// in the adapter rather than moving down to a service.
-func (a *OrderActivities) StoreSubscriptionWorkflowContext(ctx context.Context, input types.StoreSubscriptionWorkflowContextInput) error {
+func (a *OrderActivities) ErrorState(ctx context.Context, subscription domain.Subscription, errMsg string) error {
 	logger := activity.GetLogger(ctx)
-	logger.Info("StoreSubscriptionWorkflowContext", "OrgId", input.OrgId, "SubscriptionId", input.SubscriptionId, "Execution", input.Execution)
-	executionBytes, err := json.Marshal(input.Execution)
-	if err != nil {
-		return err
-	}
-
-	_, err = a.settingRepository.Create(ctx, domain.Setting{
-		OrgId:    input.OrgId,
-		ParentId: input.SubscriptionId,
-		Id:       "temporal-workflow",
-		Type:     "workflow.Execution",
-		Value:    string(executionBytes),
-	})
-	return err
-}
-
-func (a *OrderActivities) ErrorState(ctx context.Context, subscription domain.Subscription, err error) error {
-	logger := activity.GetLogger(ctx)
-	logger.Info("ErrorState", "OrgId", subscription.OrgId, "SubscriptionId", subscription.Id, "err", err.Error())
-	return a.subscriptionService.MarkAsError(ctx, subscription, err)
+	logger.Info("ErrorState", "OrgId", subscription.OrgId, "SubscriptionId", subscription.Id, "err", errMsg)
+	return a.subscriptionService.MarkAsError(ctx, subscription, &activityErr{errMsg})
 }
 
 func (a *OrderActivities) GetSubscription(ctx context.Context, orgId string, id string) (domain.Subscription, error) {
@@ -142,3 +116,12 @@ func (a *OrderActivities) ProcessReminderEvent(ctx context.Context, subscription
 	logger.Info("ProcessReminderEvent", "OrgId", subscription.OrgId, "SubscriptionId", subscription.Id)
 	return a.subscriptionService.SendRenewalReminder(ctx, subscription.OrgId, subscription.Id)
 }
+
+// activityErr is a stand-in error type for ErrorState — Temporal activities
+// cannot carry a Go error across the boundary, so the caller passes a string
+// and we wrap it here for MarkAsError.
+type activityErr struct{ msg string }
+
+func (e *activityErr) Error() string { return e.msg }
+
+var _ = json.Marshal

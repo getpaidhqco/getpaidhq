@@ -2,12 +2,13 @@ package temporal
 
 import (
 	"context"
-	"encoding/json"
-	"fmt"
+	"errors"
+
+	enums "go.temporal.io/api/enums/v1"
+	serviceerror "go.temporal.io/api/serviceerror"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
-	temporal "go.temporal.io/sdk/workflow"
-	"log/slog"
+
 	"getpaidhq/internal/adapter/temporal/activities"
 	"getpaidhq/internal/adapter/temporal/workflows"
 	"getpaidhq/internal/core/domain"
@@ -15,342 +16,280 @@ import (
 	"getpaidhq/internal/lib"
 )
 
+// Temporal implements port.Engine and port.DunningEngine.
+//
+// All workflow ids are deterministic (workflows/keys.go) so the engine can
+// address per-aggregate runners by id without persisting handles in a side
+// table. Pubsub fan-in is handled by SubscriptionEventBridge in the service
+// layer, not here.
 type Temporal struct {
-	logger          port.Logger
-	client          client.Client
-	worker          worker.Worker
-	errorReporter   lib.ErrorReporter
-	orderActivities activities.OrderActivities
-
-	settingRepository port.SettingRepository
-	pubsub            port.PubSub
+	logger        port.Logger
+	client        client.Client
+	worker        worker.Worker
+	errorReporter lib.ErrorReporter
+	taskQueue     string
 }
 
 func NewTemporalEngine(
 	logger port.Logger,
 	env lib.Env,
 	orderActivities activities.OrderActivities,
-	errorReporter lib.ErrorReporter,
 	webhookActivities activities.OutgoingWebhookActivities,
-	settingRepository port.SettingRepository,
-	pubsub port.PubSub,
-) port.Engine {
-	// The client is orderActivities heavyweight object that should be created once per process.
-	// Set our Zap logger so that workflows and activities can use it
-	logger.Debugf("Connecting to temporal NewLazyClient [%s]", env.TemporalHost)
+	dunningActivities activities.DunningActivities,
+	errorReporter lib.ErrorReporter,
+) *Temporal {
+	logger.Infof("Initializing Temporal engine [host=%s][namespace=%s][taskQueue=%s]", env.TemporalHost, env.TemporalNamespace, env.TemporalTaskQueue)
+
 	c, err := client.NewLazyClient(client.Options{
 		HostPort:  env.TemporalHost,
-		Namespace: "subscriptions",
+		Namespace: env.TemporalNamespace,
 		Logger:    NewZapAdapter(lib.GetZapLogger()),
 	})
 	if err != nil {
-		logger.Error("Unable to create client: ", err.Error())
+		logger.Error("Unable to create Temporal client", "err", err.Error())
+		panic(err)
 	}
 
-	// Start orderActivities worker and register all workflows and activities for this instance.
-	// It's recommended by Temporal to have one worker per process,
-	// and to start out with one taskQueue.
-	w := worker.New(c, "events", worker.Options{})
+	taskQueue := env.TemporalTaskQueue
+	if taskQueue == "" {
+		taskQueue = "getpaidhq-events"
+	}
+
+	w := worker.New(c, taskQueue, worker.Options{})
 
 	// Workflows
 	w.RegisterWorkflow(workflows.PaymentSuccessWorkflow)
-	w.RegisterWorkflow(workflows.SubscriptionChargeReminder)
-	w.RegisterWorkflow(workflows.SubscriptionWorkflow)
-	w.RegisterWorkflow(workflows.OutgoingWebhookWorkflow)
 	w.RegisterWorkflow(workflows.PaymentRefunded)
+	w.RegisterWorkflow(workflows.OutgoingWebhookWorkflow)
+	w.RegisterWorkflow(workflows.SubscriptionWorkflow)
+	w.RegisterWorkflow(workflows.SubscriptionChargeReminder)
+	w.RegisterWorkflow(workflows.BillingCycleWorkflow)
+	w.RegisterWorkflow(workflows.DunningRunnerWorkflow)
+	w.RegisterWorkflow(workflows.DunningAttemptWorkflow)
 
+	// Activities
 	w.RegisterActivity(&orderActivities)
 	w.RegisterActivity(&webhookActivities)
+	w.RegisterActivity(&dunningActivities)
 
-	// Start the worker
-	err = w.Start()
-	if err != nil {
+	if err := w.Start(); err != nil {
+		logger.Error("Unable to start Temporal worker", "err", err.Error())
 		panic(err)
 	}
 
 	logger.Infof("Temporal engine initialized with worker")
-	t := Temporal{
-		logger:            logger,
-		client:            c,
-		errorReporter:     errorReporter,
-		worker:            w,
-		orderActivities:   orderActivities,
-		pubsub:            pubsub,
-		settingRepository: settingRepository,
-	}
 
-	_, err = pubsub.Subscribe("subscription.*", func(topic string, data []byte) {
-		err := t.HandleSubscriptionEvent(topic, data)
-		if err != nil {
-			logger.Error("Failed to handle subscription event", "error", err.Error())
-		}
-	})
-	if err != nil {
-		logger.Error("Failed to subscribe to subscription paused topic", "error", err.Error())
-		panic(err)
+	return &Temporal{
+		logger:        logger,
+		client:        c,
+		worker:        w,
+		errorReporter: errorReporter,
+		taskQueue:     taskQueue,
 	}
-
-	return t
 }
 
-func (t Temporal) StartWorkflow(ctx context.Context, id port.WorkflowType, payload any) (port.WorkflowResult, error) {
+// ---- port.Engine ----
 
+func (t *Temporal) StartWorkflow(ctx context.Context, id port.WorkflowType, payload any) (port.WorkflowResult, error) {
 	switch id {
-	case "payment.success":
-		workflowId := lib.GenerateId("payment_success")
-		// start workflow
-		workflowOptions := client.StartWorkflowOptions{
-			ID:        workflowId,
-			TaskQueue: "events",
-		}
-
-		// payload is domain.PaymentWebhookContext
-		data := port.WorkflowPayload{
-			Data: payload,
-		}
-
-		we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, workflows.PaymentSuccessWorkflow, data)
+	case port.WorkflowPaymentSuccess:
+		pc, err := paymentContextFrom(payload)
 		if err != nil {
-			t.logger.Error("Unable to execute workflow", "err", err.Error())
 			return port.WorkflowResult{}, err
 		}
-
-		var result port.WorkflowResult
-		err = we.Get(ctx, &result)
+		opts := client.StartWorkflowOptions{
+			ID:        lib.GenerateId("payment_success"),
+			TaskQueue: t.taskQueue,
+		}
+		we, err := t.client.ExecuteWorkflow(ctx, opts, workflows.PaymentSuccessWorkflow, workflows.PaymentSuccessInput{PaymentContext: pc})
 		if err != nil {
-			t.logger.Error("Unable to get workflow result", "err", err.Error())
+			t.logger.Error("Unable to execute PaymentSuccessWorkflow", "err", err.Error())
 			return port.WorkflowResult{}, err
 		}
-		t.logger.Debug("Finished PaymentSuccessWorkflow workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID(), "result", result)
-		return port.WorkflowResult{
-			Success: true,
-			Message: "success",
-			Payload: result,
-		}, nil
-	case port.WorkflowOutgoingWebhook:
-		workflowId := lib.GenerateId("webhook_out")
-		// start workflow
-		workflowOptions := client.StartWorkflowOptions{
-			ID:        workflowId,
-			TaskQueue: "events",
-		}
-
-		we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, workflows.OutgoingWebhookWorkflow, payload)
-		if err != nil {
-			t.logger.Error("Unable to execute workflow", "err", err.Error())
-			return port.WorkflowResult{}, err
-		}
-
-		var result port.WorkflowResult
-		err = we.Get(ctx, &result)
-		if err != nil {
-			t.logger.Error("Unable to get workflow result", "err", err.Error())
-			return port.WorkflowResult{}, err
-		}
-		t.logger.Info("Finished workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID(), "result", result)
-		return port.WorkflowResult{
-			Success: true,
-			Message: "success",
-			Payload: result,
-		}, nil
+		return port.WorkflowResult{Success: true, Message: "payment-success queued", Payload: we.GetID()}, nil
 
 	case port.WorkflowPaymentRefunded:
-		workflowId := lib.GenerateId("refund")
-		// start workflow
-		workflowOptions := client.StartWorkflowOptions{
-			ID:        workflowId,
-			TaskQueue: "events",
-		}
-
-		we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, workflows.PaymentRefunded, payload)
+		pc, err := paymentContextFrom(payload)
 		if err != nil {
-			t.logger.Error("Unable to execute workflow", "err", err.Error())
 			return port.WorkflowResult{}, err
 		}
-
-		var result port.WorkflowResult
-		err = we.Get(ctx, &result)
+		opts := client.StartWorkflowOptions{
+			ID:        lib.GenerateId("payment_refunded"),
+			TaskQueue: t.taskQueue,
+		}
+		we, err := t.client.ExecuteWorkflow(ctx, opts, workflows.PaymentRefunded, pc)
 		if err != nil {
-			t.logger.Error("Unable to get workflow result", "err", err.Error())
+			t.logger.Error("Unable to execute PaymentRefunded", "err", err.Error())
 			return port.WorkflowResult{}, err
 		}
-		t.logger.Info("Finished workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID(), "result", result)
-		return port.WorkflowResult{
-			Success: true,
-			Message: "success",
-			Payload: result,
-		}, nil
+		return port.WorkflowResult{Success: true, Message: "payment-refunded queued", Payload: we.GetID()}, nil
+
+	case port.WorkflowOutgoingWebhook:
+		wh, ok := payload.(port.OutgoingWebhookPayload)
+		if !ok {
+			return port.WorkflowResult{}, errors.New("outgoing-webhook expects port.OutgoingWebhookPayload")
+		}
+		opts := client.StartWorkflowOptions{
+			ID:        lib.GenerateId("webhook_out"),
+			TaskQueue: t.taskQueue,
+		}
+		we, err := t.client.ExecuteWorkflow(ctx, opts, workflows.OutgoingWebhookWorkflow, wh)
+		if err != nil {
+			t.logger.Error("Unable to execute OutgoingWebhookWorkflow", "err", err.Error())
+			return port.WorkflowResult{}, err
+		}
+		return port.WorkflowResult{Success: true, Message: "outgoing-webhook queued", Payload: we.GetID()}, nil
+
 	default:
 		t.logger.Warnf("Unsupported workflow type: %s", id)
 		return port.WorkflowResult{}, nil
 	}
-
 }
 
-// Starts the long running subscription workflow
-func (t Temporal) StartSubscriptionWorkflow(ctx context.Context, subscription domain.Subscription) error {
-
-	workflowId := fmt.Sprintf(`sub_[%s]_[%s]`, subscription.OrgId, subscription.Id)
-	// start workflow
-	workflowOptions := client.StartWorkflowOptions{
-		ID:        workflowId,
-		TaskQueue: "events",
+func (t *Temporal) StartSubscriptionWorkflow(ctx context.Context, sub domain.Subscription) error {
+	opts := client.StartWorkflowOptions{
+		ID:                       workflows.SubscriptionWorkflowID(sub.OrgId, sub.Id),
+		TaskQueue:                t.taskQueue,
+		WorkflowIDReusePolicy:    enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
+		WorkflowIDConflictPolicy: enums.WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING,
 	}
-	we, err := t.client.ExecuteWorkflow(ctx, workflowOptions, workflows.SubscriptionWorkflow, subscription)
+	we, err := t.client.ExecuteWorkflow(ctx, opts, workflows.SubscriptionWorkflow, sub)
 	if err != nil {
-		t.logger.Error("Unable to execute workflow", "err", err.Error())
+		t.logger.Error("Unable to start SubscriptionWorkflow", "err", err.Error())
 		return err
 	}
-	t.logger.Info("Finished workflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID())
-	executionBytes, err := json.Marshal(temporal.Execution{
-		ID:    we.GetID(),
-		RunID: we.GetRunID(),
-	})
-	if err != nil {
-		return err
-	}
-	_, err = t.settingRepository.Create(ctx, domain.Setting{
-		OrgId:    subscription.OrgId,
-		ParentId: subscription.Id,
-		Id:       "temporal-workflow",
-		Type:     "workflow.Execution",
-		Value:    string(executionBytes),
-	})
-
+	t.logger.Info("Started SubscriptionWorkflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID(), "OrgId", sub.OrgId, "SubscriptionId", sub.Id)
 	return nil
 }
 
-func (t Temporal) UpdateSubscriptionWorkflow(ctx context.Context, updateName string, subscription domain.Subscription) error {
-	we, err := t.getExecution(subscription)
-	if err != nil {
-		return err
-	}
-
-	updateHandle, err := t.client.UpdateWorkflow(ctx, client.UpdateWorkflowOptions{
-		WorkflowID:   we.ID,
-		RunID:        we.RunID,
-		UpdateName:   updateName,
-		WaitForStage: client.WorkflowUpdateStageCompleted,
-		Args:         []any{subscription},
-	})
-	if err != nil {
-		t.logger.Error("Failed to update workflow", "error", slog.String("err", err.Error()))
+func (t *Temporal) UpdateSubscriptionWorkflow(ctx context.Context, updateName string, sub domain.Subscription) error {
+	workflowID := workflows.SubscriptionWorkflowID(sub.OrgId, sub.Id)
+	t.logger.Debugf("Signaling subscription workflow [%s][%s]", workflowID, updateName)
+	if err := t.client.SignalWorkflow(ctx, workflowID, "", updateName, sub); err != nil {
+		if isNotFound(err) {
+			t.logger.Warnf("Subscription workflow not found for signal [%s][%s]", workflowID, updateName)
+			return nil
+		}
+		t.logger.Error("Failed to signal subscription workflow", "err", err.Error(), "workflowId", workflowID)
 		t.errorReporter.ReportError(ctx, err, map[string]any{
-			"org_id":          subscription.OrgId,
-			"workflow_id":     we.ID,
-			"run_id":          we.RunID,
+			"org_id":          sub.OrgId,
+			"workflow_id":     workflowID,
 			"update_name":     updateName,
-			"subscription_id": subscription.Id,
+			"subscription_id": sub.Id,
 		})
 		return err
 	}
-
-	var oldSub domain.Subscription
-	err = updateHandle.Get(ctx, &oldSub)
-	if err != nil {
-		t.logger.Error("Failed to get setting", "error", err)
-	}
 	return nil
 }
 
-func (t Temporal) CancelSubscriptionWorkflow(ctx context.Context, subscription domain.Subscription) error {
-	we, err := t.getExecution(subscription)
-	if err != nil {
-		return err
-	}
-
-	cancelErr := t.client.CancelWorkflow(ctx, we.ID, we.RunID)
-	if cancelErr != nil {
-		t.logger.Error("Failed to cancel workflow", "error", slog.String("err", cancelErr.Error()))
-		t.errorReporter.ReportError(ctx, err, map[string]any{
-			"org_id":          subscription.OrgId,
-			"workflow_id":     we.ID,
-			"run_id":          we.RunID,
-			"subscription_id": subscription.Id,
-		})
-		return cancelErr
-	}
-
-	return nil
-}
-
-func (t Temporal) SignalSubscriptionWorkflow(ctx context.Context, signal string, subscription domain.Subscription, payload any) error {
-	we, err := t.getExecution(subscription)
-	if err != nil {
-		t.logger.Error("Failed to get subscription workflow", "error", err)
-		return err
-	}
-
-	t.logger.Debugf("Signaling workflow [%s][%s]", we.ID, signal)
-	err = t.client.SignalWorkflow(ctx, we.ID, we.RunID, signal, payload)
-	if err != nil {
-		t.logger.Error("Failed to signal workflow", "error", slog.String("err", err.Error()))
-		return err
-	}
-	return nil
-}
-
-// HandleSubscriptionEvent forwards subscription events on to the appropriate workflow
-func (t Temporal) getExecution(subscription domain.Subscription) (temporal.Execution, error) {
-	setting, err := t.settingRepository.FindById(context.TODO(), subscription.OrgId, subscription.Id, "temporal-workflow")
-	if err != nil {
-		t.logger.Error("Failed to get setting", "error", err)
-		return temporal.Execution{}, err
-	}
-
-	var we temporal.Execution
-	err = json.Unmarshal([]byte(setting.Value), &we)
-	if err != nil {
-		t.logger.Error("Failed to unmarshal setting value", "error", err)
-		return temporal.Execution{}, err
-	}
-
-	t.logger.Debugf(`Getting the latest runID for workflow [%s]`, we.ID)
-	workflowRun := t.client.GetWorkflow(context.Background(), we.ID, "")
-	we.RunID = workflowRun.GetRunID()
-	t.logger.Debugf(`Found RunID [%s]`, we.RunID)
-
-	return we, nil
-}
-
-// HandleSubscriptionEvent forwards subscription events on to the appropriate workflow
-func (t Temporal) HandleSubscriptionEvent(topic string, data []byte) error {
-	t.logger.Infof("Received topic [%s]", topic)
-	// Unmarshal the event data
-	var eventData port.PubSubPayload
-	var sub domain.Subscription
-
-	err := json.Unmarshal(data, &eventData)
-	if err != nil {
-		t.logger.Error("Failed to unmarshal event data", "error", err)
-		return err
-	}
-
-	dataBytes, err := json.Marshal(eventData.Data)
-	if err != nil {
-		t.logger.Error("Failed to marshal subscription data", "error", err)
-		return err
-	}
-	err = json.Unmarshal(dataBytes, &sub)
-	if err != nil {
-		t.logger.Error("Failed to unmarshal event data to Subscription", "error", err)
-		return err
-	}
-
-	switch topic {
-	case "subscription.paused":
-		we, err := t.getExecution(sub)
-		if err != nil {
-			return err
+func (t *Temporal) CancelSubscriptionWorkflow(ctx context.Context, sub domain.Subscription) error {
+	workflowID := workflows.SubscriptionWorkflowID(sub.OrgId, sub.Id)
+	t.logger.Debugf("Signaling cancel to subscription workflow [%s]", workflowID)
+	if err := t.client.SignalWorkflow(ctx, workflowID, "", workflows.SignalCancelRunner, sub); err != nil {
+		if isNotFound(err) {
+			return nil
 		}
-
-		err = t.client.SignalWorkflow(context.Background(), we.ID, we.RunID, topic, sub)
-		if err != nil {
-			t.logger.Error("Unable to signal workflow: %v", slog.String("err", err.Error()))
-		}
-		return nil
-	default:
-		t.logger.Infof("No handler for topic %s", topic)
+		t.logger.Error("Failed to signal subscription workflow cancel", "err", err.Error())
+		return err
 	}
 	return nil
+}
+
+func (t *Temporal) SignalSubscriptionWorkflow(ctx context.Context, signal string, sub domain.Subscription, payload any) error {
+	workflowID := workflows.SubscriptionWorkflowID(sub.OrgId, sub.Id)
+	signalName := signal
+	if signal == "webhook-signal" {
+		signalName = workflows.WebhookSignalName(sub.OrgId, sub.Id)
+	}
+	t.logger.Debugf("Signaling subscription workflow [%s][%s]", workflowID, signalName)
+	if err := t.client.SignalWorkflow(ctx, workflowID, "", signalName, payload); err != nil {
+		if isNotFound(err) {
+			return nil
+		}
+		t.logger.Error("Failed to signal subscription workflow", "err", err.Error(), "signal", signalName)
+		return err
+	}
+	return nil
+}
+
+// ---- port.DunningEngine ----
+
+func (t *Temporal) StartDunningWorkflow(ctx context.Context, input domain.StartDunningWorkflowInput) (string, string, error) {
+	campaignId := ""
+	if input.Metadata != nil {
+		campaignId = input.Metadata["campaign_id"]
+	}
+	if campaignId == "" {
+		campaignId = input.SubscriptionId
+	}
+
+	workflowID := workflows.DunningWorkflowID(input.OrgId, campaignId)
+	opts := client.StartWorkflowOptions{
+		ID:                       workflowID,
+		TaskQueue:                t.taskQueue,
+		WorkflowIDReusePolicy:    enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
+		WorkflowIDConflictPolicy: enums.WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING,
+	}
+	runnerInput := workflows.DunningRunnerInput{
+		OrgId:                input.OrgId,
+		CampaignId:           campaignId,
+		SubscriptionId:       input.SubscriptionId,
+		CustomerId:           input.CustomerId,
+		FailedAmount:         input.FailedAmount,
+		Currency:             input.Currency,
+		InitialFailureReason: input.InitialFailureReason,
+		PaymentResult:        input.PaymentResult,
+		Metadata:             input.Metadata,
+	}
+	we, err := t.client.ExecuteWorkflow(ctx, opts, workflows.DunningRunnerWorkflow, runnerInput)
+	if err != nil {
+		t.logger.Error("Unable to start DunningRunnerWorkflow", "err", err.Error())
+		return "", "", err
+	}
+	t.logger.Info("Started DunningRunnerWorkflow", "WorkflowID", we.GetID(), "RunID", we.GetRunID(), "OrgId", input.OrgId, "CampaignId", campaignId)
+	return we.GetID(), we.GetRunID(), nil
+}
+
+func (t *Temporal) SignalDunningWorkflow(ctx context.Context, signal string, campaign domain.DunningCampaign, payload any) error {
+	workflowID := workflows.DunningWorkflowID(campaign.OrgId, campaign.Id)
+	signalName := signal
+	if signal == "payment_method.updated" {
+		signalName = workflows.SignalDunningPaymentMethodUpd
+	}
+	t.logger.Debugf("Signaling dunning workflow [%s][%s]", workflowID, signalName)
+	if err := t.client.SignalWorkflow(ctx, workflowID, "", signalName, payload); err != nil {
+		if isNotFound(err) {
+			return nil
+		}
+		t.logger.Error("Failed to signal dunning workflow", "err", err.Error(), "signal", signalName)
+		return err
+	}
+	return nil
+}
+
+func (t *Temporal) CancelDunningWorkflow(ctx context.Context, campaign domain.DunningCampaign) error {
+	workflowID := workflows.DunningWorkflowID(campaign.OrgId, campaign.Id)
+	t.logger.Debugf("Signaling cancel to dunning workflow [%s]", workflowID)
+	if err := t.client.SignalWorkflow(ctx, workflowID, "", workflows.SignalDunningCancel, campaign); err != nil {
+		if isNotFound(err) {
+			return nil
+		}
+		t.logger.Error("Failed to cancel dunning workflow", "err", err.Error())
+		return err
+	}
+	return nil
+}
+
+// ---- helpers ----
+
+func paymentContextFrom(payload any) (domain.PaymentWebhookContext, error) {
+	if pc, ok := payload.(domain.PaymentWebhookContext); ok {
+		return pc, nil
+	}
+	return domain.ParsePaymentWebhookContext(payload)
+}
+
+func isNotFound(err error) bool {
+	var nf *serviceerror.NotFound
+	return errors.As(err, &nf)
 }
