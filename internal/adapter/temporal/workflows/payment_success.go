@@ -1,98 +1,76 @@
 package workflows
 
 import (
-	"errors"
-	"fmt"
-	"go.temporal.io/api/enums/v1"
-	temporalio "go.temporal.io/sdk/temporal"
-	"getpaidhq/internal/adapter/temporal/activities"
-	"getpaidhq/internal/adapter/temporal/types"
-	"getpaidhq/internal/core/domain"
-	"getpaidhq/internal/core/port"
 	"time"
 
+	"go.temporal.io/api/enums/v1"
+	temporalio "go.temporal.io/sdk/temporal"
 	temporal "go.temporal.io/sdk/workflow"
+
+	"getpaidhq/internal/adapter/temporal/activities"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
 )
 
-// Execute executes tasks for processing a successful payment
-func PaymentSuccessWorkflow(ctx temporal.Context, payload port.WorkflowPayload) (port.WorkflowResult, error) {
+// PaymentSuccessWorkflow handles a payment-success webhook. Mirrors
+// internal/adapter/hatchet/workflows/payment_success.go:
+//
+//  1. complete-order:        Mark the order paid and capture the row.
+//  2. get-subscriptions:     Load any subscriptions tied to the order.
+//  3. spawn-subscription-runner:
+//                            Start the per-subscription runner as a detached
+//                            child workflow with a deterministic id.
+//
+// Only the first subscription is processed (matching Hatchet today).
+func PaymentSuccessWorkflow(ctx temporal.Context, input PaymentSuccessInput) (port.WorkflowResult, error) {
 	logger := temporal.GetLogger(ctx)
-	logger.Info("PaymentSuccessWorkflow started")
+	logger.Info("PaymentSuccessWorkflow started", "orderId", input.PaymentContext.OrderId)
 
-	// parse the data to make sure we have what we need
-	paymentWebhookContext, err := domain.ParsePaymentWebhookContext(payload.Data)
-	if err != nil {
-		logger.Error("Invalid payload data", "err", err.Error())
-		return port.WorkflowResult{}, errors.New("invalid payload data, expected domain.PaymentWebhookContext ")
-	}
+	var act *activities.OrderActivities
 
-	var a *activities.OrderActivities
-
-	// ACTIVITY
-	// Complete the Order
-	var completeOrderResult port.WorkflowResult
-	ctx1 := temporal.WithActivityOptions(ctx, temporal.ActivityOptions{
+	completeCtx := temporal.WithActivityOptions(ctx, temporal.ActivityOptions{
 		StartToCloseTimeout: 10 * time.Second,
 		RetryPolicy: &temporalio.RetryPolicy{
 			InitialInterval:    time.Minute,
 			BackoffCoefficient: 1.0,
+			MaximumAttempts:    10,
 		},
 	})
-	err = temporal.ExecuteActivity(ctx1, a.CompleteOrder, paymentWebhookContext).Get(ctx1, &completeOrderResult)
-	if err != nil {
-		logger.Error("[Complete Order] failed with error: ", "Error", err.Error())
-		return port.WorkflowResult{}, temporalio.NewApplicationError("Complete Order failed", "", err)
+	var order domain.Order
+	if err := temporal.ExecuteActivity(completeCtx, act.CompleteOrder, input.PaymentContext).
+		Get(completeCtx, &order); err != nil {
+		return port.WorkflowResult{}, err
 	}
 
-	// ACTIVITY
-	// Prepare the subscriptions for the order
-	var subscriptions []domain.Subscription
-	ctx2 := temporal.WithActivityOptions(ctx, temporal.ActivityOptions{
-		StartToCloseTimeout: 10000 * time.Second,
+	subsCtx := temporal.WithActivityOptions(ctx, temporal.ActivityOptions{
+		StartToCloseTimeout: 60 * time.Second,
 		RetryPolicy: &temporalio.RetryPolicy{
 			InitialInterval:    time.Minute,
 			BackoffCoefficient: 1.0,
+			MaximumAttempts:    10,
 		},
 	})
-	err = temporal.ExecuteActivity(ctx2, a.GetOrderSubscriptions, paymentWebhookContext.OrgId, paymentWebhookContext.OrderId).
-		Get(ctx2, &subscriptions)
-
-	// ACTIVITY
-	// process the subscriptions
-	subscription := subscriptions[0]
-	logger.Info("Spawning child workflow for subscription", "subscription", subscription.Id)
-	childCtx := temporal.WithChildOptions(ctx, temporal.ChildWorkflowOptions{
-		WorkflowID:        fmt.Sprintf(`subscription_[%s]_[%s]`, subscription.OrgId, subscription.Id),
-		ParentClosePolicy: enums.PARENT_CLOSE_POLICY_ABANDON,
-	})
-	childWorkflowFuture := temporal.ExecuteChildWorkflow(childCtx, SubscriptionWorkflow, subscription)
-
-	// Wait for the Child Workflow Execution to spawn
-	var childWE temporal.Execution
-	if err := childWorkflowFuture.GetChildWorkflowExecution().
-		Get(ctx, &childWE); err != nil {
-		logger.Error("Unable to start subscription workflow.", "err", err.Error())
-		// update the subscription so that we can retry
-
-		return port.WorkflowResult{
-			Success: false,
-			Message: "Can't spawn child workflow",
-			Payload: completeOrderResult.Payload,
-		}, err
+	var subs []domain.Subscription
+	if err := temporal.ExecuteActivity(subsCtx, act.GetOrderSubscriptions, input.PaymentContext.OrgId, input.PaymentContext.OrderId).
+		Get(subsCtx, &subs); err != nil {
+		return port.WorkflowResult{}, err
+	}
+	if len(subs) == 0 {
+		return port.WorkflowResult{Success: true, Message: "no subscriptions for order", Payload: order}, nil
 	}
 
-	// ACTIVITY
-	// store the child workflow execution details against the subscription
-	err = temporal.ExecuteActivity(ctx1, a.StoreSubscriptionWorkflowContext, types.StoreSubscriptionWorkflowContextInput{
-		OrgId:          paymentWebhookContext.OrgId,
-		SubscriptionId: subscription.Id,
-		Execution:      childWE,
-	}).Get(ctx1, nil)
+	sub := subs[0]
+	childCtx := temporal.WithChildOptions(ctx, temporal.ChildWorkflowOptions{
+		WorkflowID:            SubscriptionWorkflowID(sub.OrgId, sub.Id),
+		ParentClosePolicy:     enums.PARENT_CLOSE_POLICY_ABANDON,
+		WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
+	})
+	if err := temporal.ExecuteChildWorkflow(childCtx, SubscriptionWorkflow, sub).
+		GetChildWorkflowExecution().Get(ctx, nil); err != nil {
+		logger.Error("Unable to start subscription runner", "err", err.Error())
+		return port.WorkflowResult{Success: false, Message: "Can't spawn subscription runner", Payload: order}, err
+	}
 
-	logger.Info("[payment_success] Workflow completed.")
-	return port.WorkflowResult{
-		Success: true,
-		Message: "PaymentSuccessWorkflow completed",
-		Payload: completeOrderResult.Payload,
-	}, nil
+	logger.Info("PaymentSuccessWorkflow completed", "orderId", order.Id)
+	return port.WorkflowResult{Success: true, Message: "PaymentSuccessWorkflow completed", Payload: order}, nil
 }

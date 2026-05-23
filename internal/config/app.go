@@ -16,6 +16,8 @@ import (
 	"getpaidhq/internal/adapter/postgres"
 	"getpaidhq/internal/adapter/redis"
 	"getpaidhq/internal/adapter/sqs"
+	"getpaidhq/internal/adapter/temporal"
+	temporalact "getpaidhq/internal/adapter/temporal/activities"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
@@ -105,11 +107,38 @@ func NewApp() (*App, error) {
 
 	webhookSubService := service.NewWebhookSubscriptionService(logger, webhookSubRepo, idempotencyRepo, pubsub)
 
-	webhookSteps := hatchetsteps.NewOutgoingWebhookSteps(logger, webhookSubRepo, settingRepo, webhookSubService, pubsub)
-	dunningSteps := hatchetsteps.NewDunningSteps(logger, dunningService)
-	h := hatchet.NewHatchetEngine(logger, env, orderWorkflowService, subService, paymentService, subRepo, reporter, webhookSteps, dunningSteps, pubsub)
-	var engine port.Engine = h
-	var dunningEngine port.DunningEngine = h
+	// ---------------------------------------------------------------------------
+	// Workflow engine selection — WORKFLOW_ENGINE env var picks the adapter.
+	// Defaults to hatchet (see lib.NewEnv()).
+	//
+	// Both adapters take engine-agnostic services in their constructors; the
+	// Hatchet/Temporal-specific shim layer (steps vs activities) is built per
+	// engine so the same business logic is reused unchanged.
+	// ---------------------------------------------------------------------------
+	var engine port.Engine
+	var dunningEngine port.DunningEngine
+	switch env.WorkflowEngine {
+	case "temporal":
+		orderActivities := temporalact.NewOrderActivities(orderWorkflowService, subService, paymentService, subRepo)
+		webhookActivities := temporalact.NewOutgoingWebhookActivities(webhookSubService)
+		dunningActivities := temporalact.NewDunningActivities(dunningService)
+		t := temporal.NewTemporalEngine(logger, env, orderActivities, webhookActivities, dunningActivities, reporter)
+		engine = t
+		dunningEngine = t
+	case "hatchet", "":
+		webhookSteps := hatchetsteps.NewOutgoingWebhookSteps(logger, webhookSubRepo, settingRepo, webhookSubService, pubsub)
+		dunningSteps := hatchetsteps.NewDunningSteps(logger, dunningService)
+		h := hatchet.NewHatchetEngine(logger, env, orderWorkflowService, subService, paymentService, subRepo, reporter, webhookSteps, dunningSteps)
+		engine = h
+		dunningEngine = h
+	default:
+		logger.Errorf("Unsupported WORKFLOW_ENGINE=%q; must be 'hatchet' or 'temporal'", env.WorkflowEngine)
+		panic("unsupported WORKFLOW_ENGINE: " + env.WorkflowEngine)
+	}
+
+	// Pubsub fan-in from subscription.* topics into the chosen engine. Lifted
+	// out of the adapters so both share one implementation.
+	_ = service.NewSubscriptionEventBridge(engine, pubsub, logger)
 
 	// ---------------------------------------------------------------------------
 	// Engine-aware services and the rest.

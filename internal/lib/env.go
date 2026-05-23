@@ -27,10 +27,14 @@ type Env struct {
 
 	ClerkSecretKey string `mapstructure:"CLERK_SECRET"`
 
-	HatchetClientToken  string `mapstructure:"HATCHET_CLIENT_TOKEN"`
-	HatchetHostPort     string `mapstructure:"HATCHET_CLIENT_HOST_PORT"`
-	HatchetNamespace    string `mapstructure:"HATCHET_CLIENT_NAMESPACE"`
-	HatchetTLSStrategy  string `mapstructure:"HATCHET_CLIENT_TLS_STRATEGY"`
+	HatchetClientToken string `mapstructure:"HATCHET_CLIENT_TOKEN"`
+	HatchetHostPort    string `mapstructure:"HATCHET_CLIENT_HOST_PORT"`
+	HatchetNamespace   string `mapstructure:"HATCHET_CLIENT_NAMESPACE"`
+	HatchetTLSStrategy string `mapstructure:"HATCHET_CLIENT_TLS_STRATEGY"`
+
+	TemporalHost      string `mapstructure:"TEMPORAL_HOST"`
+	TemporalNamespace string `mapstructure:"TEMPORAL_NAMESPACE"`
+	TemporalTaskQueue string `mapstructure:"TEMPORAL_TASK_QUEUE"`
 
 	// AllowedOrigins is a comma-separated list of CORS origins. When empty,
 	// only same-origin requests succeed; "*" enables open CORS (dev only).
@@ -52,6 +56,9 @@ func NewEnv() Env {
 	viper.SetDefault("HATCHET_CLIENT_HOST_PORT", "localhost:7077")
 	viper.SetDefault("HATCHET_CLIENT_NAMESPACE", "getpaidhq")
 	viper.SetDefault("HATCHET_CLIENT_TLS_STRATEGY", "none")
+	viper.SetDefault("TEMPORAL_HOST", "localhost:7233")
+	viper.SetDefault("TEMPORAL_NAMESPACE", "getpaidhq")
+	viper.SetDefault("TEMPORAL_TASK_QUEUE", "getpaidhq-events")
 
 	viper.BindEnv("SERVER_PORT")
 	viper.BindEnv("WORKFLOW_ENGINE")
@@ -71,6 +78,9 @@ func NewEnv() Env {
 	viper.BindEnv("HATCHET_CLIENT_HOST_PORT")
 	viper.BindEnv("HATCHET_CLIENT_NAMESPACE")
 	viper.BindEnv("HATCHET_CLIENT_TLS_STRATEGY")
+	viper.BindEnv("TEMPORAL_HOST")
+	viper.BindEnv("TEMPORAL_NAMESPACE")
+	viper.BindEnv("TEMPORAL_TASK_QUEUE")
 	viper.BindEnv("ALLOWED_ORIGINS")
 	err = viper.Unmarshal(&env)
 	if err != nil {
@@ -86,6 +96,9 @@ func NewEnv() Env {
 		env.HatchetHostPort = viper.GetString("HATCHET_CLIENT_HOST_PORT")
 		env.HatchetNamespace = viper.GetString("HATCHET_CLIENT_NAMESPACE")
 		env.HatchetTLSStrategy = viper.GetString("HATCHET_CLIENT_TLS_STRATEGY")
+		env.TemporalHost = viper.GetString("TEMPORAL_HOST")
+		env.TemporalNamespace = viper.GetString("TEMPORAL_NAMESPACE")
+		env.TemporalTaskQueue = viper.GetString("TEMPORAL_TASK_QUEUE")
 
 		return env
 	}

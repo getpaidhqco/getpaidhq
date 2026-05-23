@@ -28,6 +28,16 @@ func GetLogger() Logger {
 	return globalLogger
 }
 
+// GetZapLogger returns the underlying *zap.Logger so adapters that need a zap
+// instance (e.g. the Temporal SDK ZapAdapter) can wrap it. Triggers logger
+// initialization on first call.
+func GetZapLogger() *zap.Logger {
+	if zapLogger == nil {
+		_ = GetLogger()
+	}
+	return zapLogger
+}
+
 type MyLogger struct {
 	logger *slog.Logger
 }

@@ -1,50 +1,36 @@
 package workflows
 
 import (
-	"errors"
+	"time"
+
 	temporalio "go.temporal.io/sdk/temporal"
+	temporal "go.temporal.io/sdk/workflow"
+
 	"getpaidhq/internal/adapter/temporal/activities"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"time"
-
-	temporal "go.temporal.io/sdk/workflow"
 )
 
-// Execute executes tasks for processing a payment refunded event
-func PaymentRefunded(ctx temporal.Context, payload domain.PaymentWebhookContext) (port.WorkflowResult, error) {
+// PaymentRefunded handles a refund event. Mirrors
+// internal/adapter/hatchet/workflows/payment_refunded.go.
+func PaymentRefunded(ctx temporal.Context, input domain.PaymentWebhookContext) (port.WorkflowResult, error) {
 	logger := temporal.GetLogger(ctx)
+	logger.Info("PaymentRefunded started", "orgId", input.OrgId, "orderId", input.OrderId)
 
-	// parse the data to make sure we have what we need
-	paymentWebhookContext, err := domain.ParsePaymentWebhookContext(payload)
-	if err != nil {
-		logger.Error("Invalid payload data", "err", err.Error())
-		return port.WorkflowResult{}, errors.New("invalid payload data, expected domain.PaymentWebhookContext ")
-	}
+	var act *activities.OrderActivities
 
-	var a *activities.OrderActivities
-
-	// ACTIVITY
-	// Complete the Order
-	var completeOrderResult port.WorkflowResult
-	ctx1 := temporal.WithActivityOptions(ctx, temporal.ActivityOptions{
+	actCtx := temporal.WithActivityOptions(ctx, temporal.ActivityOptions{
 		StartToCloseTimeout: 10 * time.Second,
 		RetryPolicy: &temporalio.RetryPolicy{
 			InitialInterval:    time.Minute,
 			BackoffCoefficient: 1.0,
+			MaximumAttempts:    10,
 		},
 	})
-	err = temporal.ExecuteActivity(ctx1, a.HandlePaymentRefundedEvent, paymentWebhookContext).
-		Get(ctx1, &completeOrderResult)
-	if err != nil {
-		logger.Error("[HandlePaymentRefundedEvent] failed with error: ", "Error", err.Error())
-		return port.WorkflowResult{}, temporalio.NewApplicationError("handle refund event failed", "", err)
+	var payment domain.Payment
+	if err := temporal.ExecuteActivity(actCtx, act.HandlePaymentRefundedEvent, input).
+		Get(actCtx, &payment); err != nil {
+		return port.WorkflowResult{}, err
 	}
-
-	logger.Info("[PaymentRefunded] Workflow completed.")
-	return port.WorkflowResult{
-		Success: true,
-		Message: "PaymentRefunded completed",
-		Payload: completeOrderResult.Payload,
-	}, nil
+	return port.WorkflowResult{Success: true, Message: "Refund event processed", Payload: payment}, nil
 }

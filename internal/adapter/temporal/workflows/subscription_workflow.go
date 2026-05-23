@@ -1,275 +1,211 @@
 package workflows
 
 import (
-	"fmt"
-	"go.temporal.io/api/enums/v1"
-	temporalio "go.temporal.io/sdk/temporal"
-	"log/slog"
-	"getpaidhq/internal/adapter/temporal/activities"
-	"getpaidhq/internal/core/domain"
 	"time"
 
-	"go.temporal.io/sdk/workflow"
+	"go.temporal.io/api/enums/v1"
+	temporalio "go.temporal.io/sdk/temporal"
+	temporal "go.temporal.io/sdk/workflow"
+
+	"getpaidhq/internal/adapter/temporal/activities"
+	"getpaidhq/internal/core/domain"
 )
 
-type SubscriptionInput struct {
-	domain.Subscription `json:"subscription"`
-}
+// SubscriptionWorkflow is the per-subscription long-running runner. Mirrors
+// internal/adapter/hatchet/workflows/subscription_runner.go.
+//
+// On each iteration:
+//
+//  1. Compute the next charge date from the current state.
+//  2. Spawn a charge-reminder child workflow one minute before, detached.
+//  3. Wait for the charge time OR any of:
+//     - signal subscription.paused / .resumed / .cancelled / .activated
+//     - signal refresh-state
+//     - signal cancel
+//     If a signal fires, the wait result carries the latest Subscription
+//     payload and the loop restarts with that state.
+//  4. When the sleep wins, spawn the billing-cycle child workflow and await
+//     the ChargeResult.
+//  5. If the result is Pending, wait up to 1h for a webhook signal carrying
+//     the resolved ChargeResult.
+//  6. Hand the (possibly webhook-updated) ChargeResult to SubscriptionService.
+//  7. Loop.
+//
+// Terminal exit: Cancelled, Expired, Completed, or a cancel signal.
+//
+// History rollover: when GetContinueAsNewSuggested() is true we restart with
+// ContinueAsNew so the workflow history doesn't grow unbounded.
+func SubscriptionWorkflow(ctx temporal.Context, input domain.Subscription) (domain.Subscription, error) {
+	logger := temporal.GetLogger(ctx)
+	sub := input
+	cancelled := false
 
-// SubscriptionWorkflow is a Temporal workflow that manages a subscription instance
-// https://community.temporal.io/t/best-way-to-design-a-subscription-workflow/12047
-// https://learn.temporal.io/tutorials/go/build-an-email-drip-campaign/
-// https://learn.temporal.io/tutorials/typescript/recurring-billing-system/
+	logger.Info("SubscriptionWorkflow started", "subscriptionId", sub.Id, "orgId", sub.OrgId)
 
-func SubscriptionWorkflow(ctx workflow.Context, input domain.Subscription) (domain.Subscription, error) {
-	logger := workflow.GetLogger(ctx)
-	subscription := input
-	// A flag to indicate if the workflow should be refreshed. Used by the "force-update" signal
-	restartBillingWait := false
-
-	logger.Info("SubscriptionWorkflow started", "Subscription:", subscription.Id)
-	var a *activities.OrderActivities
-	// Register query handler for subscription details
-	err := workflow.SetQueryHandler(ctx, "get-state", func() (domain.Subscription, error) {
-		return subscription, nil
-	})
-	if err != nil {
-		return subscription, err
+	if err := temporal.SetQueryHandler(ctx, "get-state", func() (domain.Subscription, error) {
+		return sub, nil
+	}); err != nil {
+		return sub, err
 	}
 
-	handler := func(ctx workflow.Context, newSub domain.Subscription) (domain.Subscription, error) {
-		// 👉 update the subscription state
-		var prevSub domain.Subscription
-		prevSub, subscription = subscription, newSub
-		return prevSub, nil
-	}
-	forceUpdateHandler := func(ctx workflow.Context, newSub domain.Subscription) (domain.Subscription, error) {
-		logger.Info("Subscription force update", "Subscription:", subscription.Id)
-		// 👉 update the subscription state
-		// Do some validation here
-		var prevSub domain.Subscription
-		prevSub, subscription = subscription, newSub
-		restartBillingWait = true
-		return prevSub, nil
-	}
+	pausedCh := temporal.GetSignalChannel(ctx, SignalSubscriptionPaused)
+	resumedCh := temporal.GetSignalChannel(ctx, SignalSubscriptionResumed)
+	cancelledCh := temporal.GetSignalChannel(ctx, SignalSubscriptionCancelled)
+	activatedCh := temporal.GetSignalChannel(ctx, SignalSubscriptionActivated)
+	refreshCh := temporal.GetSignalChannel(ctx, SignalRefreshState)
+	runnerCancelCh := temporal.GetSignalChannel(ctx, SignalCancelRunner)
+	webhookCh := temporal.GetSignalChannel(ctx, WebhookSignalName(sub.OrgId, sub.Id))
 
-	err = workflow.SetUpdateHandler(ctx, "subscription.paused", handler)
-	err = workflow.SetUpdateHandler(ctx, "subscription.cancelled", handler)
-	err = workflow.SetUpdateHandler(ctx, "subscription.resumed", handler)
-	err = workflow.SetUpdateHandler(ctx, "subscription.activated", handler)
-	err = workflow.SetUpdateHandler(ctx, "refresh-state", forceUpdateHandler)
-
-	// Register signal handler for cancelling the subscription
-	var signalSubscription domain.Subscription
-	pausedChannel := workflow.GetSignalChannel(ctx, "subscription.paused")
-	activatedChannel := workflow.GetSignalChannel(ctx, "subscription.activated")
-	cancelledChannel := workflow.GetSignalChannel(ctx, "subscription.cancelled")
-	workflow.Go(ctx, func(ctx workflow.Context) {
+	// Drain control signals into the local subscription state via an
+	// always-listening goroutine. Updates land synchronously so the wait
+	// predicates below see them on the next reschedule.
+	temporal.Go(ctx, func(gctx temporal.Context) {
 		for {
-			selector := workflow.NewSelector(ctx)
-			selector.AddReceive(pausedChannel, func(c workflow.ReceiveChannel, more bool) {
-				c.Receive(ctx, &signalSubscription)
-				subscription = signalSubscription
-				logger.Info("Subscription paused signal", "subscription", subscription.Id, "status", subscription.Status)
+			sel := temporal.NewSelector(gctx)
+			var updated domain.Subscription
+			sel.AddReceive(pausedCh, func(c temporal.ReceiveChannel, _ bool) {
+				c.Receive(gctx, &updated)
+				sub = updated
 			})
-			selector.AddReceive(activatedChannel, func(c workflow.ReceiveChannel, more bool) {
-				c.Receive(ctx, &signalSubscription)
-				subscription = signalSubscription
-				logger.Info("Subscription activated signal", "subscription", subscription.Id, "status", subscription.Status)
+			sel.AddReceive(resumedCh, func(c temporal.ReceiveChannel, _ bool) {
+				c.Receive(gctx, &updated)
+				sub = updated
 			})
-			selector.AddReceive(cancelledChannel, func(c workflow.ReceiveChannel, more bool) {
-				c.Receive(ctx, &signalSubscription)
-				logger.Info("Received SubscriptionStatusCancelled signal", "subscription", subscription.Id)
-				subscription = signalSubscription
+			sel.AddReceive(cancelledCh, func(c temporal.ReceiveChannel, _ bool) {
+				c.Receive(gctx, &updated)
+				sub = updated
 			})
-			selector.Select(ctx)
+			sel.AddReceive(activatedCh, func(c temporal.ReceiveChannel, _ bool) {
+				c.Receive(gctx, &updated)
+				sub = updated
+			})
+			sel.AddReceive(refreshCh, func(c temporal.ReceiveChannel, _ bool) {
+				c.Receive(gctx, &updated)
+				sub = updated
+			})
+			sel.AddReceive(runnerCancelCh, func(c temporal.ReceiveChannel, _ bool) {
+				c.Receive(gctx, &updated)
+				cancelled = true
+			})
+			sel.Select(gctx)
 		}
 	})
 
 	for {
-		// Calculate the duration until the next billing date
-		// Remember to use workflow.Now(ctx) to get the current time
-		nextCharge := subscription.GetNextChargeDate()
-		if nextCharge.IsZero() {
-			logger.Info("Subscription has no next billing date, ending workflow...")
-			// TODO report this error
+		if cancelled || isTerminalSubscriptionStatus(sub.Status) {
 			break
 		}
 
-		// Wait here until the next billing date or until the subscription is cancelled
-		// If the subscription state was updated using the "force-update", then we need to
-		// restart the wait so that the new state is taken into account
-		// RenewsAt is the date when the subscription will be charged again
-		// NextRenewalDate is the date when the subscription will be charged again
-		duration := nextCharge.Sub(workflow.Now(ctx))
-		reminderDuration := time.Duration(1) * time.Minute
-		reminderDate := nextCharge.Add(-reminderDuration)
-		logger.Info(fmt.Sprintf("******* [%s][%s] blocking until nextBillingDate=[%s]", subscription.OrgId, subscription.Id, nextCharge))
+		next := sub.GetNextChargeDate()
+		if next.IsZero() {
+			logger.Info("Subscription has no next charge date, ending workflow")
+			break
+		}
 
-		// Start the reminder workflow
-		childCtx := workflow.WithChildOptions(ctx, workflow.ChildWorkflowOptions{
-			WorkflowID:        fmt.Sprintf(`sub_reminder_[%s]_[%s]_[%s]`, subscription.OrgId, subscription.Id, reminderDate.Format("20060102")),
+		// Reminder — fire-and-forget detached child.
+		reminderAt := next.Add(-1 * time.Minute)
+		reminderCtx := temporal.WithChildOptions(ctx, temporal.ChildWorkflowOptions{
+			WorkflowID:        ReminderWorkflowID(sub.OrgId, sub.Id, reminderAt),
 			ParentClosePolicy: enums.PARENT_CLOSE_POLICY_ABANDON,
+			WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
 		})
-		childWorkflowFuture := workflow.ExecuteChildWorkflow(childCtx, SubscriptionChargeReminder, subscription, reminderDate)
-		// Wait for the Child Workflow Execution to spawn
-		var childWE workflow.Execution
-		if err := childWorkflowFuture.GetChildWorkflowExecution().
-			Get(ctx, &childWE); err != nil {
-			logger.Error("Unable to start subscription reminder workflow.", "err", err.Error())
-		}
-		logger.Info(fmt.Sprintf("******* sending reminder at [%s]", reminderDate))
+		_ = temporal.ExecuteChildWorkflow(reminderCtx, SubscriptionChargeReminder, ReminderInput{
+			Subscription: sub,
+			ReminderAt:   reminderAt,
+		}).GetChildWorkflowExecution().Get(ctx, nil)
 
-		ok, err := workflow.AwaitWithTimeout(ctx, duration, func() bool {
-			rollover := workflow.GetInfo(ctx).GetContinueAsNewSuggested()
-			return subscription.Status == domain.SubscriptionStatusPaused ||
-				subscription.Status == domain.SubscriptionStatusCancelled ||
-				rollover ||
-				restartBillingWait
-		})
-		if err != nil {
-			logger.Error("Workflow Await was interrupted",
-				"Error", err.Error(),
-				slog.String("status", string(subscription.Status)),
-				slog.String("nextBillingDate", nextCharge.String()),
-				slog.Bool("restartBillingWait", restartBillingWait))
+		// Wait until the next charge time OR a control signal fires.
+		wait := next.Sub(temporal.Now(ctx))
+		if wait < time.Second {
+			wait = time.Second
 		}
-		if restartBillingWait {
-			logger.Info("RESTART BILLING WAIT - The subscription state was refreshed, clearing the flag and restarting the loop")
-			restartBillingWait = false
-			continue
-		}
-		if workflow.GetInfo(ctx).GetContinueAsNewSuggested() {
-			logger.Info("--- ContinueAsNewSuggested", "status", subscription.Status, "size", workflow.GetInfo(ctx).GetCurrentHistorySize())
-			return subscription, workflow.NewContinueAsNewError(ctx, SubscriptionWorkflow, subscription)
-		}
-		if !ok {
-			logger.Info(fmt.Sprintf("*** [%s][%s] Next billing date reached [%s]", subscription.OrgId, subscription.Id, nextCharge))
+		if _, err := temporal.AwaitWithTimeout(ctx, wait, func() bool {
+			return cancelled ||
+				sub.Status == domain.SubscriptionStatusPaused ||
+				sub.Status == domain.SubscriptionStatusCancelled ||
+				sub.Status == domain.SubscriptionStatusExpired ||
+				temporal.GetInfo(ctx).GetContinueAsNewSuggested()
+		}); err != nil {
+			return sub, err
 		}
 
-		// If the subscription was paused, wait until it is activated again
-		if subscription.Status == domain.SubscriptionStatusPaused {
-			err = workflow.Await(ctx, func() bool {
-				logger.Debug(fmt.Sprintf("[%s][%s] pause clause", subscription.OrgId, subscription.Id))
-				return subscription.IsRunning() ||
-					subscription.Status == domain.SubscriptionStatusCancelled
-			})
-			continue
-		}
-
-		if subscription.Status == domain.SubscriptionStatusNonRenewing {
-			err = workflow.Await(ctx, func() bool {
-				logger.Debug("Past due clause", "subscription.Status", subscription.Status)
-
-				// wait until the subscription is moved out of the non-renewing state.
-				return subscription.Status != domain.SubscriptionStatusNonRenewing
-			})
-			continue
-		}
-
-		// The wait is over, check if the subscription was cancelled and if not, charge the customer and
-		// update local state for the next billing period
-		if subscription.Status == domain.SubscriptionStatusCancelled {
-			logger.Info("Subscription is cancelled, ending workflow...")
+		if cancelled {
 			break
 		}
-		if subscription.Status == domain.SubscriptionStatusExpired {
-			logger.Info("Subscription is expired, ending workflow...")
+		if temporal.GetInfo(ctx).GetContinueAsNewSuggested() {
+			logger.Info("ContinueAsNewSuggested", "size", temporal.GetInfo(ctx).GetCurrentHistorySize())
+			return sub, temporal.NewContinueAsNewError(ctx, SubscriptionWorkflow, sub)
+		}
+		if isTerminalSubscriptionStatus(sub.Status) {
 			break
 		}
-
-		if !subscription.IsRunning() {
-			logger.Info("Subscription is not in a running state, skipping billing cycle", "status", subscription.Status)
+		if sub.Status == domain.SubscriptionStatusPaused ||
+			sub.Status == domain.SubscriptionStatusNonRenewing {
+			continue
+		}
+		if !sub.IsRunning() {
+			continue
+		}
+		// Charge date may have moved into the future (e.g. paused → activated
+		// reset RenewsAt). Re-check before charging.
+		if next.After(temporal.Now(ctx)) {
 			continue
 		}
 
-		// Double-check the next billing date, it must be in the past
-		// E.g. if a paused subscription is activated, the next billing date may be in the future
-		if nextCharge.After(workflow.Now(ctx)) {
-			logger.Info("Reached the billing process but Renew date is in the future, skipping billing cycle", "nextBillingDate", nextCharge)
-			continue
-		}
-
-		logger.Info("Subscription is active, processing cycle")
-		// Charge the customer
+		// Billing — child workflow, identical contract to Hatchet's DAG.
+		billingCtx := temporal.WithChildOptions(ctx, temporal.ChildWorkflowOptions{
+			WorkflowID:                BillingCycleWorkflowID(sub.OrgId, sub.Id, sub.CyclesProcessed),
+			WorkflowIDReusePolicy:     enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
+		})
 		var chargeResult domain.ChargeResult
-		chargeCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
-			StartToCloseTimeout: time.Second * 60,
-			RetryPolicy: &temporalio.RetryPolicy{
-				InitialInterval:    time.Minute * 2,
-				BackoffCoefficient: 1.2,
-			},
-		})
-		err = workflow.ExecuteActivity(chargeCtx, a.ChargeCustomerForBillingPeriod, subscription).
-			Get(chargeCtx, &chargeResult)
-		if err != nil {
-			// a system error occurred when attempting to charge the customer
-			// This shouldn't be reached because of the retry policy which will retry forever
-			// The workflow can be stopped using updates
-			// TODO report this error
-			logger.Error("ChargeCustomerForBillingPeriod failed completely, ending workflow", "Error", err.Error())
-			return subscription, err
+		if err := temporal.ExecuteChildWorkflow(billingCtx, BillingCycleWorkflow, BillingCycleInput{Subscription: sub}).
+			Get(billingCtx, &chargeResult); err != nil {
+			logger.Error("BillingCycleWorkflow failed", "err", err.Error())
+			return sub, err
 		}
 
-		// Charge is completed
-		// If payment status is Pending, then we must wait for a webhook to complete the payment
+		// On Pending, wait up to 1h for the per-(org, sub) webhook signal to
+		// deliver the final ChargeResult.
 		if chargeResult.Status == domain.PaymentStatusPending {
-			// Wait for the webhook
-			selector := workflow.NewSelector(ctx)
-			webhookChan := workflow.GetSignalChannel(ctx, "webhook-signal")
-
-			selector.AddReceive(webhookChan, func(c workflow.ReceiveChannel, more bool) {
-				logger.Info("Received webhook signal")
-				c.Receive(ctx, &chargeResult)
+			selector := temporal.NewSelector(ctx)
+			selector.AddReceive(webhookCh, func(c temporal.ReceiveChannel, _ bool) {
+				var fromWebhook domain.ChargeResult
+				c.Receive(ctx, &fromWebhook)
+				chargeResult = fromWebhook
 			})
-
-			// Wait for either the webhook or a timeout
-			timeout := workflow.NewTimer(ctx, 1*time.Hour)
-			selector.AddFuture(timeout, func(f workflow.Future) {
-				// Handle timeout
-				logger.Error("Timeout waiting for payment webhook", "Error", "")
+			selector.AddFuture(temporal.NewTimer(ctx, time.Hour), func(temporal.Future) {
+				logger.Warn("Timeout waiting for webhook signal", "subscriptionId", sub.Id)
 			})
-
 			selector.Select(ctx)
 		}
 
-		// The charge process ended successfully
-		// Update the subscription with the charge result
-		var updateResult domain.Subscription
-		updateCtx := workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
+		// Hand back to the service. Retry liberally — this only fails for DB
+		// errors that should not crash the long-running workflow.
+		var act *activities.OrderActivities
+		actCtx := temporal.WithActivityOptions(ctx, temporal.ActivityOptions{
 			StartToCloseTimeout: 5 * time.Minute,
 			RetryPolicy: &temporalio.RetryPolicy{
-				InitialInterval:    time.Minute * 1,
+				InitialInterval:    time.Minute,
 				BackoffCoefficient: 1.2,
 			},
 		})
-		err = workflow.ExecuteActivity(updateCtx, a.HandleChargeResult, subscription, chargeResult).
-			Get(updateCtx, &updateResult)
-		if err != nil {
-			logger.Error("Failed to HandleChargeResult", "Error", err.Error())
-			return subscription, err
+		var updated domain.Subscription
+		if err := temporal.ExecuteActivity(actCtx, act.HandleChargeResult, sub, chargeResult).
+			Get(actCtx, &updated); err != nil {
+			logger.Error("HandleChargeResult failed", "err", err.Error())
+			return sub, err
 		}
-		if updateResult.Id == "" {
-			logger.Error("Failed to update subscription", "Error", "updateResult is nil")
-			return subscription, err
+		if updated.Id != "" {
+			sub = updated
 		}
-
-		// Update the local state with the updated subscription
-		subscription = updateResult
-
-		// check the status of the subscription after the charge and update the workflow state
-		// TODO this is where the dunning flow might happen
-
-		// the subscription was successfully charged, update the subscription state
-		// and prepare for the next billing period
-		logger.Info(fmt.Sprintf("[%s][%s] Charging cycle completed [status=%s][renewsAt=%s][cycles=%d][amount=%d]",
-			subscription.OrgId,
-			subscription.Id,
-			subscription.Status,
-			subscription.GetNextChargeDate(),
-			subscription.CyclesProcessed,
-			subscription.Amount))
 	}
-	logger.Info(fmt.Sprintf("Completed %s, Total Charged: %d", workflow.GetInfo(ctx).WorkflowExecution.ID, subscription.TotalRevenue))
-	return subscription, nil
+
+	logger.Info("SubscriptionWorkflow completed", "subscriptionId", sub.Id, "totalRevenue", sub.TotalRevenue)
+	return sub, nil
+}
+
+func isTerminalSubscriptionStatus(s domain.SubscriptionStatus) bool {
+	return s == domain.SubscriptionStatusCancelled ||
+		s == domain.SubscriptionStatusExpired ||
+		s == domain.SubscriptionStatusCompleted
 }
