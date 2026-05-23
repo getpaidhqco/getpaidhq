@@ -21,7 +21,7 @@ type SQSFifoClient struct {
 	env    lib.Env
 }
 
-func NewSQSFifoClient(logger port.Logger, env lib.Env) port.QueueClient {
+func NewSQSFifoClient(logger port.Logger, env lib.Env) (port.QueueClient, error) {
 	cfg, err := config.LoadDefaultConfig(context.TODO(),
 		config.WithRegion(env.Get("AWS_REGION")),
 		config.WithCredentialsProvider(credentials.NewStaticCredentialsProvider(
@@ -32,12 +32,12 @@ func NewSQSFifoClient(logger port.Logger, env lib.Env) port.QueueClient {
 	)
 
 	if err != nil {
-		panic(err)
+		return nil, lib.NewCustomError(lib.InternalError, "failed to load AWS config", err)
 	}
 
 	queueUrl := env.Get("SQS_QUEUE_URL")
 	if queueUrl == "" {
-		panic("SQS_QUEUE_URL not set")
+		return nil, lib.NewCustomError(lib.InternalError, "SQS_QUEUE_URL not set", nil)
 	}
 
 	client := sqs.NewFromConfig(cfg)
@@ -46,7 +46,7 @@ func NewSQSFifoClient(logger port.Logger, env lib.Env) port.QueueClient {
 		logger: logger,
 		env:    env,
 		client: client,
-	}
+	}, nil
 }
 
 func (c SQSFifoClient) Start(handler port.QueueMessageHandler) {

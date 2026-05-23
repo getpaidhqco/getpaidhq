@@ -81,7 +81,10 @@ func NewApp() (*App, error) {
 	cache := redis.NewRedisClient(env.Get("REDIS_HOST"), env.Get("REDIS_PASSWORD"), 0)
 	authzEngine := cedar.NewCedarAuthz(logger, env)
 	scheduler := cron.NewCronScheduler(logger, env)
-	queueClient := sqs.NewSQSFifoClient(logger, env)
+	queueClient, err := sqs.NewSQSFifoClient(logger, env)
+	if err != nil {
+		return nil, err
+	}
 
 	// Auth
 	clerkAuth := clerk.NewClerkMiddleware(logger, env, metadataRepo)
