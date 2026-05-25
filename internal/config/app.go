@@ -15,7 +15,6 @@ import (
 	"getpaidhq/internal/adapter/paystack"
 	"getpaidhq/internal/adapter/postgres"
 	"getpaidhq/internal/adapter/redis"
-	"getpaidhq/internal/adapter/sqs"
 	"getpaidhq/internal/adapter/temporal"
 	temporalact "getpaidhq/internal/adapter/temporal/activities"
 	"getpaidhq/internal/core/domain"
@@ -83,7 +82,6 @@ func NewApp() (*App, error) {
 	cache := redis.NewRedisClient(env.Get("REDIS_HOST"), env.Get("REDIS_PASSWORD"), 0)
 	authzEngine := cedar.NewCedarAuthz(logger, env)
 	scheduler := cron.NewCronScheduler(logger, env)
-	queueClient := sqs.NewSQSFifoClient(logger, env)
 
 	// Auth
 	clerkAuth := clerk.NewClerkMiddleware(logger, env, metadataRepo)
@@ -156,7 +154,8 @@ func NewApp() (*App, error) {
 	orgService := service.NewOrgService(orgRepo, pubsub, clerkProvider, customerRepo, settingRepo, metadataRepo, apiKeyRepo, logger)
 	pspService := service.NewPspService(pspRepo, settingRepo, logger, pubsub)
 	webhookService := service.NewWebhookService(logger, gatewayFactory, engine, idempotencyRepo, subRepo)
-	reportService := service.NewReportService(logger, reportRepo, pubsub, queueClient, scheduler, orgRepo)
+	reportService := service.NewReportService(logger, reportRepo, scheduler, orgRepo)
+	_ = service.NewReportEventBridge(logger, pubsub, reportRepo)
 	metadataService := service.NewMetadataService(metadataRepo, logger)
 
 	_ = metadataService
