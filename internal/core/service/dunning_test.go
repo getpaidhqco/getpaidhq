@@ -63,9 +63,10 @@ func (p *recordingPubSub) hasTopic(topic string) bool {
 // methods this test exercises overridden; any unexpected call nil-panics.
 type fakeDunningRepo struct {
 	port.DunningRepository
-	campaign domain.DunningCampaign
-	findErr  error
-	updated  []domain.DunningCampaign
+	campaign         domain.DunningCampaign
+	findErr          error
+	updated          []domain.DunningCampaign
+	createdCampaigns []domain.DunningCampaign
 
 	token        domain.PaymentUpdateToken
 	tokenFindErr error
@@ -73,6 +74,12 @@ type fakeDunningRepo struct {
 
 	configs   []domain.DunningConfiguration
 	configErr error
+}
+
+func (r *fakeDunningRepo) CreateCampaign(_ context.Context, c domain.DunningCampaign) (domain.DunningCampaign, error) {
+	r.campaign = c
+	r.createdCampaigns = append(r.createdCampaigns, c)
+	return c, nil
 }
 
 func (r *fakeDunningRepo) FindCampaignById(_ context.Context, _, _ string) (domain.DunningCampaign, error) {

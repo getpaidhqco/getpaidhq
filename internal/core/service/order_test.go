@@ -29,8 +29,11 @@ func (m *fakeTxManager) RunInTx(ctx context.Context, fn func(context.Context) er
 // recordingEngine records StartSubscriptionWorkflow calls; the rest of the
 // port.Engine surface is inert.
 type recordingEngine struct {
-	mu      sync.Mutex
-	started []domain.Subscription
+	mu        sync.Mutex
+	started   []domain.Subscription
+	updates   []string
+	startErr  error
+	updateErr error
 }
 
 func (e *recordingEngine) StartWorkflow(context.Context, port.WorkflowType, any) (port.WorkflowResult, error) {
@@ -39,10 +42,19 @@ func (e *recordingEngine) StartWorkflow(context.Context, port.WorkflowType, any)
 func (e *recordingEngine) StartSubscriptionWorkflow(_ context.Context, sub domain.Subscription) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+	if e.startErr != nil {
+		return e.startErr
+	}
 	e.started = append(e.started, sub)
 	return nil
 }
-func (e *recordingEngine) UpdateSubscriptionWorkflow(context.Context, string, domain.Subscription) error {
+func (e *recordingEngine) UpdateSubscriptionWorkflow(_ context.Context, name string, _ domain.Subscription) error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+	if e.updateErr != nil {
+		return e.updateErr
+	}
+	e.updates = append(e.updates, name)
 	return nil
 }
 func (e *recordingEngine) CancelSubscriptionWorkflow(context.Context, domain.Subscription) error {
@@ -79,8 +91,17 @@ func (r *fakeOrderRepo) Update(_ context.Context, o domain.Order) (domain.Order,
 
 type fakeCustomerRepo struct {
 	port.CustomerRepository
+	customer      domain.Customer
 	paymentMethod domain.PaymentMethod
+	findErr       error
 	pmErr         error
+}
+
+func (r *fakeCustomerRepo) FindById(_ context.Context, _, _ string) (domain.Customer, error) {
+	if r.findErr != nil {
+		return domain.Customer{}, r.findErr
+	}
+	return r.customer, nil
 }
 
 func (r *fakeCustomerRepo) FindPaymentMethodById(_ context.Context, _, _ string) (domain.PaymentMethod, error) {
