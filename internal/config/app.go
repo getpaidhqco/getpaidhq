@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"io"
 	"os"
 	"os/signal"
 	"syscall"
@@ -34,7 +35,9 @@ type App struct {
 	Server *fuego.Server
 	DB     *gorm.DB
 	Env    lib.Env
-	pubsub port.PubSub
+	// closers are long-lived resources (pubsub, workflow engine worker, cron
+	// scheduler) torn down on shutdown, in reverse construction order.
+	closers []io.Closer
 }
 
 // NewApp creates a new App with all dependencies manually wired.
@@ -85,7 +88,10 @@ func NewApp() (*App, error) {
 	// ---------------------------------------------------------------------------
 	// Infrastructure adapters
 	// ---------------------------------------------------------------------------
-	pubsub := nats.NewNatsPubSub(logger)
+	pubsub, err := nats.NewNatsPubSub(env.NatsURL, logger)
+	if err != nil {
+		return nil, err
+	}
 	cache := redis.NewRedisClient(env.Get("REDIS_HOST"), env.Get("REDIS_PASSWORD"), 0)
 	authzEngine := cedar.NewCedarAuthz(logger, env)
 	scheduler := cron.NewCronScheduler(logger, env)
@@ -201,23 +207,30 @@ func NewApp() (*App, error) {
 		Env:            env,
 	}, handlers)
 
+	// Collect resources that own goroutines / connections so Run can tear them
+	// down on shutdown. The workflow engine (Hatchet/Temporal worker) and cron
+	// scheduler expose Close() via io.Closer; pubsub always does.
+	closers := []io.Closer{pubsub}
+	if c, ok := engine.(io.Closer); ok {
+		closers = append(closers, c)
+	}
+	if c, ok := scheduler.(io.Closer); ok {
+		closers = append(closers, c)
+	}
+
 	return &App{
-		Server: server,
-		DB:     db,
-		Env:    env,
-		pubsub: pubsub,
+		Server:  server,
+		DB:      db,
+		Env:     env,
+		closers: closers,
 	}, nil
 }
 
 // Run starts the HTTP server and blocks until it exits or an interrupt /
 // SIGTERM arrives. fuego's Run() is a blocking http.Server.Serve with no
 // signal handling of its own, so we run it in a goroutine and own the signal
-// here: on shutdown we stop accepting connections (Server.Shutdown) and drain
-// pubsub.
-//
-// NOTE: the Hatchet/Temporal workers and cron scheduler are not yet stopped
-// here — they don't expose a Stop hook. Draining pubsub is the first step
-// toward a full graceful shutdown.
+// here: on shutdown we stop accepting connections (Server.Shutdown) and then
+// tear down the workflow engine worker, pubsub and cron scheduler.
 func (a *App) Run() error {
 	logger := lib.GetLogger()
 
@@ -229,7 +242,7 @@ func (a *App) Run() error {
 
 	select {
 	case err := <-srvErr:
-		// Server exited on its own (e.g. failed to bind). Still drain pubsub.
+		// Server exited on its own (e.g. failed to bind). Still tear down.
 		a.shutdown(logger)
 		return err
 	case <-ctx.Done():
@@ -246,12 +259,12 @@ func (a *App) Run() error {
 	}
 }
 
-// shutdown releases long-lived resources. Idempotent enough for the single
-// call sites in Run.
+// shutdown closes long-lived resources in reverse construction order. Best
+// effort: every closer is attempted even if an earlier one errors.
 func (a *App) shutdown(logger port.Logger) {
-	if a.pubsub != nil {
-		if err := a.pubsub.Close(); err != nil {
-			logger.Error("pubsub close failed", "err", err.Error())
+	for i := len(a.closers) - 1; i >= 0; i-- {
+		if err := a.closers[i].Close(); err != nil {
+			logger.Error("resource close failed during shutdown", "err", err.Error())
 		}
 	}
 }

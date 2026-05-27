@@ -30,6 +30,23 @@ services:
       timeout: 5s
       retries: 10
 
+  nats:
+    # External NATS broker the app's pubsub adapter connects to (NATS_URL).
+    # 4222 = client port, 8222 = HTTP monitoring (used for the healthcheck).
+    container_name: getpaidhq-nats
+    image: nats:2.10-alpine
+    command: ["--http_port", "8222"]
+    networks:
+      - getpaidhq-network
+    ports:
+      - "4222:4222"
+      - "8222:8222"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q --spider http://localhost:8222/healthz || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
   hatchet-lite:
     # All-in-one Hatchet (engine + API + UI) for local development.
     # Shares the postgresql service above — uses its own `hatchet` database.

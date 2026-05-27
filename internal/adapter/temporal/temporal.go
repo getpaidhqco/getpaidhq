@@ -89,6 +89,14 @@ func NewTemporalEngine(
 	}
 }
 
+// Close stops the Temporal worker (waiting for in-flight tasks to finish) and
+// closes the client connection, satisfying io.Closer for graceful shutdown.
+func (t *Temporal) Close() error {
+	t.worker.Stop()
+	t.client.Close()
+	return nil
+}
+
 // ---- port.Engine ----
 
 func (t *Temporal) StartWorkflow(ctx context.Context, id port.WorkflowType, payload any) (port.WorkflowResult, error) {

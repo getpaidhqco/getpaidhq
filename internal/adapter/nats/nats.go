@@ -3,82 +3,95 @@ package nats
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/nats-io/nats-server/v2/server"
+	"time"
+
 	"github.com/nats-io/nats.go"
+
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
-	"time"
 )
 
+// NatsPubSub is a port.PubSub backed by an external NATS server.
 type NatsPubSub struct {
-	*nats.Conn
-	server *server.Server
+	conn   *nats.Conn
+	closed chan struct{}
 	logger port.Logger
 }
 
-func NewNatsPubSub(logger port.Logger) port.PubSub {
-	opts := &server.Options{
-		Host: "localhost",
-		Port: 4222,
+// NewNatsPubSub connects to the NATS server at url (falling back to the local
+// default when empty) and returns a ready pub/sub. The connection retries the
+// initial dial and reconnects indefinitely, so a transient broker outage
+// neither crashes startup nor permanently drops the process.
+func NewNatsPubSub(url string, logger port.Logger) (port.PubSub, error) {
+	if url == "" {
+		url = nats.DefaultURL // nats://127.0.0.1:4222
 	}
-	// Initialize new server with options
-	ns, err := server.NewServer(opts)
 
+	// Closed once the connection is fully torn down (after Drain finishes),
+	// so Close can block until teardown actually completes.
+	closed := make(chan struct{})
+
+	nc, err := nats.Connect(url,
+		nats.Name("getpaidhq"),
+		nats.RetryOnFailedConnect(true),
+		nats.MaxReconnects(-1),
+		nats.ReconnectWait(2*time.Second),
+		nats.DisconnectErrHandler(func(_ *nats.Conn, err error) {
+			if err != nil {
+				logger.Warn(fmt.Sprintf("[nats] disconnected: %v", err))
+			}
+		}),
+		nats.ReconnectHandler(func(c *nats.Conn) {
+			logger.Info(fmt.Sprintf("[nats] reconnected to %s", c.ConnectedUrl()))
+		}),
+		nats.ClosedHandler(func(_ *nats.Conn) {
+			close(closed)
+		}),
+	)
 	if err != nil {
-		panic(err)
-	}
-	go ns.Start()
-
-	// Wait for server to be ready for connections
-	if !ns.ReadyForConnections(15 * time.Second) {
-		panic("not ready for connection")
+		return nil, fmt.Errorf("connect to nats at %q: %w", url, err)
 	}
 
-	nc, err := nats.Connect(ns.ClientURL())
-	if err != nil {
-		panic(err)
-	}
-	return NatsPubSub{
-		Conn:   nc,
-		server: ns,
-		logger: logger,
-	}
+	logger.Infof("[nats] connected to %s", url)
+	return &NatsPubSub{conn: nc, closed: closed, logger: logger}, nil
 }
 
-// Close drains the client connection (flushing pending publishes and
-// unsubscribing all active subscriptions) and then shuts the embedded server
-// down, waiting for it to stop.
-func (n NatsPubSub) Close() error {
-	if n.Conn != nil {
-		// Drain closes the conn once in-flight messages have been processed.
-		if err := n.Conn.Drain(); err != nil {
-			n.logger.Warn(fmt.Sprintf("[nats] drain failed: %v", err))
-		}
-	}
-	if n.server != nil {
-		n.server.Shutdown()
-		n.server.WaitForShutdown()
-	}
-	return nil
-}
-
-func (n NatsPubSub) Publish(orgId, topic string, message any) error {
-	data, _ := json.Marshal(port.PubSubPayload{
+func (n *NatsPubSub) Publish(orgId, topic string, message any) error {
+	data, err := json.Marshal(port.PubSubPayload{
 		Id:        lib.GenerateId("evt"),
 		OrgId:     orgId,
 		Topic:     topic,
 		Data:      message,
 		CreatedAt: time.Now().UTC(),
 	})
+	if err != nil {
+		return fmt.Errorf("marshal pubsub payload for %q: %w", topic, err)
+	}
 	n.logger.Debug(fmt.Sprintf("[nats] publishing topic [%s]", topic))
-	err := n.Conn.Publish(topic, data)
-	return err
+	return n.conn.Publish(topic, data)
 }
 
-func (n NatsPubSub) Subscribe(topic string, handler func(topic string, data []byte)) (port.PubSubSubscription, error) {
-	s, err := n.Conn.Subscribe(topic, func(m *nats.Msg) {
+func (n *NatsPubSub) Subscribe(topic string, handler func(topic string, data []byte)) (port.PubSubSubscription, error) {
+	return n.conn.Subscribe(topic, func(m *nats.Msg) {
 		handler(m.Subject, m.Data)
 	})
+}
 
-	return s, err
+// Close drains the connection (flushing pending publishes and unsubscribing
+// active subscriptions) and waits for the underlying socket to close, so no
+// goroutine outlives the call.
+func (n *NatsPubSub) Close() error {
+	if n.conn == nil {
+		return nil
+	}
+	if err := n.conn.Drain(); err != nil {
+		return fmt.Errorf("drain nats connection: %w", err)
+	}
+	select {
+	case <-n.closed:
+	case <-time.After(5 * time.Second):
+		n.logger.Warn("[nats] drain did not complete within 5s; closing")
+		n.conn.Close()
+	}
+	return nil
 }
