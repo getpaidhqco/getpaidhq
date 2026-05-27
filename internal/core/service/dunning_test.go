@@ -105,9 +105,10 @@ func (r *fakeDunningRepo) FindConfigurationsByPriority(_ context.Context, _ stri
 
 type fakeSubRepo struct {
 	port.SubscriptionRepository
-	sub     domain.Subscription
-	findErr error
-	updated []domain.Subscription
+	sub       domain.Subscription
+	byOrderId []domain.Subscription
+	findErr   error
+	updated   []domain.Subscription
 }
 
 func (r *fakeSubRepo) FindById(_ context.Context, _, _ string) (domain.Subscription, error) {
@@ -115,6 +116,10 @@ func (r *fakeSubRepo) FindById(_ context.Context, _, _ string) (domain.Subscript
 		return domain.Subscription{}, r.findErr
 	}
 	return r.sub, nil
+}
+
+func (r *fakeSubRepo) FindByOrderId(_ context.Context, _, _ string) ([]domain.Subscription, error) {
+	return r.byOrderId, nil
 }
 
 func (r *fakeSubRepo) Update(_ context.Context, s domain.Subscription) (domain.Subscription, error) {
