@@ -1,6 +1,12 @@
 package config
 
 import (
+	"context"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
 	"github.com/go-fuego/fuego"
 	"gorm.io/gorm"
 
@@ -28,6 +34,7 @@ type App struct {
 	Server *fuego.Server
 	DB     *gorm.DB
 	Env    lib.Env
+	pubsub port.PubSub
 }
 
 // NewApp creates a new App with all dependencies manually wired.
@@ -198,10 +205,53 @@ func NewApp() (*App, error) {
 		Server: server,
 		DB:     db,
 		Env:    env,
+		pubsub: pubsub,
 	}, nil
 }
 
-// Run starts the HTTP server.
+// Run starts the HTTP server and blocks until it exits or an interrupt /
+// SIGTERM arrives. fuego's Run() is a blocking http.Server.Serve with no
+// signal handling of its own, so we run it in a goroutine and own the signal
+// here: on shutdown we stop accepting connections (Server.Shutdown) and drain
+// pubsub.
+//
+// NOTE: the Hatchet/Temporal workers and cron scheduler are not yet stopped
+// here — they don't expose a Stop hook. Draining pubsub is the first step
+// toward a full graceful shutdown.
 func (a *App) Run() error {
-	return a.Server.Run()
+	logger := lib.GetLogger()
+
+	srvErr := make(chan error, 1)
+	go func() { srvErr <- a.Server.Run() }()
+
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
+	select {
+	case err := <-srvErr:
+		// Server exited on its own (e.g. failed to bind). Still drain pubsub.
+		a.shutdown(logger)
+		return err
+	case <-ctx.Done():
+		stop() // restore default signal handling so a second signal hard-kills
+		logger.Info("shutdown signal received, draining")
+
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+		defer cancel()
+		if err := a.Server.Shutdown(shutdownCtx); err != nil {
+			logger.Error("http server shutdown failed", "err", err.Error())
+		}
+		a.shutdown(logger)
+		return nil
+	}
+}
+
+// shutdown releases long-lived resources. Idempotent enough for the single
+// call sites in Run.
+func (a *App) shutdown(logger port.Logger) {
+	if a.pubsub != nil {
+		if err := a.pubsub.Close(); err != nil {
+			logger.Error("pubsub close failed", "err", err.Error())
+		}
+	}
 }
