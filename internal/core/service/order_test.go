@@ -55,6 +55,7 @@ func (e *recordingEngine) SignalSubscriptionWorkflow(context.Context, string, do
 type fakeOrderRepo struct {
 	port.OrderRepository
 	order   domain.Order
+	items   []domain.OrderItem
 	findErr error
 	updated []domain.Order
 }
@@ -64,6 +65,10 @@ func (r *fakeOrderRepo) FindById(_ context.Context, _, _ string) (domain.Order, 
 		return domain.Order{}, r.findErr
 	}
 	return r.order, nil
+}
+
+func (r *fakeOrderRepo) FindOrderItemsByOrderId(_ context.Context, _, _ string) ([]domain.OrderItem, error) {
+	return r.items, nil
 }
 
 func (r *fakeOrderRepo) Update(_ context.Context, o domain.Order) (domain.Order, error) {

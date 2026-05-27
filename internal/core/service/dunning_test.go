@@ -109,7 +109,11 @@ type fakeSubRepo struct {
 	port.SubscriptionRepository
 	sub       domain.Subscription
 	byOrderId []domain.Subscription
+	list      []domain.Subscription
 	findErr   error
+	createErr error
+	updateErr error
+	created   []domain.Subscription
 	updated   []domain.Subscription
 }
 
@@ -124,10 +128,25 @@ func (r *fakeSubRepo) FindByOrderId(_ context.Context, _, _ string) ([]domain.Su
 	return r.byOrderId, nil
 }
 
+func (r *fakeSubRepo) Create(_ context.Context, s domain.Subscription) (domain.Subscription, error) {
+	if r.createErr != nil {
+		return domain.Subscription{}, r.createErr
+	}
+	r.created = append(r.created, s)
+	return s, nil
+}
+
 func (r *fakeSubRepo) Update(_ context.Context, s domain.Subscription) (domain.Subscription, error) {
+	if r.updateErr != nil {
+		return domain.Subscription{}, r.updateErr
+	}
 	r.updated = append(r.updated, s)
 	r.sub = s
 	return s, nil
+}
+
+func (r *fakeSubRepo) Find(_ context.Context, _ string, _ domain.Pagination) ([]domain.Subscription, int, error) {
+	return r.list, len(r.list), nil
 }
 
 func newDunningServiceForTest(dr port.DunningRepository, sr port.SubscriptionRepository, ps port.PubSub) *DunningService {
