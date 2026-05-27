@@ -41,6 +41,8 @@ func (p *recordingPubSub) Subscribe(topic string, _ func(string, []byte)) (port.
 	return fakeSub{}, nil
 }
 
+func (p *recordingPubSub) Close() error { return nil }
+
 func (p *recordingPubSub) byTopic(topic string) (publishedEvent, bool) {
 	p.mu.Lock()
 	defer p.mu.Unlock()

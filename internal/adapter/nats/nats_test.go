@@ -11,6 +11,9 @@ import (
 func TestNatsPubSub_Publish(t *testing.T) {
 	logger := lib.GetLogger()
 	pubsub := NewNatsPubSub(logger)
+	// Drain the conn and shut the embedded server down so the test doesn't leak
+	// a goroutine + hold port 4222 for the rest of the process.
+	t.Cleanup(func() { _ = pubsub.Close() })
 
 	err := pubsub.Publish("mollie", "subscription.paused", domain.Subscription{
 		OrgId:              "mollie",
