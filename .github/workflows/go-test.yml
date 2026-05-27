@@ -1,0 +1,33 @@
+name: Go CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: vet & test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: go vet
+        run: go vet ./...
+
+      # Unit tests with the race detector. Integration tests (//go:build
+      # integration, e.g. the Redis round-trip) are excluded from this default
+      # run — they need live infra and are opt-in via -tags=integration.
+      # CGO is required by -race; the ubuntu runner ships gcc.
+      - name: go test -race
+        env:
+          CGO_ENABLED: "1"
+        run: go test -race ./...
