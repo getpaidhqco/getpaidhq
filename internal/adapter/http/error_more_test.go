@@ -37,8 +37,8 @@ func TestApiErrorSerializer_FuegoSubtypes(t *testing.T) {
 	}{
 		{"BadRequestError", fuego.BadRequestError{Status: http.StatusBadRequest, Title: "bad"}, http.StatusBadRequest, string(lib.BadRequestError)},
 		{"UnauthorizedError", fuego.UnauthorizedError{Status: http.StatusUnauthorized, Title: "no"}, http.StatusUnauthorized, string(lib.AuthenticationError)},
-		{"ForbiddenError", fuego.ForbiddenError{Status: http.StatusForbidden, Title: "nope"}, http.StatusBadRequest, string(lib.BadRequestError)}, // forbidden has no project mapping → defaults to BadRequestError per fromFuegoError
-		{"ConflictError", fuego.ConflictError{Status: http.StatusConflict, Title: "clash"}, http.StatusBadRequest, string(lib.BadRequestError)},   // same — conflict isn't in the switch
+		{"ForbiddenError", fuego.ForbiddenError{Status: http.StatusForbidden, Title: "nope"}, http.StatusForbidden, string(lib.ForbiddenError)},
+		{"ConflictError", fuego.ConflictError{Status: http.StatusConflict, Title: "clash"}, http.StatusConflict, string(lib.ConflictError)},
 		{"NotFoundError", fuego.NotFoundError{Status: http.StatusNotFound, Title: "gone"}, http.StatusNotFound, string(lib.NotFoundError)},
 	}
 	for _, c := range cases {

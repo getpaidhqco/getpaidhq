@@ -72,7 +72,7 @@ type dunningList struct {
 func (h *DunningHandler) ListCampaigns(c fuego.ContextNoBody) (dunningList, error) {
 	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionListDunningCampaigns, "") {
-		return dunningList{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		return dunningList{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	pagination := GetPagination(c)
 	campaigns, total, err := h.dunningService.ListCampaigns(c.Context(), authUser.OrgId, pagination)
@@ -90,7 +90,7 @@ func (h *DunningHandler) GetCampaign(c fuego.ContextNoBody) (DunningCampaignResp
 	authUser := AuthUserFrom(c)
 	id := c.PathParam("id")
 	if !h.authz.Enforce(authUser, port.ActionGetDunningCampaign, id) {
-		return DunningCampaignResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		return DunningCampaignResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	campaign, err := h.dunningService.FindCampaignById(c.Context(), authUser.OrgId, id)
 	if err != nil {
@@ -103,7 +103,7 @@ func (h *DunningHandler) UpdateCampaign(c fuego.ContextWithBody[UpdateDunningCam
 	authUser := AuthUserFrom(c)
 	id := c.PathParam("id")
 	if !h.authz.Enforce(authUser, port.ActionUpdateDunningCampaign, id) {
-		return DunningCampaignResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		return DunningCampaignResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	input, err := c.Body()
 	if err != nil {
@@ -140,7 +140,7 @@ func (h *DunningHandler) ListCampaignAttempts(c fuego.ContextNoBody) (dunningLis
 	authUser := AuthUserFrom(c)
 	id := c.PathParam("id")
 	if !h.authz.Enforce(authUser, port.ActionGetDunningCampaign, id) {
-		return dunningList{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		return dunningList{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	pagination := GetPagination(c)
 	attempts, total, err := h.dunningService.ListAttemptsByCampaign(c.Context(), authUser.OrgId, id, pagination)
@@ -158,7 +158,7 @@ func (h *DunningHandler) TriggerManualAttempt(c fuego.ContextWithBody[TriggerMan
 	authUser := AuthUserFrom(c)
 	id := c.PathParam("id")
 	if !h.authz.Enforce(authUser, port.ActionTriggerDunningAttempt, id) {
-		return DunningAttemptResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		return DunningAttemptResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	input, err := c.Body()
 	if err != nil {
@@ -182,7 +182,7 @@ func (h *DunningHandler) ListCampaignCommunications(c fuego.ContextNoBody) (dunn
 	authUser := AuthUserFrom(c)
 	id := c.PathParam("id")
 	if !h.authz.Enforce(authUser, port.ActionGetDunningCampaign, id) {
-		return dunningList{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		return dunningList{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	pagination := GetPagination(c)
 	comms, total, err := h.dunningService.ListCommunicationsByCampaign(c.Context(), authUser.OrgId, id, pagination)
@@ -232,7 +232,7 @@ func (h *DunningHandler) CreatePaymentToken(c fuego.ContextWithBody[CreatePaymen
 	authUser := AuthUserFrom(c)
 	id := c.PathParam("id")
 	if !h.authz.Enforce(authUser, port.ActionCreatePaymentUpdateToken, id) {
-		return PaymentUpdateTokenResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		return PaymentUpdateTokenResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	input, err := c.Body()
 	if err != nil {
@@ -269,7 +269,7 @@ func (h *DunningHandler) CreatePaymentToken(c fuego.ContextWithBody[CreatePaymen
 func (h *DunningHandler) ListConfigurations(c fuego.ContextNoBody) (dunningList, error) {
 	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionListDunningConfigurations, "") {
-		return dunningList{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		return dunningList{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	pagination := GetPagination(c)
 	cfgs, total, err := h.dunningService.ListConfigurations(c.Context(), authUser.OrgId, pagination)
@@ -287,7 +287,7 @@ func (h *DunningHandler) GetConfiguration(c fuego.ContextNoBody) (DunningConfigu
 	authUser := AuthUserFrom(c)
 	id := c.PathParam("id")
 	if !h.authz.Enforce(authUser, port.ActionGetDunningConfiguration, id) {
-		return DunningConfigurationResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		return DunningConfigurationResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	cfg, err := h.dunningService.GetConfiguration(c.Context(), authUser.OrgId, id)
 	if err != nil {
@@ -299,7 +299,7 @@ func (h *DunningHandler) GetConfiguration(c fuego.ContextNoBody) (DunningConfigu
 func (h *DunningHandler) CreateConfiguration(c fuego.ContextWithBody[CreateDunningConfigurationRequest]) (DunningConfigurationResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionCreateDunningConfiguration, "") {
-		return DunningConfigurationResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		return DunningConfigurationResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	input, err := c.Body()
 	if err != nil {
@@ -328,7 +328,7 @@ func (h *DunningHandler) UpdateConfiguration(c fuego.ContextWithBody[UpdateDunni
 	authUser := AuthUserFrom(c)
 	id := c.PathParam("id")
 	if !h.authz.Enforce(authUser, port.ActionUpdateDunningConfiguration, id) {
-		return DunningConfigurationResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		return DunningConfigurationResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	input, err := c.Body()
 	if err != nil {
@@ -359,7 +359,7 @@ func (h *DunningHandler) GetCustomerDunningHistory(c fuego.ContextNoBody) (Custo
 	authUser := AuthUserFrom(c)
 	id := c.PathParam("id")
 	if !h.authz.Enforce(authUser, port.ActionGetCustomerDunningHistory, id) {
-		return CustomerDunningHistoryResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		return CustomerDunningHistoryResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	history, err := h.dunningService.GetCustomerDunningHistory(c.Context(), authUser.OrgId, id)
 	if err != nil {

@@ -50,7 +50,7 @@ func (s *ProductHandler) RegisterRoutes(srv *fuego.Server) {
 
 func enforce[B, P any](c fuego.Context[B, P], authz port.Authz, action port.Action) error {
 	if !authz.Enforce(AuthUserFrom(c), action, "") {
-		return NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		return NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	return nil
 }
@@ -159,7 +159,9 @@ func (s *ProductHandler) CreatePrice(c fuego.ContextWithBody[CreatePriceRequest]
 		Metadata:           input.Metadata,
 	})
 	if err != nil {
-		s.logger.Error("Failed to create price", err.Error())
+		// Single-handling rule: this error is returned to the caller; logging
+		// it here would produce a duplicate entry in aggregators when the
+		// serializer / request-logging middleware records the response.
 		return domain.Price{}, NewApiErrorFromError(err)
 	}
 	return price, nil

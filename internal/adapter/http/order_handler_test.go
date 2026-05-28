@@ -57,7 +57,7 @@ func TestOrderHandler_AuthzDenied_OnCreate(t *testing.T) {
 		Cart:     CartInput{Currency: "USD", Items: []CartItem{{ProductId: "prod_1", PriceId: "price_1", Quantity: 1}}},
 	})
 
-	assertErrorEnvelope(t, rec, http.StatusUnauthorized, string(lib.AuthenticationError))
+	assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
 }
 
 func TestOrderHandler_CreateOrder_RequiresCartOrSession(t *testing.T) {

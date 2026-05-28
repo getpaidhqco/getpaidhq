@@ -112,7 +112,12 @@ func TestAuthnWrapperMiddleware_Handler(t *testing.T) {
 		assert.False(t, next.called, "next must not be called when unauthenticated")
 		assert.Equal(t, http.StatusUnauthorized, rec.Code)
 		assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
-		assert.JSONEq(t, `{"code":"authentication_error","message":"unauthorized","details":null}`, rec.Body.String())
+		// The code must match what lib.AuthenticationError serializes to —
+		// previously the middleware emitted a hardcoded "authentication_error"
+		// literal that disagreed with the handler-layer envelope, so clients
+		// saw two different codes for the same authn failure depending on
+		// where the rejection happened.
+		assert.JSONEq(t, `{"code":"auth_error","message":"unauthorized","details":null}`, rec.Body.String())
 	})
 
 	t.Run("missing token still routed through authenticator and rejected", func(t *testing.T) {

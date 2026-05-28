@@ -77,7 +77,7 @@ func TestDunningHandler_ListCampaigns(t *testing.T) {
 
 		rec := doJSON(t, ts, http.MethodGet, "/api/dunning/campaigns", nil)
 
-		assertErrorEnvelope(t, rec, http.StatusUnauthorized, string(lib.AuthenticationError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
 	})
 }
 
@@ -315,13 +315,15 @@ func TestDunningHandler_GetCustomerDunningHistory(t *testing.T) {
 }
 
 func TestDunningHandler_TriggerManualAttempt_AuthzDenied(t *testing.T) {
-	// support has no permit rule → cedar denies → handler returns the authn
-	// error envelope without ever entering the service path.
+	// support has no permit rule → cedar denies → handler returns the
+	// forbidden envelope without ever entering the service path. 403 (not
+	// 401) signals "authenticated but not allowed", matching the
+	// ForbiddenError path in lib/errors.go.
 	h := newDunningHandlerForTest(t, &fakeDunningRepo{}, &fakeSubRepo{}, &fakeCustomerRepo{}, &recordingEngine{}, &recordingDunningEngine{})
 	ts := newTestServer(fixedAuthMiddleware(supportUser()))
 	h.RegisterRoutes(ts.api())
 
 	rec := doJSON(t, ts, http.MethodPost, "/api/dunning/campaigns/dc_1/attempts", TriggerManualAttemptRequest{PaymentMethodID: "pm_1"})
 
-	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	assert.Equal(t, http.StatusForbidden, rec.Code)
 }

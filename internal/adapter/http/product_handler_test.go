@@ -49,7 +49,7 @@ func TestProductHandler_AuthzGuards(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := doJSON(t, ts, tt.method, tt.path, tt.body)
-			assertErrorEnvelope(t, rec, http.StatusUnauthorized, string(lib.AuthenticationError))
+			assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
 		})
 	}
 	assert.Empty(t, prod.created, "no creates should leak past the authz guard")

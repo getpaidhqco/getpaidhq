@@ -48,7 +48,7 @@ func TestWebhookSubscriptionHandler_Create(t *testing.T) {
 			Url: "https://example.com/wh", Events: []string{"order.created"},
 		})
 
-		assertErrorEnvelope(t, rec, http.StatusUnauthorized, string(lib.AuthenticationError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
 	})
 }
 
