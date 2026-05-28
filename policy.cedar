@@ -19,6 +19,8 @@ permit(
         Action::"UpdateSubscription",
         Action::"PauseSubscription",
         Action::"ResumeSubscription",
+        Action::"CancelSubscription",
+        Action::"UpdateBillingAnchor",
         Action::"Healthcheck"
     ],
     resource
@@ -37,6 +39,8 @@ permit(
         Action::"UpdateSubscription",
         Action::"PauseSubscription",
         Action::"ResumeSubscription",
+        Action::"CancelSubscription",
+        Action::"UpdateBillingAnchor",
         Action::"Healthcheck"
     ],
     resource

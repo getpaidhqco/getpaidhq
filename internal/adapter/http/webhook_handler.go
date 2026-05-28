@@ -35,8 +35,19 @@ func (u *WebhookHandler) RegisterRoutes(s *fuego.Server) {
 }
 
 func (u *WebhookHandler) Process(w http.ResponseWriter, r *http.Request) {
-	jsonData, _ := io.ReadAll(r.Body)
 	psp := r.URL.Query().Get("p")
+
+	// Read the raw body. PSPs sign the unparsed bytes; a transient read
+	// failure that we silently swallow would surface as a signature
+	// verification failure against empty data, indistinguishable in logs
+	// from a forged request. Surface the I/O failure as a 400 so the PSP
+	// retries instead of treating an empty-body 200 as success.
+	jsonData, err := io.ReadAll(r.Body)
+	if err != nil {
+		u.logger.Error("webhook body read failed", "error", err.Error(), "psp", psp)
+		writeWebhookError(w, http.StatusBadRequest, "could not read request body")
+		return
+	}
 
 	u.logger.Debug("Processing webhook")
 	if err := u.webhookService.HandlePaymentWebhook(r.Context(), port.PaymentWebhookPayload{
@@ -48,4 +59,14 @@ func (u *WebhookHandler) Process(w http.ResponseWriter, r *http.Request) {
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+}
+
+// writeWebhookError emits a minimal JSON envelope for the raw-body webhook
+// endpoint. PSPs typically only check status code and retry on 4xx/5xx, so
+// the body shape is informational; we keep it consistent with the success
+// envelope (a single string field) rather than the full ApiError shape.
+func writeWebhookError(w http.ResponseWriter, status int, message string) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(map[string]string{"status": "error", "message": message})
 }

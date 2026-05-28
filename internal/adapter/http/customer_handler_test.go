@@ -28,14 +28,17 @@ func newCustomerHandlerForTest(
 }
 
 func TestCustomerHandler_Create(t *testing.T) {
-	// CustomerService.Create has no cedar guard in the handler today; the test
-	// stays away from authz and focuses on the round-trip.
+	// CustomerHandler.Create now enforces ActionCreateCustomer. The Cedar
+	// policy has no owner/member permit rule for that action, so it's
+	// effectively admin-only via the catch-all admin policy. Tests drive
+	// adminUser() to exercise the happy path and ownerUser() to pin the
+	// denial.
 	t.Run("happy path persists + publishes + returns the customer", func(t *testing.T) {
 		ps := newPubSub()
 		custRepo := &fakeCustomerRepo{}
 		h := newCustomerHandlerForTest(t, custRepo, &fakePaymentMethodRepo{}, ps)
 
-		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+		ts := newTestServer(fixedAuthMiddleware(adminUser()))
 		h.RegisterRoutes(ts.api())
 
 		rec := doJSON(t, ts, http.MethodPost, "/api/customers", domain.CreateCustomerInput{
@@ -56,13 +59,28 @@ func TestCustomerHandler_Create(t *testing.T) {
 		assert.Contains(t, ps.topicsPublished(), "customer.created")
 	})
 
+	t.Run("non-admin (owner) is denied — admin-only by virtue of no permit rule", func(t *testing.T) {
+		custRepo := &fakeCustomerRepo{}
+		h := newCustomerHandlerForTest(t, custRepo, &fakePaymentMethodRepo{}, newPubSub())
+
+		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+		h.RegisterRoutes(ts.api())
+
+		rec := doJSON(t, ts, http.MethodPost, "/api/customers", domain.CreateCustomerInput{
+			Email: "x@example.com",
+		})
+
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+		assert.Empty(t, custRepo.created, "service must not run when authz denies")
+	})
+
 	t.Run("duplicate email is surfaced as bad_request envelope", func(t *testing.T) {
 		// Existing customer hit on FindByEmail => CustomerService returns a
 		// BadRequest CustomError, which the handler should marshal to a 400.
 		custRepo := &fakeCustomerRepo{byEmail: domain.Customer{Id: "existing"}}
 		h := newCustomerHandlerForTest(t, custRepo, &fakePaymentMethodRepo{}, newPubSub())
 
-		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+		ts := newTestServer(fixedAuthMiddleware(adminUser()))
 		h.RegisterRoutes(ts.api())
 
 		rec := doJSON(t, ts, http.MethodPost, "/api/customers", domain.CreateCustomerInput{
@@ -77,7 +95,7 @@ func TestCustomerHandler_Create(t *testing.T) {
 		custRepo := &fakeCustomerRepo{byEmailErr: errors.New("db unreachable")}
 		h := newCustomerHandlerForTest(t, custRepo, &fakePaymentMethodRepo{}, newPubSub())
 
-		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+		ts := newTestServer(fixedAuthMiddleware(adminUser()))
 		h.RegisterRoutes(ts.api())
 
 		rec := doJSON(t, ts, http.MethodPost, "/api/customers", domain.CreateCustomerInput{
@@ -145,6 +163,7 @@ func TestCustomerHandler_List(t *testing.T) {
 }
 
 func TestCustomerHandler_CreatePaymentMethod(t *testing.T) {
+	// Also admin-only via no-permit-rule, same as Create above.
 	t.Run("happy path", func(t *testing.T) {
 		custRepo := &fakeCustomerRepo{byId: domain.Customer{
 			OrgId: "org_1", Id: "cus_1",
@@ -153,7 +172,7 @@ func TestCustomerHandler_CreatePaymentMethod(t *testing.T) {
 		pmRepo := &fakePaymentMethodRepo{}
 		h := newCustomerHandlerForTest(t, custRepo, pmRepo, newPubSub())
 
-		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+		ts := newTestServer(fixedAuthMiddleware(adminUser()))
 		h.RegisterRoutes(ts.api())
 
 		rec := doJSON(t, ts, http.MethodPost, "/api/customers/cus_1/payment-methods", domain.CreatePaymentMethodInput{
@@ -169,11 +188,26 @@ func TestCustomerHandler_CreatePaymentMethod(t *testing.T) {
 		assert.Equal(t, "cus_1", pmRepo.created[0].CustomerId)
 	})
 
+	t.Run("non-admin (owner) is denied", func(t *testing.T) {
+		pmRepo := &fakePaymentMethodRepo{}
+		h := newCustomerHandlerForTest(t, &fakeCustomerRepo{}, pmRepo, newPubSub())
+
+		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+		h.RegisterRoutes(ts.api())
+
+		rec := doJSON(t, ts, http.MethodPost, "/api/customers/cus_1/payment-methods", domain.CreatePaymentMethodInput{
+			Psp: "paystack", Name: "Visa", Type: domain.PaymentMethodType("card"), Token: "tok",
+		})
+
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+		assert.Empty(t, pmRepo.created)
+	})
+
 	t.Run("missing customer surfaces NotFound envelope", func(t *testing.T) {
 		custRepo := &fakeCustomerRepo{byIdErr: errors.New("nope")}
 		h := newCustomerHandlerForTest(t, custRepo, &fakePaymentMethodRepo{}, newPubSub())
 
-		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+		ts := newTestServer(fixedAuthMiddleware(adminUser()))
 		h.RegisterRoutes(ts.api())
 
 		rec := doJSON(t, ts, http.MethodPost, "/api/customers/cus_x/payment-methods", domain.CreatePaymentMethodInput{
@@ -185,23 +219,40 @@ func TestCustomerHandler_CreatePaymentMethod(t *testing.T) {
 }
 
 func TestCustomerHandler_UpdatePaymentMethod(t *testing.T) {
-	custRepo := &fakeCustomerRepo{byId: domain.Customer{
-		OrgId: "org_1", Id: "cus_1",
-		BillingAddress: domain.Address{Line1: "1 St", City: "London", Country: domain.Country("GB")},
-	}}
-	pmRepo := &fakePaymentMethodRepo{byId: domain.PaymentMethod{Id: "pm_1", CustomerId: "cus_1"}}
-	h := newCustomerHandlerForTest(t, custRepo, pmRepo, newPubSub())
+	t.Run("happy path (admin)", func(t *testing.T) {
+		custRepo := &fakeCustomerRepo{byId: domain.Customer{
+			OrgId: "org_1", Id: "cus_1",
+			BillingAddress: domain.Address{Line1: "1 St", City: "London", Country: domain.Country("GB")},
+		}}
+		pmRepo := &fakePaymentMethodRepo{byId: domain.PaymentMethod{Id: "pm_1", CustomerId: "cus_1"}}
+		h := newCustomerHandlerForTest(t, custRepo, pmRepo, newPubSub())
 
-	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
-	h.RegisterRoutes(ts.api())
+		ts := newTestServer(fixedAuthMiddleware(adminUser()))
+		h.RegisterRoutes(ts.api())
 
-	rec := doJSON(t, ts, http.MethodPut, "/api/customers/cus_1/payment-methods/pm_1", domain.UpdatePaymentMethodInput{
-		Token: "tok_new",
+		rec := doJSON(t, ts, http.MethodPut, "/api/customers/cus_1/payment-methods/pm_1", domain.UpdatePaymentMethodInput{
+			Token: "tok_new",
+		})
+
+		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+		require.Len(t, pmRepo.updated, 1)
+		assert.Equal(t, "tok_new", pmRepo.updated[0].Token, "the new token is persisted")
 	})
 
-	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
-	require.Len(t, pmRepo.updated, 1)
-	assert.Equal(t, "tok_new", pmRepo.updated[0].Token, "the new token is persisted")
+	t.Run("non-admin (owner) is denied", func(t *testing.T) {
+		pmRepo := &fakePaymentMethodRepo{byId: domain.PaymentMethod{Id: "pm_1"}}
+		h := newCustomerHandlerForTest(t, &fakeCustomerRepo{}, pmRepo, newPubSub())
+
+		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+		h.RegisterRoutes(ts.api())
+
+		rec := doJSON(t, ts, http.MethodPut, "/api/customers/cus_1/payment-methods/pm_1", domain.UpdatePaymentMethodInput{
+			Token: "tok_new",
+		})
+
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+		assert.Empty(t, pmRepo.updated)
+	})
 }
 
 func TestPaymentMethodHandler_Get(t *testing.T) {

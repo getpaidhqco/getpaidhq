@@ -75,7 +75,12 @@ func (l MyLogger) Errorf(template string, args ...any) {
 	l.logger.Error(fmt.Sprintf(template, args...))
 }
 func (l MyLogger) Panicf(template string, args ...any) {
-	l.logger.Error(fmt.Sprintf(template, args...))
+	// Previously this only logged at error level, contradicting the method
+	// name and silently passing through paths that meant to halt. Callers
+	// must be able to rely on Panicf actually panicking.
+	msg := fmt.Sprintf(template, args...)
+	l.logger.Error(msg)
+	panic(msg)
 }
 func (l MyLogger) Warnf(template string, args ...any) {
 	l.logger.Warn(fmt.Sprintf(template, args...))

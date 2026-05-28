@@ -7,6 +7,7 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
+	"getpaidhq/internal/lib"
 )
 
 type CustomerHandler struct {
@@ -34,6 +35,9 @@ func (cc *CustomerHandler) RegisterRoutes(s *fuego.Server) {
 
 func (cc *CustomerHandler) Create(c fuego.ContextWithBody[domain.CreateCustomerInput]) (domain.Customer, error) {
 	authUser := AuthUserFrom(c)
+	if !cc.authz.Enforce(authUser, port.ActionCreateCustomer, "") {
+		return domain.Customer{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+	}
 	input, err := c.Body()
 	if err != nil {
 		return domain.Customer{}, err
@@ -48,6 +52,9 @@ func (cc *CustomerHandler) Create(c fuego.ContextWithBody[domain.CreateCustomerI
 
 func (cc *CustomerHandler) CreateCustomerPaymentMethod(c fuego.ContextWithBody[domain.CreatePaymentMethodInput]) (domain.PaymentMethod, error) {
 	authUser := AuthUserFrom(c)
+	if !cc.authz.Enforce(authUser, port.ActionCreatePaymentMethod, "") {
+		return domain.PaymentMethod{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+	}
 	input, err := c.Body()
 	if err != nil {
 		return domain.PaymentMethod{}, err
@@ -64,6 +71,9 @@ func (cc *CustomerHandler) CreateCustomerPaymentMethod(c fuego.ContextWithBody[d
 
 func (cc *CustomerHandler) UpdateCustomerPaymentMethod(c fuego.ContextWithBody[domain.UpdatePaymentMethodInput]) (domain.PaymentMethod, error) {
 	authUser := AuthUserFrom(c)
+	if !cc.authz.Enforce(authUser, port.ActionUpdatePaymentMethod, "") {
+		return domain.PaymentMethod{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+	}
 	input, err := c.Body()
 	if err != nil {
 		return domain.PaymentMethod{}, err
