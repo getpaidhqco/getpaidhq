@@ -51,7 +51,11 @@ func (r *fakeReportRepo) ProcessDailyMetrics(_ context.Context, d time.Time) err
 }
 
 func newReportService(repo port.ReportRepository) *ReportService {
-	return NewReportService(silentLogger{}, repo, noopScheduler{}, nil)
+	svc, err := NewReportService(silentLogger{}, repo, noopScheduler{}, nil)
+	if err != nil {
+		panic(err)
+	}
+	return svc
 }
 
 func TestReportService_Analytics(t *testing.T) {

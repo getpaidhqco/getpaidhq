@@ -16,31 +16,34 @@ type CustomerService struct {
 	logger                  port.Logger
 }
 
+// NewCustomerService schedules the monthly payment-method-expiry job
+// and subscribes to order events. Both startup steps now return
+// errors instead of panicking — a flaky cron or NATS during boot used
+// to crash the process before the HTTP server came up.
 func NewCustomerService(
 	customerRepository port.CustomerRepository,
 	paymentMethodRepository port.PaymentMethodRepository,
 	pubsub port.PubSub,
 	logger port.Logger,
 	scheduler port.Scheduler,
-) *CustomerService {
-	service := &CustomerService{
+) (*CustomerService, error) {
+	svc := &CustomerService{
 		customerRepository:      customerRepository,
 		paymentMethodRepository: paymentMethodRepository,
 		pubsub:                  pubsub,
 		logger:                  logger,
 	}
-	// set up the payment method expiry detection
-	// 3am first of every month
-	err := scheduler.ScheduleTask("0 3 1 * *", service.DetectExpiringPaymentMethods)
-	if err != nil {
-		logger.Errorf("Failed to schedule task: %v", err)
-		panic(err)
+	// 3am first of every month — payment method expiry detection.
+	if err := scheduler.ScheduleTask("0 3 1 * *", svc.DetectExpiringPaymentMethods); err != nil {
+		return nil, err
 	}
-
-	// subscribe to order events to manage cohorts
-	_, err = pubsub.Subscribe(port.TopicOrderCompleted, service.HandleOrderEvent)
-
-	return service
+	// Order events feed cohort tracking. A subscribe failure isn't
+	// fatal at boot in the same way — but surfacing the error lets
+	// the caller decide.
+	if _, err := pubsub.Subscribe(port.TopicOrderCompleted, safePubSubHandler(logger, "CustomerService.HandleOrderEvent", svc.HandleOrderEvent)); err != nil {
+		return nil, err
+	}
+	return svc, nil
 }
 
 func (s *CustomerService) Create(ctx context.Context, orgId string, input domain.CreateCustomerInput) (domain.Customer, error) {

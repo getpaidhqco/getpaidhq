@@ -23,7 +23,7 @@ func (r *PaymentMethodRepo) FindById(ctx context.Context, orgId string, id strin
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&pm).Error
-	return pm, err
+	return pm, translateErr(err)
 }
 
 func (r *PaymentMethodRepo) Create(ctx context.Context, entity domain.PaymentMethod) (domain.PaymentMethod, error) {

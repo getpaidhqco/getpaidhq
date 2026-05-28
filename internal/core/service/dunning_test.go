@@ -124,6 +124,10 @@ type fakeSubRepo struct {
 	updated   []domain.Subscription
 }
 
+func (r *fakeSubRepo) FindByIdForUpdate(ctx context.Context, orgId, id string) (domain.Subscription, error) {
+	return r.FindById(ctx, orgId, id)
+}
+
 func (r *fakeSubRepo) FindById(_ context.Context, _, _ string) (domain.Subscription, error) {
 	if r.findErr != nil {
 		return domain.Subscription{}, r.findErr

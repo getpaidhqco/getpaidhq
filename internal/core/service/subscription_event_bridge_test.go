@@ -93,7 +93,9 @@ func envelope(t *testing.T, topic string, sub domain.Subscription) []byte {
 func TestSubscriptionEventBridge_ForwardsPaused(t *testing.T) {
 	engine := &fakeEngine{}
 	ps := &fakePubSub{}
-	_ = NewSubscriptionEventBridge(engine, ps, silentLogger{})
+	if _, err := NewSubscriptionEventBridge(engine, ps, silentLogger{}); err != nil {
+		t.Fatalf("NewSubscriptionEventBridge: %v", err)
+	}
 
 	if ps.handler == nil {
 		t.Fatal("bridge did not register a pubsub handler")
@@ -116,7 +118,9 @@ func TestSubscriptionEventBridge_ForwardsPaused(t *testing.T) {
 func TestSubscriptionEventBridge_IgnoresUnknownTopic(t *testing.T) {
 	engine := &fakeEngine{}
 	ps := &fakePubSub{}
-	_ = NewSubscriptionEventBridge(engine, ps, silentLogger{})
+	if _, err := NewSubscriptionEventBridge(engine, ps, silentLogger{}); err != nil {
+		t.Fatalf("NewSubscriptionEventBridge: %v", err)
+	}
 
 	sub := domain.Subscription{OrgId: "org_1", Id: "sub_2"}
 	ps.handler(port.TopicSubscriptionResumed, envelope(t, port.TopicSubscriptionResumed, sub))
@@ -129,7 +133,9 @@ func TestSubscriptionEventBridge_IgnoresUnknownTopic(t *testing.T) {
 func TestSubscriptionEventBridge_DroppedOnBadEnvelope(t *testing.T) {
 	engine := &fakeEngine{}
 	ps := &fakePubSub{}
-	_ = NewSubscriptionEventBridge(engine, ps, silentLogger{})
+	if _, err := NewSubscriptionEventBridge(engine, ps, silentLogger{}); err != nil {
+		t.Fatalf("NewSubscriptionEventBridge: %v", err)
+	}
 
 	ps.handler(port.TopicSubscriptionPaused, []byte("not json"))
 

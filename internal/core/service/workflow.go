@@ -20,8 +20,8 @@ func NewWorkflowService(
 	idempotencyRepo port.IdempotencyKeyRepository,
 	pubsub port.PubSub,
 	engine port.Engine,
-) *WorkflowService {
-	service := &WorkflowService{
+) (*WorkflowService, error) {
+	svc := &WorkflowService{
 		logger:          logger,
 		whsRepo:         whsRepo,
 		pubsub:          pubsub,
@@ -29,13 +29,10 @@ func NewWorkflowService(
 		idempotencyRepo: idempotencyRepo,
 	}
 	logger.Debugf("[WorkflowService] Subscribing to all topics")
-	_, err := pubsub.Subscribe(">", service.HandleOutboundWebhook)
-	if err != nil {
-		logger.Error("Failed to subscribe to topic", err.Error())
-		panic(err)
+	if _, err := pubsub.Subscribe(">", safePubSubHandler(logger, "WorkflowService.HandleOutboundWebhook", svc.HandleOutboundWebhook)); err != nil {
+		return nil, err
 	}
-
-	return service
+	return svc, nil
 }
 
 // HandleOutboundWebhook listens for all published messages and starts an outgoing webhook workflow

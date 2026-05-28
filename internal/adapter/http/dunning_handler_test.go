@@ -35,22 +35,28 @@ func newDunningHandlerForTest(
 	t.Helper()
 	factory := service.NewGatewayFactory(&fakePspRepo{}, &fakeSettingRepo{}, silentLogger{}, map[domain.Gateway]port.GatewayAdapter{})
 
-	subSvc := service.NewSubscriptionService(
+	subSvc, err := service.NewSubscriptionService(
 		&fakeSessionRepo{}, &fakeSettingRepo{}, &fakeCartRepo{},
 		subRepo, custRepo, &fakeOrderRepo{}, &fakePaymentRepo{},
-		factory, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{},
+		factory, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{}, nil,
 	)
+	if err != nil {
+		t.Fatalf("NewSubscriptionService: %v", err)
+	}
 	_ = service.NewSubscriptionOrchestrationService(subSvc, engine, silentLogger{})
 
 	dunningSvc := service.NewDunningService(
 		dunningRepo, subRepo, custRepo, &fakePaymentRepo{},
 		subSvc, factory, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{},
 	)
-	dunningOrch := service.NewDunningOrchestrationService(
+	dunningOrch, err := service.NewDunningOrchestrationService(
 		dunningSvc, dunEngine, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{},
 	)
+	if err != nil {
+		t.Fatalf("NewDunningOrchestrationService: %v", err)
+	}
 
-	return NewDunningHandler(dunningOrch, subSvc, silentLogger{}, newRealAuthz(t))
+	return NewDunningHandler(dunningOrch, subSvc, silentLogger{}, newRealAuthz(t), nil)
 }
 
 func TestDunningHandler_ListCampaigns(t *testing.T) {

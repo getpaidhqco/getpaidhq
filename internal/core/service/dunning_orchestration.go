@@ -30,7 +30,7 @@ func NewDunningOrchestrationService(
 	pubsub port.PubSub,
 	errorReporter lib.ErrorReporter,
 	logger port.Logger,
-) *DunningOrchestrationService {
+) (*DunningOrchestrationService, error) {
 	svc := &DunningOrchestrationService{
 		DunningService: dunning,
 		dunningEngine:  dunningEngine,
@@ -40,13 +40,11 @@ func NewDunningOrchestrationService(
 	}
 
 	logger.Debugf("[DunningOrchestrationService] Subscribing to %s", port.TopicSubscriptionPaymentChargeFailed)
-	_, err := pubsub.Subscribe(port.TopicSubscriptionPaymentChargeFailed, svc.HandleSubscriptionChargeFailure)
-	if err != nil {
-		logger.Error("Failed to subscribe to charge failure topic", err.Error())
-		panic(err)
+	if _, err := pubsub.Subscribe(port.TopicSubscriptionPaymentChargeFailed, safePubSubHandler(logger, "DunningOrchestrationService.HandleSubscriptionChargeFailure", svc.HandleSubscriptionChargeFailure)); err != nil {
+		return nil, err
 	}
 
-	return svc
+	return svc, nil
 }
 
 // HandleSubscriptionChargeFailure starts a dunning workflow when a subscription

@@ -1,9 +1,15 @@
-// Permit admin users to perform all actions on all resources
+// Admins may perform any action — but only within their own org. The
+// previous version had no `when { ... }` clause, which made `admin` a
+// platform-wide super-role; one mis-issued token would have been a full
+// cross-tenant breach.
 permit(
     principal == Role::"admin",
     action,
     resource
-);
+)
+when {
+    principal.org_id == resource.org_id
+};
 
 
 permit(

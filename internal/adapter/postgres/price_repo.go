@@ -30,7 +30,7 @@ func (r *PriceRepo) FindById(ctx context.Context, orgId string, id string) (doma
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&price).Error
-	return price, err
+	return price, translateErr(err)
 }
 
 func (r *PriceRepo) FindByVariantId(ctx context.Context, orgId string, variantId string, p domain.Pagination) ([]domain.Price, int, error) {

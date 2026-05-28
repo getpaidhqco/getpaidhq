@@ -2,8 +2,6 @@ package handler
 
 import (
 	"net"
-	"net/http"
-	"strings"
 	"time"
 
 	"github.com/go-fuego/fuego"
@@ -20,6 +18,12 @@ type DunningHandler struct {
 	subscriptionService *service.SubscriptionService
 	logger              port.Logger
 	authz               port.Authz
+
+	// trustedProxies gates whether X-Forwarded-For / X-Real-IP are
+	// honored on requests that fill UsedIp. Empty list = ignore the
+	// headers entirely (RemoteAddr only) — the safe default for any
+	// untrusted-network deployment.
+	trustedProxies []*net.IPNet
 }
 
 func NewDunningHandler(
@@ -27,12 +31,14 @@ func NewDunningHandler(
 	subscriptionService *service.SubscriptionService,
 	logger port.Logger,
 	authz port.Authz,
+	trustedProxies []*net.IPNet,
 ) *DunningHandler {
 	return &DunningHandler{
 		dunningService:      dunningService,
 		subscriptionService: subscriptionService,
 		logger:              logger,
 		authz:               authz,
+		trustedProxies:      trustedProxies,
 	}
 }
 
@@ -220,7 +226,7 @@ func (h *DunningHandler) ActivatePaymentToken(c fuego.ContextWithBody[ActivatePa
 	token, err := h.dunningService.ActivatePaymentUpdateToken(c.Context(), domain.ActivatePaymentUpdateTokenInput{
 		OrgId:   authUser.OrgId,
 		TokenId: input.TokenID,
-		UsedIp:  clientIP(c.Request()),
+		UsedIp:  clientIP(c.Request(), h.trustedProxies),
 	})
 	if err != nil {
 		return PaymentUpdateTokenResponse{}, NewApiErrorFromError(err)
@@ -374,22 +380,4 @@ func timeOrZero(t time.Time) time.Time {
 		return time.Time{}
 	}
 	return t.UTC()
-}
-
-// clientIP resolves the request's originating IP using the common reverse-
-// proxy headers, falling back to RemoteAddr.
-func clientIP(r *http.Request) string {
-	if v := r.Header.Get("X-Real-IP"); v != "" {
-		return v
-	}
-	if v := r.Header.Get("X-Forwarded-For"); v != "" {
-		if idx := strings.Index(v, ","); idx >= 0 {
-			return strings.TrimSpace(v[:idx])
-		}
-		return strings.TrimSpace(v)
-	}
-	if host, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
-		return host
-	}
-	return r.RemoteAddr
 }

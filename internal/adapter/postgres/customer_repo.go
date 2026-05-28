@@ -22,7 +22,7 @@ func (r *CustomerRepo) FindById(ctx context.Context, orgId string, id string) (d
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&customer).Error
-	return customer, err
+	return customer, translateErr(err)
 }
 
 func (r *CustomerRepo) FindByEmail(ctx context.Context, orgId string, email string) (domain.Customer, error) {
@@ -31,7 +31,7 @@ func (r *CustomerRepo) FindByEmail(ctx context.Context, orgId string, email stri
 		Scopes(OrgScope(orgId)).
 		Where("email = ?", email).
 		First(&customer).Error
-	return customer, err
+	return customer, translateErr(err)
 }
 
 func (r *CustomerRepo) Create(ctx context.Context, entity domain.Customer) (domain.Customer, error) {
@@ -71,7 +71,7 @@ func (r *CustomerRepo) FindPaymentMethodById(ctx context.Context, orgId string, 
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&pm).Error
-	return pm, err
+	return pm, translateErr(err)
 }
 
 func (r *CustomerRepo) AddToCohort(ctx context.Context, orgId string, customerId string, cohortId string, cohortValue string) (domain.Customer, error) {
@@ -94,7 +94,7 @@ func (r *CustomerRepo) FindCohortById(ctx context.Context, orgId string, id stri
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&cohort).Error
-	return cohort, err
+	return cohort, translateErr(err)
 }
 
 func (r *CustomerRepo) CreateCohort(ctx context.Context, input domain.Cohort) (domain.Cohort, error) {

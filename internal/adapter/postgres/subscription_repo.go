@@ -4,6 +4,8 @@ import (
 	"context"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 )
@@ -23,7 +25,22 @@ func (r *SubscriptionRepo) FindById(ctx context.Context, orgId string, id string
 		Where("id = ?", id).
 		Preload("Customer").
 		First(&sub).Error
-	return sub, err
+	return sub, translateErr(err)
+}
+
+// FindByIdForUpdate is the row-locking variant of FindById. MUST be
+// called inside a transaction (TxManager.RunInTx); outside a tx the
+// lock is acquired and immediately released, which defeats the
+// purpose. The Postgres dialect emits SELECT ... FOR UPDATE.
+func (r *SubscriptionRepo) FindByIdForUpdate(ctx context.Context, orgId string, id string) (domain.Subscription, error) {
+	var sub domain.Subscription
+	err := dbFromCtx(ctx, r.db).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
+		Scopes(OrgScope(orgId)).
+		Where("id = ?", id).
+		Preload("Customer").
+		First(&sub).Error
+	return sub, translateErr(err)
 }
 
 func (r *SubscriptionRepo) Create(ctx context.Context, entity domain.Subscription) (domain.Subscription, error) {

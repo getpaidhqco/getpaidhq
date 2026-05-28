@@ -29,7 +29,7 @@ func (r *WebhookSubscriptionRepo) GetByID(ctx context.Context, orgId string, id 
 	err := dbFromCtx(ctx, r.db).
 		Where("org_id = ? AND id = ?", orgId, id).
 		First(&ws).Error
-	return ws, err
+	return ws, translateErr(err)
 }
 
 func (r *WebhookSubscriptionRepo) FindByEvent(ctx context.Context, orgId string, event string) ([]domain.WebhookSubscription, error) {

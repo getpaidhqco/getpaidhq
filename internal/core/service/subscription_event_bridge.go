@@ -21,11 +21,15 @@ type SubscriptionEventBridge struct {
 	logger port.Logger
 }
 
+// NewSubscriptionEventBridge wires the pubsub→engine fan-in. Returns
+// an error on subscribe failure rather than panicking — a transient
+// NATS hiccup during boot used to crash the process before the HTTP
+// server even came up.
 func NewSubscriptionEventBridge(
 	engine port.Engine,
 	pubsub port.PubSub,
 	logger port.Logger,
-) *SubscriptionEventBridge {
+) (*SubscriptionEventBridge, error) {
 	b := &SubscriptionEventBridge{
 		engine: engine,
 		pubsub: pubsub,
@@ -33,11 +37,10 @@ func NewSubscriptionEventBridge(
 	}
 
 	logger.Debugf("[SubscriptionEventBridge] Subscribing to subscription.*")
-	if _, err := pubsub.Subscribe("subscription.*", b.Handle); err != nil {
-		logger.Error("Failed to subscribe to subscription.* topic", "error", err.Error())
-		panic(err)
+	if _, err := pubsub.Subscribe("subscription.*", safePubSubHandler(logger, "SubscriptionEventBridge", b.Handle)); err != nil {
+		return nil, err
 	}
-	return b
+	return b, nil
 }
 
 // Handle decodes the pubsub envelope and forwards relevant transitions to the

@@ -14,8 +14,14 @@ type GatewayProvider interface {
 	ChargePayment(ctx context.Context, input ChargePaymentCommand) ChargePaymentResponse
 }
 
+// WebhookParser verifies and parses an incoming PSP webhook.
+//
+// ValidateWebhook MUST cryptographically verify `signature` against the
+// raw `data` using a constant-time comparison. A nil return means the
+// payload is authentic; any non-nil return means we reject the event,
+// regardless of how good the body looks.
 type WebhookParser interface {
-	ValidateWebhook(ctx context.Context, data []byte) error
+	ValidateWebhook(ctx context.Context, data []byte, signature string) error
 	ParseWebhook(ctx context.Context, data []byte) (PaymentWebhookContext, error)
 }
 

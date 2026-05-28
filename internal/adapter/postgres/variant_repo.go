@@ -31,7 +31,7 @@ func (r *VariantRepo) FindById(ctx context.Context, orgId string, id string) (do
 		Where("id = ?", id).
 		Preload("Prices").
 		First(&variant).Error
-	return variant, err
+	return variant, translateErr(err)
 }
 
 func (r *VariantRepo) FindByProductId(ctx context.Context, orgId string, productId string, p domain.Pagination) ([]domain.Variant, int, error) {

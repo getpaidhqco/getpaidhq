@@ -80,7 +80,7 @@ func newOrgService(repo port.OrgRepository, auth port.AuthProvider, cust port.Cu
 	if ps == nil {
 		ps = &recordingPubSub{}
 	}
-	return NewOrgService(repo, ps, auth, cust, nil, nil, apiKeys, silentLogger{})
+	return NewOrgService(repo, ps, auth, cust, nil, nil, apiKeys, silentLogger{}, "test-pepper")
 }
 
 func TestOrgService_Create(t *testing.T) {

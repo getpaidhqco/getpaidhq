@@ -22,7 +22,7 @@ func (r *CartRepo) FindById(ctx context.Context, orgId string, id string) (domai
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&cart).Error
-	return cart, err
+	return cart, translateErr(err)
 }
 
 func (r *CartRepo) Create(ctx context.Context, input domain.Cart) (domain.Cart, error) {

@@ -127,8 +127,13 @@ func (s *Subscription) CalculateProrationDetails(
 			return details
 		}
 
-		creditAmount := int(float64(s.Amount) * float64(daysRemaining) / float64(totalDays))
-		details.CreditAmount = creditAmount
+		// Stay in integer minor-units — a float round-trip would lose cents
+		// asymmetrically and produce off-by-one discrepancies at the cent
+		// boundary. Same truncation semantics as before (toward zero), which
+		// favors the merchant slightly; if business wants banker's rounding
+		// or ceiling, change here in one place.
+		creditAmount := (s.Amount * int64(daysRemaining)) / int64(totalDays)
+		details.CreditAmount = int(creditAmount)
 		details.DaysCredited = daysRemaining
 	}
 

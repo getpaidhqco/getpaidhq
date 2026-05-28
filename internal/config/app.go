@@ -2,6 +2,7 @@ package config
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"os"
 	"os/signal"
@@ -30,6 +31,14 @@ import (
 	"getpaidhq/internal/lib"
 )
 
+// errUnsupportedEngine is returned when WORKFLOW_ENGINE is set to a
+// value other than the recognized ones; previously this panicked
+// inside NewApp which is hostile to anything trying to surface a
+// startup config error cleanly.
+func errUnsupportedEngine(name string) error {
+	return fmt.Errorf("unsupported WORKFLOW_ENGINE %q (want 'hatchet' or 'temporal')", name)
+}
+
 // App holds all wired dependencies for the application.
 type App struct {
 	Server *fuego.Server
@@ -46,6 +55,17 @@ func NewApp() (*App, error) {
 	logger := lib.GetLogger()
 	reporter := lib.NewErrorReporter(logger)
 	httpValidator := lib.NewValidator()
+
+	// Parse trusted-proxy CIDRs once at boot. Malformed config fails the
+	// app rather than silently degrading to "trust everything" — getting
+	// this wrong is a security regression, not a runtime annoyance.
+	trustedProxies, err := handler.ParseTrustedProxies(env.TrustedProxies)
+	if err != nil {
+		return nil, err
+	}
+	if len(trustedProxies) == 0 {
+		logger.Warn("TRUSTED_PROXIES is empty — X-Forwarded-For / X-Real-IP will be ignored; UsedIp falls back to RemoteAddr")
+	}
 
 	// ---------------------------------------------------------------------------
 	// Database
@@ -103,8 +123,8 @@ func NewApp() (*App, error) {
 
 	// Payment gateway adapters
 	gatewayAdapters := map[domain.Gateway]port.GatewayAdapter{
-		domain.Paystack:       paystack.NewAdapter(paymentRepo, pspRepo, settingRepo, logger),
-		domain.CheckoutDotCom: checkout_com.NewAdapter(logger),
+		domain.Paystack:       paystack.NewAdapter(paymentRepo, pspRepo, settingRepo, logger, env.PaystackSecret),
+		domain.CheckoutDotCom: checkout_com.NewAdapter(logger, env.CheckoutWebhookSecret),
 	}
 	gatewayFactory := service.NewGatewayFactory(pspRepo, settingRepo, logger, gatewayAdapters)
 
@@ -113,7 +133,10 @@ func NewApp() (*App, error) {
 	// ---------------------------------------------------------------------------
 	// Narrow services (no workflow engine).
 	// ---------------------------------------------------------------------------
-	subService := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, gatewayFactory, pubsub, reporter, logger)
+	subService, err := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, gatewayFactory, pubsub, reporter, logger, txManager)
+	if err != nil {
+		return nil, err
+	}
 	paymentService := service.NewPaymentService(paymentRepo, logger)
 	orderWorkflowService := service.NewOrderWorkflowService(orderRepo, customerRepo, subRepo, paymentMethodRepo, paymentRepo, pubsub, logger)
 	dunningService := service.NewDunningService(dunningRepo, subRepo, customerRepo, paymentRepo, subService, gatewayFactory, pubsub, reporter, logger)
@@ -145,30 +168,47 @@ func NewApp() (*App, error) {
 		engine = h
 		dunningEngine = h
 	default:
-		logger.Errorf("Unsupported WORKFLOW_ENGINE=%q; must be 'hatchet' or 'temporal'", env.WorkflowEngine)
-		panic("unsupported WORKFLOW_ENGINE: " + env.WorkflowEngine)
+		// Config error, not a runtime crash — surface to the caller so
+		// the process exits cleanly with a non-zero status instead of
+		// stack-dumping.
+		return nil, errUnsupportedEngine(env.WorkflowEngine)
 	}
 
 	// Pubsub fan-in from subscription.* topics into the chosen engine. Lifted
-	// out of the adapters so both share one implementation.
-	_ = service.NewSubscriptionEventBridge(engine, pubsub, logger)
+	// out of the adapters so both share one implementation. Any subscribe
+	// failure here fails the whole boot — see the de-panic note on each
+	// constructor.
+	if _, err := service.NewSubscriptionEventBridge(engine, pubsub, logger); err != nil {
+		return nil, err
+	}
 
 	// ---------------------------------------------------------------------------
 	// Engine-aware services and the rest.
 	// ---------------------------------------------------------------------------
 	subOrchestrationService := service.NewSubscriptionOrchestrationService(subService, engine, logger)
-	dunningOrchestrationService := service.NewDunningOrchestrationService(dunningService, dunningEngine, pubsub, reporter, logger)
+	dunningOrchestrationService, err := service.NewDunningOrchestrationService(dunningService, dunningEngine, pubsub, reporter, logger)
+	if err != nil {
+		return nil, err
+	}
 	orderService := service.NewOrderService(txManager, engine, sessionRepo, priceRepo, cartRepo, orderRepo, customerRepo, subRepo, paymentRepo, paymentMethodRepo, productRepo, gatewayFactory, pubsub, logger)
-	customerService := service.NewCustomerService(customerRepo, paymentMethodRepo, pubsub, logger, scheduler)
+	customerService, err := service.NewCustomerService(customerRepo, paymentMethodRepo, pubsub, logger, scheduler)
+	if err != nil {
+		return nil, err
+	}
 	productService := service.NewProductService(productRepo, variantRepo, priceRepo, cartRepo, logger, pubsub)
 	sessionService := service.NewSessionService(sessionRepo, cartRepo, logger, pubsub)
 	cartService := service.NewCartService(cartRepo, priceRepo, logger, productRepo)
 	userService := service.NewUserService(userRepo)
-	orgService := service.NewOrgService(orgRepo, pubsub, clerkProvider, customerRepo, settingRepo, metadataRepo, apiKeyRepo, logger)
+	orgService := service.NewOrgService(orgRepo, pubsub, clerkProvider, customerRepo, settingRepo, metadataRepo, apiKeyRepo, logger, env.ApiKeyPepper)
 	pspService := service.NewPspService(pspRepo, settingRepo, logger, pubsub)
 	webhookService := service.NewWebhookService(logger, gatewayFactory, engine, idempotencyRepo, subRepo)
-	reportService := service.NewReportService(logger, reportRepo, scheduler, orgRepo)
-	_ = service.NewReportEventBridge(logger, pubsub, reportRepo)
+	reportService, err := service.NewReportService(logger, reportRepo, scheduler, orgRepo)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := service.NewReportEventBridge(logger, pubsub, reportRepo); err != nil {
+		return nil, err
+	}
 	metadataService := service.NewMetadataService(metadataRepo, logger)
 
 	_ = metadataService
@@ -192,7 +232,7 @@ func NewApp() (*App, error) {
 		Report:        handler.NewReportHandler(reportService, logger),
 		Psp:           handler.NewPspHandler(pspService, logger, authzEngine),
 		PaymentMethod: handler.NewPaymentMethodHandler(customerHandler),
-		Dunning:       handler.NewDunningHandler(dunningOrchestrationService, subService, logger, authzEngine),
+		Dunning:       handler.NewDunningHandler(dunningOrchestrationService, subService, logger, authzEngine, trustedProxies),
 	}
 
 	port := env.ServerPort

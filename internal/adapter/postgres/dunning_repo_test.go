@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
+	"getpaidhq/internal/core/port"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/lib"
@@ -77,7 +77,7 @@ func TestDunningRepo_Campaigns(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
 		_, err := repo.FindCampaignById(ctx, orgId, "missing")
-		assert.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+		assert.True(t, errors.Is(err, port.ErrNotFound))
 	})
 
 	t.Run("FindCampaignsBySubscriptionId filters by subscription", func(t *testing.T) {
@@ -128,7 +128,7 @@ func TestDunningRepo_Campaigns(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = repo.FindCampaignById(ctx, orgB, created.Id)
-		assert.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+		assert.True(t, errors.Is(err, port.ErrNotFound))
 	})
 }
 
@@ -180,7 +180,7 @@ func TestDunningRepo_Attempts(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
 		_, err := repo.FindAttemptById(ctx, orgId, "missing")
-		assert.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+		assert.True(t, errors.Is(err, port.ErrNotFound))
 	})
 }
 
@@ -254,7 +254,7 @@ func TestDunningRepo_Tokens(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
 		_, err := repo.FindTokenById(ctx, orgId, "missing")
-		assert.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+		assert.True(t, errors.Is(err, port.ErrNotFound))
 	})
 }
 

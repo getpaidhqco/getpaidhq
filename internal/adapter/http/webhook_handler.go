@@ -49,16 +49,40 @@ func (u *WebhookHandler) Process(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Pull the PSP-specific signature header. We do this here so the
+	// service layer doesn't know about HTTP headers — the parser
+	// receives only the signature string.
+	signature := webhookSignatureForPSP(r, domain.Gateway(psp))
+
 	u.logger.Debug("Processing webhook")
 	if err := u.webhookService.HandlePaymentWebhook(r.Context(), port.PaymentWebhookPayload{
-		Psp:  domain.Gateway(psp),
-		Data: string(jsonData),
+		Psp:       domain.Gateway(psp),
+		Signature: signature,
+		Data:      string(jsonData),
 	}); err != nil {
 		u.logger.Errorf("Error processing webhook: %s", err.Error())
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	_ = json.NewEncoder(w).Encode(map[string]string{"status": "success"})
+}
+
+// webhookSignatureForPSP picks the right header for each PSP. We
+// reject the request only at signature verification time (which has
+// the secret); reading an empty header here just means the parser
+// will treat the signature as invalid.
+func webhookSignatureForPSP(r *http.Request, psp domain.Gateway) string {
+	switch psp {
+	case domain.Paystack:
+		return r.Header.Get("X-Paystack-Signature")
+	case domain.CheckoutDotCom:
+		// Checkout.com sends "Cko-Signature". Header lookup is
+		// case-insensitive in net/http, so this works regardless of
+		// casing on the wire.
+		return r.Header.Get("Cko-Signature")
+	default:
+		return ""
+	}
 }
 
 // writeWebhookError emits a minimal JSON envelope for the raw-body webhook

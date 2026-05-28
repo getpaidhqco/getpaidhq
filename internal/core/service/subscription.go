@@ -32,8 +32,18 @@ type SubscriptionService struct {
 	pubsub                 port.PubSub
 	errorReporter          lib.ErrorReporter
 	logger                 port.Logger
+	// tx wraps lifecycle state transitions in a SQL transaction so the
+	// FindByIdForUpdate-then-Update sequence is atomic and SELECT FOR
+	// UPDATE actually holds. May be nil in tests that don't drive a
+	// transition path; transitionInTx falls back to running the
+	// closure without a tx in that case.
+	tx port.TxManager
 }
 
+// NewSubscriptionService wires the narrow subscription service. The
+// startup subscription is now safety-wrapped (panic recovery) and
+// errors surface to the caller — see SubscriptionEventBridge for the
+// reasoning.
 func NewSubscriptionService(
 	sessionRepository port.SessionRepository,
 	settingRepository port.SettingRepository,
@@ -46,14 +56,14 @@ func NewSubscriptionService(
 	pubsub port.PubSub,
 	errorReporter lib.ErrorReporter,
 	logger port.Logger,
-) *SubscriptionService {
+	tx port.TxManager,
+) (*SubscriptionService, error) {
 
-	_, err := pubsub.Subscribe("subscription.workflow.>", func(topic string, data []byte) {
+	handler := safePubSubHandler(logger, "SubscriptionService.workflow-tap", func(topic string, data []byte) {
 		logger.Infof("Received message from %s", topic)
 	})
-	if err != nil {
-		logger.Error("Failed to subscribe to topic", err.Error())
-		panic(err)
+	if _, err := pubsub.Subscribe("subscription.workflow.>", handler); err != nil {
+		return nil, err
 	}
 
 	return &SubscriptionService{
@@ -68,7 +78,20 @@ func NewSubscriptionService(
 		pubsub:                 pubsub,
 		errorReporter:          errorReporter,
 		logger:                 logger,
+		tx:                     tx,
+	}, nil
+}
+
+// transitionInTx runs `fn` inside a SQL transaction when one is
+// available (production wiring). In tests that don't wire a
+// TxManager we just call fn directly — the underlying fake repos
+// don't honor isolation anyway, so the call-site semantics are
+// preserved.
+func (s *SubscriptionService) transitionInTx(ctx context.Context, fn func(context.Context) error) error {
+	if s.tx == nil {
+		return fn(ctx)
 	}
+	return s.tx.RunInTx(ctx, fn)
 }
 
 func (s *SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, orgId string, orderId string) ([]domain.Subscription, error) {
@@ -153,21 +176,29 @@ func (s *SubscriptionService) FindById(ctx context.Context, orgId string, id str
 	return subscription, nil
 }
 
-// Activate marks the subscription active in the database.
-// The orchestration wrapper additionally starts the workflow engine.
+// Activate marks the subscription active in the database. Wrapped in
+// a transaction with SELECT FOR UPDATE on the subscription row so that
+// concurrent activate/pause/cancel transitions cannot read the same
+// initial state and overwrite each other.
 func (s *SubscriptionService) Activate(ctx context.Context, orgId string, id string) (domain.Subscription, error) {
 	s.logger.Info("Marking subscription active", "orgId", orgId, "id", id)
 
-	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, id)
+	var subscription domain.Subscription
+	err := s.transitionInTx(ctx, func(ctx context.Context) error {
+		sub, err := s.subscriptionRepository.FindByIdForUpdate(ctx, orgId, id)
+		if err != nil {
+			return err
+		}
+		sub.Status = domain.SubscriptionStatusActive
+		sub, err = s.subscriptionRepository.Update(ctx, sub)
+		if err != nil {
+			return err
+		}
+		subscription = sub
+		return nil
+	})
 	if err != nil {
-		s.logger.Error("Failed to find subscriptions", err.Error())
-		return domain.Subscription{}, err
-	}
-
-	subscription.Status = domain.SubscriptionStatusActive
-	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
-	if err != nil {
-		s.logger.Error("Failed to update subscription", "err", err.Error())
+		s.logger.Error("Activate failed", "err", err.Error())
 		return domain.Subscription{}, err
 	}
 
@@ -176,28 +207,40 @@ func (s *SubscriptionService) Activate(ctx context.Context, orgId string, id str
 
 // PauseSubscription updates the subscription state in the database.
 // The orchestration wrapper additionally signals the workflow engine.
+// The read-then-write is atomic via SELECT FOR UPDATE — see Activate.
 func (s *SubscriptionService) PauseSubscription(ctx context.Context, input domain.PauseSubscriptionInput) (domain.Subscription, error) {
 	s.logger.Info("Pausing subscription", "orgId", input.OrgId, "id", input.Id)
 
-	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
-	if err != nil {
-		s.logger.Error("Failed to find subscriptions", err.Error())
-		if _, ok := errors.AsType[lib.CustomError](err); ok {
-			return domain.Subscription{}, err
+	var subscription domain.Subscription
+	txErr := s.transitionInTx(ctx, func(ctx context.Context) error {
+		sub, err := s.subscriptionRepository.FindByIdForUpdate(ctx, input.OrgId, input.Id)
+		if err != nil {
+			if _, ok := errors.AsType[lib.CustomError](err); ok {
+				return err
+			}
+			return lib.NewCustomError(lib.InternalError, "", err)
 		}
-		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
-	}
-
-	if subscription.Status == domain.SubscriptionStatusPaused {
-		s.logger.Info("Subscription is already paused")
-		return subscription, lib.NewCustomError(lib.BadRequestError, "subscription is paused already", nil)
-	}
-
-	subscription.Status = domain.SubscriptionStatusPaused
-	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
-	if err != nil {
-		s.logger.Error("Failed to update subscription", "err", err.Error())
-		return domain.Subscription{}, err
+		if sub.Status == domain.SubscriptionStatusPaused {
+			subscription = sub
+			return lib.NewCustomError(lib.BadRequestError, "subscription is paused already", nil)
+		}
+		sub.Status = domain.SubscriptionStatusPaused
+		sub, err = s.subscriptionRepository.Update(ctx, sub)
+		if err != nil {
+			return err
+		}
+		subscription = sub
+		return nil
+	})
+	if txErr != nil {
+		s.logger.Error("PauseSubscription failed", "err", txErr.Error())
+		// Pre-existing-paused returns the loaded subscription with the
+		// BadRequestError so handlers can render a useful body — keep
+		// that contract.
+		if _, ok := errors.AsType[lib.CustomError](txErr); ok && subscription.Id != "" {
+			return subscription, txErr
+		}
+		return domain.Subscription{}, txErr
 	}
 
 	return subscription, nil
@@ -214,51 +257,61 @@ func (s *SubscriptionService) List(ctx context.Context, orgId string, pagination
 
 // ResumeSubscription updates the subscription state in the database.
 // The orchestration wrapper additionally signals the workflow engine.
+// The read-then-write is atomic via SELECT FOR UPDATE — see Activate.
 func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input domain.ResumeSubscriptionInput) (domain.Subscription, error) {
 	s.logger.Info("Resuming subscription", "orgId", input.OrgId, "id", input.Id)
 
-	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
-	if err != nil {
-		s.logger.Error("Failed to find subscriptions", err.Error())
-		if _, ok := errors.AsType[lib.CustomError](err); ok {
-			return domain.Subscription{}, err
+	var newSub domain.Subscription
+	txErr := s.transitionInTx(ctx, func(ctx context.Context) error {
+		subscription, err := s.subscriptionRepository.FindByIdForUpdate(ctx, input.OrgId, input.Id)
+		if err != nil {
+			if _, ok := errors.AsType[lib.CustomError](err); ok {
+				return err
+			}
+			return lib.NewCustomError(lib.InternalError, "", err)
 		}
-		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
-	}
 
-	if subscription.Status != domain.SubscriptionStatusPaused &&
-		subscription.Status != domain.SubscriptionStatusPastDue {
-		s.logger.Info("Subscription is not paused")
-		return subscription, lib.NewCustomError(lib.BadRequestError, "subscription is not paused", nil)
-	}
-
-	behaviour := domain.ContinueExistingBillingPeriod
-	if input.ResumeBehavior != "" {
-		behaviour = input.ResumeBehavior
-	}
-
-	if behaviour == domain.ContinueExistingBillingPeriod {
-		nextCharge := subscription.CalculateNextBillingDate()
-		if nextCharge.Before(time.Now().UTC()) {
-			return domain.Subscription{}, lib.NewCustomError(lib.BadRequestError, "can't continue existing billing period, start a new period", errors.New("next billing date is in the past"))
+		if subscription.Status != domain.SubscriptionStatusPaused &&
+			subscription.Status != domain.SubscriptionStatusPastDue {
+			newSub = subscription
+			return lib.NewCustomError(lib.BadRequestError, "subscription is not paused", nil)
 		}
-		subscription.RenewsAt = nextCharge
-	}
 
-	if behaviour == domain.StartNewBillingPeriod {
-		s.logger.Debugf(`Starting new billing period..`)
-		nextCharge := time.Now().UTC().Add(time.Second * 20)
-		subscription.BillingAnchor = nextCharge.Day()
-		subscription.RenewsAt = nextCharge
-		subscription.CurrentPeriodStart = nextCharge
-		subscription.CurrentPeriodEnd = subscription.AddBillingInterval(nextCharge)
-	}
+		behaviour := domain.ContinueExistingBillingPeriod
+		if input.ResumeBehavior != "" {
+			behaviour = input.ResumeBehavior
+		}
 
-	subscription.Status = domain.SubscriptionStatusActive
-	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
-	if err != nil {
-		s.logger.Error("Failed to update subscription", "err", err.Error())
-		return domain.Subscription{}, err
+		if behaviour == domain.ContinueExistingBillingPeriod {
+			nextCharge := subscription.CalculateNextBillingDate()
+			if nextCharge.Before(time.Now().UTC()) {
+				return lib.NewCustomError(lib.BadRequestError, "can't continue existing billing period, start a new period", errors.New("next billing date is in the past"))
+			}
+			subscription.RenewsAt = nextCharge
+		}
+
+		if behaviour == domain.StartNewBillingPeriod {
+			nextCharge := time.Now().UTC().Add(time.Second * 20)
+			subscription.BillingAnchor = nextCharge.Day()
+			subscription.RenewsAt = nextCharge
+			subscription.CurrentPeriodStart = nextCharge
+			subscription.CurrentPeriodEnd = subscription.AddBillingInterval(nextCharge)
+		}
+
+		subscription.Status = domain.SubscriptionStatusActive
+		updated, err := s.subscriptionRepository.Update(ctx, subscription)
+		if err != nil {
+			return err
+		}
+		newSub = updated
+		return nil
+	})
+	if txErr != nil {
+		s.logger.Error("ResumeSubscription failed", "err", txErr.Error())
+		if _, ok := errors.AsType[lib.CustomError](txErr); ok && newSub.Id != "" {
+			return newSub, txErr
+		}
+		return domain.Subscription{}, txErr
 	}
 
 	return newSub, nil
@@ -266,31 +319,42 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input doma
 
 // CancelSubscription cancels a subscription. It will continue through its current billing cycle.
 // The orchestration wrapper additionally signals the workflow engine.
+// The read-then-write is atomic via SELECT FOR UPDATE — see Activate.
 func (s *SubscriptionService) CancelSubscription(ctx context.Context, input domain.CancelSubscriptionInput) (domain.Subscription, error) {
 	s.logger.Info("Cancelling subscription", "orgId", input.OrgId, "id", input.Id)
 
-	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
-	if err != nil {
-		s.logger.Error("Failed to find subscriptions", err.Error())
-		if _, ok := errors.AsType[lib.CustomError](err); ok {
-			return domain.Subscription{}, err
+	var subscription domain.Subscription
+	txErr := s.transitionInTx(ctx, func(ctx context.Context) error {
+		sub, err := s.subscriptionRepository.FindByIdForUpdate(ctx, input.OrgId, input.Id)
+		if err != nil {
+			if _, ok := errors.AsType[lib.CustomError](err); ok {
+				return err
+			}
+			return lib.NewCustomError(lib.InternalError, "", err)
 		}
-		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
-	}
 
-	if subscription.Status == domain.SubscriptionStatusCancelled {
-		s.logger.Info("Subscription is already cancelled")
-		return subscription, lib.NewCustomError(lib.BadRequestError, "subscription is already cancelled", nil)
-	}
+		if sub.Status == domain.SubscriptionStatusCancelled {
+			subscription = sub
+			return lib.NewCustomError(lib.BadRequestError, "subscription is already cancelled", nil)
+		}
 
-	cancelledAt := time.Now().UTC()
-	subscription.Status = domain.SubscriptionStatusCancelled
-	subscription.CancelAt = subscription.RenewsAt
-	subscription.CancelledAt = cancelledAt
-	subscription, err = s.subscriptionRepository.Update(ctx, subscription)
-	if err != nil {
-		s.logger.Error("Failed to update subscription", "err", err.Error())
-		return domain.Subscription{}, err
+		cancelledAt := time.Now().UTC()
+		sub.Status = domain.SubscriptionStatusCancelled
+		sub.CancelAt = sub.RenewsAt
+		sub.CancelledAt = cancelledAt
+		updated, err := s.subscriptionRepository.Update(ctx, sub)
+		if err != nil {
+			return err
+		}
+		subscription = updated
+		return nil
+	})
+	if txErr != nil {
+		s.logger.Error("CancelSubscription failed", "err", txErr.Error())
+		if _, ok := errors.AsType[lib.CustomError](txErr); ok && subscription.Id != "" {
+			return subscription, txErr
+		}
+		return domain.Subscription{}, txErr
 	}
 
 	return subscription, nil

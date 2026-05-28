@@ -2,38 +2,71 @@ package paystack
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha512"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
-	paystacklib "github.com/mdwt/paystack-go"
-	"getpaidhq/internal/core/domain"
-	"getpaidhq/internal/core/port"
 	"strconv"
 	"time"
+
+	paystacklib "github.com/mdwt/paystack-go"
+
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
 )
+
+// ErrInvalidSignature is returned when the supplied X-Paystack-Signature
+// header doesn't match the HMAC of the raw body. The caller (webhook
+// service) treats this as a hard reject — no claim, no parsing.
+var ErrInvalidSignature = errors.New("paystack: invalid webhook signature")
+
+// ErrMissingWebhookSecret is returned when no secret is configured for
+// signature verification. Fail-closed: without a secret we cannot
+// distinguish a real Paystack event from a forged one, so we must
+// reject everything rather than blindly trust the body.
+var ErrMissingWebhookSecret = errors.New("paystack: no webhook secret configured (PAYSTACK_SECRET)")
 
 type WebhookParser struct {
 	logger            port.Logger
 	paymentRepository port.PaymentRepository
 	factory           PaystackFactory
+	// secret is the Paystack merchant SECRET KEY (same value used as
+	// the API auth token). Paystack signs webhook bodies with this
+	// key using HMAC-SHA512.
+	secret string
 }
 
 func NewWebhookParser(
 	paymentRepository port.PaymentRepository,
 	factory PaystackFactory,
 	logger port.Logger,
+	secret string,
 ) WebhookParser {
 	return WebhookParser{
 		logger:            logger,
 		paymentRepository: paymentRepository,
 		factory:           factory,
+		secret:            secret,
 	}
 }
 
-func (p WebhookParser) ValidateWebhook(ctx context.Context, data []byte) error {
-	var payload WebhookPayload
-	if err := json.Unmarshal(data, &payload); err != nil {
-		p.logger.Errorf("failed to unmarshal webhook payload: %s", err.Error())
-		return err
+// ValidateWebhook verifies the X-Paystack-Signature header against an
+// HMAC-SHA512 of the raw body computed with the merchant secret key.
+// The comparison is constant-time. Returns ErrInvalidSignature on
+// mismatch and ErrMissingWebhookSecret if no secret is configured.
+func (p WebhookParser) ValidateWebhook(ctx context.Context, data []byte, signature string) error {
+	if p.secret == "" {
+		return ErrMissingWebhookSecret
+	}
+	if signature == "" {
+		return ErrInvalidSignature
+	}
+	mac := hmac.New(sha512.New, []byte(p.secret))
+	mac.Write(data)
+	expected := hex.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(expected), []byte(signature)) {
+		return ErrInvalidSignature
 	}
 	return nil
 }

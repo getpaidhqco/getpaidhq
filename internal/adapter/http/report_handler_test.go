@@ -12,7 +12,10 @@ import (
 )
 
 func newReportHandlerForTest(rep *fakeReportRepo) *ReportHandler {
-	svc := service.NewReportService(silentLogger{}, rep, noopScheduler{}, &fakeOrgRepo{})
+	svc, err := service.NewReportService(silentLogger{}, rep, noopScheduler{}, &fakeOrgRepo{})
+	if err != nil {
+		panic(err)
+	}
 	return NewReportHandler(svc, silentLogger{})
 }
 

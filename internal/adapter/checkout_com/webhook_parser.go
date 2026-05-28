@@ -2,23 +2,57 @@ package checkout_com
 
 import (
 	"context"
+	"crypto/hmac"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
+
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 )
 
+// ErrInvalidSignature is returned when the Cko-Signature header
+// doesn't match the HMAC of the raw body. The caller treats this as
+// a hard reject — no claim, no parsing.
+var ErrInvalidSignature = errors.New("checkout_com: invalid webhook signature")
+
+// ErrMissingWebhookSecret is returned when no secret is configured;
+// fail-closed.
+var ErrMissingWebhookSecret = errors.New("checkout_com: no webhook secret configured (CHECKOUT_WEBHOOK_SECRET)")
+
 type WebhookParserAdapter struct {
 	logger port.Logger
+	// secret is the Checkout.com merchant webhook signing key (from
+	// the Dashboard → Developer → Webhooks page). Signs the raw body
+	// using HMAC-SHA256.
+	secret string
 }
 
-func NewWebhookParser(logger port.Logger) WebhookParserAdapter {
+func NewWebhookParser(logger port.Logger, secret string) WebhookParserAdapter {
 	return WebhookParserAdapter{
 		logger: logger,
+		secret: secret,
 	}
 }
 
-func (p WebhookParserAdapter) ValidateWebhook(ctx context.Context, data []byte) error {
+// ValidateWebhook verifies the Cko-Signature header against an
+// HMAC-SHA256 of the raw body. Constant-time compare. Returns
+// ErrInvalidSignature on mismatch, ErrMissingWebhookSecret if no
+// secret was wired.
+func (p WebhookParserAdapter) ValidateWebhook(ctx context.Context, data []byte, signature string) error {
+	if p.secret == "" {
+		return ErrMissingWebhookSecret
+	}
+	if signature == "" {
+		return ErrInvalidSignature
+	}
+	mac := hmac.New(sha256.New, []byte(p.secret))
+	mac.Write(data)
+	expected := hex.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(expected), []byte(signature)) {
+		return ErrInvalidSignature
+	}
 	return nil
 }
 

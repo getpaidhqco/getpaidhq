@@ -2,13 +2,28 @@ package port
 
 import (
 	"context"
-	"getpaidhq/internal/core/domain"
+	"errors"
 	"time"
+
+	"getpaidhq/internal/core/domain"
 )
+
+// ErrNotFound is the domain-level "row not found" sentinel that
+// repository implementations MUST return (or wrap) when a lookup
+// resolves to no row. Translating here means services can
+// `errors.Is(err, port.ErrNotFound)` without importing GORM /
+// pgx / sqlx — keeping the hexagonal boundary clean.
+var ErrNotFound = errors.New("not found")
 
 // SubscriptionRepository manages subscription persistence.
 type SubscriptionRepository interface {
 	FindById(ctx context.Context, orgId string, id string) (domain.Subscription, error)
+	// FindByIdForUpdate is identical to FindById but acquires a row
+	// lock (SELECT ... FOR UPDATE) on the subscription. Used inside
+	// RunInTx by state-transition flows (Pause/Resume/Cancel/...)
+	// so concurrent transitions can't both read the same initial
+	// state and overwrite each other.
+	FindByIdForUpdate(ctx context.Context, orgId string, id string) (domain.Subscription, error)
 	Create(ctx context.Context, entity domain.Subscription) (domain.Subscription, error)
 	Update(ctx context.Context, entity domain.Subscription) (domain.Subscription, error)
 	FindByOrderId(ctx context.Context, orgId string, orderId string) ([]domain.Subscription, error)
@@ -134,9 +149,24 @@ type ApiKeyRepository interface {
 }
 
 // IdempotencyKeyRepository manages idempotency keys for preventing duplicate operations.
+//
+// Claim is the atomic primitive: it inserts the key if and only if no live
+// row already exists, and reports back which case it took. This replaces
+// the older Exists-then-Create pattern, which was racy between two
+// concurrent retries of the same webhook — both could find Exists=false
+// and both could then proceed to do the work.
 type IdempotencyKeyRepository interface {
-	Exists(ctx context.Context, key string) (bool, error)
-	Create(ctx context.Context, key string, expiresAt time.Time) error
+	// Claim attempts to insert `key` with the given expiry. Returns true
+	// if the row was created by THIS call (caller may proceed with side
+	// effects); false if a non-expired row already existed (caller MUST
+	// short-circuit, the work was done already by an earlier delivery).
+	Claim(ctx context.Context, key string, expiresAt time.Time) (claimed bool, err error)
+
+	// Release removes a previously-claimed key so the PSP's next retry
+	// can re-run the work. Used when we won the claim but a downstream
+	// side effect failed — releasing turns "we ate the event" into "PSP
+	// will retry". Idempotent (deleting a non-existent key is fine).
+	Release(ctx context.Context, key string) error
 }
 
 // UserRepository manages user persistence.

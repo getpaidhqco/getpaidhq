@@ -25,5 +25,5 @@ func (r *OrgRepo) Create(ctx context.Context, entity domain.Org) (domain.Org, er
 	err = dbFromCtx(ctx, r.db).
 		Where("id = ?", entity.Id).
 		First(&created).Error
-	return created, err
+	return created, translateErr(err)
 }

@@ -22,7 +22,7 @@ func (r *SettingRepo) FindById(ctx context.Context, orgId string, parentId strin
 		Scopes(OrgScope(orgId)).
 		Where("parent_id = ? AND id = ?", parentId, id).
 		First(&setting).Error
-	return setting, err
+	return setting, translateErr(err)
 }
 
 func (r *SettingRepo) Create(ctx context.Context, entity domain.Setting) (domain.Setting, error) {

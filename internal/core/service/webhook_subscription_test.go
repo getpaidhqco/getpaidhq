@@ -30,11 +30,17 @@ func (r *fakeWebhookSubRepo) Create(_ context.Context, w domain.WebhookSubscript
 	return w, nil
 }
 
+// newWebhookSubscriptionService builds the service with the SSRF
+// predicate relaxed to allow loopback — required for httptest.Server,
+// which always binds to 127.0.0.1. Never relax the predicate in prod
+// wiring (config.NewApp); the package-private field is the only path.
 func newWebhookSubscriptionService(repo port.WebhookSubscriptionRepository, ps port.PubSub) *WebhookSubscriptionService {
 	if ps == nil {
 		ps = &recordingPubSub{}
 	}
-	return NewWebhookSubscriptionService(silentLogger{}, repo, nil, ps)
+	svc := NewWebhookSubscriptionService(silentLogger{}, repo, nil, ps)
+	svc.ipPredicate = allowAllIPs
+	return svc
 }
 
 func TestWebhookSubscriptionService_Create(t *testing.T) {
@@ -44,7 +50,7 @@ func TestWebhookSubscriptionService_Create(t *testing.T) {
 		svc := newWebhookSubscriptionService(repo, ps)
 
 		got, err := svc.Create(context.Background(), domain.CreateWebhookSubscriptionInput{
-			OrgId: "org_1", Url: "https://example.test/hook", Events: []string{"order.completed"}, Secret: "sek",
+			OrgId: "org_1", Url: "https://example.com/hook", Events: []string{"order.completed"}, Secret: "sek",
 		})
 
 		require.NoError(t, err)

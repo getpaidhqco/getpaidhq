@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
+	"getpaidhq/internal/core/port"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/lib"
@@ -84,7 +84,7 @@ func TestCustomerRepo(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
 		_, err := repo.FindById(ctx, orgId, "nope")
-		assert.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+		assert.True(t, errors.Is(err, port.ErrNotFound))
 	})
 
 	t.Run("List paginates and counts within org", func(t *testing.T) {
@@ -131,7 +131,7 @@ func TestCustomerRepo(t *testing.T) {
 
 		// org B cannot see org A's payment method.
 		_, err = repo.FindPaymentMethodById(ctx, orgB, pm.Id)
-		assert.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+		assert.True(t, errors.Is(err, port.ErrNotFound))
 	})
 
 	t.Run("org-scoping isolates customers", func(t *testing.T) {
@@ -142,6 +142,6 @@ func TestCustomerRepo(t *testing.T) {
 		cust := seedCustomer(t, db, orgA)
 
 		_, err := repo.FindById(ctx, orgB, cust.Id)
-		assert.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+		assert.True(t, errors.Is(err, port.ErrNotFound))
 	})
 }

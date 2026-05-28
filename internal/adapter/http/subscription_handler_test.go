@@ -22,14 +22,17 @@ func newSubscriptionHandlerForTest(
 	engine *recordingEngine,
 ) *SubscriptionHandler {
 	t.Helper()
-	narrow := service.NewSubscriptionService(
+	narrow, err := service.NewSubscriptionService(
 		&fakeSessionRepo{}, &fakeSettingRepo{}, &fakeCartRepo{},
 		subRepo, &fakeCustomerRepo{}, &fakeOrderRepo{}, payRepo,
 		// no gateway factory needed for the handler-level cases (they don't
 		// trigger charge attempts).
 		service.NewGatewayFactory(&fakePspRepo{}, &fakeSettingRepo{}, silentLogger{}, map[domain.Gateway]port.GatewayAdapter{}),
-		newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{},
+		newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{}, nil,
 	)
+	if err != nil {
+		t.Fatalf("NewSubscriptionService: %v", err)
+	}
 	orch := service.NewSubscriptionOrchestrationService(narrow, engine, silentLogger{})
 	return NewSubscriptionHandler(orch, silentLogger{}, newRealAuthz(t))
 }

@@ -24,7 +24,7 @@ func (r *ProductRepo) FindById(ctx context.Context, orgId string, id string) (do
 		Preload("Variants").
 		Preload("Variants.Prices").
 		First(&product).Error
-	return product, err
+	return product, translateErr(err)
 }
 
 func (r *ProductRepo) Create(ctx context.Context, product domain.Product) (domain.Product, error) {

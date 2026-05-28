@@ -175,3 +175,32 @@ func TestPolicy_IsOrgScoped(t *testing.T) {
 	deny, _ := ps.IsAuthorized(build("org-1", "org-2"), req)
 	assert.False(t, bool(deny), "owner denied on another org's resource")
 }
+
+// TestPolicy_AdminIsOrgScoped pins the defense-in-depth fix: the admin rule
+// now carries `when { principal.org_id == resource.org_id }`. The previous
+// version had no constraint, so any subject with the "admin" role had
+// unconditional cross-tenant authority. This test reaches into the raw
+// policy (bypassing the adapter, which coerces both org_ids to the
+// caller's) and proves the rule denies cross-org access at the policy
+// level.
+func TestPolicy_AdminIsOrgScoped(t *testing.T) {
+	raw, err := os.ReadFile(repoRootPolicyPath(t))
+	require.NoError(t, err)
+	ps, err := cedar.NewPolicySetFromBytes("policy.cedar", raw)
+	require.NoError(t, err)
+
+	admin := types.NewEntityUID("Role", "admin")
+	resource := types.NewEntityUID("Resource", "")
+	build := func(pOrg, rOrg string) cedar.EntityMap {
+		return cedar.EntityMap{
+			admin:    types.Entity{UID: admin, Attributes: types.NewRecord(types.RecordMap{"org_id": types.String(pOrg)})},
+			resource: types.Entity{UID: resource, Attributes: types.NewRecord(types.RecordMap{"org_id": types.String(rOrg)})},
+		}
+	}
+	req := cedar.Request{Principal: admin, Action: types.NewEntityUID("Action", "AnythingAtAll"), Resource: resource, Context: types.NewRecord(types.RecordMap{})}
+
+	allow, _ := ps.IsAuthorized(build("org-1", "org-1"), req)
+	assert.True(t, bool(allow), "admin permitted within their own org")
+	deny, _ := ps.IsAuthorized(build("org-1", "other-org"), req)
+	assert.False(t, bool(deny), "admin denied on another org's resource — the platform-admin escape hatch is closed")
+}
