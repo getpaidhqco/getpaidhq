@@ -172,6 +172,54 @@ func TestOrderHandler_List(t *testing.T) {
 	assert.Equal(t, 5, got.Meta.Limit)
 }
 
+func TestOrderHandler_CompleteOrder(t *testing.T) {
+	// Order must be pending and have a known payment method on the customer.
+	orderRepo := &fakeOrderRepo{byId: domain.Order{
+		OrgId: "org_1", Id: "ord_1", Status: domain.OrderStatusPending, CustomerId: "cus_1",
+	}}
+	custRepo := &fakeCustomerRepo{
+		paymentMethod: domain.PaymentMethod{Id: "pm_1"},
+	}
+	subRepo := &fakeSubRepo{byOrderId: []domain.Subscription{
+		{OrgId: "org_1", Id: "sub_1", Status: domain.SubscriptionStatusPending},
+	}}
+	engine := &recordingEngine{}
+	h := newOrderHandlerForTest(t,
+		orderRepo, custRepo, subRepo, &fakeCartRepo{},
+		&fakeProductRepo{}, &fakePriceRepo{}, &fakePaymentMethodRepo{}, &fakePaymentRepo{},
+		&fakeSessionRepo{}, engine,
+	)
+
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/orders/ord_1/complete", CompleteOrderRequest{
+		PaymentMethodId: "pm_1",
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.NotEmpty(t, engine.started, "completing an order with a payment method must start the subscription workflow")
+}
+
+func TestOrderHandler_CompleteOrder_InvalidCompletedAt(t *testing.T) {
+	orderRepo := &fakeOrderRepo{byId: domain.Order{Id: "ord_1", Status: domain.OrderStatusPending}}
+	h := newOrderHandlerForTest(t,
+		orderRepo, &fakeCustomerRepo{}, &fakeSubRepo{}, &fakeCartRepo{},
+		&fakeProductRepo{}, &fakePriceRepo{}, &fakePaymentMethodRepo{}, &fakePaymentRepo{},
+		&fakeSessionRepo{}, &recordingEngine{},
+	)
+
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/orders/ord_1/complete", CompleteOrderRequest{
+		PaymentMethodId: "pm_1",
+		Payment:         CompleteOrderRequestPayment{CompletedAt: "not-an-rfc3339"},
+	})
+
+	assertErrorEnvelope(t, rec, http.StatusUnprocessableEntity, string(lib.ValidationError))
+}
+
 func TestOrderHandler_ListSubscriptions(t *testing.T) {
 	// authz: owner has no "ListOrderSubscriptions" permit; admin does (via the
 	// unconditional admin rule).

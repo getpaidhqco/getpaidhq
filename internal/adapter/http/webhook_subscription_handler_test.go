@@ -7,7 +7,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/service"
 	"getpaidhq/internal/lib"
 )
@@ -81,5 +80,4 @@ func TestWebhookSubscriptionHandler_Create_Validation(t *testing.T) {
 	// Fuego rejects the body before the handler runs.
 	assert.GreaterOrEqual(t, rec.Code, 400)
 	assert.Less(t, rec.Code, 500)
-	_ = domain.WebhookSubscription{} // keep the import to avoid unused error
 }

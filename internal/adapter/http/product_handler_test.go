@@ -180,6 +180,93 @@ func TestProductHandler_VariantRoutes(t *testing.T) {
 	})
 }
 
+func TestProductHandler_Update(t *testing.T) {
+	prod := &fakeProductRepo{byId: domain.Product{Id: "prod_1", Name: "Old"}}
+	h := newProductHandlerForTest(t, prod, &fakeVariantRepo{}, &fakePriceRepo{}, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPatch, "/api/products/prod_1", domain.UpdateProductInput{Name: "New"})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.Len(t, prod.updated, 1)
+	assert.Equal(t, "New", prod.updated[0].Name)
+}
+
+func TestProductHandler_CreateVariant(t *testing.T) {
+	variant := &fakeVariantRepo{}
+	h := newProductHandlerForTest(t, &fakeProductRepo{}, variant, &fakePriceRepo{}, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/products/prod_1/variants", domain.CreateVariantInput{Name: "Yearly"})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.Len(t, variant.created, 1)
+}
+
+func TestProductHandler_ListVariants(t *testing.T) {
+	variant := &fakeVariantRepo{listResult: []domain.Variant{{Id: "var_1"}, {Id: "var_2"}}}
+	h := newProductHandlerForTest(t, &fakeProductRepo{}, variant, &fakePriceRepo{}, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodGet, "/api/products/prod_1/variants", nil)
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+}
+
+func TestProductHandler_UpdateVariant(t *testing.T) {
+	variant := &fakeVariantRepo{byId: domain.Variant{Id: "var_1"}}
+	h := newProductHandlerForTest(t, &fakeProductRepo{}, variant, &fakePriceRepo{}, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPut, "/api/variants/var_1", domain.UpdateVariantInput{Name: "Yearly"})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+}
+
+func TestProductHandler_DeleteVariant(t *testing.T) {
+	h := newProductHandlerForTest(t, &fakeProductRepo{}, &fakeVariantRepo{}, &fakePriceRepo{}, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodDelete, "/api/variants/var_1", nil)
+
+	require.Equal(t, http.StatusNoContent, rec.Code, "body=%s", rec.Body.String())
+}
+
+func TestProductHandler_UpdatePrice(t *testing.T) {
+	price := &fakePriceRepo{byId: domain.Price{Id: "price_1"}}
+	h := newProductHandlerForTest(t, &fakeProductRepo{}, &fakeVariantRepo{}, price, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPatch, "/api/prices/price_1", CreatePriceRequest{
+		VariantId: "var_1", Category: "one_time", Scheme: "fixed", Currency: "USD", UnitPrice: 200,
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+}
+
+func TestProductHandler_DeletePrice(t *testing.T) {
+	h := newProductHandlerForTest(t, &fakeProductRepo{}, &fakeVariantRepo{}, &fakePriceRepo{}, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodDelete, "/api/prices/price_1", nil)
+
+	require.Equal(t, http.StatusNoContent, rec.Code, "body=%s", rec.Body.String())
+}
+
 func TestProductHandler_PriceRoutes(t *testing.T) {
 	price := &fakePriceRepo{byId: domain.Price{Id: "price_1", UnitPrice: 1500}}
 	h := newProductHandlerForTest(t, &fakeProductRepo{}, &fakeVariantRepo{}, price, &fakeCartRepo{})
