@@ -74,10 +74,12 @@ func NewApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	reportDB, err := postgres.NewDatabase(env.Get("REPORTING_DATABASE_URL"), logger)
-	if err != nil {
-		reportDB = db
-	}
+
+	// Reporting persistence has been intentionally torn down — the
+	// previous implementation was incoherent with the Prisma reporting
+	// schema (see internal/adapter/postgres/report_repo.go). When it is
+	// revived, open REPORTING_DATABASE_URL here and wire NewReportRepo
+	// into the new service / handler.
 
 	txManager := postgres.NewTxManager(db)
 
@@ -102,7 +104,6 @@ func NewApp() (*App, error) {
 	idempotencyRepo := postgres.NewIdempotencyKeyRepo(db)
 	pspRepo := postgres.NewPspRepo(db)
 	metadataRepo := postgres.NewMetadataStoreRepo(db)
-	reportRepo := postgres.NewReportRepo(reportDB)
 	dunningRepo := postgres.NewDunningRepo(db)
 
 	// ---------------------------------------------------------------------------
@@ -202,13 +203,6 @@ func NewApp() (*App, error) {
 	orgService := service.NewOrgService(orgRepo, pubsub, clerkProvider, customerRepo, settingRepo, metadataRepo, apiKeyRepo, logger, env.ApiKeyPepper)
 	pspService := service.NewPspService(pspRepo, settingRepo, logger, pubsub)
 	webhookService := service.NewWebhookService(logger, gatewayFactory, engine, idempotencyRepo, subRepo)
-	reportService, err := service.NewReportService(logger, reportRepo, scheduler, orgRepo)
-	if err != nil {
-		return nil, err
-	}
-	if _, err := service.NewReportEventBridge(logger, pubsub, reportRepo); err != nil {
-		return nil, err
-	}
 	metadataService := service.NewMetadataService(metadataRepo, logger)
 
 	_ = metadataService
@@ -229,7 +223,6 @@ func NewApp() (*App, error) {
 		Webhook:       handler.NewWebhookHandler(webhookService, logger),
 		WebhookSub:    handler.NewWebhookSubscriptionHandler(webhookSubService, logger, authzEngine),
 		Org:           handler.NewOrgHandler(orgService, logger),
-		Report:        handler.NewReportHandler(reportService, logger),
 		Psp:           handler.NewPspHandler(pspService, logger, authzEngine),
 		PaymentMethod: handler.NewPaymentMethodHandler(customerHandler),
 		Dunning:       handler.NewDunningHandler(dunningOrchestrationService, subService, logger, authzEngine, trustedProxies),
