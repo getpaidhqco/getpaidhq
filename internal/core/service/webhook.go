@@ -2,7 +2,7 @@ package service
 
 import (
 	"context"
-	"crypto/md5"
+	"crypto/sha256"
 	"encoding/hex"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
@@ -34,56 +34,105 @@ func NewWebhookService(
 	}
 }
 
-// HandlePaymentWebhook parses a payment webhook and checks if it is valid. If valid, it publishes
-// a payment event to the event bus.
+// HandlePaymentWebhook validates, parses, and dispatches a PSP webhook.
+//
+// Idempotency model (CHANGED — read carefully):
+//
+//	The idempotency key is CLAIMED before any side effect. If we lose the
+//	race to a concurrent retry, we short-circuit and the caller sees a
+//	clean 200 — exactly what an "already processed" delivery should
+//	produce. If we DO win the claim but then any downstream step fails,
+//	we RELEASE the key (best-effort delete) so the PSP's retry can run
+//	the work — otherwise a transient downstream failure would silently
+//	drop the event.
+//
+// Hash:
+//
+//	SHA-256 of "<psp>:<raw-body>". Including the PSP namespaces by
+//	provider so two PSPs sending identical JSON shapes can't collide.
+//	(MD5 was previously used here; collisions are cheap to construct.)
 func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.PaymentWebhookPayload) error {
-	s.logger.Infof("HandlePaymentWebhook: %s", payload.Data)
+	// Don't log the raw payload — webhooks carry customer PII and PSP-
+	// side payment metadata that would put log aggregation in PCI scope.
+	s.logger.Info("HandlePaymentWebhook", "psp", payload.Psp, "size", len(payload.Data))
 
-	hash := md5.Sum([]byte(payload.Data))
+	hash := sha256.Sum256([]byte(string(payload.Psp) + ":" + payload.Data))
 	hashHex := hex.EncodeToString(hash[:])
-	// Check if the idempotency key already exists
-	exists, err := s.idempotencyRepo.Exists(ctx, hashHex)
+
+	// Claim FIRST. ON CONFLICT DO NOTHING in the repo turns the
+	// concurrent-retry case into a clean "claimed=false" rather than a
+	// 500 to the PSP.
+	claimed, err := s.idempotencyRepo.Claim(ctx, hashHex, time.Now().Add(24*time.Hour))
 	if err != nil {
-		s.logger.Errorf("failed to check idempotency key: %s", err.Error())
-		return lib.NewCustomError(lib.InternalError, "failed to check idempotency key", err)
+		s.logger.Error("idempotency claim failed", "err", err.Error())
+		return lib.NewCustomError(lib.InternalError, "idempotency claim failed", err)
 	}
-	if exists {
-		s.logger.Info("Webhook already processed")
+	if !claimed {
+		// Already processed by a sibling delivery; nothing to do.
+		s.logger.Info("webhook already processed (idempotency hit)")
 		return nil
+	}
+
+	// From here on, on any error we RELEASE the claim so the PSP's retry
+	// can run the work. Without this, a flaky downstream would drop the
+	// event silently after we'd already taken the key.
+	release := func(reason string, cause error) error {
+		if relErr := s.idempotencyRepo.Release(ctx, hashHex); relErr != nil {
+			s.logger.Error("idempotency release failed (event will be re-tried by PSP only if our row TTLs out)",
+				"key", hashHex, "err", relErr.Error())
+		}
+		return lib.NewCustomError(lib.InternalError, reason, cause)
 	}
 
 	parser := s.gatewayFactory.NewWebhookParser(payload.Psp)
 	if parser == nil {
-		s.logger.Error("failed to create webhook parser")
-		return lib.NewCustomError(lib.InternalError, "failed to create webhook parser", err)
+		s.logger.Error("no webhook parser registered", "psp", payload.Psp)
+		return release("no webhook parser registered for psp", nil)
 	}
 
-	err = parser.ValidateWebhook(ctx, []byte(payload.Data))
-	if err != nil {
-		s.logger.Error("Failed to validate webhook", err.Error())
-		return lib.NewCustomError(lib.InternalError, "Failed to validate webhook", err)
+	if err := parser.ValidateWebhook(ctx, []byte(payload.Data), payload.Signature); err != nil {
+		// Signature failures are NOT release-worthy — a forged or
+		// mis-signed delivery should not be retried by us; the PSP will
+		// stop retrying once it sees the 4xx we surface upstream. But we
+		// also can't tell here whether the parser returns "signature bad"
+		// vs "transient infra error", so be conservative: release so the
+		// PSP's retry gets through if the cause was transient. A forged
+		// payload would just fail validation again and the PSP would
+		// stop on its own backoff.
+		s.logger.Error("webhook validation failed", "err", err.Error())
+		return release("webhook validation failed", err)
 	}
 
 	webhook, err := parser.ParseWebhook(ctx, []byte(payload.Data))
 	if err != nil {
-		s.logger.Error("failed to parse webhook", "err", err.Error())
-		return lib.NewCustomError(lib.InternalError, "failed to parse webhook", err)
+		s.logger.Error("webhook parse failed", "err", err.Error())
+		return release("webhook parse failed", err)
 	}
 
-	s.logger.Infof("Webhook parsed [%s][%s][%s][%s]", webhook.OrgId, webhook.OrderId, webhook.Psp, webhook.Type)
+	s.logger.Info("webhook parsed",
+		"orgId", webhook.OrgId, "orderId", webhook.OrderId,
+		"psp", webhook.Psp, "type", webhook.Type)
 
 	switch webhook.Type {
 	case domain.PaymentSuccess:
-		// start workflow
-		s.workflowEngine.StartWorkflow(ctx, port.WorkflowPaymentSuccess, webhook)
+		// Engine errors propagate — previously this call's return values
+		// were discarded, so engine outages would silently drop the
+		// payment-success event. The PSP's retry is our safety net.
+		if _, err := s.workflowEngine.StartWorkflow(ctx, port.WorkflowPaymentSuccess, webhook); err != nil {
+			s.logger.Error("StartWorkflow(PaymentSuccess) failed", "err", err.Error())
+			return release("failed to start payment-success workflow", err)
+		}
 	case domain.RecurringSuccess:
 		subs, err := s.subscriptionRepository.FindByOrderId(ctx, webhook.OrgId, webhook.OrderId)
 		if err != nil {
-			s.logger.Error("Failed to get subscriptions", err.Error())
-			return err
+			s.logger.Error("FindByOrderId failed", "err", err.Error())
+			return release("failed to load subscription for recurring charge", err)
 		}
 		if len(subs) == 0 {
-			s.logger.Error("No subscriptions found for order")
+			// No subscription means no signal to deliver. This is not an
+			// error condition — the order may have already terminated.
+			// Keep the claim so PSP retries don't reprocess.
+			s.logger.Warn("no subscriptions found for recurring charge", "orgId", webhook.OrgId, "orderId", webhook.OrderId)
 			return nil
 		}
 		subscription := subs[0]
@@ -92,8 +141,6 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.
 			Psp:         domain.Gateway(payload.Psp),
 			Amount:      webhook.Payment.Amount,
 			Status:      domain.PaymentStatusSucceeded,
-			ErrorReason: "",
-			ErrorCode:   "",
 			Currency:    webhook.Payment.Currency,
 			PspId:       webhook.Payment.PspId,
 			Reference:   webhook.Payment.Reference,
@@ -101,33 +148,31 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.
 			RawData:     string(webhook.RawData),
 		}
 
-		// signal the workflow
-		err = s.workflowEngine.SignalSubscriptionWorkflow(ctx, "webhook-signal", subscription, chargeResult)
+		if err := s.workflowEngine.SignalSubscriptionWorkflow(ctx, "webhook-signal", subscription, chargeResult); err != nil {
+			s.logger.Error("SignalSubscriptionWorkflow failed", "err", err.Error())
+			return release("failed to signal subscription workflow", err)
+		}
 
 	case domain.PaymentRefunded:
-		// start workflow
-		_, err := s.workflowEngine.StartWorkflow(ctx, port.WorkflowPaymentRefunded, webhook)
-		if err != nil {
-			s.logger.Errorf("Failed to start workflow %v", err.Error())
-			return err
+		if _, err := s.workflowEngine.StartWorkflow(ctx, port.WorkflowPaymentRefunded, webhook); err != nil {
+			s.logger.Error("StartWorkflow(PaymentRefunded) failed", "err", err.Error())
+			return release("failed to start payment-refunded workflow", err)
 		}
 	default:
-		s.logger.Info("Unknown webhook type", "type", webhook.Type)
-
+		// Unknown types are explicitly idempotency-claimed so a noisy PSP
+		// can't reprocess the same unknown event forever.
+		s.logger.Info("unknown webhook type", "type", webhook.Type)
 	}
 
-	// Store the idempotency key
-	err = s.idempotencyRepo.Create(ctx, hashHex, time.Now().Add(24*time.Hour))
-	if err != nil {
-		s.logger.Errorf("failed to store idempotency key: %s", err.Error())
-		return lib.NewCustomError(lib.InternalError, "failed to store idempotency key", err)
-	}
 	return nil
 }
 
 // HandleAuthnWebhook processes an authentication webhook and logs the provider and data.
 func (s *WebhookService) HandleAuthnWebhook(ctx context.Context, payload port.AuthnWebhookPayload) error {
-	s.logger.Infof("HandleAuthnWebhook: Provider=%s, Data=%s", payload.Provider, payload.Data)
+	// Authn webhooks (Clerk / Cognito) carry user identifiers and event
+	// metadata — logging the raw payload at INFO would put PII in log
+	// aggregation. Log only the routing fields.
+	s.logger.Info("HandleAuthnWebhook", "provider", payload.Provider, "size", len(payload.Data))
 
 	// Add your business logic here, e.g., validating the payload or triggering workflows.
 

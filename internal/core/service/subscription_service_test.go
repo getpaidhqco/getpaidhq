@@ -36,7 +36,11 @@ func newSubscriptionService(subRepo port.SubscriptionRepository, setting port.Se
 	if ps == nil {
 		ps = &recordingPubSub{}
 	}
-	return NewSubscriptionService(nil, setting, nil, subRepo, customer, order, payment, nil, ps, lib.ErrorReporter{}, silentLogger{})
+	svc, err := NewSubscriptionService(nil, setting, nil, subRepo, customer, order, payment, nil, ps, lib.ErrorReporter{}, silentLogger{}, nil)
+	if err != nil {
+		panic(err)
+	}
+	return svc
 }
 
 func TestSubscriptionService_Create(t *testing.T) {

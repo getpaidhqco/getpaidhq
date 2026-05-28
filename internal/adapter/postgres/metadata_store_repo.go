@@ -22,7 +22,7 @@ func (r *MetadataStoreRepo) FindByKey(ctx context.Context, orgId string, parentI
 		Scopes(OrgScope(orgId)).
 		Where("parent_id = ? AND key = ?", parentId, key).
 		First(&meta).Error
-	return meta, err
+	return meta, translateErr(err)
 }
 
 func (r *MetadataStoreRepo) FindByParent(ctx context.Context, orgId string, parentId string) ([]domain.MetadataStore, error) {

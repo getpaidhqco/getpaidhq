@@ -122,7 +122,11 @@ func newDunningOrchestration(dr *fakeDunningRepo, sr *fakeSubRepo, cr *fakeCusto
 	// CreateCampaign validates the subscription + customer exist, so the narrow
 	// service needs both repos wired.
 	narrow := NewDunningService(dr, sr, cr, nil, nil, nil, ps, lib.ErrorReporter{}, silentLogger{})
-	return NewDunningOrchestrationService(narrow, eng, ps, lib.ErrorReporter{}, silentLogger{})
+	svc, err := NewDunningOrchestrationService(narrow, eng, ps, lib.ErrorReporter{}, silentLogger{})
+	if err != nil {
+		panic(err)
+	}
+	return svc
 }
 
 func TestDunningOrchestration_StartCreatesCampaignAndStoresHandles(t *testing.T) {

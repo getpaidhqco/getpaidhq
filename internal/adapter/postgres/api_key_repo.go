@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"gorm.io/gorm"
+
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 )
@@ -22,15 +23,23 @@ func (r *ApiKeyRepo) FindById(ctx context.Context, orgId string, id string) (dom
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&key).Error
-	return key, err
+	return key, translateErr(err)
 }
 
-func (r *ApiKeyRepo) FindByKey(ctx context.Context, key string) (domain.ApiKey, error) {
+// FindByKey looks up an API key by its HMAC hash. The caller (apikey
+// authn middleware) is responsible for hashing the raw key with the
+// configured pepper before calling — see lib.HashApiKey. The lookup
+// hits the unique index on key_hash, so existence-vs-absence does NOT
+// leak a timing difference from a row scan.
+//
+// The argument is named `keyHash` (not `key`) so call sites can't
+// accidentally pass the raw secret here.
+func (r *ApiKeyRepo) FindByKey(ctx context.Context, keyHash string) (domain.ApiKey, error) {
 	var apiKey domain.ApiKey
 	err := dbFromCtx(ctx, r.db).
-		Where("key = ?", key).
+		Where("key_hash = ?", keyHash).
 		First(&apiKey).Error
-	return apiKey, err
+	return apiKey, translateErr(err)
 }
 
 func (r *ApiKeyRepo) Create(ctx context.Context, entity domain.ApiKey) (domain.ApiKey, error) {

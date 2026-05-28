@@ -23,17 +23,21 @@ type ReportEventBridge struct {
 	reportRepo port.ReportRepository
 }
 
+// NewReportEventBridge subscribes the reporting bridge to operational
+// topics. Returns an error from the first failed Subscribe rather than
+// panicking — see SubscriptionEventBridge for the same reasoning.
 func NewReportEventBridge(
 	logger port.Logger,
 	pubsub port.PubSub,
 	reportRepo port.ReportRepository,
-) *ReportEventBridge {
+) (*ReportEventBridge, error) {
 	b := &ReportEventBridge{
 		logger:     logger,
 		pubsub:     pubsub,
 		reportRepo: reportRepo,
 	}
 
+	wrapped := safePubSubHandler(logger, "ReportEventBridge", b.Handle)
 	patterns := []string{
 		"subscription.>",
 		"payment.>",
@@ -42,12 +46,11 @@ func NewReportEventBridge(
 	}
 	for _, p := range patterns {
 		logger.Debugf("[ReportEventBridge] subscribing to [%s]", p)
-		if _, err := pubsub.Subscribe(p, b.Handle); err != nil {
-			logger.Error("Failed to subscribe to topic", "topic", p, "error", err.Error())
-			panic(err)
+		if _, err := pubsub.Subscribe(p, wrapped); err != nil {
+			return nil, err
 		}
 	}
-	return b
+	return b, nil
 }
 
 func (b *ReportEventBridge) Handle(topic string, data []byte) {

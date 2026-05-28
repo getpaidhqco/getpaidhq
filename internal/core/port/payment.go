@@ -20,9 +20,12 @@ type PaymentGatewayConfig interface {
 	Validate() error
 }
 
-// WebhookParser validates and parses incoming payment webhooks.
+// WebhookParser validates and parses incoming payment webhooks. The
+// `signature` argument carries the PSP-provided HMAC of the raw body
+// (e.g. X-Paystack-Signature, Cko-Signature); implementations MUST
+// verify it constant-time before considering the body authentic.
 type WebhookParser interface {
-	ValidateWebhook(ctx context.Context, data []byte) error
+	ValidateWebhook(ctx context.Context, data []byte, signature string) error
 	ParseWebhook(ctx context.Context, data []byte) (PaymentWebhookContext, error)
 }
 
@@ -148,8 +151,13 @@ type GatewayAdapter interface {
 
 // PaymentWebhookPayload wraps a payment webhook for processing.
 type PaymentWebhookPayload struct {
-	Psp  domain.Gateway `json:"psp"`
-	Data string         `json:"data"`
+	Psp domain.Gateway `json:"psp"`
+	// Signature is the PSP-supplied HMAC of the raw body, taken from
+	// the request header that PSP uses (X-Paystack-Signature for
+	// Paystack, Cko-Signature for Checkout.com, etc). Passing it
+	// here means the parser doesn't need access to the HTTP request.
+	Signature string `json:"signature"`
+	Data      string `json:"data"`
 }
 
 // AuthnWebhookPayload wraps an authentication webhook for processing.

@@ -45,7 +45,7 @@ type fakeWebhookParser struct {
 	bodySeen    []byte
 }
 
-func (p *fakeWebhookParser) ValidateWebhook(_ context.Context, data []byte) error {
+func (p *fakeWebhookParser) ValidateWebhook(_ context.Context, data []byte, _ string) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.bodySeen = append([]byte(nil), data...)
@@ -94,12 +94,16 @@ func TestWebhookHandler_Process(t *testing.T) {
 		require.Equal(t, http.StatusOK, rec.Code, "webhook always returns 200")
 		assert.Contains(t, rec.Body.String(), `"success"`)
 		assert.Equal(t, []byte(body), parser.bodySeen, "the raw body must reach the parser unchanged")
-		assert.Len(t, idemp.created, 1, "idempotency key persisted after success")
+		assert.Len(t, idemp.created, 1, "idempotency key claimed and retained after success")
+		assert.Empty(t, idemp.released, "successful processing must not release the claim")
 	})
 
-	t.Run("tampered body — parser rejects validate — webhook still returns 200 but workflow not started", func(t *testing.T) {
+	t.Run("tampered body — parser rejects validate — webhook still returns 200, claim released for PSP retry", func(t *testing.T) {
 		// The endpoint is designed to always return 200 so PSPs don't retry,
-		// but a tampered body must NOT proceed to start a workflow.
+		// but a tampered body must NOT proceed to start a workflow. The
+		// claim was taken before validation; on failure we release it so a
+		// PSP retry (with a correctly-signed body, or after the transient
+		// error clears) can run the work.
 		parser := &fakeWebhookParser{validateErr: errors.New("bad signature")}
 		idemp := &fakeIdempRepo{}
 		engine := &recordingEngine{}
@@ -111,7 +115,8 @@ func TestWebhookHandler_Process(t *testing.T) {
 		rec := doRaw(t, ts, http.MethodPost, "/api/notify?p=paystack", `{"tampered":true}`)
 
 		require.Equal(t, http.StatusOK, rec.Code)
-		assert.Empty(t, idemp.created, "no idempotency key on validation failure")
+		assert.Len(t, idemp.created, 1, "claim is taken before validation; release reverses it")
+		assert.Len(t, idemp.released, 1, "validation failure releases the claim")
 	})
 
 	t.Run("unknown psp — no parser available — webhook still returns 200", func(t *testing.T) {

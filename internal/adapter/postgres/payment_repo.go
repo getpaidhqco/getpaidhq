@@ -22,7 +22,7 @@ func (r *PaymentRepo) FindById(ctx context.Context, orgId string, id string) (do
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&payment).Error
-	return payment, err
+	return payment, translateErr(err)
 }
 
 func (r *PaymentRepo) FindByPspId(ctx context.Context, orgId string, id string) (domain.Payment, error) {
@@ -31,7 +31,7 @@ func (r *PaymentRepo) FindByPspId(ctx context.Context, orgId string, id string) 
 		Scopes(OrgScope(orgId)).
 		Where("psp_id = ?", id).
 		First(&payment).Error
-	return payment, err
+	return payment, translateErr(err)
 }
 
 func (r *PaymentRepo) ListByPspId(ctx context.Context, psp domain.Gateway, pspId string) ([]domain.Payment, error) {
@@ -84,5 +84,5 @@ func (r *PaymentRepo) CreateRefund(ctx context.Context, refund domain.Refund) (d
 	err = dbFromCtx(ctx, r.db).
 		Where("id = ?", refund.Id).
 		First(&created).Error
-	return created, err
+	return created, translateErr(err)
 }

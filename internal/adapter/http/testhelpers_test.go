@@ -824,6 +824,10 @@ func (r *fakeSubRepo) FindById(context.Context, string, string) (domain.Subscrip
 	return r.byId, nil
 }
 
+func (r *fakeSubRepo) FindByIdForUpdate(ctx context.Context, orgId, id string) (domain.Subscription, error) {
+	return r.FindById(ctx, orgId, id)
+}
+
 func (r *fakeSubRepo) Create(_ context.Context, s domain.Subscription) (domain.Subscription, error) {
 	r.created = append(r.created, s)
 	return s, nil
@@ -886,20 +890,31 @@ func (r *fakeWhSubRepo) Create(_ context.Context, w domain.WebhookSubscription) 
 	return w, nil
 }
 
-// fakeIdempRepo satisfies port.IdempotencyKeyRepository.
+// fakeIdempRepo satisfies port.IdempotencyKeyRepository for the new
+// Claim/Release contract. `exists` controls who wins the claim: when
+// true, this fake represents a sibling delivery that already owns the
+// row, so Claim returns false (and the caller short-circuits).
 type fakeIdempRepo struct {
 	port.IdempotencyKeyRepository
 	exists    bool
 	existsErr error
 	created   []string
+	released  []string
 }
 
-func (r *fakeIdempRepo) Exists(_ context.Context, _ string) (bool, error) {
-	return r.exists, r.existsErr
-}
-
-func (r *fakeIdempRepo) Create(_ context.Context, key string, _ time.Time) error {
+func (r *fakeIdempRepo) Claim(_ context.Context, key string, _ time.Time) (bool, error) {
+	if r.existsErr != nil {
+		return false, r.existsErr
+	}
+	if r.exists {
+		return false, nil
+	}
 	r.created = append(r.created, key)
+	return true, nil
+}
+
+func (r *fakeIdempRepo) Release(_ context.Context, key string) error {
+	r.released = append(r.released, key)
 	return nil
 }
 

@@ -19,6 +19,18 @@ type Env struct {
 	JWTSecret      string `mapstructure:"JWT_SECRET"`
 	PaystackSecret string `mapstructure:"PAYSTACK_SECRET"`
 
+	// CheckoutWebhookSecret is the HMAC-SHA256 signing key configured
+	// in the Checkout.com merchant dashboard for webhook delivery. The
+	// Cko-Signature header carries the signature of the raw body
+	// signed with this secret.
+	CheckoutWebhookSecret string `mapstructure:"CHECKOUT_WEBHOOK_SECRET"`
+
+	// ApiKeyPepper is the server-side secret used to HMAC API keys
+	// before storage. Without it a DB compromise would expose every
+	// key in plaintext; with it the attacker also needs the pepper
+	// (a separate compromise) to use the leaked hashes.
+	ApiKeyPepper string `mapstructure:"API_KEY_PEPPER"`
+
 	// NatsURL is the external NATS server the pubsub adapter connects to.
 	NatsURL string `mapstructure:"NATS_URL"`
 
@@ -42,6 +54,13 @@ type Env struct {
 	// AllowedOrigins is a comma-separated list of CORS origins. When empty,
 	// only same-origin requests succeed; "*" enables open CORS (dev only).
 	AllowedOrigins string `mapstructure:"ALLOWED_ORIGINS"`
+
+	// TrustedProxies is a comma-separated list of CIDR blocks whose
+	// requests are allowed to set X-Forwarded-For / X-Real-IP. When
+	// empty, those headers are IGNORED and RemoteAddr is the source of
+	// truth — anything else is a forge attempt. Set to your load
+	// balancer / WAF CIDR in prod (e.g. "10.0.0.0/8,127.0.0.1/32").
+	TrustedProxies string `mapstructure:"TRUSTED_PROXIES"`
 }
 
 // NewEnv creates a new environment
@@ -73,6 +92,8 @@ func NewEnv() Env {
 	viper.BindEnv("CEDAR_POLICY")
 	viper.BindEnv("JWT_SECRET")
 	viper.BindEnv("PAYSTACK_SECRET")
+	viper.BindEnv("CHECKOUT_WEBHOOK_SECRET")
+	viper.BindEnv("API_KEY_PEPPER")
 	viper.BindEnv("COGNITO_CLIENT_ID")
 	viper.BindEnv("COGNITO_POOL_ID")
 	viper.BindEnv("COGNITO_REGION")
@@ -87,6 +108,7 @@ func NewEnv() Env {
 	viper.BindEnv("TEMPORAL_TASK_QUEUE")
 	viper.BindEnv("NATS_URL")
 	viper.BindEnv("ALLOWED_ORIGINS")
+	viper.BindEnv("TRUSTED_PROXIES")
 	err = viper.Unmarshal(&env)
 	if err != nil {
 		log.Println("☠️ cannot read configuration file, reading from environment")

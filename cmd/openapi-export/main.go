@@ -36,7 +36,7 @@ func main() {
 		Report:        handler.NewReportHandler(nil, logger),
 		Psp:           handler.NewPspHandler(nil, logger, nil),
 		PaymentMethod: handler.NewPaymentMethodHandler(customer),
-		Dunning:       handler.NewDunningHandler(nil, nil, logger, nil),
+		Dunning:       handler.NewDunningHandler(nil, nil, logger, nil, nil),
 	}
 
 	server := config.BuildServer(config.ServerDeps{

@@ -9,11 +9,15 @@ import (
 
 // Adapter implements port.GatewayAdapter for Checkout.com.
 type Adapter struct {
-	logger port.Logger
+	logger        port.Logger
+	webhookSecret string
 }
 
-func NewAdapter(logger port.Logger) *Adapter {
-	return &Adapter{logger: logger}
+// NewAdapter wires the Checkout.com adapter. webhookSecret is the
+// HMAC-SHA256 signing key from the Checkout.com dashboard. Empty
+// secret = fail-closed (every webhook rejected).
+func NewAdapter(logger port.Logger, webhookSecret string) *Adapter {
+	return &Adapter{logger: logger, webhookSecret: webhookSecret}
 }
 
 func (a *Adapter) CreateGateway(settingsJSON string) (domain.GatewayProvider, error) {
@@ -28,5 +32,5 @@ func (a *Adapter) CreateGateway(settingsJSON string) (domain.GatewayProvider, er
 }
 
 func (a *Adapter) CreateWebhookParser() domain.WebhookParser {
-	return NewWebhookParser(a.logger)
+	return NewWebhookParser(a.logger, a.webhookSecret)
 }

@@ -13,23 +13,32 @@ import (
 	"getpaidhq/internal/core/port"
 )
 
-// fakeIdempotencyRepo records idempotency-key writes and answers Exists.
+// fakeIdempotencyRepo models the Claim/Release atomic pair the new
+// repository contract exposes. `claimAvailable` controls whether the
+// first Claim wins (`true` — caller proceeds) or loses to a sibling
+// delivery (`false` — caller short-circuits).
 type fakeIdempotencyRepo struct {
-	exists    bool
-	existsErr error
-	createErr error
-	createdN  int
+	claimAvailable bool
+	claimErr       error
+	releaseErr     error
+
+	claims     int
+	released   int
+	releaseKey string
 }
 
-func (r *fakeIdempotencyRepo) Exists(_ context.Context, _ string) (bool, error) {
-	return r.exists, r.existsErr
-}
-func (r *fakeIdempotencyRepo) Create(_ context.Context, _ string, _ time.Time) error {
-	if r.createErr != nil {
-		return r.createErr
+func (r *fakeIdempotencyRepo) Claim(_ context.Context, _ string, _ time.Time) (bool, error) {
+	r.claims++
+	if r.claimErr != nil {
+		return false, r.claimErr
 	}
-	r.createdN++
-	return nil
+	return r.claimAvailable, nil
+}
+
+func (r *fakeIdempotencyRepo) Release(_ context.Context, key string) error {
+	r.released++
+	r.releaseKey = key
+	return r.releaseErr
 }
 
 // webhookEngine counts workflow starts (by type) and subscription signals so
@@ -38,6 +47,11 @@ func (r *fakeIdempotencyRepo) Create(_ context.Context, _ string, _ time.Time) e
 type webhookEngine struct {
 	startedWorkflows map[port.WorkflowType]int
 	signalledSubs    int
+
+	// Failure injection — when set, the corresponding method returns
+	// this error to drive the release-on-failure paths.
+	startWorkflowErr error
+	signalErr        error
 }
 
 func newWebhookEngine() *webhookEngine {
@@ -46,7 +60,7 @@ func newWebhookEngine() *webhookEngine {
 
 func (e *webhookEngine) StartWorkflow(_ context.Context, id port.WorkflowType, _ any) (port.WorkflowResult, error) {
 	e.startedWorkflows[id]++
-	return port.WorkflowResult{}, nil
+	return port.WorkflowResult{}, e.startWorkflowErr
 }
 func (e *webhookEngine) StartSubscriptionWorkflow(context.Context, domain.Subscription) error { return nil }
 func (e *webhookEngine) UpdateSubscriptionWorkflow(context.Context, string, domain.Subscription) error {
@@ -57,7 +71,7 @@ func (e *webhookEngine) CancelSubscriptionWorkflow(context.Context, domain.Subsc
 }
 func (e *webhookEngine) SignalSubscriptionWorkflow(context.Context, string, domain.Subscription, any) error {
 	e.signalledSubs++
-	return nil
+	return e.signalErr
 }
 
 // stubParser is a configurable domain.WebhookParser used to drive the dispatch
@@ -68,7 +82,7 @@ type stubParser struct {
 	parsed      domain.PaymentWebhookContext
 }
 
-func (p stubParser) ValidateWebhook(context.Context, []byte) error { return p.validateErr }
+func (p stubParser) ValidateWebhook(context.Context, []byte, string) error { return p.validateErr }
 func (p stubParser) ParseWebhook(context.Context, []byte) (domain.PaymentWebhookContext, error) {
 	if p.parseErr != nil {
 		return domain.PaymentWebhookContext{}, p.parseErr
@@ -89,38 +103,52 @@ func newWebhookService(factory *GatewayFactory, engine port.Engine, idem port.Id
 }
 
 func TestWebhookService_HandlePaymentWebhook(t *testing.T) {
-	t.Run("already-processed webhook short-circuits without dispatch", func(t *testing.T) {
-		idem := &fakeIdempotencyRepo{exists: true}
+	t.Run("duplicate delivery (claim returns false) short-circuits without dispatch", func(t *testing.T) {
+		idem := &fakeIdempotencyRepo{claimAvailable: false}
 		engine := newWebhookEngine()
 		svc := newWebhookService(factoryWithParser(stubParser{}), engine, idem, &fakeSubRepo{})
 
 		err := svc.HandlePaymentWebhook(context.Background(), port.PaymentWebhookPayload{Psp: domain.Paystack, Data: "{}"})
 
 		require.NoError(t, err)
-		assert.Equal(t, 0, idem.createdN, "no key written on a duplicate")
+		assert.Equal(t, 1, idem.claims, "claim attempted exactly once")
+		assert.Equal(t, 0, idem.released, "duplicate doesn't release — the prior delivery owns the claim")
+		assert.Equal(t, 0, len(engine.startedWorkflows), "no dispatch on duplicate")
 	})
 
-	t.Run("idempotency check failure is surfaced", func(t *testing.T) {
-		idem := &fakeIdempotencyRepo{existsErr: errors.New("redis down")}
+	t.Run("idempotency claim error is surfaced", func(t *testing.T) {
+		idem := &fakeIdempotencyRepo{claimErr: errors.New("redis down")}
 		svc := newWebhookService(factoryWithParser(stubParser{}), newWebhookEngine(), idem, &fakeSubRepo{})
 
 		err := svc.HandlePaymentWebhook(context.Background(), port.PaymentWebhookPayload{Psp: domain.Paystack, Data: "{}"})
+
 		require.Error(t, err)
 	})
 
-	t.Run("validation failure aborts before storing the key", func(t *testing.T) {
-		idem := &fakeIdempotencyRepo{}
+	t.Run("validation failure releases the claim so the PSP retry can re-run", func(t *testing.T) {
+		idem := &fakeIdempotencyRepo{claimAvailable: true}
 		parser := stubParser{validateErr: errors.New("bad signature")}
 		svc := newWebhookService(factoryWithParser(parser), newWebhookEngine(), idem, &fakeSubRepo{})
 
 		err := svc.HandlePaymentWebhook(context.Background(), port.PaymentWebhookPayload{Psp: domain.Paystack, Data: "{}"})
 
 		require.Error(t, err)
-		assert.Equal(t, 0, idem.createdN)
+		assert.Equal(t, 1, idem.released, "failed claim must be released for PSP retry to work")
 	})
 
-	t.Run("payment.success starts the payment-success workflow and stores the key", func(t *testing.T) {
-		idem := &fakeIdempotencyRepo{}
+	t.Run("parse failure releases the claim", func(t *testing.T) {
+		idem := &fakeIdempotencyRepo{claimAvailable: true}
+		parser := stubParser{parseErr: errors.New("malformed json")}
+		svc := newWebhookService(factoryWithParser(parser), newWebhookEngine(), idem, &fakeSubRepo{})
+
+		err := svc.HandlePaymentWebhook(context.Background(), port.PaymentWebhookPayload{Psp: domain.Paystack, Data: "{}"})
+
+		require.Error(t, err)
+		assert.Equal(t, 1, idem.released)
+	})
+
+	t.Run("payment.success starts the payment-success workflow and keeps the claim", func(t *testing.T) {
+		idem := &fakeIdempotencyRepo{claimAvailable: true}
 		parser := stubParser{parsed: domain.PaymentWebhookContext{Type: domain.PaymentSuccess, OrgId: "org_1", OrderId: "ord_1"}}
 		engine := newWebhookEngine()
 		svc := newWebhookService(factoryWithParser(parser), engine, idem, &fakeSubRepo{})
@@ -129,11 +157,24 @@ func TestWebhookService_HandlePaymentWebhook(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, engine.startedWorkflows[port.WorkflowPaymentSuccess], "payment-success workflow started")
-		assert.Equal(t, 1, idem.createdN, "key stored after successful processing")
+		assert.Equal(t, 0, idem.released, "successful processing keeps the claim — duplicates must short-circuit")
+	})
+
+	t.Run("payment.success engine failure surfaces the error AND releases the claim", func(t *testing.T) {
+		idem := &fakeIdempotencyRepo{claimAvailable: true}
+		parser := stubParser{parsed: domain.PaymentWebhookContext{Type: domain.PaymentSuccess, OrgId: "org_1", OrderId: "ord_1"}}
+		engine := newWebhookEngine()
+		engine.startWorkflowErr = errors.New("hatchet unreachable")
+		svc := newWebhookService(factoryWithParser(parser), engine, idem, &fakeSubRepo{})
+
+		err := svc.HandlePaymentWebhook(context.Background(), port.PaymentWebhookPayload{Psp: domain.Paystack, Data: "{}"})
+
+		require.Error(t, err, "engine failure must propagate to the PSP as a retryable error")
+		assert.Equal(t, 1, idem.released, "engine failure releases the claim so the PSP retry can re-run")
 	})
 
 	t.Run("recurring.success signals the subscription workflow for the order's first sub", func(t *testing.T) {
-		idem := &fakeIdempotencyRepo{}
+		idem := &fakeIdempotencyRepo{claimAvailable: true}
 		parser := stubParser{parsed: domain.PaymentWebhookContext{Type: domain.RecurringSuccess, OrgId: "org_1", OrderId: "ord_1"}}
 		engine := newWebhookEngine()
 		subs := &fakeSubRepo{byOrderId: []domain.Subscription{{OrgId: "org_1", Id: "sub_1"}}}
@@ -143,11 +184,25 @@ func TestWebhookService_HandlePaymentWebhook(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, engine.signalledSubs, "subscription workflow signalled")
-		assert.Equal(t, 1, idem.createdN)
+		assert.Equal(t, 0, idem.released)
 	})
 
-	t.Run("recurring.success with no subscriptions is a no-op success without storing a key", func(t *testing.T) {
-		idem := &fakeIdempotencyRepo{}
+	t.Run("recurring.success signal failure releases the claim", func(t *testing.T) {
+		idem := &fakeIdempotencyRepo{claimAvailable: true}
+		parser := stubParser{parsed: domain.PaymentWebhookContext{Type: domain.RecurringSuccess, OrgId: "org_1", OrderId: "ord_1"}}
+		engine := newWebhookEngine()
+		engine.signalErr = errors.New("engine signal failed")
+		subs := &fakeSubRepo{byOrderId: []domain.Subscription{{OrgId: "org_1", Id: "sub_1"}}}
+		svc := newWebhookService(factoryWithParser(parser), engine, idem, subs)
+
+		err := svc.HandlePaymentWebhook(context.Background(), port.PaymentWebhookPayload{Psp: domain.Paystack, Data: "{}"})
+
+		require.Error(t, err)
+		assert.Equal(t, 1, idem.released)
+	})
+
+	t.Run("recurring.success with no subscriptions retains the claim (no signal to send)", func(t *testing.T) {
+		idem := &fakeIdempotencyRepo{claimAvailable: true}
 		parser := stubParser{parsed: domain.PaymentWebhookContext{Type: domain.RecurringSuccess, OrgId: "org_1", OrderId: "ord_1"}}
 		engine := newWebhookEngine()
 		svc := newWebhookService(factoryWithParser(parser), engine, idem, &fakeSubRepo{})
@@ -156,11 +211,11 @@ func TestWebhookService_HandlePaymentWebhook(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, 0, engine.signalledSubs)
-		assert.Equal(t, 0, idem.createdN, "early return before key storage")
+		assert.Equal(t, 0, idem.released, "no work was attempted — retrying via PSP would do the same nothing")
 	})
 
 	t.Run("payment.refunded starts the refund workflow", func(t *testing.T) {
-		idem := &fakeIdempotencyRepo{}
+		idem := &fakeIdempotencyRepo{claimAvailable: true}
 		parser := stubParser{parsed: domain.PaymentWebhookContext{Type: domain.PaymentRefunded, OrgId: "org_1", OrderId: "ord_1"}}
 		engine := newWebhookEngine()
 		svc := newWebhookService(factoryWithParser(parser), engine, idem, &fakeSubRepo{})
@@ -169,7 +224,7 @@ func TestWebhookService_HandlePaymentWebhook(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, 1, engine.startedWorkflows[port.WorkflowPaymentRefunded])
-		assert.Equal(t, 1, idem.createdN)
+		assert.Equal(t, 0, idem.released)
 	})
 }
 

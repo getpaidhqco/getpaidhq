@@ -13,6 +13,7 @@ import (
 	"gorm.io/gorm"
 
 	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
 )
 
@@ -111,7 +112,7 @@ func TestSubscriptionRepo(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
 		_, err := repo.FindById(ctx, orgId, "does-not-exist")
-		assert.True(t, errors.Is(err, gorm.ErrRecordNotFound), "want ErrRecordNotFound, got %v", err)
+		assert.True(t, errors.Is(err, port.ErrNotFound), "want ErrRecordNotFound, got %v", err)
 	})
 
 	t.Run("FindByOrderId returns only matching subs", func(t *testing.T) {
@@ -170,7 +171,7 @@ func TestSubscriptionRepo(t *testing.T) {
 
 		// Same id, queried under org B -> not found.
 		_, err = repo.FindById(ctx, orgB, created.Id)
-		assert.True(t, errors.Is(err, gorm.ErrRecordNotFound), "row in org A must not be visible to org B")
+		assert.True(t, errors.Is(err, port.ErrNotFound), "row in org A must not be visible to org B")
 
 		// org B Find returns nothing.
 		subs, count, err := repo.Find(ctx, orgB, domain.Pagination{Limit: 10, SortBy: "created_at", SortDirection: "asc"})

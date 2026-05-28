@@ -18,20 +18,18 @@ func NewReportService(
 	reportRepository port.ReportRepository,
 	scheduler port.Scheduler,
 	orgRepository port.OrgRepository,
-) *ReportService {
-	service := &ReportService{
+) (*ReportService, error) {
+	svc := &ReportService{
 		logger:           logger,
 		reportRepository: reportRepository,
 		orgRepository:    orgRepository,
 	}
 
-	err := scheduler.ScheduleTask("0 1 * * *", service.StoreDailyMetrics)
-	if err != nil {
-		logger.Errorf("Failed to schedule task: %v", err)
-		panic(err)
+	if err := scheduler.ScheduleTask("0 1 * * *", svc.StoreDailyMetrics); err != nil {
+		return nil, err
 	}
 
-	return service
+	return svc, nil
 }
 
 func (s *ReportService) GetMonthlyRecurringRevenue(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error) {

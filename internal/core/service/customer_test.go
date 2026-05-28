@@ -103,7 +103,11 @@ func newCustomerService(cust port.CustomerRepository, pm port.PaymentMethodRepos
 	if ps == nil {
 		ps = &recordingPubSub{}
 	}
-	return NewCustomerService(cust, pm, ps, silentLogger{}, noopScheduler{})
+	svc, err := NewCustomerService(cust, pm, ps, silentLogger{}, noopScheduler{})
+	if err != nil {
+		panic(err) // test-only: a constructor failure here is a test bug, not a runtime path
+	}
+	return svc
 }
 
 func addressFor() domain.Address {

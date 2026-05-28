@@ -19,6 +19,7 @@ func newOrgHandlerForTest(
 	svc := service.NewOrgService(
 		orgRepo, newPubSub(), fakeAuthProvider{}, custRepo,
 		&fakeSettingRepo{}, &fakeMetadataRepo{}, apiKeyRepo, silentLogger{},
+		"test-pepper",
 	)
 	return NewOrgHandler(svc, silentLogger{})
 }

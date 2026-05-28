@@ -2,6 +2,7 @@ package config
 
 import (
 	"net/http"
+	"time"
 
 	"github.com/go-fuego/fuego"
 	"github.com/go-fuego/fuego/option"
@@ -73,6 +74,17 @@ func BuildServer(deps ServerDeps, h Handlers) *fuego.Server {
 	}
 
 	s := fuego.NewServer(opts...)
+
+	// HTTP server timeouts. Without these, slowloris-style attacks
+	// (slow header send, slow body send, slow body read) trivially
+	// exhaust the goroutine table. Fuego embeds *http.Server directly,
+	// so we set the fields after construction. Values match common
+	// reverse-proxy defaults — tune to your traffic profile if you
+	// upload large payloads.
+	s.Server.ReadHeaderTimeout = 5 * time.Second
+	s.Server.ReadTimeout = 30 * time.Second
+	s.Server.WriteTimeout = 60 * time.Second
+	s.Server.IdleTimeout = 120 * time.Second
 
 	api := fuego.Group(s, "/api", option.Tags(""))
 	registerAll(api, h)

@@ -23,7 +23,10 @@ func newCustomerHandlerForTest(
 	ps *recordingPubSub,
 ) *CustomerHandler {
 	t.Helper()
-	svc := service.NewCustomerService(custRepo, pmRepo, ps, silentLogger{}, noopScheduler{})
+	svc, err := service.NewCustomerService(custRepo, pmRepo, ps, silentLogger{}, noopScheduler{})
+	if err != nil {
+		t.Fatalf("NewCustomerService: %v", err)
+	}
 	return NewCustomerHandler(svc, silentLogger{}, newRealAuthz(t))
 }
 

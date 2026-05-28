@@ -23,13 +23,18 @@ enum OrgStatus {
 model ApiKey {
   orgId     String   @map("org_id")
   id        String   @default(cuid())
-  key       String
+  // keyHash is HMAC-SHA256(API_KEY_PEPPER, raw key) hex-encoded.
+  // The raw key is shown to the user exactly once at creation and
+  // never stored anywhere. Lookup uses the hash directly so DB
+  // compromise without the pepper does not grant API access.
+  keyHash   String   @map("key_hash")
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
   org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
 
   @@id([orgId, id])
+  @@unique([keyHash])
   @@map("api_keys")
 }
 

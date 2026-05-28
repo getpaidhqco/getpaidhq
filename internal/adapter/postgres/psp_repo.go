@@ -22,7 +22,7 @@ func (r *PspRepo) FindById(ctx context.Context, orgId string, id string) (domain
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&config).Error
-	return config, err
+	return config, translateErr(err)
 }
 
 func (r *PspRepo) Create(ctx context.Context, input domain.PspConfig) (domain.PspConfig, error) {

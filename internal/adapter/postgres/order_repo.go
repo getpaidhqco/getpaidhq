@@ -24,7 +24,7 @@ func (r *OrderRepo) FindById(ctx context.Context, orgId string, id string) (doma
 		Preload("Customer").
 		Preload("Items").
 		First(&order).Error
-	return order, err
+	return order, translateErr(err)
 }
 
 func (r *OrderRepo) Create(ctx context.Context, entity domain.Order) (domain.Order, error) {
@@ -67,7 +67,7 @@ func (r *OrderRepo) FindOrderItemById(ctx context.Context, orgId string, id stri
 		Where("id = ?", id).
 		Preload("Price").
 		First(&item).Error
-	return item, err
+	return item, translateErr(err)
 }
 
 func (r *OrderRepo) CreateOrderItem(ctx context.Context, entity domain.OrderItem) (domain.OrderItem, error) {

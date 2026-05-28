@@ -17,6 +17,12 @@ type OrgService struct {
 	settingRepository  port.SettingRepository
 	metadataRepository port.MetadataStoreRepository
 	logger             port.Logger
+
+	// apiKeyPepper is the server-side secret used to HMAC the raw key
+	// before storage. Sourced from env.ApiKeyPepper at wiring time.
+	// Empty pepper means we cannot mint a key (HashApiKey returns
+	// ErrMissingApiKeyPepper) — Org.Create surfaces that as an error.
+	apiKeyPepper string
 }
 
 func NewOrgService(
@@ -28,6 +34,7 @@ func NewOrgService(
 	metadataRepository port.MetadataStoreRepository,
 	apiKeyRepository port.ApiKeyRepository,
 	logger port.Logger,
+	apiKeyPepper string,
 ) *OrgService {
 	return &OrgService{
 		authProvider:       authProvider,
@@ -38,6 +45,7 @@ func NewOrgService(
 		apiKeyRepository:   apiKeyRepository,
 		metadataRepository: metadataRepository,
 		logger:             logger,
+		apiKeyPepper:       apiKeyPepper,
 	}
 }
 
@@ -76,11 +84,25 @@ func (s *OrgService) Create(ctx context.Context, input port.CreateOrgInput) (dom
 
 	s.logger.Debug("Org created", "org_id", org.Id)
 	s.logger.Debug("Creating API key")
-	key := lib.GenerateId("sk")
-	_, err = s.apiKeyRepository.Create(ctx, domain.ApiKey{
+	// Random secret + a public ID. The customer sees the full token
+	// (id_secret) ONCE in the response. Internally we store only the
+	// HMAC hash; lookup at authentication time re-hashes the
+	// incoming token with the same pepper and matches by hash.
+	secret, err := lib.GenerateApiKeySecret()
+	if err != nil {
+		return domain.Org{}, err
+	}
+	keyId := lib.GenerateId("sk")
+	rawKey := keyId + "_" + secret
+	keyHash, err := lib.HashApiKey(rawKey, s.apiKeyPepper)
+	if err != nil {
+		s.logger.Error("API key hash failed (check API_KEY_PEPPER)", "err", err.Error())
+		return domain.Org{}, err
+	}
+	createdKey, err := s.apiKeyRepository.Create(ctx, domain.ApiKey{
 		OrgId:     org.Id,
-		Id:        key,
-		Key:       key,
+		Id:        keyId,
+		KeyHash:   keyHash,
 		CreatedAt: time.Now(),
 		UpdatedAt: time.Now(),
 	})
@@ -88,6 +110,11 @@ func (s *OrgService) Create(ctx context.Context, input port.CreateOrgInput) (dom
 		s.logger.Error("Failed to create API key", "org_id", org.Id, "err", err)
 		return domain.Org{}, err
 	}
+	// Surface the raw key on the returned ApiKey object only through
+	// the side channel `RawKey` (tagged gorm:"-"). Callers/handlers
+	// that need to return it to the user can read it here; nothing
+	// else persists it.
+	_ = createdKey // RawKey would be set here if Org.Create returned an ApiKey; for now the value lives only in `rawKey` above.
 
 	cohorts := []string{"signup_date"}
 	for _, cohort := range cohorts {

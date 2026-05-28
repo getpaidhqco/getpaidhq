@@ -1,7 +1,6 @@
 package cron
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -26,7 +25,7 @@ func (c *CronScheduler) ScheduleTask(cronExpression string, task func()) error {
 	c.logger.Infof("Scheduling task with cron expression [%s]", cronExpression)
 	_, err := c.cron.AddFunc(cronExpression, task)
 	if err != nil {
-		fmt.Println("Error adding job:", err)
+		c.logger.Error("cron AddFunc failed", "expr", cronExpression, "err", err.Error())
 		return err
 	}
 

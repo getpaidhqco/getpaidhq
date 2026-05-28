@@ -32,7 +32,7 @@ func (r *DunningRepo) FindCampaignById(ctx context.Context, orgId, id string) (d
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&c).Error
-	return c, err
+	return c, translateErr(err)
 }
 
 func (r *DunningRepo) FindCampaigns(ctx context.Context, orgId string, p domain.Pagination) ([]domain.DunningCampaign, int, error) {
@@ -80,7 +80,7 @@ func (r *DunningRepo) FindActiveCampaignForSubscription(ctx context.Context, org
 		Where("subscription_id = ? AND status IN ?", subscriptionId, []domain.DunningStatus{domain.DunningStatusActive, domain.DunningStatusPaused}).
 		Order("created_at DESC").
 		First(&c).Error
-	return c, err
+	return c, translateErr(err)
 }
 
 func (r *DunningRepo) UpdateCampaign(ctx context.Context, c domain.DunningCampaign) (domain.DunningCampaign, error) {
@@ -102,7 +102,7 @@ func (r *DunningRepo) CreateAttempt(ctx context.Context, a domain.DunningAttempt
 func (r *DunningRepo) FindAttemptById(ctx context.Context, orgId, id string) (domain.DunningAttempt, error) {
 	var a domain.DunningAttempt
 	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("id = ?", id).First(&a).Error
-	return a, err
+	return a, translateErr(err)
 }
 
 func (r *DunningRepo) FindAttemptsByCampaignId(ctx context.Context, orgId, campaignId string, p domain.Pagination) ([]domain.DunningAttempt, int, error) {
@@ -130,7 +130,7 @@ func (r *DunningRepo) CreateCommunication(ctx context.Context, c domain.DunningC
 func (r *DunningRepo) FindCommunicationById(ctx context.Context, orgId, id string) (domain.DunningCommunication, error) {
 	var c domain.DunningCommunication
 	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("id = ?", id).First(&c).Error
-	return c, err
+	return c, translateErr(err)
 }
 
 func (r *DunningRepo) FindCommunicationsByCampaignId(ctx context.Context, orgId, campaignId string, p domain.Pagination) ([]domain.DunningCommunication, int, error) {
@@ -165,7 +165,7 @@ func (r *DunningRepo) CreateToken(ctx context.Context, t domain.PaymentUpdateTok
 func (r *DunningRepo) FindTokenById(ctx context.Context, orgId, tokenId string) (domain.PaymentUpdateToken, error) {
 	var t domain.PaymentUpdateToken
 	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("token_id = ?", tokenId).First(&t).Error
-	return t, err
+	return t, translateErr(err)
 }
 
 func (r *DunningRepo) FindTokensBySubscriptionId(ctx context.Context, orgId, subscriptionId string, p domain.Pagination) ([]domain.PaymentUpdateToken, int, error) {
@@ -213,7 +213,7 @@ func (r *DunningRepo) CreateConfiguration(ctx context.Context, c domain.DunningC
 func (r *DunningRepo) FindConfigurationById(ctx context.Context, orgId, id string) (domain.DunningConfiguration, error) {
 	var c domain.DunningConfiguration
 	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("id = ?", id).First(&c).Error
-	return c, err
+	return c, translateErr(err)
 }
 
 func (r *DunningRepo) FindConfigurations(ctx context.Context, orgId string, p domain.Pagination) ([]domain.DunningConfiguration, int, error) {
@@ -251,12 +251,14 @@ func (r *DunningRepo) GetCustomerDunningHistory(ctx context.Context, orgId, cust
 	var h domain.CustomerDunningHistory
 	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("customer_id = ?", customerId).First(&h).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
+		// Synthesize a zero history rather than propagate "not found" —
+		// callers treat the absence of any dunning row as "clean".
 		return domain.CustomerDunningHistory{
 			OrgId:      orgId,
 			CustomerId: customerId,
 		}, nil
 	}
-	return h, err
+	return h, translateErr(err)
 }
 
 func (r *DunningRepo) UpsertCustomerDunningHistory(ctx context.Context, h domain.CustomerDunningHistory) (domain.CustomerDunningHistory, error) {

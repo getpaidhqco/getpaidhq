@@ -213,19 +213,23 @@ func (p CheckoutDotCom) ChargePayment(ctx context.Context, input domain.ChargePa
 		},
 	}
 
-	requestJSON, _ := json.Marshal(request)
-	p.logger.Info("request JSON", "request", string(requestJSON))
-
+	// Never log the full request body or paymentMethod.Token — both
+	// contain payment source identifiers that would put the log
+	// aggregator inside PCI scope. Log only non-sensitive correlation
+	// fields. Same for the marshaled error blob below: PSP error
+	// payloads sometimes echo card metadata.
 	p.logger.Infof("Recurring Checkout.com payment: [%s][%s %d]",
 		input.Reference, input.Currency, input.Amount)
-	p.logger.Info("paymentMethod", "paymentMethod", paymentMethod.Token)
 	response, err := api.Payments.RequestPayment(request, nil)
 	if err != nil {
-		p.logger.Errorf("Error charging payment: %v", err)
-		errjson, _ := json.Marshal(err)
-		p.logger.Error("errjson", "errjson", string(errjson))
-		if capierr, ok := errors.AsType[checkout_errors.CheckoutAPIError](err); ok {
-			p.logger.Errorf("capierr.Data.ErrorType: %v", capierr.Data.ErrorType)
+		p.logger.Error("Checkout.com charge failed", "reference", input.Reference, "err", err.Error())
+		if capierr, ok := errors.AsType[checkout_errors.CheckoutAPIError](err); ok && capierr.Data != nil {
+			// Data.RequestID + ErrorType are safe to log; ErrorCodes can be
+			// echoed by the PSP but never contain card data.
+			p.logger.Error("Checkout.com API error",
+				"errorType", capierr.Data.ErrorType,
+				"requestId", capierr.Data.RequestID,
+				"errorCodes", capierr.Data.ErrorCodes)
 		}
 		return domain.ChargePaymentResponse{
 			Status: domain.ChargePaymentStatusError,

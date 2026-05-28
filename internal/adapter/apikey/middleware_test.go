@@ -28,20 +28,24 @@ func (noopLogger) Panicf(string, ...any) {}
 func (noopLogger) Fatalf(string, ...any) {}
 func (noopLogger) Sync() error           { return nil }
 
+const testPepper = "test-pepper-deadbeef"
+
 // fakeApiKeyRepo is a controllable port.ApiKeyRepository. Only FindByKey is
-// exercised by the middleware; the rest satisfy the interface.
+// exercised by the middleware; the rest satisfy the interface. The middleware
+// hashes incoming raw keys with the configured pepper before lookup, so the
+// map keys here are the HMAC hashes, not the raw tokens.
 type fakeApiKeyRepo struct {
-	byKey     map[string]domain.ApiKey
+	byHash    map[string]domain.ApiKey
 	findErr   error
 	keyLookup string
 }
 
-func (f *fakeApiKeyRepo) FindByKey(_ context.Context, key string) (domain.ApiKey, error) {
-	f.keyLookup = key
+func (f *fakeApiKeyRepo) FindByKey(_ context.Context, keyHash string) (domain.ApiKey, error) {
+	f.keyLookup = keyHash
 	if f.findErr != nil {
 		return domain.ApiKey{}, f.findErr
 	}
-	k, ok := f.byKey[key]
+	k, ok := f.byHash[keyHash]
 	if !ok {
 		return domain.ApiKey{}, errors.New("not found")
 	}
@@ -60,13 +64,15 @@ func (f *fakeApiKeyRepo) Update(_ context.Context, e domain.ApiKey) (domain.ApiK
 func (f *fakeApiKeyRepo) Delete(context.Context, string, string) error { return nil }
 
 func newAuth(repo port.ApiKeyRepository) port.Authenticator {
-	return NewApiKeyMiddleware(noopLogger{}, lib.Env{}, repo)
+	return NewApiKeyMiddleware(noopLogger{}, lib.Env{ApiKeyPepper: testPepper}, repo)
 }
 
 func TestApiKeyMiddleware_Authenticate(t *testing.T) {
 	t.Run("valid key resolves to an admin AuthUser scoped to the org", func(t *testing.T) {
-		repo := &fakeApiKeyRepo{byKey: map[string]domain.ApiKey{
-			"live_abc": {OrgId: "org_42", Id: "key_1", Key: "live_abc"},
+		hash, err := lib.HashApiKey("live_abc", testPepper)
+		require.NoError(t, err)
+		repo := &fakeApiKeyRepo{byHash: map[string]domain.ApiKey{
+			hash: {OrgId: "org_42", Id: "key_1", KeyHash: hash},
 		}}
 		user, err := newAuth(repo).Authenticate(context.Background(), "live_abc")
 
@@ -76,7 +82,7 @@ func TestApiKeyMiddleware_Authenticate(t *testing.T) {
 		assert.Equal(t, "", user.Email)
 		assert.Equal(t, port.RoleAdmin, user.PrimaryRole)
 		assert.Equal(t, []port.UserRole{port.RoleAdmin}, user.Roles)
-		assert.Equal(t, "live_abc", repo.keyLookup, "the raw token is used as the key")
+		assert.Equal(t, hash, repo.keyLookup, "the HMAC hash is used as the lookup key, not the raw token")
 	})
 
 	t.Run("empty token is rejected without touching the repo", func(t *testing.T) {
@@ -91,19 +97,34 @@ func TestApiKeyMiddleware_Authenticate(t *testing.T) {
 		assert.Equal(t, "", repo.keyLookup, "repo must not be queried for an empty token")
 	})
 
-	t.Run("unknown key propagates the repo lookup error", func(t *testing.T) {
-		repo := &fakeApiKeyRepo{byKey: map[string]domain.ApiKey{}}
+	t.Run("unknown key returns an opaque authentication error", func(t *testing.T) {
+		repo := &fakeApiKeyRepo{byHash: map[string]domain.ApiKey{}}
 		user, err := newAuth(repo).Authenticate(context.Background(), "missing")
 
 		require.Error(t, err)
 		assert.Equal(t, port.AuthUser{}, user)
+		var ce lib.CustomError
+		require.ErrorAs(t, err, &ce)
+		assert.Equal(t, lib.AuthenticationError, ce.Type, "unknown key must look identical to any other authn failure")
 	})
 
-	t.Run("repo error is propagated verbatim", func(t *testing.T) {
+	t.Run("repo error is hidden behind an opaque authentication error", func(t *testing.T) {
 		sentinel := errors.New("db down")
 		repo := &fakeApiKeyRepo{findErr: sentinel}
 		_, err := newAuth(repo).Authenticate(context.Background(), "any")
 
-		require.ErrorIs(t, err, sentinel)
+		require.Error(t, err)
+		var ce lib.CustomError
+		require.ErrorAs(t, err, &ce)
+		assert.Equal(t, lib.AuthenticationError, ce.Type, "internal failures must not leak as a distinct error to the caller")
+	})
+
+	t.Run("missing API_KEY_PEPPER fails closed", func(t *testing.T) {
+		repo := &fakeApiKeyRepo{}
+		auth := NewApiKeyMiddleware(noopLogger{}, lib.Env{ApiKeyPepper: ""}, repo)
+		_, err := auth.Authenticate(context.Background(), "any")
+
+		require.Error(t, err)
+		assert.Equal(t, "", repo.keyLookup, "no repo lookup when pepper is missing")
 	})
 }

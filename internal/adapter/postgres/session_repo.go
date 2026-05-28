@@ -22,7 +22,7 @@ func (r *SessionRepo) FindById(ctx context.Context, orgId string, id string) (do
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&session).Error
-	return session, err
+	return session, translateErr(err)
 }
 
 func (r *SessionRepo) Create(ctx context.Context, input domain.Session) (domain.Session, error) {

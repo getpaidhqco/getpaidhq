@@ -10,7 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
+	"getpaidhq/internal/core/port"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/lib"
@@ -79,7 +79,7 @@ func TestPaymentRepo(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
 		_, err := repo.FindById(ctx, orgId, "missing")
-		assert.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+		assert.True(t, errors.Is(err, port.ErrNotFound))
 	})
 
 	t.Run("FindByPspId finds by psp id within org", func(t *testing.T) {
@@ -166,6 +166,6 @@ func TestPaymentRepo(t *testing.T) {
 		require.NoError(t, err)
 
 		_, err = repo.FindById(ctx, orgB, created.Id)
-		assert.True(t, errors.Is(err, gorm.ErrRecordNotFound))
+		assert.True(t, errors.Is(err, port.ErrNotFound))
 	})
 }
