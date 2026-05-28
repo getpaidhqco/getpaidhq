@@ -56,6 +56,6 @@ func TestPspHandler_Create(t *testing.T) {
 			Name: "Paystack", PspId: "paystack", Settings: map[string]string{},
 		})
 
-		assertErrorEnvelope(t, rec, http.StatusUnauthorized, string(lib.AuthenticationError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
 	})
 }

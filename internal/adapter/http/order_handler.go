@@ -44,7 +44,7 @@ type CreateOrderResponse struct {
 func (o *OrderHandler) CreateOrder(c fuego.ContextWithBody[CreateOrderRequest]) (CreateOrderResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !o.authz.Enforce(authUser, port.ActionCreateOrder, "") {
-		return CreateOrderResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		return CreateOrderResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 
 	input, err := c.Body()
@@ -92,7 +92,7 @@ func (o *OrderHandler) CompleteOrder(c fuego.ContextWithBody[CompleteOrderReques
 	id := c.PathParam("id")
 
 	if !o.authz.Enforce(authUser, port.ActionCreateOrder, "") {
-		return OrderResponse{}, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		return OrderResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 
 	input, err := c.Body()
@@ -160,7 +160,7 @@ func (o *OrderHandler) ListSubscriptions(c fuego.ContextNoBody) ([]domain.Subscr
 	id := c.PathParam("id")
 
 	if !o.authz.Enforce(authUser, port.ActionListOrderSubscriptions, "") {
-		return nil, NewApiError(lib.AuthenticationError, "You are not allowed to perform this action", nil)
+		return nil, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 
 	rsp, err := o.service.ListOrderSubscriptions(c.Context(), authUser.OrgId, id)

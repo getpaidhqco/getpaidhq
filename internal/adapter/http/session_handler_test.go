@@ -46,9 +46,11 @@ func TestSessionHandler_Create(t *testing.T) {
 		require.Len(t, sess.created, 1, "a session was created")
 	})
 
-	t.Run("support role is denied by cedar — 401 envelope", func(t *testing.T) {
+	t.Run("support role is denied by cedar — 403 envelope", func(t *testing.T) {
 		// `support` has no permit rule in policy.cedar, so even the legitimate
-		// flow gets rejected by Enforce before the service runs.
+		// flow gets rejected by Enforce before the service runs. Authz denial
+		// renders as 403 Forbidden (the caller is authenticated; the action is
+		// what's not permitted), distinct from a 401 authn failure.
 		sess := &fakeSessionRepo{}
 		cart := &fakeCartRepo{}
 		h := newSessionHandlerForTest(t, sess, cart)
@@ -60,7 +62,7 @@ func TestSessionHandler_Create(t *testing.T) {
 			Currency: "USD", Country: "US",
 		})
 
-		assertErrorEnvelope(t, rec, http.StatusUnauthorized, string(lib.AuthenticationError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
 		assert.Empty(t, sess.created, "service must not run when authz denies")
 	})
 
@@ -88,7 +90,7 @@ func TestSessionHandler_Create(t *testing.T) {
 }
 
 // Sanity check on the silent guard: a stubbed authz that always denies still
-// yields the same 401 envelope regardless of cedar's verdict, useful to pin
+// yields the same 403 envelope regardless of cedar's verdict, useful to pin
 // the handler-side enforce wrapper independently of the policy file.
 func TestSessionHandler_AuthzDeniedExplicit(t *testing.T) {
 	sess := &fakeSessionRepo{}
@@ -101,5 +103,5 @@ func TestSessionHandler_AuthzDeniedExplicit(t *testing.T) {
 
 	rec := doJSON(t, ts, http.MethodPost, "/api/sessions", domain.CreateSessionRequest{Currency: "USD", Country: "US"})
 
-	assertErrorEnvelope(t, rec, http.StatusUnauthorized, string(lib.AuthenticationError))
+	assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
 }

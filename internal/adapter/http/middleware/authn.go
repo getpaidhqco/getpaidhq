@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 
@@ -87,10 +88,15 @@ func (m AuthnWrapperMiddleware) Handler() func(http.Handler) http.Handler {
 				if lastErr != nil {
 					reason = lastErr.Error()
 				}
-				m.logger.Error("Authentication failed", "reason", reason, "path", r.URL.Path, "method", r.Method, "has_authorization", r.Header.Get("Authorization") != "", "has_api_key", r.Header.Get("x-api-key") != "")
-				w.Header().Set("Content-Type", "application/json")
-				w.WriteHeader(http.StatusUnauthorized)
-				_, _ = w.Write([]byte(`{"code":"authentication_error","message":"unauthorized","details":null}`))
+				m.logger.Error(
+					"Authentication failed",
+					"reason", reason,
+					"path", r.URL.Path,
+					"method", r.Method,
+					"has_authorization", r.Header.Get("Authorization") != "",
+					"has_api_key", r.Header.Get("x-api-key") != "",
+				)
+				writeUnauthorized(w)
 				return
 			}
 
@@ -105,4 +111,22 @@ func (m AuthnWrapperMiddleware) Handler() func(http.Handler) http.Handler {
 func AuthUserFrom(ctx context.Context) (port.AuthUser, bool) {
 	u, ok := ctx.Value(AuthUserKey).(port.AuthUser)
 	return u, ok
+}
+
+// writeUnauthorized emits the project's standard 401 envelope. The code value
+// is the same one lib.AuthenticationError serializes to, so clients see one
+// stable identifier whether the failure originated in this middleware or in
+// the handler error serializer downstream.
+//
+// We assemble the envelope here (rather than importing handler.ApiErrorSerializer)
+// because middleware lives upstream of the handler package and importing it
+// would create a dependency cycle.
+func writeUnauthorized(w http.ResponseWriter) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(http.StatusUnauthorized)
+	_ = json.NewEncoder(w).Encode(map[string]any{
+		"code":    string(lib.AuthenticationError),
+		"message": "unauthorized",
+		"details": nil,
+	})
 }

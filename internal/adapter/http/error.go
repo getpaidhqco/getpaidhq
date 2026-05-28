@@ -11,7 +11,10 @@ import (
 	"getpaidhq/internal/lib"
 )
 
-// ApiError represents an API error response.
+// ApiError is the JSON envelope every API error renders into. Code is the
+// stable machine-readable identifier (one of the lib.CustomErrorType values);
+// Message is human-readable; Details carries field-level errors or the
+// underlying message text and may be nil.
 type ApiError struct {
 	Code    string `json:"code"`
 	Message string `json:"message"`
@@ -28,7 +31,10 @@ func (e ApiError) StatusCode() int {
 	return e.GetHttpErrorCode()
 }
 
-// GetHttpErrorCode maps CustomErrorType to HTTP status codes.
+// GetHttpErrorCode maps the project-level error code to an HTTP status. An
+// unknown code is conservatively reported as 500 — surfacing an opaque 500 is
+// safer than leaking an arbitrary 4xx that misleads the client about whether
+// to retry.
 func (e ApiError) GetHttpErrorCode() int {
 	switch e.Code {
 	case string(lib.BadRequestError):
@@ -41,12 +47,18 @@ func (e ApiError) GetHttpErrorCode() int {
 		return http.StatusInternalServerError
 	case string(lib.AuthenticationError):
 		return http.StatusUnauthorized
+	case string(lib.ForbiddenError):
+		return http.StatusForbidden
+	case string(lib.ConflictError):
+		return http.StatusConflict
 	default:
 		return http.StatusInternalServerError
 	}
 }
 
-// NewApiError creates a new API error.
+// NewApiError creates a new API error with the typed code, a human-readable
+// message, and optional details (a string, a slice, or any JSON-serializable
+// value).
 func NewApiError(code lib.CustomErrorType, message string, details any) ApiError {
 	return ApiError{
 		Code:    string(code),
@@ -55,8 +67,23 @@ func NewApiError(code lib.CustomErrorType, message string, details any) ApiError
 	}
 }
 
-// NewApiErrorFromError creates an ApiError from a generic error.
+// NewApiErrorFromError translates an arbitrary error into the project envelope.
+// The order matters:
+//
+//  1. validator.ValidationErrors → BadRequestError with formatted field list.
+//  2. lib.CustomError anywhere in the chain → preserve the typed code so a
+//     wrapped service-layer error still renders correctly.
+//  3. lib.ErrNotFound anywhere in the chain → NotFoundError. This lets
+//     repositories return a wrapped ErrNotFound without every service having
+//     to translate it explicitly.
+//  4. fallback → BadRequestError echoing the message. Generic errors should
+//     not reach this branch in production code; the catch-all exists so
+//     handlers never panic on an unexpected error type.
 func NewApiErrorFromError(err error) ApiError {
+	if err == nil {
+		return NewApiError(lib.InternalError, "unknown error", nil)
+	}
+
 	var vErrs validator.ValidationErrors
 	if errors.As(err, &vErrs) {
 		return NewApiError(lib.BadRequestError, "Input validation failed", FormatValidationErrors(vErrs))
@@ -69,35 +96,48 @@ func NewApiErrorFromError(err error) ApiError {
 		return NewApiError(serr.Type, serr.Message, serr.Err.Error())
 	}
 
-	return NewApiError("bad_request", err.Error(), err.Error())
+	if errors.Is(err, lib.ErrNotFound) {
+		return NewApiError(lib.NotFoundError, err.Error(), nil)
+	}
+
+	return NewApiError(lib.BadRequestError, err.Error(), err.Error())
 }
 
 // ApiErrorSerializer is wired into fuego.WithErrorSerializer so every error
 // returned from a handler — including Fuego's own bind/validation errors —
 // renders with the project's ApiError envelope.
 func ApiErrorSerializer(w http.ResponseWriter, _ *http.Request, err error) {
-	var out ApiError
-	switch e := err.(type) {
-	case ApiError:
-		out = e
-	case fuego.HTTPError:
-		out = fromFuegoError(e)
-	case fuego.BadRequestError:
-		out = fromFuegoError(fuego.HTTPError(e))
-	case fuego.NotFoundError:
-		out = fromFuegoError(fuego.HTTPError(e))
-	case fuego.UnauthorizedError:
-		out = fromFuegoError(fuego.HTTPError(e))
-	case fuego.ForbiddenError:
-		out = fromFuegoError(fuego.HTTPError(e))
-	case fuego.ConflictError:
-		out = fromFuegoError(fuego.HTTPError(e))
-	default:
-		out = NewApiErrorFromError(err)
-	}
+	out := toApiError(err)
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(out.GetHttpErrorCode())
+	// The response writer is already past the point of recovery if Encode
+	// fails (headers and status are written); a logger call here would be
+	// noise. Encode failures here are typically a broken client connection.
 	_ = json.NewEncoder(w).Encode(out)
+}
+
+// toApiError centralizes the err → ApiError translation. Pulled out of the
+// serializer so other places (e.g. middleware writing a 401) can reuse the
+// same mapping instead of hand-rolling JSON.
+func toApiError(err error) ApiError {
+	switch e := err.(type) {
+	case ApiError:
+		return e
+	case fuego.HTTPError:
+		return fromFuegoError(e)
+	case fuego.BadRequestError:
+		return fromFuegoError(fuego.HTTPError(e))
+	case fuego.NotFoundError:
+		return fromFuegoError(fuego.HTTPError(e))
+	case fuego.UnauthorizedError:
+		return fromFuegoError(fuego.HTTPError(e))
+	case fuego.ForbiddenError:
+		return fromFuegoError(fuego.HTTPError(e))
+	case fuego.ConflictError:
+		return fromFuegoError(fuego.HTTPError(e))
+	default:
+		return NewApiErrorFromError(err)
+	}
 }
 
 func fromFuegoError(e fuego.HTTPError) ApiError {
@@ -107,6 +147,10 @@ func fromFuegoError(e fuego.HTTPError) ApiError {
 		code = lib.NotFoundError
 	case http.StatusUnauthorized:
 		code = lib.AuthenticationError
+	case http.StatusForbidden:
+		code = lib.ForbiddenError
+	case http.StatusConflict:
+		code = lib.ConflictError
 	case http.StatusUnprocessableEntity:
 		code = lib.ValidationError
 	case http.StatusInternalServerError:
