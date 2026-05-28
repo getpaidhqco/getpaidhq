@@ -172,6 +172,13 @@ func (s *Subscription) CalculateNextBillingDate() time.Time {
 	}
 
 	base := s.CurrentPeriodEnd
+	if base.IsZero() {
+		// Recurring charge before a period boundary has been established
+		// (e.g. CurrentPeriodEnd not yet set/persisted): advance from
+		// StartDate instead of the zero time, which would otherwise produce
+		// a year-0001 billing date.
+		base = s.StartDate
+	}
 
 	switch s.BillingInterval {
 	case "minute":

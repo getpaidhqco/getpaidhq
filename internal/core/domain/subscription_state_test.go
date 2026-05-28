@@ -105,6 +105,11 @@ func TestSetActive_RecurringChargeIncrementsCycles(t *testing.T) {
 	// from the value SetActivationDates left in CurrentPeriodEnd.
 	assert.Equal(t, s.CurrentPeriodEnd, s.RenewsAt)
 	assert.Equal(t, s.CurrentPeriodStart, s.StartDate)
+	// Regression guard: the recurring branch must compute a real future date,
+	// never a year-0001 date from a zero CurrentPeriodEnd base.
+	assert.False(t, s.RenewsAt.IsZero(), "RenewsAt must not be the zero time")
+	assert.Greater(t, s.RenewsAt.Year(), 2000, "RenewsAt must be a real date, not year 0001")
+	assert.True(t, s.RenewsAt.After(s.StartDate), "recurring charge must advance RenewsAt past StartDate")
 }
 
 func TestSetActive_NoPaymentDoesNotChargeButActivates(t *testing.T) {
