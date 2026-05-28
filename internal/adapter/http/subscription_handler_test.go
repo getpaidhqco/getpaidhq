@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -210,4 +211,31 @@ func TestSubscriptionHandler_ListPayments(t *testing.T) {
 	var got ListResponse
 	decodeJSON(t, rec, &got)
 	assert.Equal(t, 1, got.Meta.Total)
+}
+
+func TestSubscriptionHandler_UpdateBillingAnchor_HappyPath(t *testing.T) {
+	// The narrow service computes proration in-memory against the persisted
+	// subscription. Seed the existing sub so the proration math succeeds.
+	subRepo := &fakeSubRepo{byId: domain.Subscription{
+		OrgId: "org_1", Id: "sub_1", Status: domain.SubscriptionStatusActive,
+		BillingAnchor: 1, Amount: 1000,
+		CurrentPeriodStart: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
+		CurrentPeriodEnd:   time.Date(2025, 1, 31, 0, 0, 0, 0, time.UTC),
+	}}
+	h := newSubscriptionHandlerForTest(t, subRepo, &fakePaymentRepo{}, &recordingEngine{})
+
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPatch, "/api/subscriptions/sub_1/billing-anchor", UpdateBillingAnchorRequest{
+		BillingAnchor: 15,
+		ProrationMode: domain.ProrationModeNone,
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	var got ProrationDetailsResponse
+	decodeJSON(t, rec, &got)
+	assert.Equal(t, 1, got.OldBillingAnchor)
+	assert.Equal(t, 15, got.NewBillingAnchor)
+	require.NotEmpty(t, subRepo.updated, "subscription persisted with new anchor")
 }

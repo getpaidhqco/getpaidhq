@@ -313,3 +313,15 @@ func TestDunningHandler_GetCustomerDunningHistory(t *testing.T) {
 	assert.Equal(t, "cus_1", got.CustomerID)
 	assert.Equal(t, 3, got.TotalDunningCampaigns)
 }
+
+func TestDunningHandler_TriggerManualAttempt_AuthzDenied(t *testing.T) {
+	// support has no permit rule → cedar denies → handler returns the authn
+	// error envelope without ever entering the service path.
+	h := newDunningHandlerForTest(t, &fakeDunningRepo{}, &fakeSubRepo{}, &fakeCustomerRepo{}, &recordingEngine{}, &recordingDunningEngine{})
+	ts := newTestServer(fixedAuthMiddleware(supportUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/dunning/campaigns/dc_1/attempts", TriggerManualAttemptRequest{PaymentMethodID: "pm_1"})
+
+	assert.Equal(t, http.StatusUnauthorized, rec.Code)
+}
