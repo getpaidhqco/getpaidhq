@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"sync"
 	"testing"
 
@@ -14,6 +15,13 @@ import (
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
 )
+
+// errReader returns a fixed error on Read. Used to exercise the
+// body-read-failure path in the webhook handler.
+type errReader struct{ err error }
+
+func (r errReader) Read([]byte) (int, error) { return 0, r.err }
+func (r errReader) Close() error             { return nil }
 
 // fakeGatewayAdapter implements port.GatewayAdapter and returns a parser
 // whose verdict is controlled by the test.
@@ -118,6 +126,28 @@ func TestWebhookHandler_Process(t *testing.T) {
 		rec := doRaw(t, ts, http.MethodPost, "/api/notify?p=unknown", `{"x":1}`)
 
 		require.Equal(t, http.StatusOK, rec.Code)
+	})
+
+	t.Run("body read failure → 400, service is not called", func(t *testing.T) {
+		// Previously the handler discarded the io.ReadAll error and proceeded
+		// with an empty body, which would surface as an opaque signature
+		// failure indistinguishable from a forged request. The handler now
+		// surfaces a 400 so the PSP retries instead of recording success.
+		parser := &fakeWebhookParser{}
+		idemp := &fakeIdempRepo{}
+		h := newWebhookHandlerForTest(t, "paystack", parser, idemp, &recordingEngine{})
+
+		ts := newTestServer()
+		h.RegisterRoutes(ts.api())
+
+		req := httptest.NewRequest(http.MethodPost, "/api/notify?p=paystack", errReader{err: errors.New("network gone")})
+		rec := httptest.NewRecorder()
+		asHandler(ts.srv, ts.mws).ServeHTTP(rec, req)
+
+		assert.Equal(t, http.StatusBadRequest, rec.Code)
+		assert.Equal(t, "application/json", rec.Header().Get("Content-Type"))
+		assert.Nil(t, parser.bodySeen, "parser must not be invoked when body read fails")
+		assert.Empty(t, idemp.created)
 	})
 
 	t.Run("idempotency: duplicate webhook is a no-op success", func(t *testing.T) {

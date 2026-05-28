@@ -7,15 +7,17 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
+	"getpaidhq/internal/lib"
 )
 
 type CartHandler struct {
 	cartService *service.CartService
 	logger      port.Logger
+	authz       port.Authz
 }
 
-func NewCartHandler(cartService *service.CartService, logger port.Logger) *CartHandler {
-	return &CartHandler{cartService: cartService, logger: logger}
+func NewCartHandler(cartService *service.CartService, logger port.Logger, authz port.Authz) *CartHandler {
+	return &CartHandler{cartService: cartService, logger: logger, authz: authz}
 }
 
 func (o *CartHandler) RegisterRoutes(s *fuego.Server) {
@@ -26,6 +28,9 @@ func (o *CartHandler) RegisterRoutes(s *fuego.Server) {
 
 func (o *CartHandler) AddProduct(c fuego.ContextWithBody[AddItemRequest]) (CartResponse, error) {
 	authUser := AuthUserFrom(c)
+	if !o.authz.Enforce(authUser, port.ActionAddProductToCart, "") {
+		return CartResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+	}
 	input, err := c.Body()
 	if err != nil {
 		return CartResponse{}, err
@@ -44,12 +49,20 @@ func (o *CartHandler) AddProduct(c fuego.ContextWithBody[AddItemRequest]) (CartR
 }
 
 func (o *CartHandler) RemoveItem(c fuego.ContextWithBody[RemoveItemRequest]) (CartResponse, error) {
+	authUser := AuthUserFrom(c)
+	if !o.authz.Enforce(authUser, port.ActionRemoveItemFromCart, "") {
+		return CartResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+	}
 	input, err := c.Body()
 	if err != nil {
 		return CartResponse{}, err
 	}
+	// OrgId comes from the authenticated user, never from the request body.
+	// The previous code took `input.OrgId` from the deserialized payload,
+	// which let any authenticated user remove items from a cart in any org
+	// by passing a different OrgId.
 	cart, err := o.cartService.RemoveItem(c.Context(), domain.RemoveItemCommand{
-		OrgId:  input.OrgId,
+		OrgId:  authUser.OrgId,
 		CartId: c.PathParam("id"),
 		Id:     input.Id,
 	})

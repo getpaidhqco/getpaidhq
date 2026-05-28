@@ -1,8 +1,27 @@
 package lib
 
 import (
+	"fmt"
+
 	"github.com/go-playground/validator/v10"
 )
+
+// NewValidator builds the shared *validator.Validate instance with the
+// project's custom rules (currently the ISO 4217 currency check). The
+// returned validator is wired into Fuego at server construction so every
+// DTO bound through Fuego's body decoder is validated the same way.
+//
+// Registration failure panics. A degraded validator silently turns every
+// `validate:"iso4217"` tag into a no-op, which would let invalid currency
+// codes through unnoticed — a fail-fast at startup is much louder than a
+// production validation bypass.
+func NewValidator() *validator.Validate {
+	v := validator.New(validator.WithRequiredStructEnabled())
+	if err := v.RegisterValidation("iso4217", ValidateCurrency); err != nil {
+		panic(fmt.Errorf("register iso4217 validator: %w", err))
+	}
+	return v
+}
 
 // ValidateCurrency validates a currency code against ISO 4217.
 func ValidateCurrency(fl validator.FieldLevel) bool {

@@ -7,18 +7,25 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
+	"getpaidhq/internal/lib"
 )
 
 // SubscriptionHandler handles HTTP requests for subscriptions.
 type SubscriptionHandler struct {
 	subsService *service.SubscriptionOrchestrationService
 	logger      port.Logger
+	authz       port.Authz
 }
 
-func NewSubscriptionHandler(subscriptionService *service.SubscriptionOrchestrationService, logger port.Logger) *SubscriptionHandler {
+func NewSubscriptionHandler(
+	subscriptionService *service.SubscriptionOrchestrationService,
+	logger port.Logger,
+	authz port.Authz,
+) *SubscriptionHandler {
 	return &SubscriptionHandler{
 		subsService: subscriptionService,
 		logger:      logger,
+		authz:       authz,
 	}
 }
 
@@ -34,6 +41,13 @@ func (s *SubscriptionHandler) RegisterRoutes(srv *fuego.Server) {
 	fuego.Patch(g, "/{id}", s.Update, option.Summary("Update subscription metadata"))
 }
 
+// denied is the standard 403 envelope returned when Cedar refuses the action.
+// Pulled into a method so the handler doesn't repeat the same NewApiError
+// call five times for the five mutating operations below.
+func (s *SubscriptionHandler) denied() ApiError {
+	return NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+}
+
 func (s *SubscriptionHandler) Get(c fuego.ContextNoBody) (SubscriptionResponse, error) {
 	authUser := AuthUserFrom(c)
 	subscription, err := s.subsService.FindById(c.Context(), authUser.OrgId, c.PathParam("id"))
@@ -45,6 +59,9 @@ func (s *SubscriptionHandler) Get(c fuego.ContextNoBody) (SubscriptionResponse, 
 
 func (s *SubscriptionHandler) Update(c fuego.ContextWithBody[domain.UpdateSubscriptionRequest]) (domain.Subscription, error) {
 	authUser := AuthUserFrom(c)
+	if !s.authz.Enforce(authUser, port.ActionUpdateSubscription, c.PathParam("id")) {
+		return domain.Subscription{}, s.denied()
+	}
 	input, err := c.Body()
 	if err != nil {
 		return domain.Subscription{}, err
@@ -64,6 +81,9 @@ func (s *SubscriptionHandler) Update(c fuego.ContextWithBody[domain.UpdateSubscr
 
 func (s *SubscriptionHandler) Pause(c fuego.ContextWithBody[PauseSubscriptionRequest]) (domain.Subscription, error) {
 	authUser := AuthUserFrom(c)
+	if !s.authz.Enforce(authUser, port.ActionPauseSubscription, c.PathParam("id")) {
+		return domain.Subscription{}, s.denied()
+	}
 	input, err := c.Body()
 	if err != nil {
 		return domain.Subscription{}, err
@@ -82,6 +102,9 @@ func (s *SubscriptionHandler) Pause(c fuego.ContextWithBody[PauseSubscriptionReq
 
 func (s *SubscriptionHandler) Resume(c fuego.ContextWithBody[ResumeSubscriptionRequest]) (domain.Subscription, error) {
 	authUser := AuthUserFrom(c)
+	if !s.authz.Enforce(authUser, port.ActionResumeSubscription, c.PathParam("id")) {
+		return domain.Subscription{}, s.denied()
+	}
 	input, err := c.Body()
 	if err != nil {
 		return domain.Subscription{}, err
@@ -100,6 +123,9 @@ func (s *SubscriptionHandler) Resume(c fuego.ContextWithBody[ResumeSubscriptionR
 
 func (s *SubscriptionHandler) Cancel(c fuego.ContextWithBody[PauseSubscriptionRequest]) (SubscriptionResponse, error) {
 	authUser := AuthUserFrom(c)
+	if !s.authz.Enforce(authUser, port.ActionCancelSubscription, c.PathParam("id")) {
+		return SubscriptionResponse{}, s.denied()
+	}
 	input, err := c.Body()
 	if err != nil {
 		return SubscriptionResponse{}, err
@@ -118,6 +144,9 @@ func (s *SubscriptionHandler) Cancel(c fuego.ContextWithBody[PauseSubscriptionRe
 
 func (s *SubscriptionHandler) UpdateBillingAnchor(c fuego.ContextWithBody[UpdateBillingAnchorRequest]) (ProrationDetailsResponse, error) {
 	authUser := AuthUserFrom(c)
+	if !s.authz.Enforce(authUser, port.ActionUpdateBillingAnchor, c.PathParam("id")) {
+		return ProrationDetailsResponse{}, s.denied()
+	}
 	input, err := c.Body()
 	if err != nil {
 		return ProrationDetailsResponse{}, err

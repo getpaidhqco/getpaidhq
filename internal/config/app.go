@@ -45,7 +45,7 @@ func NewApp() (*App, error) {
 	env := lib.NewEnv()
 	logger := lib.GetLogger()
 	reporter := lib.NewErrorReporter(logger)
-	httpValidator := lib.NewValidator(logger)
+	httpValidator := lib.NewValidator()
 
 	// ---------------------------------------------------------------------------
 	// Database
@@ -181,10 +181,10 @@ func NewApp() (*App, error) {
 	handlers := Handlers{
 		Health:        handler.NewHealthHandler(logger),
 		Order:         handler.NewOrderHandler(orderService, logger, authzEngine),
-		Subscription:  handler.NewSubscriptionHandler(subOrchestrationService, logger),
+		Subscription:  handler.NewSubscriptionHandler(subOrchestrationService, logger, authzEngine),
 		Customer:      customerHandler,
 		Product:       handler.NewProductHandler(productService, logger, authzEngine),
-		Cart:          handler.NewCartHandler(cartService, logger),
+		Cart:          handler.NewCartHandler(cartService, logger, authzEngine),
 		Session:       handler.NewSessionHandler(sessionService, logger, authzEngine),
 		Webhook:       handler.NewWebhookHandler(webhookService, logger),
 		WebhookSub:    handler.NewWebhookSubscriptionHandler(webhookSubService, logger, authzEngine),

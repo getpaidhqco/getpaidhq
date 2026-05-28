@@ -25,10 +25,10 @@ func main() {
 	handlers := config.Handlers{
 		Health:        handler.NewHealthHandler(logger),
 		Order:         handler.NewOrderHandler(nil, logger, nil),
-		Subscription:  handler.NewSubscriptionHandler(nil, logger),
+		Subscription:  handler.NewSubscriptionHandler(nil, logger, nil),
 		Customer:      customer,
 		Product:       handler.NewProductHandler(nil, logger, nil),
-		Cart:          handler.NewCartHandler(nil, logger),
+		Cart:          handler.NewCartHandler(nil, logger, nil),
 		Session:       handler.NewSessionHandler(nil, logger, nil),
 		Webhook:       handler.NewWebhookHandler(nil, logger),
 		WebhookSub:    handler.NewWebhookSubscriptionHandler(nil, logger, nil),
@@ -41,7 +41,7 @@ func main() {
 
 	server := config.BuildServer(config.ServerDeps{
 		Logger:    logger,
-		Validator: lib.NewValidator(logger),
+		Validator: lib.NewValidator(),
 	}, handlers)
 
 	spec := server.OpenAPI.Description()
