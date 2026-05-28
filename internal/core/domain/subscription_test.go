@@ -181,10 +181,16 @@ func TestUpdateBillingAnchor(t *testing.T) {
 }
 
 func TestCalculateProrationDetails(t *testing.T) {
-	now := time.Now().UTC()
-	periodStart := now
-	periodEnd := now.AddDate(0, 1, 0)
-	referenceDate := now.AddDate(0, 0, 15)
+	// Frozen, exact 30-day window so the proration math is deterministic.
+	// Using time.Duration arithmetic (not AddDate) keeps the period exactly
+	// 30 days regardless of which calendar month the test runs in, and UTC
+	// avoids DST shifts. The previous version seeded from time.Now()+AddDate,
+	// which gave a 28-31 day period and made the test clock-dependent.
+	const day = 24 * time.Hour
+	base := time.Date(2025, time.January, 1, 0, 0, 0, 0, time.UTC)
+	periodStart := base
+	periodEnd := base.Add(30 * day)
+	referenceDate := base.Add(15 * day)
 	amount := int64(1000)
 
 	tests := []struct {
@@ -227,7 +233,7 @@ func TestCalculateProrationDetails(t *testing.T) {
 
 			details := subscription.CalculateProrationDetails(
 				tt.prorationMode, tt.referenceDate, 15, 20,
-				now.AddDate(0, 0, 5), now.AddDate(0, 0, 5).AddDate(0, 1, 0),
+				base.Add(5*day), base.Add(35*day),
 			)
 
 			assert.Equal(t, tt.expectedCredit, details.CreditAmount)

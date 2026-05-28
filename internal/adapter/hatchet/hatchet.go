@@ -2,6 +2,9 @@ package hatchet
 
 import (
 	"context"
+	"errors"
+	"time"
+
 	"getpaidhq/internal/adapter/hatchet/steps"
 	hatchetwf "getpaidhq/internal/adapter/hatchet/workflows"
 	"getpaidhq/internal/core/domain"
@@ -25,6 +28,8 @@ type Hatchet struct {
 	client        *hatchet.Client
 	worker        *hatchet.Worker
 	errorReporter lib.ErrorReporter
+	cancel        context.CancelFunc
+	done          chan struct{}
 }
 
 func NewHatchetEngine(
@@ -88,14 +93,36 @@ func NewHatchetEngine(
 	}
 	h.worker = w
 
+	// Run the worker under a cancellable context so Close() can stop it.
+	workerCtx, cancel := context.WithCancel(context.Background())
+	h.cancel = cancel
+	h.done = make(chan struct{})
 	go func() {
-		if err := w.StartBlocking(context.Background()); err != nil {
+		defer close(h.done)
+		if err := w.StartBlocking(workerCtx); err != nil && !errors.Is(err, context.Canceled) {
 			logger.Error("Hatchet worker exited", "err", err.Error())
 		}
 	}()
 
 	logger.Infof("Hatchet engine initialized with worker")
 	return h
+}
+
+// Close stops the Hatchet worker by cancelling its run context and waits for
+// the worker goroutine to exit (bounded), satisfying io.Closer for graceful
+// shutdown.
+func (h *Hatchet) Close() error {
+	if h.cancel != nil {
+		h.cancel()
+	}
+	if h.done != nil {
+		select {
+		case <-h.done:
+		case <-time.After(10 * time.Second):
+			h.logger.Warn("Hatchet worker did not stop within 10s")
+		}
+	}
+	return nil
 }
 
 func (h Hatchet) StartWorkflow(ctx context.Context, id port.WorkflowType, payload any) (port.WorkflowResult, error) {

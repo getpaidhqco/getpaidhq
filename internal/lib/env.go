@@ -19,6 +19,9 @@ type Env struct {
 	JWTSecret      string `mapstructure:"JWT_SECRET"`
 	PaystackSecret string `mapstructure:"PAYSTACK_SECRET"`
 
+	// NatsURL is the external NATS server the pubsub adapter connects to.
+	NatsURL string `mapstructure:"NATS_URL"`
+
 	CognitoClientId string `mapstructure:"COGNITO_CLIENT_ID"`
 	CognitoPoolId   string `mapstructure:"COGNITO_POOL_ID"`
 	CognitoRegion   string `mapstructure:"COGNITO_REGION"`
@@ -59,6 +62,7 @@ func NewEnv() Env {
 	viper.SetDefault("TEMPORAL_HOST", "localhost:7233")
 	viper.SetDefault("TEMPORAL_NAMESPACE", "getpaidhq")
 	viper.SetDefault("TEMPORAL_TASK_QUEUE", "getpaidhq-events")
+	viper.SetDefault("NATS_URL", "nats://localhost:4222")
 
 	viper.BindEnv("SERVER_PORT")
 	viper.BindEnv("WORKFLOW_ENGINE")
@@ -81,6 +85,7 @@ func NewEnv() Env {
 	viper.BindEnv("TEMPORAL_HOST")
 	viper.BindEnv("TEMPORAL_NAMESPACE")
 	viper.BindEnv("TEMPORAL_TASK_QUEUE")
+	viper.BindEnv("NATS_URL")
 	viper.BindEnv("ALLOWED_ORIGINS")
 	err = viper.Unmarshal(&env)
 	if err != nil {
@@ -99,6 +104,7 @@ func NewEnv() Env {
 		env.TemporalHost = viper.GetString("TEMPORAL_HOST")
 		env.TemporalNamespace = viper.GetString("TEMPORAL_NAMESPACE")
 		env.TemporalTaskQueue = viper.GetString("TEMPORAL_TASK_QUEUE")
+		env.NatsURL = viper.GetString("NATS_URL")
 
 		return env
 	}

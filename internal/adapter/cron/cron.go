@@ -2,6 +2,7 @@ package cron
 
 import (
 	"fmt"
+	"time"
 
 	"github.com/robfig/cron/v3"
 	"getpaidhq/internal/core/port"
@@ -30,5 +31,18 @@ func (c *CronScheduler) ScheduleTask(cronExpression string, task func()) error {
 	}
 
 	c.cron.Start()
+	return nil
+}
+
+// Close stops the cron scheduler and waits (bounded) for any running jobs to
+// finish, satisfying io.Closer for graceful shutdown. Safe to call even if no
+// task was ever scheduled (the scheduler simply isn't running).
+func (c *CronScheduler) Close() error {
+	ctx := c.cron.Stop()
+	select {
+	case <-ctx.Done():
+	case <-time.After(10 * time.Second):
+		c.logger.Warn("cron scheduler did not stop within 10s")
+	}
 	return nil
 }

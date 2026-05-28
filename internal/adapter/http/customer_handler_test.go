@@ -1,0 +1,237 @@
+package handler
+
+import (
+	"errors"
+	"net/http"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/service"
+	"getpaidhq/internal/lib"
+)
+
+// newCustomerHandlerForTest constructs a real CustomerService against repo
+// fakes plus a real authz so we exercise the cedar policy. The returned setup
+// can be wired into any test server.
+func newCustomerHandlerForTest(
+	t *testing.T,
+	custRepo *fakeCustomerRepo,
+	pmRepo *fakePaymentMethodRepo,
+	ps *recordingPubSub,
+) *CustomerHandler {
+	t.Helper()
+	svc := service.NewCustomerService(custRepo, pmRepo, ps, silentLogger{}, noopScheduler{})
+	return NewCustomerHandler(svc, silentLogger{}, newRealAuthz(t))
+}
+
+func TestCustomerHandler_Create(t *testing.T) {
+	// CustomerService.Create has no cedar guard in the handler today; the test
+	// stays away from authz and focuses on the round-trip.
+	t.Run("happy path persists + publishes + returns the customer", func(t *testing.T) {
+		ps := newPubSub()
+		custRepo := &fakeCustomerRepo{}
+		h := newCustomerHandlerForTest(t, custRepo, &fakePaymentMethodRepo{}, ps)
+
+		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+		h.RegisterRoutes(ts.api())
+
+		rec := doJSON(t, ts, http.MethodPost, "/api/customers", domain.CreateCustomerInput{
+			Email:     "jane@example.com",
+			FirstName: "Jane",
+			LastName:  "Doe",
+		})
+
+		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+		var got domain.Customer
+		decodeJSON(t, rec, &got)
+		assert.Equal(t, "jane@example.com", got.Email)
+		require.Len(t, custRepo.created, 1)
+		// Service takes OrgId from the auth user, not the request body — the
+		// row written to the repo proves that.
+		assert.Equal(t, "org_1", custRepo.created[0].OrgId)
+		// At least one publish should have fired for customer.created.
+		assert.Contains(t, ps.topicsPublished(), "customer.created")
+	})
+
+	t.Run("duplicate email is surfaced as bad_request envelope", func(t *testing.T) {
+		// Existing customer hit on FindByEmail => CustomerService returns a
+		// BadRequest CustomError, which the handler should marshal to a 400.
+		custRepo := &fakeCustomerRepo{byEmail: domain.Customer{Id: "existing"}}
+		h := newCustomerHandlerForTest(t, custRepo, &fakePaymentMethodRepo{}, newPubSub())
+
+		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+		h.RegisterRoutes(ts.api())
+
+		rec := doJSON(t, ts, http.MethodPost, "/api/customers", domain.CreateCustomerInput{
+			Email: "dup@example.com",
+		})
+
+		assertErrorEnvelope(t, rec, http.StatusBadRequest, string(lib.BadRequestError))
+	})
+
+	t.Run("repo lookup failure becomes internal_error envelope", func(t *testing.T) {
+		// FindByEmail errors => CustomerService wraps as InternalError CustomError.
+		custRepo := &fakeCustomerRepo{byEmailErr: errors.New("db unreachable")}
+		h := newCustomerHandlerForTest(t, custRepo, &fakePaymentMethodRepo{}, newPubSub())
+
+		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+		h.RegisterRoutes(ts.api())
+
+		rec := doJSON(t, ts, http.MethodPost, "/api/customers", domain.CreateCustomerInput{
+			Email: "x@example.com",
+		})
+
+		assertErrorEnvelope(t, rec, http.StatusInternalServerError, string(lib.InternalError))
+	})
+}
+
+func TestCustomerHandler_Get(t *testing.T) {
+	t.Run("returns the customer marshalled in the response shape", func(t *testing.T) {
+		custRepo := &fakeCustomerRepo{byId: domain.Customer{
+			OrgId: "org_1", Id: "cus_1", Email: "a@b.com", FirstName: "A",
+		}}
+		h := newCustomerHandlerForTest(t, custRepo, &fakePaymentMethodRepo{}, newPubSub())
+
+		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+		h.RegisterRoutes(ts.api())
+
+		rec := doJSON(t, ts, http.MethodGet, "/api/customers/cus_1", nil)
+
+		require.Equal(t, http.StatusOK, rec.Code)
+		var got CustomerResponse
+		decodeJSON(t, rec, &got)
+		assert.Equal(t, "cus_1", got.Id)
+		assert.Equal(t, "a@b.com", got.Email)
+		assert.Equal(t, "A", got.FirstName)
+	})
+
+	t.Run("repo error maps to not_found envelope", func(t *testing.T) {
+		// CustomerService.Get wraps the underlying repo failure as a NotFound
+		// CustomError; the handler propagates that into the ApiError envelope.
+		custRepo := &fakeCustomerRepo{byIdErr: errors.New("nope")}
+		h := newCustomerHandlerForTest(t, custRepo, &fakePaymentMethodRepo{}, newPubSub())
+
+		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+		h.RegisterRoutes(ts.api())
+
+		rec := doJSON(t, ts, http.MethodGet, "/api/customers/cus_x", nil)
+
+		assertErrorEnvelope(t, rec, http.StatusNotFound, string(lib.NotFoundError))
+	})
+}
+
+func TestCustomerHandler_List(t *testing.T) {
+	custRepo := &fakeCustomerRepo{
+		listResult: []domain.Customer{
+			{Id: "cus_1", Email: "a@b.com"},
+			{Id: "cus_2", Email: "c@d.com"},
+		},
+	}
+	h := newCustomerHandlerForTest(t, custRepo, &fakePaymentMethodRepo{}, newPubSub())
+
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodGet, "/api/customers?page=0&limit=10", nil)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got ListResponse
+	decodeJSON(t, rec, &got)
+	assert.Equal(t, 2, got.Meta.Total)
+	assert.Equal(t, 10, got.Meta.Limit)
+}
+
+func TestCustomerHandler_CreatePaymentMethod(t *testing.T) {
+	t.Run("happy path", func(t *testing.T) {
+		custRepo := &fakeCustomerRepo{byId: domain.Customer{
+			OrgId: "org_1", Id: "cus_1",
+			BillingAddress: domain.Address{Line1: "1 St", City: "London", Country: domain.Country("GB")},
+		}}
+		pmRepo := &fakePaymentMethodRepo{}
+		h := newCustomerHandlerForTest(t, custRepo, pmRepo, newPubSub())
+
+		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+		h.RegisterRoutes(ts.api())
+
+		rec := doJSON(t, ts, http.MethodPost, "/api/customers/cus_1/payment-methods", domain.CreatePaymentMethodInput{
+			Psp:   "paystack",
+			Name:  "Visa ****",
+			Type:  domain.PaymentMethodType("card"),
+			Token: "tok_visa",
+		})
+
+		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+		require.Len(t, pmRepo.created, 1)
+		// CustomerId is taken from the path param, not the body.
+		assert.Equal(t, "cus_1", pmRepo.created[0].CustomerId)
+	})
+
+	t.Run("missing customer surfaces NotFound envelope", func(t *testing.T) {
+		custRepo := &fakeCustomerRepo{byIdErr: errors.New("nope")}
+		h := newCustomerHandlerForTest(t, custRepo, &fakePaymentMethodRepo{}, newPubSub())
+
+		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+		h.RegisterRoutes(ts.api())
+
+		rec := doJSON(t, ts, http.MethodPost, "/api/customers/cus_x/payment-methods", domain.CreatePaymentMethodInput{
+			Psp: "paystack", Name: "Visa", Type: domain.PaymentMethodType("card"), Token: "tok",
+		})
+
+		assertErrorEnvelope(t, rec, http.StatusNotFound, string(lib.NotFoundError))
+	})
+}
+
+func TestCustomerHandler_UpdatePaymentMethod(t *testing.T) {
+	custRepo := &fakeCustomerRepo{byId: domain.Customer{
+		OrgId: "org_1", Id: "cus_1",
+		BillingAddress: domain.Address{Line1: "1 St", City: "London", Country: domain.Country("GB")},
+	}}
+	pmRepo := &fakePaymentMethodRepo{byId: domain.PaymentMethod{Id: "pm_1", CustomerId: "cus_1"}}
+	h := newCustomerHandlerForTest(t, custRepo, pmRepo, newPubSub())
+
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPut, "/api/customers/cus_1/payment-methods/pm_1", domain.UpdatePaymentMethodInput{
+		Token: "tok_new",
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.Len(t, pmRepo.updated, 1)
+	assert.Equal(t, "tok_new", pmRepo.updated[0].Token, "the new token is persisted")
+}
+
+func TestPaymentMethodHandler_Get(t *testing.T) {
+	// PaymentMethodHandler delegates to CustomerHandler.GetCustomerPaymentMethod
+	// against /payment-methods/{id}. The customer-handler-shared service backs it.
+	pmRepo := &fakePaymentMethodRepo{byId: domain.PaymentMethod{Id: "pm_1", Name: "Visa"}}
+	h := newCustomerHandlerForTest(t, &fakeCustomerRepo{}, pmRepo, newPubSub())
+	pmh := NewPaymentMethodHandler(h)
+
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	pmh.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodGet, "/api/payment-methods/pm_1", nil)
+
+	require.Equal(t, http.StatusOK, rec.Code)
+	var got domain.PaymentMethod
+	decodeJSON(t, rec, &got)
+	assert.Equal(t, "pm_1", got.Id)
+}
+
+func TestPaymentMethodHandler_Get_NotFound(t *testing.T) {
+	pmRepo := &fakePaymentMethodRepo{byIdErr: errors.New("not found")}
+	h := newCustomerHandlerForTest(t, &fakeCustomerRepo{}, pmRepo, newPubSub())
+	pmh := NewPaymentMethodHandler(h)
+
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	pmh.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodGet, "/api/payment-methods/pm_x", nil)
+
+	// CustomerService.GetPaymentMethod wraps as NotFound CustomError.
+	assertErrorEnvelope(t, rec, http.StatusNotFound, string(lib.NotFoundError))
+}

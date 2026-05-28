@@ -69,6 +69,7 @@ func (f *fakePubSub) Subscribe(topic string, handler func(string, []byte)) (port
 	f.handler = handler
 	return fakeSub{}, nil
 }
+func (f *fakePubSub) Close() error { return nil }
 
 type fakeSub struct{}
 

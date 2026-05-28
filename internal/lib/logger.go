@@ -5,18 +5,23 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"sync"
 )
 
 var (
 	globalLogger Logger
 	slogLogger   *slog.Logger
+	loggerOnce   sync.Once
 )
 
-// GetLogger returns the global logger instance, creating it if needed.
+// GetLogger returns the global logger instance, creating it once on first call.
+// The sync.Once makes it safe to call from concurrent goroutines (pubsub
+// handlers, workers, HTTP handlers all reach for it); without it, racing first
+// callers ran newLogger(NewEnv()) — and viper's map state — in parallel.
 func GetLogger() Logger {
-	if globalLogger == nil {
+	loggerOnce.Do(func() {
 		globalLogger = newLogger(NewEnv())
-	}
+	})
 	return globalLogger
 }
 
@@ -24,9 +29,7 @@ func GetLogger() Logger {
 // raw slog instance (e.g. the Temporal SDK structured-logger adapter) can use
 // it. Triggers logger initialization on first call.
 func GetSlogLogger() *slog.Logger {
-	if slogLogger == nil {
-		_ = GetLogger()
-	}
+	GetLogger() // ensures slogLogger is initialized via the once
 	return slogLogger
 }
 
