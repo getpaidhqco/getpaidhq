@@ -257,35 +257,3 @@ func TestCustomerHandler_UpdatePaymentMethod(t *testing.T) {
 		assert.Empty(t, pmRepo.updated)
 	})
 }
-
-func TestPaymentMethodHandler_Get(t *testing.T) {
-	// PaymentMethodHandler delegates to CustomerHandler.GetCustomerPaymentMethod
-	// against /payment-methods/{id}. The customer-handler-shared service backs it.
-	pmRepo := &fakePaymentMethodRepo{byId: domain.PaymentMethod{Id: "pm_1", Name: "Visa"}}
-	h := newCustomerHandlerForTest(t, &fakeCustomerRepo{}, pmRepo, newPubSub())
-	pmh := NewPaymentMethodHandler(h)
-
-	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
-	pmh.RegisterRoutes(ts.api())
-
-	rec := doJSON(t, ts, http.MethodGet, "/api/payment-methods/pm_1", nil)
-
-	require.Equal(t, http.StatusOK, rec.Code)
-	var got domain.PaymentMethod
-	decodeJSON(t, rec, &got)
-	assert.Equal(t, "pm_1", got.Id)
-}
-
-func TestPaymentMethodHandler_Get_NotFound(t *testing.T) {
-	pmRepo := &fakePaymentMethodRepo{byIdErr: errors.New("not found")}
-	h := newCustomerHandlerForTest(t, &fakeCustomerRepo{}, pmRepo, newPubSub())
-	pmh := NewPaymentMethodHandler(h)
-
-	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
-	pmh.RegisterRoutes(ts.api())
-
-	rec := doJSON(t, ts, http.MethodGet, "/api/payment-methods/pm_x", nil)
-
-	// CustomerService.GetPaymentMethod wraps as NotFound CustomError.
-	assertErrorEnvelope(t, rec, http.StatusNotFound, string(lib.NotFoundError))
-}

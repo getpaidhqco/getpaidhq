@@ -44,6 +44,10 @@ type ServerDeps struct {
 	Validator      *validator.Validate
 	Authenticators []port.Authenticator
 	Env            lib.Env
+	// RateLimiter backs the per-client rate-limit middleware. When nil (e.g.
+	// the OpenAPI exporter) the middleware is a pass-through regardless of
+	// RATE_LIMIT_RPS.
+	RateLimiter port.RateLimiter
 }
 
 // BuildServer wires every HTTP route onto a fresh *fuego.Server. Used by
@@ -54,6 +58,25 @@ func BuildServer(deps ServerDeps, h Handlers) *fuego.Server {
 	mws := []func(http.Handler) http.Handler{
 		middleware.NewCorsMiddleware(deps.Logger, deps.Env).Handler(),
 	}
+
+	// Per-client rate limiting sits BEFORE authn so abusive callers are
+	// shed before they reach the (relatively expensive) authenticator chain
+	// — protecting the auth path itself from brute-force / floods. Keyed by
+	// the securely-resolved client IP (the same trusted-proxy rules the rest
+	// of the app uses). Opt-in: a non-positive RATE_LIMIT_RPS leaves it a
+	// pass-through. ParseTrustedProxies already ran (and validated) in NewApp;
+	// re-parsing here cannot see malformed input in the live path, and the
+	// KeyFunc is never invoked while the limiter is disabled.
+	trustedProxies, _ := handler.ParseTrustedProxies(deps.Env.TrustedProxies)
+	rateLimiter := middleware.NewRateLimitMiddleware(deps.Logger, deps.RateLimiter, middleware.RateLimitConfig{
+		RPS:     deps.Env.RateLimitRPS,
+		Burst:   deps.Env.RateLimitBurst,
+		KeyFunc: func(r *http.Request) string { return handler.ClientIP(r, trustedProxies) },
+	})
+	if rateLimiter.Enabled() {
+		mws = append(mws, rateLimiter.Handler())
+	}
+
 	// Authn is optional so the exporter can boot without a Clerk key.
 	if len(deps.Authenticators) > 0 {
 		mws = append(mws,

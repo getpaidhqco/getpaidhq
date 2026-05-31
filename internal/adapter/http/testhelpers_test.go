@@ -462,9 +462,16 @@ type fakePaymentMethodRepo struct {
 	byIdErr error
 	created []domain.PaymentMethod
 	updated []domain.PaymentMethod
+
+	// Capture of the last FindById args, so handler tests can prove the
+	// org is taken from the authenticated user and the id from the path.
+	lastFindOrg string
+	lastFindId  string
 }
 
-func (r *fakePaymentMethodRepo) FindById(context.Context, string, string) (domain.PaymentMethod, error) {
+func (r *fakePaymentMethodRepo) FindById(_ context.Context, orgId, id string) (domain.PaymentMethod, error) {
+	r.lastFindOrg = orgId
+	r.lastFindId = id
 	if r.byIdErr != nil {
 		return domain.PaymentMethod{}, r.byIdErr
 	}

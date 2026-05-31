@@ -56,6 +56,15 @@ func remoteAddrIP(r *http.Request) net.IP {
 	return net.ParseIP(host)
 }
 
+// ClientIP is the exported entry point for resolving a request's originating
+// client IP under the trusted-proxy rules. It exists so packages outside this
+// one — notably the rate-limit middleware wiring in internal/config — can key
+// off the same securely-resolved IP without duplicating the proxy-trust checks
+// (importing this package from middleware would create an import cycle).
+func ClientIP(r *http.Request, trusted []*net.IPNet) string {
+	return clientIP(r, trusted)
+}
+
 // isFromTrustedProxy reports whether the immediate peer is in one of the
 // configured CIDRs. An empty list means "trust nothing", so the function
 // returns false — which is exactly what we want when no proxy is

@@ -1,19 +1,15 @@
 //go:build integration
 
 // Integration tests for the postgres repositories. These run against a REAL
-// PostgreSQL database and are gated behind the `integration` build tag so the
-// default `go test ./...` (which has no DB) stays green.
+// PostgreSQL database managed by Testcontainers.
 //
 // Run with:
 //
 //	go test -tags=integration ./internal/adapter/postgres/...
 //
 // DB selection:
-//   - Default DSN points at the local docker stack
-//     (`docker compose -f docker/docker-compose.yml up -d postgresql`),
-//     host port 6432, db getpaidhq, user/pass postgres.
-//   - Override with the TEST_DATABASE_URL env var.
-//   - If no DB is reachable, every test t.Skip()s.
+//   - Every run starts a fresh, isolated PostgreSQL container via Testcontainers.
+//   - Cleanup is handled automatically by the container lifecycle.
 //
 // Schema: the Prisma schema is the source of truth, but Prisma can't be run
 // from a Go test. Instead we GORM-AutoMigrate the domain structs each repo
@@ -25,19 +21,20 @@
 //
 // Isolation: every test uses a freshly generated unique org id, so rows from
 // one test are invisible to another even though they share tables. Created
-// rows are cleaned up via t.Cleanup. The schema is migrated once per package
-// run (sync.Once).
+// rows are cleaned up via t.Cleanup.
 package postgres
 
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/require"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/postgres"
+	"github.com/testcontainers/testcontainers-go/wait"
 	"gorm.io/gorm"
 	gormlogger "gorm.io/gorm/logger"
 
@@ -45,15 +42,13 @@ import (
 	"getpaidhq/internal/lib"
 )
 
-const defaultTestDSN = "host=localhost port=6432 user=postgres password=postgres dbname=getpaidhq sslmode=disable"
-
 var (
-	migrateOnce sync.Once
-	migrateErr  error
+	sharedDB    *gorm.DB
+	sharedOnce  sync.Once
+	sharedErr   error
+	container   *postgres.PostgresContainer
 )
 
-// allModels lists every domain struct the tested repos persist. AutoMigrate
-// needs the full set so multi-column foreign keys resolve.
 func allModels() []any {
 	return []any{
 		&domain.Customer{},
@@ -75,59 +70,67 @@ func allModels() []any {
 	}
 }
 
-// testDB connects to the test database and migrates the schema once. If the
-// DB is unreachable the test is skipped (not failed) so the suite degrades
-// gracefully on machines with no DB.
+// testDB starts a Postgres container once per package run and returns a GORM handle.
 func testDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
-	dsn := os.Getenv("TEST_DATABASE_URL")
-	if dsn == "" {
-		dsn = defaultTestDSN
-	}
+	sharedOnce.Do(func() {
+		ctx := context.Background()
+		dbName := "getpaidhq"
+		dbUser := "postgres"
+		dbPassword := "postgres"
 
-	db, err := NewDatabase(dsn, nil)
-	if err != nil {
-		t.Skipf("skipping postgres integration test: cannot open db: %v", err)
-	}
-	// Quiet the GORM query log so test output stays readable. Production code
-	// keeps logger.Info; this only affects the test session's handle.
-	db.Logger = db.Logger.LogMode(gormlogger.Silent)
+		c, err := postgres.Run(ctx,
+			"postgres:17-alpine",
+			postgres.WithDatabase(dbName),
+			postgres.WithUsername(dbUser),
+			postgres.WithPassword(dbPassword),
+			testcontainers.WithWaitStrategy(
+				wait.ForLog("database system is ready to accept connections").
+					WithOccurrence(2).
+					WithStartupTimeout(30*time.Second)),
+		)
+		if err != nil {
+			sharedErr = fmt.Errorf("failed to start postgres container: %w", err)
+			return
+		}
+		container = c
 
-	sqlDB, err := db.DB()
-	if err != nil {
-		t.Skipf("skipping postgres integration test: cannot get sql.DB: %v", err)
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	if err := sqlDB.PingContext(ctx); err != nil {
-		t.Skipf("skipping postgres integration test: db not reachable at %q: %v", dsn, err)
-	}
+		connStr, err := container.ConnectionString(ctx, "sslmode=disable")
+		if err != nil {
+			sharedErr = fmt.Errorf("failed to get connection string: %w", err)
+			return
+		}
 
-	migrateOnce.Do(func() {
-		migrateErr = db.AutoMigrate(allModels()...)
+		db, err := NewDatabase(connStr, nil)
+		if err != nil {
+			sharedErr = fmt.Errorf("failed to open gorm connection: %w", err)
+			return
+		}
+		db.Logger = db.Logger.LogMode(gormlogger.Silent)
+
+		if err := db.AutoMigrate(allModels()...); err != nil {
+			sharedErr = fmt.Errorf("auto-migrate failed: %w", err)
+			return
+		}
+		sharedDB = db
 	})
-	if migrateErr != nil {
-		t.Fatalf("auto-migrate failed: %v", migrateErr)
+
+	if sharedErr != nil {
+		t.Fatalf("test setup failed: %v", sharedErr)
 	}
 
-	return db
+	return sharedDB
 }
 
-// uniqueOrg returns a fresh org id unique to the calling test, giving each
-// test its own isolated slice of the shared tables.
 func uniqueOrg(t *testing.T) string {
 	t.Helper()
 	return lib.GenerateId("org_test")
 }
 
-// cleanupOrg deletes every row this package's models own for the given org.
-// Registered via t.Cleanup so a test leaves no residue even if it fails
-// mid-way. Children are deleted before parents to respect FK constraints.
 func cleanupOrg(t *testing.T, db *gorm.DB, orgId string) {
 	t.Helper()
 	t.Cleanup(func() {
-		// Order matters: delete FK children before their parents.
 		ordered := []any{
 			&domain.DunningCommunication{},
 			&domain.PaymentUpdateToken{},
@@ -147,12 +150,10 @@ func cleanupOrg(t *testing.T, db *gorm.DB, orgId string) {
 			&domain.Customer{},
 		}
 		for _, m := range ordered {
-			db.Where("org_id = ?", orgId).Delete(m)
+			db.Unscoped().Where("org_id = ?", orgId).Delete(m)
 		}
 	})
 }
-
-// --- fixture builders -------------------------------------------------------
 
 func seedCustomer(t *testing.T, db *gorm.DB, orgId string) domain.Customer {
 	t.Helper()
@@ -162,7 +163,7 @@ func seedCustomer(t *testing.T, db *gorm.DB, orgId string) domain.Customer {
 		FirstName: "Ada",
 		LastName:  "Lovelace",
 		Email:     fmt.Sprintf("%s@example.com", lib.GenerateId("ada")),
-		Phone:     "+15550001111",
+		Phone:     "+155****1111",
 		BillingAddress: domain.Address{
 			Line1:   "1 Analytical Engine Way",
 			City:    "London",

@@ -13,11 +13,12 @@ The README's "Architecture" section is partly outdated — see "Architecture" be
 Run / build (Go 1.24):
 - `go run .` — start the API server (entrypoint `main.go` → `internal/config.NewApp().Run()`). Port from `SERVER_PORT` env, default `8080`.
 - `go build -o main .` — same build the Dockerfile produces.
-- `go test ./...` — run all tests. Most tests live under `internal/core/domain` and `internal/adapter/{redis,sqs,nats}`.
-- `go test ./internal/core/domain -run TestNextBillingDate` — run a single test.
+- `go test ./...` — run all tests. Unit tests run by default.
+- `go test -tags=integration ./...` — run all tests including Postgres integration tests (uses Testcontainers).
 
-Local stack (single Postgres shared by app + Hatchet, plus Hatchet Lite):
-- `docker compose -f docker/docker-compose.yml up -d` — required services. Hatchet UI at `localhost:8888`, Hatchet gRPC at `localhost:7077`, Postgres at `localhost:6432`.
+Local stack:
+- `docker compose -f docker/docker-compose.yml up -d` — required services (Postgres, Redis, Hatchet, NATS).
+- **Postgres integration tests** no longer depend on the local stack; they spawn an isolated `postgres:17-alpine` container via Testcontainers.
 - The shared Postgres exposes three databases (auto-created by `docker/init/01-create-databases.sql`): `getpaidhq` (app), `getpaidhq_reports` (reporting), `hatchet` (Hatchet's own internal store).
 
 Workflow engine bootstrap:

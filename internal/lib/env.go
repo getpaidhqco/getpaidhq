@@ -61,6 +61,19 @@ type Env struct {
 	// truth — anything else is a forge attempt. Set to your load
 	// balancer / WAF CIDR in prod (e.g. "10.0.0.0/8,127.0.0.1/32").
 	TrustedProxies string `mapstructure:"TRUSTED_PROXIES"`
+
+	// RateLimitRPS is the sustained per-client (per-IP) request rate the
+	// API allows, in requests per second. A value <= 0 DISABLES rate
+	// limiting entirely (the middleware becomes a pass-through), which is
+	// the default. Set it in prod to protect the auth path and backends
+	// from abuse — e.g. 20.
+	RateLimitRPS int `mapstructure:"RATE_LIMIT_RPS"`
+
+	// RateLimitBurst is the maximum burst (token-bucket capacity) a single
+	// client may consume before being throttled to RateLimitRPS. When <= 0
+	// it defaults to RateLimitRPS. Set it a few× RPS to tolerate normal
+	// client bursts — e.g. 40.
+	RateLimitBurst int `mapstructure:"RATE_LIMIT_BURST"`
 }
 
 // NewEnv creates a new environment
@@ -82,6 +95,10 @@ func NewEnv() Env {
 	viper.SetDefault("TEMPORAL_NAMESPACE", "getpaidhq")
 	viper.SetDefault("TEMPORAL_TASK_QUEUE", "getpaidhq-events")
 	viper.SetDefault("NATS_URL", "nats://localhost:4222")
+	// Per-IP API rate limiting is ON by default with conservative values.
+	// Override per environment; set RATE_LIMIT_RPS=0 to disable entirely.
+	viper.SetDefault("RATE_LIMIT_RPS", 20)
+	viper.SetDefault("RATE_LIMIT_BURST", 40)
 
 	viper.BindEnv("SERVER_PORT")
 	viper.BindEnv("WORKFLOW_ENGINE")
@@ -109,6 +126,8 @@ func NewEnv() Env {
 	viper.BindEnv("NATS_URL")
 	viper.BindEnv("ALLOWED_ORIGINS")
 	viper.BindEnv("TRUSTED_PROXIES")
+	viper.BindEnv("RATE_LIMIT_RPS")
+	viper.BindEnv("RATE_LIMIT_BURST")
 	err = viper.Unmarshal(&env)
 	if err != nil {
 		log.Println("☠️ cannot read configuration file, reading from environment")

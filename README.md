@@ -176,7 +176,8 @@ When we re-add a deployment pipeline, migrations will be regenerated from the cu
 
 - `go run .` — start the API server
 - `go build -o main .` — same build the Dockerfile produces
-- `go test ./...` — run all tests (richest coverage lives in `internal/core/domain`)
+- `go test ./...` — run unit tests.
+- `go test -tags=integration ./...` — run all tests including Postgres integration tests (uses Testcontainers).
 
 ### Working with Hatchet
 

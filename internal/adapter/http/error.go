@@ -51,6 +51,8 @@ func (e ApiError) GetHttpErrorCode() int {
 		return http.StatusForbidden
 	case string(lib.ConflictError):
 		return http.StatusConflict
+	case string(lib.RateLimitError):
+		return http.StatusTooManyRequests
 	default:
 		return http.StatusInternalServerError
 	}

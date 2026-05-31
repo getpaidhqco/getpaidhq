@@ -19,6 +19,7 @@ import (
 	"getpaidhq/internal/adapter/hatchet"
 	hatchetsteps "getpaidhq/internal/adapter/hatchet/steps"
 	handler "getpaidhq/internal/adapter/http"
+	"getpaidhq/internal/adapter/memory"
 	"getpaidhq/internal/adapter/nats"
 	"getpaidhq/internal/adapter/paystack"
 	"getpaidhq/internal/adapter/postgres"
@@ -115,6 +116,20 @@ func NewApp() (*App, error) {
 	cache := redis.NewRedisClient(env.Get("REDIS_HOST"), env.Get("REDIS_PASSWORD"), 0)
 	authzEngine := cedar.NewCedarAuthz(logger, env)
 	scheduler := cron.NewCronScheduler(logger, env)
+
+	// Rate-limiter backend selection. With Redis configured the limit is
+	// enforced cluster-wide (a shared GCRA budget across every instance);
+	// without it we fall back to a per-instance in-memory bucket. The HTTP
+	// middleware fails open if the backend errors, so this is never a hard
+	// dependency.
+	var rateLimiter port.RateLimiter
+	if redisHost := env.Get("REDIS_HOST"); redisHost != "" {
+		rateLimiter = redis.NewRateLimiter(redisHost, env.Get("REDIS_PASSWORD"), 0)
+		logger.Info("Rate limiting backed by Redis (distributed, cluster-wide budget)")
+	} else {
+		rateLimiter = memory.NewRateLimiter(0)
+		logger.Info("Rate limiting backed by in-memory store (per-instance budget; set REDIS_HOST for a cluster-wide limit)")
+	}
 
 	// Auth
 	clerkAuth := clerk.NewClerkMiddleware(logger, env, metadataRepo)
@@ -245,6 +260,7 @@ func NewApp() (*App, error) {
 		Validator:      httpValidator,
 		Authenticators: authenticators,
 		Env:            env,
+		RateLimiter:    rateLimiter,
 	}, handlers)
 
 	// Collect resources that own goroutines / connections so Run can tear them

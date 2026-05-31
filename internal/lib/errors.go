@@ -25,6 +25,10 @@ const (
 	// ConflictError is returned when a request collides with the current
 	// resource state (duplicate key, concurrent update, etc). Maps to HTTP 409.
 	ConflictError CustomErrorType = "conflict"
+	// RateLimitError is returned when the caller has exceeded the allowed
+	// request rate. Maps to HTTP 429. Clients should back off and retry,
+	// honoring the Retry-After header when present.
+	RateLimitError CustomErrorType = "rate_limit_exceeded"
 )
 
 // Common sentinel errors. Callers wrap these with fmt.Errorf("...: %w", ...)
