@@ -273,6 +273,12 @@ func NewApp() (*App, error) {
 	if c, ok := scheduler.(io.Closer); ok {
 		closers = append(closers, c)
 	}
+	// The Redis-backed rate limiter owns a dedicated connection pool; close it
+	// on shutdown. The in-memory limiter holds no resources and is not a Closer,
+	// so this is a no-op for that backend.
+	if c, ok := rateLimiter.(io.Closer); ok {
+		closers = append(closers, c)
+	}
 
 	return &App{
 		Server:  server,

@@ -69,6 +69,27 @@ func TestRedisRateLimiter_AllowsBurstThenBlocks(t *testing.T) {
 	assert.Greater(t, res.RetryAfter, time.Duration(0), "blocked result carries a positive RetryAfter")
 }
 
+func TestRedisRateLimiter_Close(t *testing.T) {
+	addr := redisAddrForTest(t)
+	rl := NewRateLimiter(addr, "", 0)
+
+	// Works before Close.
+	res, err := rl.Allow(context.Background(), t.Name(), 1, 1)
+	require.NoError(t, err)
+	require.True(t, res.Allowed)
+
+	// Close releases the pool; a subsequent call must fail (pool closed),
+	// which the middleware would treat as fail-open.
+	require.NoError(t, rl.Close())
+	_, err = rl.Allow(context.Background(), t.Name(), 1, 1)
+	require.Error(t, err, "Allow after Close should error on the closed pool")
+
+	// Cleanup.
+	c := redis.NewClient(&redis.Options{Addr: addr})
+	defer c.Close()
+	c.Del(context.Background(), rl.prefix+t.Name())
+}
+
 func TestRedisRateLimiter_KeyIsolation(t *testing.T) {
 	addr := redisAddrForTest(t)
 	rl, clean := freshLimiter(t, addr)

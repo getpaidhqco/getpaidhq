@@ -16,6 +16,7 @@ import (
 // consistently across every API instance sharing the same Redis — unlike the
 // in-memory limiter, whose budget is per process.
 type RateLimiter struct {
+	client  *redis.Client
 	limiter *redis_rate.Limiter
 	prefix  string
 }
@@ -23,7 +24,8 @@ type RateLimiter struct {
 // NewRateLimiter builds a Redis-backed limiter on its own connection pool
 // (kept separate from the cache pool so limiter traffic and cache traffic don't
 // contend). Keys are namespaced under "ratelimit:" to avoid colliding with
-// cache entries.
+// cache entries. The caller owns the returned limiter's lifecycle and should
+// Close it on shutdown to release the connection pool.
 func NewRateLimiter(addr, password string, db int) *RateLimiter {
 	rdb := redis.NewClient(&redis.Options{
 		Addr:     addr,
@@ -31,9 +33,16 @@ func NewRateLimiter(addr, password string, db int) *RateLimiter {
 		DB:       db,
 	})
 	return &RateLimiter{
+		client:  rdb,
 		limiter: redis_rate.NewLimiter(rdb),
 		prefix:  "ratelimit:",
 	}
+}
+
+// Close releases the limiter's Redis connection pool. It satisfies io.Closer so
+// the application wiring can register it among the shutdown closers.
+func (r *RateLimiter) Close() error {
+	return r.client.Close()
 }
 
 // Allow consumes one token for key against an rps/burst budget. A transport or
