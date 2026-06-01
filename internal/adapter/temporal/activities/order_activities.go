@@ -38,9 +38,13 @@ func NewOrderActivities(
 	}
 }
 
+func (a *OrderActivities) log(ctx context.Context, msg string, keyvals ...any) {
+	defer func() { recover() }()
+	activity.GetLogger(ctx).Info(msg, keyvals...)
+}
+
 func (a *OrderActivities) CompleteOrder(ctx context.Context, paymentContext domain.PaymentWebhookContext) (domain.Order, error) {
-	logger := activity.GetLogger(ctx)
-	logger.Info("CompleteOrder", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId)
+	a.log(ctx, "CompleteOrder", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId)
 
 	order, err := a.orderService.CompleteCheckoutSession(ctx, domain.CompleteCheckoutSessionInput{
 		OrgId:          paymentContext.OrgId,
@@ -55,8 +59,7 @@ func (a *OrderActivities) CompleteOrder(ctx context.Context, paymentContext doma
 }
 
 func (a *OrderActivities) HandlePaymentRefundedEvent(ctx context.Context, paymentContext domain.PaymentWebhookContext) (domain.Payment, error) {
-	logger := activity.GetLogger(ctx)
-	logger.Info("HandlePaymentRefundedEvent", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId)
+	a.log(ctx, "HandlePaymentRefundedEvent", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId)
 
 	payment, err := a.paymentService.ProcessRefund(ctx, paymentContext)
 	if err != nil {
@@ -66,8 +69,7 @@ func (a *OrderActivities) HandlePaymentRefundedEvent(ctx context.Context, paymen
 }
 
 func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId string, orderId string) ([]domain.Subscription, error) {
-	logger := activity.GetLogger(ctx)
-	logger.Info("GetOrderSubscriptions", "OrgId", orgId, "OrderId", orderId)
+	a.log(ctx, "GetOrderSubscriptions", "OrgId", orgId, "OrderId", orderId)
 	return a.subscriptionRepo.FindByOrderId(ctx, orgId, orderId)
 }
 
@@ -75,8 +77,7 @@ func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId strin
 // gateway-side failures as retryable Temporal application errors so Temporal's
 // retry policy can kick in.
 func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, currentSub domain.Subscription) (domain.ChargeResult, error) {
-	logger := activity.GetLogger(ctx)
-	logger.Info("ChargeCustomerForBillingPeriod", "id", currentSub.Id, "Total", currentSub.Amount)
+	a.log(ctx, "ChargeCustomerForBillingPeriod", "id", currentSub.Id, "Total", currentSub.Amount)
 
 	result, err := a.subscriptionService.ChargeForBillingPeriod(ctx, currentSub)
 	if err != nil {
@@ -86,8 +87,7 @@ func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, cu
 }
 
 func (a *OrderActivities) HandleChargeResult(ctx context.Context, subscription domain.Subscription, chargeResult domain.ChargeResult) (domain.Subscription, error) {
-	logger := activity.GetLogger(ctx)
-	logger.Info("HandleChargeResult", "id", subscription.Id)
+	a.log(ctx, "HandleChargeResult", "id", subscription.Id)
 
 	if chargeResult.Status == domain.PaymentStatusSucceeded {
 		return a.subscriptionService.HandleSubscriptionChargeSuccess(ctx, domain.SubscriptionChargeInput{
@@ -102,8 +102,7 @@ func (a *OrderActivities) HandleChargeResult(ctx context.Context, subscription d
 }
 
 func (a *OrderActivities) ErrorState(ctx context.Context, subscription domain.Subscription, errMsg string) error {
-	logger := activity.GetLogger(ctx)
-	logger.Info("ErrorState", "OrgId", subscription.OrgId, "SubscriptionId", subscription.Id, "err", errMsg)
+	a.log(ctx, "ErrorState", "OrgId", subscription.OrgId, "SubscriptionId", subscription.Id, "err", errMsg)
 	return a.subscriptionService.MarkAsError(ctx, subscription, &activityErr{errMsg})
 }
 
@@ -112,8 +111,7 @@ func (a *OrderActivities) GetSubscription(ctx context.Context, orgId string, id 
 }
 
 func (a *OrderActivities) ProcessReminderEvent(ctx context.Context, subscription domain.Subscription) error {
-	logger := activity.GetLogger(ctx)
-	logger.Info("ProcessReminderEvent", "OrgId", subscription.OrgId, "SubscriptionId", subscription.Id)
+	a.log(ctx, "ProcessReminderEvent", "OrgId", subscription.OrgId, "SubscriptionId", subscription.Id)
 	return a.subscriptionService.SendRenewalReminder(ctx, subscription.OrgId, subscription.Id)
 }
 

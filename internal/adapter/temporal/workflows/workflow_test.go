@@ -173,3 +173,133 @@ func TestSubscriptionChargeReminderWorkflow_WaitsThenSends(t *testing.T) {
 	require.NoError(t, env.GetWorkflowError())
 	env.AssertExpectations(t)
 }
+
+func TestDunningRunnerWorkflow(t *testing.T) {
+	t.Run("recovered during immediate retries", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		da := &activities.DunningActivities{}
+		env.RegisterActivity(da)
+
+		config := domain.DunningConfig{
+			ImmediateRetries: domain.ImmediateRetriesConfig{
+				Enabled:     true,
+				MaxAttempts: 2,
+				Intervals:   []string{"1m", "5m"},
+				FailureTypes: []string{"rate_limit"},
+			},
+		}
+
+		env.OnActivity(da.LoadConfigForCampaign, mock.Anything, "org_1", "dc_1").Return(config, nil)
+
+		// Mock child workflow for attempt 1
+		env.OnWorkflow(DunningAttemptWorkflow, mock.Anything, mock.Anything).Return(domain.DunningAttempt{
+			Status: domain.PaymentStatusFailed,
+		}, nil).Once()
+
+		// Campaign stays active
+		env.OnActivity(da.UpdateCampaignWithAttemptResult, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(domain.DunningCampaign{Status: domain.DunningStatusActive}, nil).Once()
+
+		// Mock child workflow for attempt 2 - Succeeded
+		env.OnWorkflow(DunningAttemptWorkflow, mock.Anything, mock.Anything).Return(domain.DunningAttempt{
+			Status: domain.PaymentStatusSucceeded,
+		}, nil).Once()
+
+		// Campaign recovered
+		env.OnActivity(da.UpdateCampaignWithAttemptResult, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(domain.DunningCampaign{Status: domain.DunningStatusRecovered}, nil).Once()
+
+		env.ExecuteWorkflow(DunningRunnerWorkflow, DunningRunnerInput{
+			OrgId: "org_1", CampaignId: "dc_1", InitialFailureReason: "rate_limit",
+		})
+
+		require.True(t, env.IsWorkflowCompleted())
+		require.NoError(t, env.GetWorkflowError())
+		var res domain.DunningCampaign
+		require.NoError(t, env.GetWorkflowResult(&res))
+		assert.Equal(t, domain.DunningStatusRecovered, res.Status)
+	})
+
+	t.Run("exhausts all attempts and cancels subscription", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		da := &activities.DunningActivities{}
+		env.RegisterActivity(da)
+
+		config := domain.DunningConfig{
+			ImmediateRetries: domain.ImmediateRetriesConfig{Enabled: false},
+			ProgressiveRetries: domain.ProgressiveRetriesConfig{
+				Enabled:     true,
+				MaxAttempts: 1,
+				Intervals:   []string{"1d"},
+			},
+		}
+
+		env.OnActivity(da.LoadConfigForCampaign, mock.Anything, mock.Anything, mock.Anything).Return(config, nil)
+		env.OnActivity(da.SendCommunication, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnWorkflow(DunningAttemptWorkflow, mock.Anything, mock.Anything).Return(domain.DunningAttempt{Status: domain.PaymentStatusFailed}, nil)
+		env.OnActivity(da.UpdateCampaignWithAttemptResult, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(domain.DunningCampaign{Status: domain.DunningStatusActive}, nil)
+		env.OnActivity(da.FailCampaignAndCancelSubscription, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(domain.DunningCampaign{Status: domain.DunningStatusFailed}, nil)
+
+		env.ExecuteWorkflow(DunningRunnerWorkflow, DunningRunnerInput{OrgId: "org_1", CampaignId: "dc_1"})
+
+		require.True(t, env.IsWorkflowCompleted())
+		var res domain.DunningCampaign
+		require.NoError(t, env.GetWorkflowResult(&res))
+		assert.Equal(t, domain.DunningStatusFailed, res.Status)
+		env.AssertCalled(t, "FailCampaignAndCancelSubscription", mock.Anything, "org_1", "dc_1", "all_attempts_failed")
+	})
+
+	t.Run("handles pause and resume", func(t *testing.T) {
+		var ts testsuite.WorkflowTestSuite
+		env := ts.NewTestWorkflowEnvironment()
+		da := &activities.DunningActivities{}
+		env.RegisterActivity(da)
+
+		config := domain.DunningConfig{
+			ProgressiveRetries: domain.ProgressiveRetriesConfig{
+				Enabled:     true,
+				MaxAttempts: 1,
+				Intervals:   []string{"10d"},
+			},
+		}
+
+		env.OnActivity(da.LoadConfigForCampaign, mock.Anything, mock.Anything, mock.Anything).Return(config, nil)
+
+		// Signal pause after 1 day
+		env.RegisterDelayedCallback(func() {
+			env.SignalWorkflow(SignalDunningPause, nil)
+		}, 24*time.Hour)
+
+		// Signal resume after another 2 days
+		env.RegisterDelayedCallback(func() {
+			env.SignalWorkflow(SignalDunningResume, nil)
+		}, 72*time.Hour)
+
+		env.OnActivity(da.SendCommunication, mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
+		env.OnWorkflow(DunningAttemptWorkflow, mock.Anything, mock.Anything).Return(domain.DunningAttempt{Status: domain.PaymentStatusSucceeded}, nil)
+		env.OnActivity(da.UpdateCampaignWithAttemptResult, mock.Anything, mock.Anything, mock.Anything, mock.Anything).
+			Return(domain.DunningCampaign{Status: domain.DunningStatusRecovered}, nil)
+
+		start := time.Now()
+		env.ExecuteWorkflow(DunningRunnerWorkflow, DunningRunnerInput{OrgId: "org_1", CampaignId: "dc_1"})
+
+		require.True(t, env.IsWorkflowCompleted())
+		// Total wait should be 10d + the time it was paused (2 days extra between pause and resume signals)
+		// Actually, awaitDunningInterval consumes the pause signal then returns dunningActionPaused.
+		// Then it calls waitForResume which consumes the resume signal.
+		// Then it continues to runDunningAttempt.
+		// So total time = 1d (until pause) + 2d (until resume) = 3d approx?
+		// No, the 10d timer is "restarted" or rather, the interval check was interrupted.
+		// Looking at dunning_runner.go:
+		// action := awaitDunningInterval(ctx, wait, ...)
+		// if action == dunningActionPaused { waitForResume }
+		// attempt, err := runDunningAttempt(...)
+		// It doesn't resume the timer; it proceeds to the attempt immediately after resume.
+		// So expected time is roughly 3 days.
+		assert.WithinDuration(t, start.Add(72*time.Hour), env.Now(), 1*time.Minute)
+	})
+}
