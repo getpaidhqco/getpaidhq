@@ -51,6 +51,13 @@ func (m AuthnWrapperMiddleware) Handler() func(http.Handler) http.Handler {
 				return
 			}
 
+			// Public endpoints that must be reachable without a bearer token.
+			// Everything else stays authenticated; keep this list tight.
+			if isPublicPath(r) {
+				next.ServeHTTP(w, r)
+				return
+			}
+
 			token := r.Header.Get("Authorization")
 			if token == "" {
 				token = r.Header.Get("x-api-key")
@@ -102,6 +109,27 @@ func (m AuthnWrapperMiddleware) Handler() func(http.Handler) http.Handler {
 
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), AuthUserKey, user)))
 		})
+	}
+}
+
+// isPublicPath reports whether a request targets an endpoint that is reachable
+// without authentication. These are deliberately unauthenticated:
+//
+//   - GET /api/health — liveness/readiness probe. Load balancers, k8s, and
+//     uptime monitors hit it without credentials; gating it breaks them.
+//   - /api/notify     — PSP webhook receiver (Paystack/Checkout.com). It is
+//     authenticated by the HMAC signature on the raw body, not a user token,
+//     so it must bypass the bearer-token gate or no webhook is ever processed.
+//
+// Authentication is still the default for everything else.
+func isPublicPath(r *http.Request) bool {
+	switch {
+	case r.Method == http.MethodGet && r.URL.Path == "/api/health":
+		return true
+	case r.URL.Path == "/api/notify":
+		return true
+	default:
+		return false
 	}
 }
 

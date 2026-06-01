@@ -252,3 +252,39 @@ func TestAuthUserFrom(t *testing.T) {
 		assert.Equal(t, u, got)
 	})
 }
+
+// TestAuthn_PublicPathsBypass pins the unauthenticated allowlist: liveness
+// probes and the PSP webhook receiver must reach the handler WITHOUT a token,
+// while a comparable non-listed path still gets 401. The authenticator always
+// errors, so any non-public path is rejected and never reaches next.
+func TestAuthn_PublicPathsBypass(t *testing.T) {
+	cases := []struct {
+		name       string
+		method     string
+		path       string
+		wantStatus int
+		wantReach  bool
+	}{
+		{"health is public", http.MethodGet, "/api/health", http.StatusOK, true},
+		{"webhook notify is public", http.MethodPost, "/api/notify", http.StatusOK, true},
+		{"health only via GET", http.MethodPost, "/api/health", http.StatusUnauthorized, false},
+		{"other paths still gated", http.MethodGet, "/api/customers", http.StatusUnauthorized, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			auth := &fakeAuthenticator{err: errors.New("no token")}
+			next := &nextRecorder{}
+			h := newMiddleware(auth).Handler()(next)
+
+			req := httptest.NewRequest(tc.method, tc.path, nil)
+			rec := httptest.NewRecorder()
+			h.ServeHTTP(rec, req)
+
+			require.Equal(t, tc.wantStatus, rec.Code)
+			require.Equal(t, tc.wantReach, next.called)
+			if tc.wantReach {
+				require.Zero(t, auth.calls, "public paths must not invoke the authenticator")
+			}
+		})
+	}
+}

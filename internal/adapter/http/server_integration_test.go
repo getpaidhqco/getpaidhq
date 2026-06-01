@@ -38,7 +38,10 @@ func TestAuthnMiddleware_RejectsUnauthenticated(t *testing.T) {
 	ts := newTestServer(wrap)
 	NewHealthHandler(silentLogger{}).RegisterRoutes(ts.api())
 
-	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	// Use a gated path, NOT /api/health (which is intentionally public). authn
+	// is a global middleware that runs before routing, so an unauthenticated
+	// request to any non-public path is rejected with 401 before it routes.
+	req := httptest.NewRequest(http.MethodGet, "/api/customers", nil)
 	rec := httptest.NewRecorder()
 	asHandler(ts.srv, ts.mws).ServeHTTP(rec, req)
 
@@ -97,7 +100,9 @@ func TestOnboardingBypass_NotAppliedElsewhere(t *testing.T) {
 	ts := newTestServer(wrap)
 	NewHealthHandler(silentLogger{}).RegisterRoutes(ts.api())
 
-	req := httptest.NewRequest(http.MethodGet, "/api/health", nil)
+	// A gated path (not the public /api/health): the onboarding bypass must
+	// NOT apply here, so the partial/ErrOnboardingRequired user is rejected.
+	req := httptest.NewRequest(http.MethodGet, "/api/customers", nil)
 	req.Header.Set("Authorization", "Bearer onboarding-token")
 	rec := httptest.NewRecorder()
 	asHandler(ts.srv, ts.mws).ServeHTTP(rec, req)

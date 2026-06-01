@@ -55,18 +55,30 @@ type ServerDeps struct {
 // why the side-effecting middleware is attached here rather than in
 // NewApp — the same configuration must reach the spec generator.
 func BuildServer(deps ServerDeps, h Handlers) *fuego.Server {
+	// Global middleware ordering note: fuego.WithGlobalMiddlewares executes the
+	// LAST entry OUTERMOST (first on the way in). So to make a middleware run
+	// earlier at request time, append it LATER here. The intended request-time
+	// order is: rate-limit → authn → cors → router.
 	mws := []func(http.Handler) http.Handler{
 		middleware.NewCorsMiddleware(deps.Logger, deps.Env).Handler(),
 	}
 
-	// Per-client rate limiting sits BEFORE authn so abusive callers are
-	// shed before they reach the (relatively expensive) authenticator chain
-	// — protecting the auth path itself from brute-force / floods. Keyed by
-	// the securely-resolved client IP (the same trusted-proxy rules the rest
-	// of the app uses). Opt-in: a non-positive RATE_LIMIT_RPS leaves it a
-	// pass-through. ParseTrustedProxies already ran (and validated) in NewApp;
-	// re-parsing here cannot see malformed input in the live path, and the
-	// KeyFunc is never invoked while the limiter is disabled.
+	// Authn is optional so the exporter can boot without a Clerk key.
+	if len(deps.Authenticators) > 0 {
+		mws = append(mws,
+			middleware.NewAuthnWrapperMiddleware(deps.Authenticators, deps.Logger, deps.Env).Handler(),
+		)
+	}
+
+	// Per-client rate limiting is appended LAST so it runs OUTERMOST — i.e.
+	// BEFORE authn — shedding abusive callers before they reach the
+	// (relatively expensive) authenticator chain and protecting the auth path
+	// itself from brute-force / floods. Keyed by the securely-resolved client
+	// IP (the same trusted-proxy rules the rest of the app uses). Opt-in: a
+	// non-positive RATE_LIMIT_RPS (or nil backend) leaves it a pass-through.
+	// ParseTrustedProxies already ran (and validated) in NewApp; re-parsing
+	// here cannot see malformed input in the live path, and the KeyFunc is
+	// never invoked while the limiter is disabled.
 	trustedProxies, _ := handler.ParseTrustedProxies(deps.Env.TrustedProxies)
 	rateLimiter := middleware.NewRateLimitMiddleware(deps.Logger, deps.RateLimiter, middleware.RateLimitConfig{
 		RPS:     deps.Env.RateLimitRPS,
@@ -75,13 +87,6 @@ func BuildServer(deps ServerDeps, h Handlers) *fuego.Server {
 	})
 	if rateLimiter.Enabled() {
 		mws = append(mws, rateLimiter.Handler())
-	}
-
-	// Authn is optional so the exporter can boot without a Clerk key.
-	if len(deps.Authenticators) > 0 {
-		mws = append(mws,
-			middleware.NewAuthnWrapperMiddleware(deps.Authenticators, deps.Logger, deps.Env).Handler(),
-		)
 	}
 
 	opts := []fuego.ServerOption{
