@@ -1,0 +1,139 @@
+### Order → Subscription end-to-end driver
+#
+# Drives the full flow against a locally-running server:
+#   customer → product (subscription price) → payment method → order → complete → verify
+#
+# Auth is via an org-scoped API key sent as `x-api-key`. The key already binds
+# to an org, so there is no org-creation step — every call is scoped to that org.
+#
+# Requires the api-key authenticator wired into internal/config/app.go (done) and
+# API_KEY_PEPPER set to the same value used when the key was minted.
+#
+# Usage:
+#   - VS Code REST Client / JetBrains HTTP Client: run each `###` block top-to-bottom.
+#   - The `# @name` tags let later requests reference earlier responses
+#     (e.g. {{createCustomer.response.body.$.id}}), so run them in order.
+
+@baseUrl = http://localhost:10081
+@apiKey = sk_3Ed55ejAEXHr0fAWH1iHbwlakVB_4gAR1nAMXxLfColVx5yFhc7VnXyKBvlKQSF6oddlXiw
+
+### 1. Create a customer (with a billing address — required to attach a payment method)
+# @name createCustomer
+POST {{baseUrl}}/api/customers
+x-api-key: {{apiKey}}
+Content-Type: application/json
+
+{
+  "email": "subtest+{{$timestamp}}@example.com",
+  "first_name": "Sub",
+  "last_name": "Tester",
+  "billing_address": {
+    "first_name": "Sub",
+    "last_name": "Tester",
+    "line1": "1 Test Street",
+    "city": "Cape Town",
+    "postal_code": "8001",
+    "country": "ZA"
+  }
+}
+
+### 2. Create a product with a monthly subscription price
+# @name createProduct
+POST {{baseUrl}}/api/products
+x-api-key: {{apiKey}}
+Content-Type: application/json
+
+{
+  "name": "Test Subscription Plan",
+  "description": "Monthly plan used to verify the order→subscription flow",
+  "variants": [
+    {
+      "name": "Standard",
+      "prices": [
+        {
+          "label": "Standard Monthly",
+          "category": "subscription",
+          "scheme": "fixed",
+          "currency": "USD",
+          "unit_price": 5000,
+          "billing_interval": "month",
+          "billing_interval_qty": 1
+        }
+      ]
+    }
+  ]
+}
+
+### Capture ids from the product response
+@productId = {{createProduct.response.body.$.id}}
+@priceId = {{createProduct.response.body.$.variants[0].prices[0].id}}
+@customerId = {{createCustomer.response.body.$.id}}
+
+### 3. Attach a payment method to the customer (token is a dummy — no gateway call)
+# @name createPaymentMethod
+POST {{baseUrl}}/api/customers/{{customerId}}/payment-methods
+x-api-key: {{apiKey}}
+Content-Type: application/json
+
+{
+  "psp": "paystack",
+  "name": "Test Card",
+  "type": "card",
+  "token": "tok_test_dummy_{{$timestamp}}",
+  "is_default": true
+}
+
+### Capture the payment method id
+@paymentMethodId = {{createPaymentMethod.response.body.$.id}}
+
+### 4. Create an order with a direct cart (no session → no live PSP charge)
+# @name createOrder
+POST {{baseUrl}}/api/orders
+x-api-key: {{apiKey}}
+Content-Type: application/json
+
+{
+  "customer": {
+    "id": "{{customerId}}"
+  },
+  "payment_method_id": "{{paymentMethodId}}",
+  "psp_id": "paystack",
+  "cart": {
+    "currency": "USD",
+    "items": [
+      {
+        "product_id": "{{productId}}",
+        "price_id": "{{priceId}}",
+        "quantity": 1
+      }
+    ]
+  }
+}
+
+### Capture the order id
+@orderId = {{createOrder.response.body.$.order.id}}
+
+### 5. Complete the order — records first payment, activates subscription, starts workflow
+# @name completeOrder
+POST {{baseUrl}}/api/orders/{{orderId}}/complete
+x-api-key: {{apiKey}}
+Content-Type: application/json
+
+{
+  "payment_method_id": "{{paymentMethodId}}",
+  "payment": {
+    "psp_id": "paystack",
+    "reference": "ref_test_{{$timestamp}}",
+    "amount": 5000,
+    "currency": "USD"
+  }
+}
+
+### 6. Verify — the order's subscription(s) should now be `active`
+# @name listOrderSubscriptions
+GET {{baseUrl}}/api/orders/{{orderId}}/subscriptions
+x-api-key: {{apiKey}}
+
+### (optional) Inspect the subscription directly
+GET {{baseUrl}}/api/subscriptions
+x-api-key: {{apiKey}}

@@ -49,6 +49,7 @@ type CartSummary struct {
 // CartItemPrice represents the price snapshot attached to a cart line item.
 type CartItemPrice struct {
 	Id                 string          `json:"id"`
+	VariantId          string          `json:"variant_id"`
 	Category           PriceCategory   `json:"category"`
 	Scheme             PriceScheme     `json:"scheme"`
 	Currency           string          `json:"currency"`
@@ -82,6 +83,7 @@ type AddItemInput struct {
 func PriceToCartItemPrice(p Price) CartItemPrice {
 	return CartItemPrice{
 		Id:                 p.Id,
+		VariantId:          p.VariantId,
 		Category:           p.Category,
 		Scheme:             p.Scheme,
 		Currency:           string(p.Currency),

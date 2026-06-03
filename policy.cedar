@@ -27,7 +27,10 @@ permit(
         Action::"ResumeSubscription",
         Action::"CancelSubscription",
         Action::"UpdateBillingAnchor",
-        Action::"Healthcheck"
+        Action::"Healthcheck",
+        Action::"CreateApiKey",
+        Action::"ListApiKeys",
+        Action::"DeleteApiKey"
     ],
     resource
 )

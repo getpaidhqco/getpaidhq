@@ -9,6 +9,10 @@ import "time"
 type ApiKey struct {
 	OrgId   string `gorm:"column:org_id;primaryKey" json:"org_id" validate:"required"`
 	Id      string `gorm:"column:id;primaryKey" json:"id" validate:"required"`
+	// Name is an optional human-readable label set at creation time
+	// (e.g. "ci-deploy"). Purely metadata — authentication uses the
+	// hash only.
+	Name    string `gorm:"column:name" json:"name,omitempty"`
 	KeyHash string `gorm:"column:key_hash;unique" json:"-" validate:"required"`
 
 	CreatedAt time.Time `gorm:"column:created_at" json:"created_at" validate:"required"`

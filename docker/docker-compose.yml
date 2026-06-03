@@ -3,29 +3,23 @@ name: getpaidhq
 services:
   postgresql:
     container_name: getpaidhq-postgresql
-    command:
-      - "-c"
-      - "wal_level=logical"
-      - "-c"
-      - "max_wal_senders=10"
-      - "-c"
-      - "max_replication_slots=10"
     environment:
-      POSTGRES_USER: postgres
-      POSTGRES_PASSWORD: postgres
+      POSTGRES_USER: getpaidhq
+      POSTGRES_PASSWORD: getpaidhq
       POSTGRES_DB: getpaidhq
     image: postgres:17
     networks:
       - getpaidhq-network
-    # Host port 6432 is mapped to the container's 5432 to avoid clashing with
-    # other local Postgres containers running on the default port.
+    # Host ports remapped into the 10xxx band to avoid clashing with anything
+    # else running locally. Loopback-bound (127.0.0.1) so the trivial dev
+    # creds aren't reachable from your LAN.
     ports:
-      - "6432:5432"
+      - "127.0.0.1:10432:5432"
     volumes:
       - getpaidhq-pgdata:/var/lib/postgresql/data
       - ./init:/docker-entrypoint-initdb.d:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      test: ["CMD-SHELL", "pg_isready -U getpaidhq"]
       interval: 5s
       timeout: 5s
       retries: 10
@@ -39,8 +33,8 @@ services:
     networks:
       - getpaidhq-network
     ports:
-      - "4222:4222"
-      - "8222:8222"
+      - "127.0.0.1:10422:4222"
+      - "127.0.0.1:10822:8222"
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:8222/healthz || exit 1"]
       interval: 5s
@@ -56,7 +50,7 @@ services:
     networks:
       - getpaidhq-network
     ports:
-      - "6379:6379"
+      - "127.0.0.1:10379:6379"
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -73,25 +67,27 @@ services:
         condition: service_healthy
     image: ghcr.io/hatchet-dev/hatchet/hatchet-lite:latest
     environment:
-      DATABASE_URL: "postgresql://postgres:postgres@postgresql:5432/hatchet?sslmode=disable"
+      DATABASE_URL: "postgresql://getpaidhq:getpaidhq@postgresql:5432/hatchet?sslmode=disable"
       # gRPC default port is 7070 and default bind is 127.0.0.1 (loopback inside
       # the container). Override both so the gRPC server is reachable from the
-      # host on the same port the broadcast address and client config use.
+      # host on the same port the broadcast address and client config use. The
+      # broadcast address must match the *host* port the SDK dials, because
+      # Hatchet hands it back to the client after the initial handshake.
       SERVER_GRPC_PORT: "7077"
       SERVER_GRPC_BIND_ADDRESS: "0.0.0.0"
       SERVER_GRPC_INSECURE: "t"
-      SERVER_GRPC_BROADCAST_ADDRESS: "localhost:7077"
+      SERVER_GRPC_BROADCAST_ADDRESS: "localhost:10707"
       SERVER_AUTH_SET_EMAIL_VERIFIED: "t"
       SERVER_AUTH_COOKIE_DOMAIN: "localhost"
       SERVER_AUTH_COOKIE_INSECURE: "t"
       SERVER_AUTH_COOKIE_SECRETS: "secret1 secret2"
       SERVER_DEFAULT_ENGINE_VERSION: "V1"
-      SERVER_URL: "http://localhost:8888"
+      SERVER_URL: "http://localhost:10888"
     networks:
       - getpaidhq-network
     ports:
-      - "8888:8888"
-      - "7077:7077"
+      - "127.0.0.1:10888:8888"
+      - "127.0.0.1:10707:7077"
     # Persist auto-generated encryption keys + server config across container
     # recreations so admin-issued tokens stay valid (entrypoint quickstart runs
     # with --overwrite=false and skips regeneration if /config exists).

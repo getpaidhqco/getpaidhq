@@ -67,6 +67,7 @@ func allModels() []any {
 		&domain.PaymentUpdateToken{},
 		&domain.DunningConfiguration{},
 		&domain.CustomerDunningHistory{},
+		&domain.ApiKey{},
 	}
 }
 
@@ -148,6 +149,7 @@ func cleanupOrg(t *testing.T, db *gorm.DB, orgId string) {
 			&domain.CustomerCohort{},
 			&domain.Cohort{},
 			&domain.Customer{},
+			&domain.ApiKey{},
 		}
 		for _, m := range ordered {
 			db.Unscoped().Where("org_id = ?", orgId).Delete(m)

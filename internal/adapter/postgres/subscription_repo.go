@@ -44,6 +44,7 @@ func (r *SubscriptionRepo) FindByIdForUpdate(ctx context.Context, orgId string, 
 }
 
 func (r *SubscriptionRepo) Create(ctx context.Context, entity domain.Subscription) (domain.Subscription, error) {
+	entity.Metadata = emptyIfNil(entity.Metadata)
 	err := dbFromCtx(ctx, r.db).Create(&entity).Error
 	if err != nil {
 		return domain.Subscription{}, err

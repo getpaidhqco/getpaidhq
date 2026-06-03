@@ -23,6 +23,14 @@ type Meta struct {
 	Limit int `json:"limit"`
 }
 
+// EmptyResponse is the response body for endpoints that return 204 No Content
+// (e.g. DELETEs). It exists because Fuego reflects on the typed return to
+// register an OpenAPI schema component; an anonymous `struct{}` has no
+// reflect.Type.Name() and gets registered with the empty string, which the
+// spec validator then rejects with `identifier "" is not supported`. A named
+// (even if zero-field) type gives the component a stable identifier.
+type EmptyResponse struct{}
+
 // ---------------------------------------------------------------------------
 // Order
 // ---------------------------------------------------------------------------

@@ -15,6 +15,17 @@ func OrgScope(orgId string) func(db *gorm.DB) *gorm.DB {
 	}
 }
 
+// emptyIfNil returns a non-nil map so a `serializer:json` metadata column that
+// is NOT NULL in the schema receives `{}` rather than SQL NULL. A nil Go map
+// serializes to NULL, which violates those constraints (orders, order_items,
+// subscriptions). Callers apply this on the write path before insert.
+func emptyIfNil(m map[string]string) map[string]string {
+	if m == nil {
+		return map[string]string{}
+	}
+	return m
+}
+
 // safeIdentifier matches a single bare SQL identifier — lower/underscore
 // start, then lower/digit/underscore. We deliberately keep it conservative
 // (no quoted identifiers, no schema.table.column dotted form) so that

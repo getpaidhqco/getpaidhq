@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
@@ -47,9 +48,10 @@ func NewCustomerService(
 }
 
 func (s *CustomerService) Create(ctx context.Context, orgId string, input domain.CreateCustomerInput) (domain.Customer, error) {
-	// check for existing customer
+	// check for existing customer — a not-found result is the expected happy
+	// path (no duplicate), so only a real lookup failure should abort.
 	exists, err := s.customerRepository.FindByEmail(ctx, orgId, input.Email)
-	if err != nil {
+	if err != nil && !errors.Is(err, port.ErrNotFound) {
 		return domain.Customer{}, lib.NewCustomError(lib.InternalError, "Error creating customer", err)
 	}
 	if exists.Id != "" {

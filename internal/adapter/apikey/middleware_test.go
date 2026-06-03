@@ -55,6 +55,9 @@ func (f *fakeApiKeyRepo) FindByKey(_ context.Context, keyHash string) (domain.Ap
 func (f *fakeApiKeyRepo) FindById(context.Context, string, string) (domain.ApiKey, error) {
 	return domain.ApiKey{}, errors.New("not implemented")
 }
+func (f *fakeApiKeyRepo) List(context.Context, string, domain.Pagination) ([]domain.ApiKey, int, error) {
+	return nil, 0, errors.New("not implemented")
+}
 func (f *fakeApiKeyRepo) Create(_ context.Context, e domain.ApiKey) (domain.ApiKey, error) {
 	return e, nil
 }

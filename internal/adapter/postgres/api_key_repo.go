@@ -42,6 +42,24 @@ func (r *ApiKeyRepo) FindByKey(ctx context.Context, keyHash string) (domain.ApiK
 	return apiKey, translateErr(err)
 }
 
+// List returns the org's API keys with stable pagination. The key_hash
+// column is loaded — callers that surface results to the user MUST strip
+// it (the domain JSON tag already hides it; just don't reflect it).
+func (r *ApiKeyRepo) List(ctx context.Context, orgId string, pagination domain.Pagination) ([]domain.ApiKey, int, error) {
+	var keys []domain.ApiKey
+	var count int64
+	if err := dbFromCtx(ctx, r.db).
+		Model(&domain.ApiKey{}).
+		Scopes(OrgScope(orgId)).
+		Count(&count).Error; err != nil {
+		return nil, 0, err
+	}
+	err := dbFromCtx(ctx, r.db).
+		Scopes(OrgScope(orgId), Paginate(pagination)).
+		Find(&keys).Error
+	return keys, int(count), err
+}
+
 func (r *ApiKeyRepo) Create(ctx context.Context, entity domain.ApiKey) (domain.ApiKey, error) {
 	err := dbFromCtx(ctx, r.db).Create(&entity).Error
 	if err != nil {

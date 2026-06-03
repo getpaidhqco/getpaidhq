@@ -204,6 +204,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrder
 			Id:            lib.GenerateId("order_item"),
 			OrderId:       orderId,
 			ProductId:     item.ProductId,
+			VariantId:     item.Price.VariantId,
 			PriceId:       item.Price.Id,
 			Description:   item.Description,
 			Quantity:      int(item.Quantity),
