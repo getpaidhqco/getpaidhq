@@ -80,7 +80,10 @@ services:
       SERVER_AUTH_SET_EMAIL_VERIFIED: "t"
       SERVER_AUTH_COOKIE_DOMAIN: "localhost"
       SERVER_AUTH_COOKIE_INSECURE: "t"
-      SERVER_AUTH_COOKIE_SECRETS: "secret1 secret2"
+      # securecookie keys: first is the hash key, second is the AES block
+      # (encryption) key — the block key MUST be 16, 24, or 32 bytes or the
+      # server 500s on every session with "crypto/aes: invalid key size".
+      SERVER_AUTH_COOKIE_SECRETS: "4c80d6088447fa589280176d001f3447 dbecb521b4213fd1fe003650c4cbb6ad"
       SERVER_DEFAULT_ENGINE_VERSION: "V1"
       SERVER_URL: "http://localhost:10888"
     networks:
