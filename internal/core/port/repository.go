@@ -125,6 +125,9 @@ type CartRepository interface {
 // OrgRepository manages organization persistence.
 type OrgRepository interface {
 	Create(ctx context.Context, entity domain.Org) (domain.Org, error)
+	// ListIds returns every org id. Used by the billing sweep to fan out
+	// one per-org billing run per tenant (tenant = the sharding axis).
+	ListIds(ctx context.Context) ([]string, error)
 }
 
 // PspRepository manages payment service provider configuration persistence.

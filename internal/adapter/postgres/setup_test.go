@@ -51,6 +51,7 @@ var (
 
 func allModels() []any {
 	return []any{
+		&domain.Org{},
 		&domain.Customer{},
 		&domain.Cohort{},
 		&domain.CustomerCohort{},
@@ -154,6 +155,8 @@ func cleanupOrg(t *testing.T, db *gorm.DB, orgId string) {
 		for _, m := range ordered {
 			db.Unscoped().Where("org_id = ?", orgId).Delete(m)
 		}
+		// The orgs table is keyed by `id`, not `org_id`.
+		db.Unscoped().Where("id = ?", orgId).Delete(&domain.Org{})
 	})
 }
 

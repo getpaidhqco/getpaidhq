@@ -27,3 +27,12 @@ func (r *OrgRepo) Create(ctx context.Context, entity domain.Org) (domain.Org, er
 		First(&created).Error
 	return created, translateErr(err)
 }
+
+func (r *OrgRepo) ListIds(ctx context.Context) ([]string, error) {
+	var ids []string
+	err := dbFromCtx(ctx, r.db).
+		Model(&domain.Org{}).
+		Where("status = ?", domain.OrgStatusActive).
+		Pluck("id", &ids).Error
+	return ids, err
+}
