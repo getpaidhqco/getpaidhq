@@ -193,30 +193,6 @@ type MetadataStoreRepository interface {
 	Delete(ctx context.Context, orgId string, parentId string, key string) error
 }
 
-// ReportRepository manages reporting data and analytics queries.
-type ReportRepository interface {
-	GetMRR(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error)
-	GetARR(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error)
-	GetActiveSubscribers(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error)
-	GetRefundTotals(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error)
-	GetCustomerChurnTotals(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error)
-	GetCustomerChurnRates(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error)
-	UpsertSubscription(ctx context.Context, entity domain.Subscription) error
-	UpsertPayment(ctx context.Context, entity domain.Payment) error
-	UpsertCustomer(ctx context.Context, entity domain.Customer) error
-	UpsertRefund(ctx context.Context, entity domain.Refund) error
-	UpsertCustomerCohort(ctx context.Context, entity domain.CustomerCohort) error
-	StoreDailyMetrics(ctx context.Context, input ProcessDailyMetricsInput) error
-	ProcessDailyMetrics(ctx context.Context, d time.Time) error
-}
-
-// ProcessDailyMetricsInput is the input for processing daily reporting metrics.
-type ProcessDailyMetricsInput struct {
-	OrgId    string    `json:"org_id"`
-	Date     time.Time `json:"date"`
-	Timezone string    `json:"timezone"`
-}
-
 // CreateGatewayInput is the input for creating a PSP gateway configuration.
 type CreateGatewayInput struct {
 	OrgId    string            `json:"org_id" validate:"required"`

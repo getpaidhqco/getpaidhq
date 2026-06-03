@@ -33,7 +33,6 @@ func main() {
 		Webhook:       handler.NewWebhookHandler(nil, logger),
 		WebhookSub:    handler.NewWebhookSubscriptionHandler(nil, logger, nil),
 		Org:           handler.NewOrgHandler(nil, logger),
-		Report:        handler.NewReportHandler(nil, logger),
 		Psp:           handler.NewPspHandler(nil, logger, nil),
 		PaymentMethod: handler.NewPaymentMethodHandler(customer),
 		Dunning:       handler.NewDunningHandler(nil, nil, logger, nil, nil),

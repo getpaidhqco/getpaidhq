@@ -925,44 +925,6 @@ func (r *fakeIdempRepo) Release(_ context.Context, key string) error {
 	return nil
 }
 
-// fakeReportRepo satisfies port.ReportRepository.
-type fakeReportRepo struct {
-	port.ReportRepository
-	mrr      []domain.RecurringRevenue
-	mrrErr   error
-	arr      []domain.RecurringRevenue
-	subs     []domain.RecurringRevenue
-	refunds  []domain.RecurringRevenue
-	churnTot []domain.RecurringRevenue
-	churnRat []domain.RecurringRevenue
-}
-
-func (r *fakeReportRepo) GetMRR(context.Context, string, time.Time, time.Time) ([]domain.RecurringRevenue, error) {
-	return r.mrr, r.mrrErr
-}
-
-func (r *fakeReportRepo) GetARR(context.Context, string, time.Time, time.Time) ([]domain.RecurringRevenue, error) {
-	return r.arr, nil
-}
-
-func (r *fakeReportRepo) GetActiveSubscribers(context.Context, string, time.Time, time.Time) ([]domain.RecurringRevenue, error) {
-	return r.subs, nil
-}
-
-func (r *fakeReportRepo) GetRefundTotals(context.Context, string, time.Time, time.Time) ([]domain.RecurringRevenue, error) {
-	return r.refunds, nil
-}
-
-func (r *fakeReportRepo) GetCustomerChurnTotals(context.Context, string, time.Time, time.Time) ([]domain.RecurringRevenue, error) {
-	return r.churnTot, nil
-}
-
-func (r *fakeReportRepo) GetCustomerChurnRates(context.Context, string, time.Time, time.Time) ([]domain.RecurringRevenue, error) {
-	return r.churnRat, nil
-}
-
-func (r *fakeReportRepo) ProcessDailyMetrics(context.Context, time.Time) error { return nil }
-
 // fakeDunningRepo satisfies port.DunningRepository for handlers' needs.
 type fakeDunningRepo struct {
 	port.DunningRepository

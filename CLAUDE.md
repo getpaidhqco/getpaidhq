@@ -107,10 +107,13 @@ Adapter registry in `app.go`: `map[domain.Gateway]port.GatewayAdapter` with `dom
 - Authentication: `port.Authenticator` implementations are pluggable. Currently only Clerk is constructed in `app.go`; the `authenticators` slice is the FX-tag substitute referenced in the README. (Cognito and apikey adapters exist but are not wired.)
 - Authorization: Cedar via `internal/adapter/cedar/`. Policies live in `policy.cedar` at repo root (copied into the Docker image). Handler signatures take `authzEngine` and call it before mutating actions — see `OrderHandler`, `CustomerHandler`, etc.
 
-### Two databases
+### Reporting layer (torn down)
 
-- `DATABASE_URL` → `getpaidhq` (operational), `REPORTING_DATABASE_URL` → `getpaidhq_reports` (reports). If the reporting URL fails to connect, the code falls back to the operational DB (see `app.go:48`).
-- The trigger that populates the reporting DB has been removed; `ReportService.ProcessDataChange` is still in place and will be hooked up to a replacement mechanism later.
+The HTTP `/reports/*` surface, the `ReportService`, the `ReportEventBridge`, and the daily-metrics cron have been removed. The previous SQL was incoherent with `schemas/reporting/schema.prisma` — it upserted into `report_subscriptions` / `report_payments` / `report_customers` / `report_refunds` / `report_customer_cohorts` (the real tables are `subscriptions` / `payments` / `customers` / `refunds` / `customer_cohorts`) and read `daily_metrics` as polymorphic `(period, total, count, growth_mom, type)` rows when the real table is keyed `(org_id, date)` with one column per metric. `REPORTING_DATABASE_URL` is therefore not opened at boot, and `internal/adapter/postgres/report_repo.go` is a deliberate tombstone: methods log "report repo not implemented" once and return zero. Revive by: rewriting each method against the Prisma schema, restoring a service + handler, wiring them in `app.go`, and re-registering the routes in `internal/config/server.go`.
+
+### Operational database
+
+- `DATABASE_URL` → `getpaidhq` (operational) is the only DB the app currently opens.
 
 ## Conventions and gotchas
 

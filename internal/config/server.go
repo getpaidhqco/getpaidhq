@@ -29,7 +29,6 @@ type Handlers struct {
 	Webhook           *handler.WebhookHandler
 	WebhookSub        *handler.WebhookSubscriptionHandler
 	Org               *handler.OrgHandler
-	Report            *handler.ReportHandler
 	Psp               *handler.PspHandler
 	PaymentMethod     *handler.PaymentMethodHandler
 	Dunning           *handler.DunningHandler
@@ -149,9 +148,6 @@ func registerAll(api *fuego.Server, h Handlers) {
 	}
 	if h.Org != nil {
 		h.Org.RegisterRoutes(api)
-	}
-	if h.Report != nil {
-		h.Report.RegisterRoutes(api)
 	}
 	if h.Psp != nil {
 		h.Psp.RegisterRoutes(api)

@@ -2,169 +2,95 @@ package postgres
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"gorm.io/gorm"
+
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 )
 
+// ReportRepo is a deliberate tombstone.
+//
+// The previous implementation read and wrote a reporting schema that does
+// not match schemas/reporting/schema.prisma:
+//
+//   - Upserts targeted report_subscriptions / report_payments /
+//     report_customers / report_refunds / report_customer_cohorts. The real
+//     tables are subscriptions / payments / customers / refunds /
+//     customer_cohorts (no report_ prefix).
+//   - Get* queries selected `period, total, count, growth_mom, type` from
+//     daily_metrics as if it were polymorphic. The real daily_metrics is
+//     keyed (org_id, date) with one column per metric (mrr, arr,
+//     customer_count, churn_count, churn_total, refund_count, refund_total,
+//     successful_payments, failed_payments, …).
+//
+// The reporting layer is no longer wired in NewApp; the HTTP routes have
+// been removed and the daily cron / NATS event bridge are gone. This file
+// is kept as a marker for whoever revives reports: rewrite each method
+// against the actual Prisma schema, restore a service + handler, and
+// re-register the routes in internal/config/server.go.
+//
+// Every method is a no-op that logs "report repo not implemented" once per
+// method per process — if anything reaches these, we want to see it.
 type ReportRepo struct {
-	db *gorm.DB
+	db     *gorm.DB
+	logger port.Logger
+
+	mu    sync.Mutex
+	warns map[string]*sync.Once
 }
 
-func NewReportRepo(db *gorm.DB) port.ReportRepository {
-	return &ReportRepo{db: db}
+// NewReportRepo builds the stub. The *gorm.DB is retained so a future
+// implementation does not have to thread it back through app wiring.
+func NewReportRepo(db *gorm.DB, logger port.Logger) *ReportRepo {
+	return &ReportRepo{
+		db:     db,
+		logger: logger,
+		warns:  map[string]*sync.Once{},
+	}
 }
 
-func (r *ReportRepo) GetMRR(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error) {
-	var results []domain.RecurringRevenue
-	err := dbFromCtx(ctx, r.db).Raw(`
-		SELECT period, total, count, growth_mom, type
-		FROM daily_metrics
-		WHERE org_id = ? AND type = 'mrr' AND period BETWEEN ? AND ?
-		ORDER BY period ASC
-	`, orgId, startDate, endDate).Scan(&results).Error
-	return results, err
+func (r *ReportRepo) warnOnce(method string) {
+	r.mu.Lock()
+	once, ok := r.warns[method]
+	if !ok {
+		once = &sync.Once{}
+		r.warns[method] = once
+	}
+	r.mu.Unlock()
+	once.Do(func() {
+		r.logger.Warn("report repo not implemented", "method", method)
+	})
 }
 
-func (r *ReportRepo) GetARR(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error) {
-	var results []domain.RecurringRevenue
-	err := dbFromCtx(ctx, r.db).Raw(`
-		SELECT period, total, count, growth_mom, type
-		FROM daily_metrics
-		WHERE org_id = ? AND type = 'arr' AND period BETWEEN ? AND ?
-		ORDER BY period ASC
-	`, orgId, startDate, endDate).Scan(&results).Error
-	return results, err
+func (r *ReportRepo) GetMRR(_ context.Context, _ string, _, _ time.Time) ([]domain.RecurringRevenue, error) {
+	r.warnOnce("GetMRR")
+	return nil, nil
 }
 
-func (r *ReportRepo) GetActiveSubscribers(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error) {
-	var results []domain.RecurringRevenue
-	err := dbFromCtx(ctx, r.db).Raw(`
-		SELECT period, total, count, growth_mom, type
-		FROM daily_metrics
-		WHERE org_id = ? AND type = 'active_subscribers' AND period BETWEEN ? AND ?
-		ORDER BY period ASC
-	`, orgId, startDate, endDate).Scan(&results).Error
-	return results, err
+func (r *ReportRepo) GetARR(_ context.Context, _ string, _, _ time.Time) ([]domain.RecurringRevenue, error) {
+	r.warnOnce("GetARR")
+	return nil, nil
 }
 
-func (r *ReportRepo) GetRefundTotals(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error) {
-	var results []domain.RecurringRevenue
-	err := dbFromCtx(ctx, r.db).Raw(`
-		SELECT period, total, count, growth_mom, type
-		FROM daily_metrics
-		WHERE org_id = ? AND type = 'refunds' AND period BETWEEN ? AND ?
-		ORDER BY period ASC
-	`, orgId, startDate, endDate).Scan(&results).Error
-	return results, err
+func (r *ReportRepo) GetActiveSubscribers(_ context.Context, _ string, _, _ time.Time) ([]domain.RecurringRevenue, error) {
+	r.warnOnce("GetActiveSubscribers")
+	return nil, nil
 }
 
-func (r *ReportRepo) GetCustomerChurnTotals(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error) {
-	var results []domain.RecurringRevenue
-	err := dbFromCtx(ctx, r.db).Raw(`
-		SELECT period, total, count, growth_mom, type
-		FROM daily_metrics
-		WHERE org_id = ? AND type = 'customer_churn' AND period BETWEEN ? AND ?
-		ORDER BY period ASC
-	`, orgId, startDate, endDate).Scan(&results).Error
-	return results, err
+func (r *ReportRepo) GetRefundTotals(_ context.Context, _ string, _, _ time.Time) ([]domain.RecurringRevenue, error) {
+	r.warnOnce("GetRefundTotals")
+	return nil, nil
 }
 
-func (r *ReportRepo) GetCustomerChurnRates(ctx context.Context, orgId string, startDate time.Time, endDate time.Time) ([]domain.RecurringRevenue, error) {
-	var results []domain.RecurringRevenue
-	err := dbFromCtx(ctx, r.db).Raw(`
-		SELECT period, total, count, growth_mom, type
-		FROM daily_metrics
-		WHERE org_id = ? AND type = 'customer_churn_rate' AND period BETWEEN ? AND ?
-		ORDER BY period ASC
-	`, orgId, startDate, endDate).Scan(&results).Error
-	return results, err
+func (r *ReportRepo) GetCustomerChurnTotals(_ context.Context, _ string, _, _ time.Time) ([]domain.RecurringRevenue, error) {
+	r.warnOnce("GetCustomerChurnTotals")
+	return nil, nil
 }
 
-func (r *ReportRepo) UpsertSubscription(ctx context.Context, entity domain.Subscription) error {
-	return dbFromCtx(ctx, r.db).Raw(`
-		INSERT INTO report_subscriptions (org_id, id, status, currency, amount, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (org_id, id) DO UPDATE SET
-			status = EXCLUDED.status,
-			currency = EXCLUDED.currency,
-			amount = EXCLUDED.amount,
-			updated_at = EXCLUDED.updated_at
-	`, entity.OrgId, entity.Id, entity.Status, entity.Currency, entity.Amount, entity.CreatedAt, entity.UpdatedAt).Error
-}
-
-func (r *ReportRepo) UpsertPayment(ctx context.Context, entity domain.Payment) error {
-	return dbFromCtx(ctx, r.db).Raw(`
-		INSERT INTO report_payments (org_id, id, status, currency, amount, completed_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (org_id, id) DO UPDATE SET
-			status = EXCLUDED.status,
-			currency = EXCLUDED.currency,
-			amount = EXCLUDED.amount,
-			completed_at = EXCLUDED.completed_at,
-			updated_at = EXCLUDED.updated_at
-	`, entity.OrgId, entity.Id, entity.Status, entity.Currency, entity.Amount, entity.CompletedAt, entity.CreatedAt, entity.UpdatedAt).Error
-}
-
-func (r *ReportRepo) UpsertCustomer(ctx context.Context, entity domain.Customer) error {
-	return dbFromCtx(ctx, r.db).Raw(`
-		INSERT INTO report_customers (org_id, id, email, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?)
-		ON CONFLICT (org_id, id) DO UPDATE SET
-			email = EXCLUDED.email,
-			updated_at = EXCLUDED.updated_at
-	`, entity.OrgId, entity.Id, entity.Email, entity.CreatedAt, entity.UpdatedAt).Error
-}
-
-func (r *ReportRepo) UpsertRefund(ctx context.Context, entity domain.Refund) error {
-	return dbFromCtx(ctx, r.db).Raw(`
-		INSERT INTO report_refunds (org_id, id, payment_id, amount, currency, refunded_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (org_id, id) DO UPDATE SET
-			amount = EXCLUDED.amount,
-			currency = EXCLUDED.currency,
-			refunded_at = EXCLUDED.refunded_at,
-			updated_at = EXCLUDED.updated_at
-	`, entity.OrgId, entity.Id, entity.PaymentId, entity.Amount, entity.Currency, entity.RefundedAt, entity.CreatedAt, entity.UpdatedAt).Error
-}
-
-func (r *ReportRepo) UpsertCustomerCohort(ctx context.Context, entity domain.CustomerCohort) error {
-	return dbFromCtx(ctx, r.db).Raw(`
-		INSERT INTO report_customer_cohorts (org_id, customer_id, cohort_id, cohort_value, joined_at, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (org_id, customer_id, cohort_id) DO UPDATE SET
-			cohort_value = EXCLUDED.cohort_value,
-			updated_at = EXCLUDED.updated_at
-	`, entity.OrgId, entity.CustomerId, entity.CohortId, entity.CohortValue, entity.JoinedAt, entity.CreatedAt, entity.UpdatedAt).Error
-}
-
-func (r *ReportRepo) StoreDailyMetrics(ctx context.Context, input port.ProcessDailyMetricsInput) error {
-	return dbFromCtx(ctx, r.db).Exec(`
-		INSERT INTO daily_metrics (org_id, period, type, total, count)
-		SELECT ?, ?, type, COALESCE(SUM(total), 0), COALESCE(COUNT(*), 0)
-		FROM (
-			SELECT 'mrr' as type, amount as total FROM report_subscriptions WHERE org_id = ? AND status = 'active'
-			UNION ALL
-			SELECT 'active_subscribers' as type, 1 as total FROM report_subscriptions WHERE org_id = ? AND status = 'active'
-		) metrics
-		GROUP BY type
-		ON CONFLICT (org_id, period, type) DO UPDATE SET
-			total = EXCLUDED.total,
-			count = EXCLUDED.count
-	`, input.OrgId, input.Date, input.OrgId, input.OrgId).Error
-}
-
-func (r *ReportRepo) ProcessDailyMetrics(ctx context.Context, d time.Time) error {
-	return dbFromCtx(ctx, r.db).Exec(`
-		INSERT INTO daily_metrics (org_id, period, type, total, count)
-		SELECT org_id, ?, 'mrr', COALESCE(SUM(amount), 0), COUNT(*)
-		FROM report_subscriptions
-		WHERE status = 'active'
-		GROUP BY org_id
-		ON CONFLICT (org_id, period, type) DO UPDATE SET
-			total = EXCLUDED.total,
-			count = EXCLUDED.count
-	`, d).Error
+func (r *ReportRepo) GetCustomerChurnRates(_ context.Context, _ string, _, _ time.Time) ([]domain.RecurringRevenue, error) {
+	r.warnOnce("GetCustomerChurnRates")
+	return nil, nil
 }
