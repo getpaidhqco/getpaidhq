@@ -136,7 +136,13 @@ func (h Hatchet) StartWorkflow(ctx context.Context, id port.WorkflowType, payloa
 			}
 			pc = parsed
 		}
-		_, err := h.client.RunNoWait(ctx, "payment-success", hatchetwf.PaymentSuccessInput{PaymentContext: pc})
+		_, err := h.client.RunNoWait(ctx, "payment-success", hatchetwf.PaymentSuccessInput{PaymentContext: pc},
+			hatchet.WithRunMetadata(map[string]string{
+				"orgId":     pc.OrgId,
+				"orderId":   pc.OrderId,
+				"paymentId": pc.Payment.PspId,
+			}),
+		)
 		if err != nil {
 			h.logger.Error("Unable to run payment-success workflow", "err", err.Error())
 			return port.WorkflowResult{}, err
@@ -152,7 +158,13 @@ func (h Hatchet) StartWorkflow(ctx context.Context, id port.WorkflowType, payloa
 			}
 			pc = parsed
 		}
-		_, err := h.client.RunNoWait(ctx, "payment-refunded", hatchetwf.PaymentRefundedInput{PaymentContext: pc})
+		_, err := h.client.RunNoWait(ctx, "payment-refunded", hatchetwf.PaymentRefundedInput{PaymentContext: pc},
+			hatchet.WithRunMetadata(map[string]string{
+				"orgId":     pc.OrgId,
+				"orderId":   pc.OrderId,
+				"paymentId": pc.Payment.PspId,
+			}),
+		)
 		if err != nil {
 			h.logger.Error("Unable to run payment-refunded workflow", "err", err.Error())
 			return port.WorkflowResult{}, err
@@ -164,7 +176,13 @@ func (h Hatchet) StartWorkflow(ctx context.Context, id port.WorkflowType, payloa
 		if !ok {
 			return port.WorkflowResult{}, &portError{Msg: "outgoing-webhook expects port.OutgoingWebhookPayload"}
 		}
-		_, err := h.client.RunNoWait(ctx, "outgoing-webhook", wh)
+		_, err := h.client.RunNoWait(ctx, "outgoing-webhook", wh,
+			hatchet.WithRunMetadata(map[string]string{
+				"orgId":                 wh.WebhookSubscription.OrgID,
+				"webhookSubscriptionId": wh.WebhookSubscription.Id,
+				"eventId":               wh.Event.Id,
+			}),
+		)
 		if err != nil {
 			h.logger.Error("Unable to run outgoing-webhook workflow", "err", err.Error())
 			return port.WorkflowResult{}, err
@@ -180,6 +198,11 @@ func (h Hatchet) StartWorkflow(ctx context.Context, id port.WorkflowType, payloa
 func (h Hatchet) StartSubscriptionWorkflow(ctx context.Context, sub domain.Subscription) error {
 	ref, err := h.client.RunNoWait(ctx, "subscription-runner", sub,
 		hatchet.WithRunKey(hatchetwf.SubscriptionRunKey(sub.OrgId, sub.Id)),
+		hatchet.WithRunMetadata(map[string]string{
+			"orgId":          sub.OrgId,
+			"subscriptionId": sub.Id,
+			"customerId":     sub.CustomerId,
+		}),
 	)
 	if err != nil {
 		h.logger.Error("Unable to run subscription-runner", "err", err.Error())
@@ -270,6 +293,12 @@ func (h Hatchet) StartDunningWorkflow(ctx context.Context, input domain.StartDun
 	}
 	ref, err := h.client.RunNoWait(ctx, "dunning-runner", runnerInput,
 		hatchet.WithRunKey(hatchetwf.DunningRunKey(input.OrgId, campaignId)),
+		hatchet.WithRunMetadata(map[string]string{
+			"orgId":          input.OrgId,
+			"campaignId":     campaignId,
+			"subscriptionId": input.SubscriptionId,
+			"customerId":     input.CustomerId,
+		}),
 	)
 	if err != nil {
 		h.logger.Error("Unable to start dunning-runner", "err", err.Error())

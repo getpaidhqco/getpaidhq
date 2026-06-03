@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"strconv"
 	"time"
 
 	"getpaidhq/internal/adapter/hatchet/steps"
@@ -224,7 +225,12 @@ func runDunningAttempt(ctx hatchet.DurableContext, client *hatchet.Client, orgId
 		CampaignId:    campaignId,
 		AttemptNumber: attemptNumber,
 		AttemptType:   attemptType,
-	}, hatchet.WithRunKey(DunningAttemptRunKey(orgId, campaignId, attemptNumber)))
+	}, hatchet.WithRunKey(DunningAttemptRunKey(orgId, campaignId, attemptNumber)),
+		hatchet.WithRunMetadata(map[string]string{
+			"orgId":         orgId,
+			"campaignId":    campaignId,
+			"attemptNumber": strconv.Itoa(attemptNumber),
+		}))
 	if err != nil {
 		return domain.DunningAttempt{}, err
 	}

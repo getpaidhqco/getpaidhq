@@ -3,6 +3,7 @@ package workflows
 import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
+	"strconv"
 	"time"
 
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
@@ -44,7 +45,11 @@ func NewSubscriptionRunnerWorkflow(client *hatchet.Client, subscriptionService p
 				_, _ = client.RunNoWait(ctx, "subscription-charge-reminder", ReminderInput{
 					Subscription: sub,
 					ReminderAt:   reminderAt,
-				}, hatchet.WithRunKey(ReminderRunKey(sub.OrgId, sub.Id, reminderAt)))
+				}, hatchet.WithRunKey(ReminderRunKey(sub.OrgId, sub.Id, reminderAt)),
+					hatchet.WithRunMetadata(map[string]string{
+						"orgId":          sub.OrgId,
+						"subscriptionId": sub.Id,
+					}))
 
 				// Wait for the next charge time OR any update / cancel event.
 				now, err := ctx.Now()
@@ -120,7 +125,12 @@ func NewSubscriptionRunnerWorkflow(client *hatchet.Client, subscriptionService p
 
 				// Billing — child DAG.
 				billingRes, err := client.Run(ctx, "billing-cycle", BillingCycleInput{Subscription: sub},
-					hatchet.WithRunKey(BillingRunKey(sub.OrgId, sub.Id, sub.CyclesProcessed)))
+					hatchet.WithRunKey(BillingRunKey(sub.OrgId, sub.Id, sub.CyclesProcessed)),
+					hatchet.WithRunMetadata(map[string]string{
+						"orgId":          sub.OrgId,
+						"subscriptionId": sub.Id,
+						"cycle":          strconv.Itoa(sub.CyclesProcessed),
+					}))
 				if err != nil {
 					return sub, err
 				}
