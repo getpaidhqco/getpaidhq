@@ -53,31 +53,31 @@ type Subscription struct {
 	Status          SubscriptionStatus `gorm:"column:status" json:"status"`
 	PaymentMethodId string             `gorm:"column:payment_method_id" json:"payment_method_id,omitempty"`
 
-	StartDate          time.Time       `gorm:"column:start_date" json:"start_date"`
-	EndDate            time.Time       `gorm:"column:end_date" json:"end_date,omitzero"`
+	StartDate          time.Time       `gorm:"column:start_date;serializer:nulltime" json:"start_date"`
+	EndDate            time.Time       `gorm:"column:end_date;serializer:nulltime" json:"end_date,omitzero"`
 	BillingInterval    BillingInterval `gorm:"column:billing_interval" json:"billing_interval"`
 	BillingIntervalQty int             `gorm:"column:billing_interval_qty" json:"billing_interval_qty"`
 	Cycles             int             `gorm:"column:cycles" json:"cycles"`
 	BillingAnchor      int             `gorm:"column:billing_anchor" json:"billing_anchor"`
 
-	TrialEndsAt time.Time `gorm:"column:trial_ends_at" json:"trial_ends_at,omitzero"`
-	CancelAt    time.Time `gorm:"column:cancel_at" json:"cancel_at,omitzero"`
-	EndsAt      time.Time `gorm:"column:ends_at" json:"ends_at,omitzero"`
-	LastCharge  time.Time `gorm:"column:last_charge" json:"last_charge"`
-	RenewsAt    time.Time `gorm:"column:renews_at" json:"renews_at"`
+	TrialEndsAt time.Time `gorm:"column:trial_ends_at;serializer:nulltime" json:"trial_ends_at,omitzero"`
+	CancelAt    time.Time `gorm:"column:cancel_at;serializer:nulltime" json:"cancel_at,omitzero"`
+	EndsAt      time.Time `gorm:"column:ends_at;serializer:nulltime" json:"ends_at,omitzero"`
+	LastCharge  time.Time `gorm:"column:last_charge;serializer:nulltime" json:"last_charge"`
+	RenewsAt    time.Time `gorm:"column:renews_at;serializer:nulltime" json:"renews_at"`
 
-	CurrentPeriodStart time.Time `gorm:"column:current_period_start" json:"current_period_start"`
-	CurrentPeriodEnd   time.Time `gorm:"column:current_period_end" json:"current_period_end"`
+	CurrentPeriodStart time.Time `gorm:"column:current_period_start;serializer:nulltime" json:"current_period_start"`
+	CurrentPeriodEnd   time.Time `gorm:"column:current_period_end;serializer:nulltime" json:"current_period_end"`
 
 	Retries     int       `gorm:"column:retries" json:"retries"`
-	NextRetryAt time.Time `gorm:"column:next_retry" json:"next_retry,omitzero"`
+	NextRetryAt time.Time `gorm:"column:next_retry;serializer:nulltime" json:"next_retry,omitzero"`
 
 	Currency        string            `gorm:"column:currency" json:"currency"`
 	Amount          int64             `gorm:"column:amount" json:"amount"`
 	Metadata        map[string]string `gorm:"column:metadata;serializer:json" json:"metadata"`
 	CyclesProcessed int               `gorm:"column:cycles_processed" json:"cycles_processed"`
 	TotalRevenue    int64             `gorm:"column:total_revenue" json:"total_revenue"`
-	CancelledAt     time.Time         `gorm:"column:cancelled_at" json:"cancelled_at,omitzero"`
+	CancelledAt     time.Time         `gorm:"column:cancelled_at;serializer:nulltime" json:"cancelled_at,omitzero"`
 	CreatedAt       time.Time         `gorm:"column:created_at" json:"created_at"`
 	UpdatedAt       time.Time         `gorm:"column:updated_at" json:"updated_at"`
 }
