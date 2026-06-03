@@ -180,3 +180,45 @@ func TestSubscriptionRepo(t *testing.T) {
 		assert.Empty(t, subs)
 	})
 }
+
+func TestSubscriptionRepo_FindDueForBilling(t *testing.T) {
+	db := testDB(t)
+	repo := NewSubscriptionRepo(db)
+	ctx := context.Background()
+
+	orgId := uniqueOrg(t)
+	t.Cleanup(func() { cleanupOrg(t, db, orgId) })
+
+	now := time.Now().UTC()
+	mk := func(id string, status domain.SubscriptionStatus, renews time.Time) {
+		// Seed the FK parent chain (customer/order/order_item) AutoMigrate
+		// created constraints for; reuse the fixture but pin the sub fields.
+		f := seedSubFixture(t, db, orgId)
+		f.sub.Id = id
+		f.sub.Status = status
+		f.sub.BillingInterval = domain.BillingIntervalMonth
+		f.sub.BillingIntervalQty = 1
+		f.sub.RenewsAt = renews
+		f.sub.Currency = "USD"
+		f.sub.Amount = 1000
+		f.sub.CreatedAt = now
+		f.sub.UpdatedAt = now
+		_, err := repo.Create(ctx, f.sub)
+		require.NoError(t, err)
+	}
+
+	mk("due-active", domain.SubscriptionStatusActive, now.Add(-time.Hour)) // due
+	mk("future", domain.SubscriptionStatusActive, now.Add(48*time.Hour))   // not due
+	mk("paused", domain.SubscriptionStatusPaused, now.Add(-time.Hour))     // excluded (status)
+
+	due, err := repo.FindDueForBilling(ctx, orgId, now)
+	require.NoError(t, err)
+
+	ids := map[string]bool{}
+	for _, s := range due {
+		ids[s.Id] = true
+	}
+	require.True(t, ids["due-active"], "active+past renews_at should be due")
+	require.False(t, ids["future"], "future renews_at should not be due")
+	require.False(t, ids["paused"], "paused should be excluded")
+}

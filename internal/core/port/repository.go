@@ -28,6 +28,10 @@ type SubscriptionRepository interface {
 	Update(ctx context.Context, entity domain.Subscription) (domain.Subscription, error)
 	FindByOrderId(ctx context.Context, orgId string, orderId string) ([]domain.Subscription, error)
 	Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Subscription, int, error)
+	// FindDueForBilling returns running subscriptions in org whose next charge
+	// date is at or before `now`, per Subscription.GetNextChargeDate() semantics.
+	// Used by the per-org billing run to fan out one billing-cycle per due sub.
+	FindDueForBilling(ctx context.Context, orgId string, now time.Time) ([]domain.Subscription, error)
 }
 
 // OrderRepository manages order persistence.

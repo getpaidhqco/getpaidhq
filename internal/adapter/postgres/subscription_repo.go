@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"time"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
@@ -83,4 +84,19 @@ func (r *SubscriptionRepo) Find(ctx context.Context, orgId string, p domain.Pagi
 		Preload("Customer").
 		Find(&subs).Error
 	return subs, int(count), err
+}
+
+func (r *SubscriptionRepo) FindDueForBilling(ctx context.Context, orgId string, now time.Time) ([]domain.Subscription, error) {
+	var subs []domain.Subscription
+	// Unset date columns are NULL (serializer:nulltime maps zero time → NULL),
+	// and `col <= now` is already false for NULL, so unset rows are auto-excluded.
+	err := dbFromCtx(ctx, r.db).
+		Scopes(OrgScope(orgId)).
+		Where(
+			r.db.Where("status = ? AND renews_at <= ?", domain.SubscriptionStatusActive, now).
+				Or("status = ? AND next_retry <= ?", domain.SubscriptionStatusPastDue, now).
+				Or("status = ? AND trial_ends_at <= ?", domain.SubscriptionStatusTrial, now),
+		).
+		Find(&subs).Error
+	return subs, err
 }
