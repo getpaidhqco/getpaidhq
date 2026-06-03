@@ -430,6 +430,25 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 		panic("Subscription is empty")
 	}
 
+	// Idempotency guard (per billing cycle). Durable runners replay from the
+	// top on eviction/restart and the billing-cycle DAG retries on transient
+	// failure, so this handler can be invoked more than once for the same
+	// cycle. The incoming subscription is the pre-charge snapshot carried by
+	// the workflow; if the persisted row has already advanced past that
+	// snapshot's cycle, this success was already applied — no-op so we don't
+	// double-advance CyclesProcessed / double-count TotalRevenue or write a
+	// duplicate payment.
+	current, err := s.subscriptionRepository.FindById(ctx, subscription.OrgId, subscription.Id)
+	if err != nil {
+		s.logger.Error("Failed to load current subscription", "err", err.Error())
+		return domain.Subscription{}, err
+	}
+	if subscription.CyclesProcessed < current.CyclesProcessed {
+		s.logger.Infof("[%s][%s] charge success already applied for cycle %d (current=%d) — skipping",
+			subscription.OrgId, subscription.Id, subscription.CyclesProcessed, current.CyclesProcessed)
+		return current, nil
+	}
+
 	payment := domain.Payment{
 		OrgId:          subscription.OrgId,
 		Id:             lib.GenerateId("pmt"),
@@ -452,7 +471,7 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 	}
 	payment.SetMetadata(subscription.Metadata)
 
-	payment, err := s.paymentRepository.Create(ctx, payment)
+	payment, err = s.paymentRepository.Create(ctx, payment)
 	if err != nil {
 		s.logger.Error("Failed to create payment", err.Error())
 	}
@@ -519,6 +538,28 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 		panic("Subscription is empty")
 	}
 
+	// Idempotency guard (per billing cycle / retry attempt). Durable runners
+	// replay from the top and the billing-cycle DAG retries on transient
+	// failure, so this handler can be invoked more than once for the same
+	// failed attempt. The incoming subscription is the pre-charge snapshot
+	// carried by the workflow. If the persisted row has already advanced
+	// past it — the cycle moved on (a later success), or the retry counter /
+	// status already reflects this failure — then this failure was already
+	// applied. No-op so we don't re-increment Retries and, crucially, don't
+	// re-publish charge.failed and open a duplicate DunningCampaign.
+	current, err := s.subscriptionRepository.FindById(ctx, subscription.OrgId, subscription.Id)
+	if err != nil {
+		s.logger.Error("Failed to load current subscription", "err", err.Error())
+		return domain.Subscription{}, err
+	}
+	if subscription.CyclesProcessed < current.CyclesProcessed || subscription.Retries < current.Retries {
+		s.logger.Infof("[%s][%s] charge failure already applied (cycle=%d/%d retries=%d/%d) — skipping",
+			subscription.OrgId, subscription.Id,
+			subscription.CyclesProcessed, current.CyclesProcessed,
+			subscription.Retries, current.Retries)
+		return current, nil
+	}
+
 	payment := domain.Payment{
 		OrgId:          subscription.OrgId,
 		Id:             lib.GenerateId("pmt"),
@@ -541,7 +582,7 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 	}
 	payment.SetMetadata(subscription.Metadata)
 
-	payment, err := s.paymentRepository.Create(ctx, payment)
+	payment, err = s.paymentRepository.Create(ctx, payment)
 	if err != nil {
 		s.logger.Error("Failed to create payment", err.Error())
 	}
