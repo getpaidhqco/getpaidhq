@@ -12,6 +12,7 @@ import (
 	"github.com/go-fuego/fuego"
 	"gorm.io/gorm"
 
+	"getpaidhq/internal/adapter/apikey"
 	"getpaidhq/internal/adapter/cedar"
 	"getpaidhq/internal/adapter/checkout_com"
 	"getpaidhq/internal/adapter/clerk"
@@ -134,7 +135,12 @@ func NewApp() (*App, error) {
 	// Auth
 	clerkAuth := clerk.NewClerkMiddleware(logger, env, metadataRepo)
 	clerkProvider := clerk.NewClerkClient(env, logger, metadataRepo)
-	authenticators := []port.Authenticator{clerkAuth}
+	// Clerk is tried first; a non-Clerk token (an x-api-key value) fails its
+	// check and falls through to the API-key authenticator. Order matters only
+	// for which one "wins" a token it can actually validate, and the two token
+	// shapes are disjoint.
+	apiKeyAuth := apikey.NewApiKeyMiddleware(logger, env, apiKeyRepo)
+	authenticators := []port.Authenticator{clerkAuth, apiKeyAuth}
 
 	// Payment gateway adapters
 	gatewayAdapters := map[domain.Gateway]port.GatewayAdapter{
@@ -215,6 +221,7 @@ func NewApp() (*App, error) {
 	cartService := service.NewCartService(cartRepo, priceRepo, logger, productRepo)
 	userService := service.NewUserService(userRepo)
 	orgService := service.NewOrgService(orgRepo, pubsub, clerkProvider, customerRepo, settingRepo, metadataRepo, apiKeyRepo, logger, env.ApiKeyPepper)
+	apiKeyService := service.NewApiKeyService(apiKeyRepo, env.ApiKeyPepper, logger)
 	pspService := service.NewPspService(pspRepo, settingRepo, logger, pubsub)
 	webhookService := service.NewWebhookService(logger, gatewayFactory, engine, idempotencyRepo, subRepo)
 	reportService, err := service.NewReportService(logger, reportRepo, scheduler, orgRepo)
@@ -248,6 +255,7 @@ func NewApp() (*App, error) {
 		Psp:           handler.NewPspHandler(pspService, logger, authzEngine),
 		PaymentMethod: handler.NewPaymentMethodHandler(customerHandler),
 		Dunning:       handler.NewDunningHandler(dunningOrchestrationService, subService, logger, authzEngine, trustedProxies),
+		ApiKey:        handler.NewApiKeyHandler(apiKeyService, logger, authzEngine),
 	}
 
 	port := env.ServerPort

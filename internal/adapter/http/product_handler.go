@@ -119,16 +119,16 @@ func (s *ProductHandler) Update(c fuego.ContextWithBody[domain.UpdateProductInpu
 	return NewProductFromEntity(product), nil
 }
 
-func (s *ProductHandler) Delete(c fuego.ContextNoBody) (struct{}, error) {
+func (s *ProductHandler) Delete(c fuego.ContextNoBody) (EmptyResponse, error) {
 	if err := enforce(c, s.authz, port.ActionDeleteProduct); err != nil {
-		return struct{}{}, err
+		return EmptyResponse{}, err
 	}
 	authUser := AuthUserFrom(c)
 	if err := s.productService.DeleteProduct(c.Context(), authUser.OrgId, c.PathParam("id")); err != nil {
-		return struct{}{}, NewApiErrorFromError(err)
+		return EmptyResponse{}, NewApiErrorFromError(err)
 	}
 	c.SetStatus(204)
-	return struct{}{}, nil
+	return EmptyResponse{}, nil
 }
 
 func (s *ProductHandler) CreatePrice(c fuego.ContextWithBody[CreatePriceRequest]) (domain.Price, error) {
@@ -228,16 +228,16 @@ func (s *ProductHandler) UpdatePrice(c fuego.ContextWithBody[CreatePriceRequest]
 	return price, nil
 }
 
-func (s *ProductHandler) DeletePrice(c fuego.ContextNoBody) (struct{}, error) {
+func (s *ProductHandler) DeletePrice(c fuego.ContextNoBody) (EmptyResponse, error) {
 	if err := enforce(c, s.authz, port.ActionDeletePrice); err != nil {
-		return struct{}{}, err
+		return EmptyResponse{}, err
 	}
 	authUser := AuthUserFrom(c)
 	if err := s.productService.DeletePrice(c.Context(), authUser.OrgId, c.PathParam("priceId")); err != nil {
-		return struct{}{}, NewApiErrorFromError(err)
+		return EmptyResponse{}, NewApiErrorFromError(err)
 	}
 	c.SetStatus(204)
-	return struct{}{}, nil
+	return EmptyResponse{}, nil
 }
 
 func (s *ProductHandler) CreateVariant(c fuego.ContextWithBody[domain.CreateVariantInput]) (domain.Variant, error) {
@@ -300,14 +300,14 @@ func (s *ProductHandler) UpdateVariant(c fuego.ContextWithBody[domain.UpdateVari
 	return variant, nil
 }
 
-func (s *ProductHandler) DeleteVariant(c fuego.ContextNoBody) (struct{}, error) {
+func (s *ProductHandler) DeleteVariant(c fuego.ContextNoBody) (EmptyResponse, error) {
 	if err := enforce(c, s.authz, port.ActionDeleteVariant); err != nil {
-		return struct{}{}, err
+		return EmptyResponse{}, err
 	}
 	authUser := AuthUserFrom(c)
 	if err := s.productService.DeleteVariant(c.Context(), authUser.OrgId, c.PathParam("variantId")); err != nil {
-		return struct{}{}, NewApiErrorFromError(err)
+		return EmptyResponse{}, NewApiErrorFromError(err)
 	}
 	c.SetStatus(204)
-	return struct{}{}, nil
+	return EmptyResponse{}, nil
 }

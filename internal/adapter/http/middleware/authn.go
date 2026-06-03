@@ -120,6 +120,9 @@ func (m AuthnWrapperMiddleware) Handler() func(http.Handler) http.Handler {
 //   - /api/notify     — PSP webhook receiver (Paystack/Checkout.com). It is
 //     authenticated by the HMAC signature on the raw body, not a user token,
 //     so it must bypass the bearer-token gate or no webhook is ever processed.
+//   - GET /swagger/openapi.json — the generated OpenAPI spec. Published so SDK
+//     generators, docs tooling, and API explorers can fetch the contract
+//     without credentials. It describes the API surface only; no data is exposed.
 //
 // Authentication is still the default for everything else.
 func isPublicPath(r *http.Request) bool {
@@ -127,6 +130,8 @@ func isPublicPath(r *http.Request) bool {
 	case r.Method == http.MethodGet && r.URL.Path == "/api/health":
 		return true
 	case r.URL.Path == "/api/notify":
+		return true
+	case r.Method == http.MethodGet && r.URL.Path == "/swagger/openapi.json":
 		return true
 	default:
 		return false

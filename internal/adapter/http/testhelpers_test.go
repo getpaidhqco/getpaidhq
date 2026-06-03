@@ -13,7 +13,6 @@ import (
 	"time"
 
 	"github.com/go-fuego/fuego"
-	"github.com/go-fuego/fuego/option"
 	"github.com/stretchr/testify/require"
 
 	"getpaidhq/internal/adapter/cedar"
@@ -174,7 +173,7 @@ func (t *testSrv) api() *fuego.Server {
 // apiGroup returns the /api sub-router so handlers register the same path
 // prefix used in production wiring (BuildServer also creates this group).
 func apiGroup(s *fuego.Server) *fuego.Server {
-	return fuego.Group(s, "/api", option.Tags(""))
+	return fuego.Group(s, "/api")
 }
 
 // asHandler returns the server's outer http.Handler — Mux wrapped by the

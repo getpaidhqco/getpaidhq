@@ -35,7 +35,7 @@ func (r *CustomerRepo) FindByEmail(ctx context.Context, orgId string, email stri
 }
 
 func (r *CustomerRepo) Create(ctx context.Context, entity domain.Customer) (domain.Customer, error) {
-	err := dbFromCtx(ctx, r.db).Create(&entity).Error
+	err := r.writeCustomer(ctx, &entity, false).Error
 	if err != nil {
 		return domain.Customer{}, err
 	}
@@ -43,11 +43,26 @@ func (r *CustomerRepo) Create(ctx context.Context, entity domain.Customer) (doma
 }
 
 func (r *CustomerRepo) Update(ctx context.Context, entity domain.Customer) (domain.Customer, error) {
-	err := dbFromCtx(ctx, r.db).Save(&entity).Error
+	err := r.writeCustomer(ctx, &entity, true).Error
 	if err != nil {
 		return domain.Customer{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
+}
+
+// writeCustomer issues the insert/update for a customer, omitting
+// default_payment_method_id when it is empty. The column is a nullable FK to
+// payment_methods; the domain models "no default" as the empty string, so
+// writing "" would violate the FK. Omitting it lets the column stay NULL.
+func (r *CustomerRepo) writeCustomer(ctx context.Context, entity *domain.Customer, update bool) *gorm.DB {
+	db := dbFromCtx(ctx, r.db)
+	if entity.DefaultPaymentMethodId == "" {
+		db = db.Omit("default_payment_method_id")
+	}
+	if update {
+		return db.Save(entity)
+	}
+	return db.Create(entity)
 }
 
 func (r *CustomerRepo) List(ctx context.Context, orgId string, pagination domain.Pagination) ([]domain.Customer, int, error) {

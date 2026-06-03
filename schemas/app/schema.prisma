@@ -23,6 +23,9 @@ enum OrgStatus {
 model ApiKey {
   orgId     String   @map("org_id")
   id        String   @default(cuid())
+  // Optional human-readable label set at creation time (e.g. "ci-deploy",
+  // "billing-webhook"). Purely metadata — auth uses the keyHash only.
+  name      String?
   // keyHash is HMAC-SHA256(API_KEY_PEPPER, raw key) hex-encoded.
   // The raw key is shown to the user exactly once at creation and
   // never stored anywhere. Lookup uses the hash directly so DB

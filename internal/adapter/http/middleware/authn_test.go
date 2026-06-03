@@ -267,7 +267,10 @@ func TestAuthn_PublicPathsBypass(t *testing.T) {
 	}{
 		{"health is public", http.MethodGet, "/api/health", http.StatusOK, true},
 		{"webhook notify is public", http.MethodPost, "/api/notify", http.StatusOK, true},
+		{"openapi spec is public", http.MethodGet, "/swagger/openapi.json", http.StatusOK, true},
 		{"health only via GET", http.MethodPost, "/api/health", http.StatusUnauthorized, false},
+		{"openapi spec only via GET", http.MethodPost, "/swagger/openapi.json", http.StatusUnauthorized, false},
+		{"swagger UI page still gated", http.MethodGet, "/swagger/", http.StatusUnauthorized, false},
 		{"other paths still gated", http.MethodGet, "/api/customers", http.StatusUnauthorized, false},
 	}
 	for _, tc := range cases {

@@ -28,6 +28,7 @@ func (r *OrderRepo) FindById(ctx context.Context, orgId string, id string) (doma
 }
 
 func (r *OrderRepo) Create(ctx context.Context, entity domain.Order) (domain.Order, error) {
+	entity.Metadata = emptyIfNil(entity.Metadata)
 	err := dbFromCtx(ctx, r.db).Create(&entity).Error
 	if err != nil {
 		return domain.Order{}, err
@@ -71,6 +72,7 @@ func (r *OrderRepo) FindOrderItemById(ctx context.Context, orgId string, id stri
 }
 
 func (r *OrderRepo) CreateOrderItem(ctx context.Context, entity domain.OrderItem) (domain.OrderItem, error) {
+	entity.Metadata = emptyIfNil(entity.Metadata)
 	err := dbFromCtx(ctx, r.db).Create(&entity).Error
 	if err != nil {
 		return domain.OrderItem{}, err

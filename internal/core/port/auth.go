@@ -117,6 +117,10 @@ const (
 
 	ActionCreateCustomer Action = "CreateCustomer"
 
+	ActionCreateApiKey Action = "CreateApiKey"
+	ActionListApiKeys  Action = "ListApiKeys"
+	ActionDeleteApiKey Action = "DeleteApiKey"
+
 	ActionCreatePaymentMethod Action = "CreatePaymentMethod"
 	ActionUpdatePaymentMethod Action = "UpdatePaymentMethod"
 	ActionGetPaymentMethod    Action = "GetPaymentMethod"

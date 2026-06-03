@@ -143,6 +143,7 @@ type SettingRepository interface {
 type ApiKeyRepository interface {
 	FindById(ctx context.Context, orgId string, id string) (domain.ApiKey, error)
 	FindByKey(ctx context.Context, key string) (domain.ApiKey, error)
+	List(ctx context.Context, orgId string, pagination domain.Pagination) ([]domain.ApiKey, int, error)
 	Create(ctx context.Context, entity domain.ApiKey) (domain.ApiKey, error)
 	Update(ctx context.Context, entity domain.ApiKey) (domain.ApiKey, error)
 	Delete(ctx context.Context, orgId string, id string) error

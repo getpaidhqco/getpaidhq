@@ -16,6 +16,20 @@ Run / build (Go 1.24):
 - `go test ./...` — run all tests. Unit tests run by default.
 - `go test -tags=integration ./...` — run all tests including Postgres integration tests (uses Testcontainers).
 
+### Test database isolation (load-bearing — read before adding any DB-touching test)
+
+**Tests MUST NEVER touch the developer's local docker-compose database.** That stack carries hand-seeded org/user data the developer relies on; auto-running tests cannot mutate it. The current setup enforces this:
+
+- Integration tests gate on `//go:build integration` and acquire their DB via `testDB(t)` in `internal/adapter/postgres/setup_test.go`, which spawns a **fresh `postgres:17-alpine` testcontainer per test run** (separate container, separate process, testcontainers-assigned host port, separate creds `postgres/postgres`). The dev DB at `localhost:10432` is never touched.
+- **No test code reads `DATABASE_URL`, calls `lib.NewEnv()`, or calls `config.NewApp()`.** These are the only paths that could resolve to the dev DSN; tests bypass all three by construction.
+
+When adding a new DB-touching test:
+1. Tag it `//go:build integration` if it needs a real DB.
+2. Acquire the handle via `testDB(t)` — never construct a `*gorm.DB` from env vars in test code.
+3. Use a fresh `uniqueOrg(t)` for row scoping and register cleanup with `cleanupOrg(t, db, orgId)`.
+
+CI also enforces this implicitly: the default `go test -race ./...` job excludes integration tests entirely, so there's no env-var path that could reach a deployed DB either.
+
 Local stack:
 - `docker compose -f docker/docker-compose.yml up -d` — required services (Postgres, Redis, Hatchet, NATS).
 - **Postgres integration tests** no longer depend on the local stack; they spawn an isolated `postgres:17-alpine` container via Testcontainers.
