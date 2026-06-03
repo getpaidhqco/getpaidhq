@@ -32,6 +32,9 @@ type SubscriptionRepository interface {
 	// date is at or before `now`, per Subscription.GetNextChargeDate() semantics.
 	// Used by the per-org billing run to fan out one billing-cycle per due sub.
 	FindDueForBilling(ctx context.Context, orgId string, now time.Time) ([]domain.Subscription, error)
+	// FindUpcomingRenewals returns active subscriptions whose renews_at falls in
+	// (now, now+within]. The reminder sweep then picks per-offset stages from this set.
+	FindUpcomingRenewals(ctx context.Context, orgId string, now time.Time, within time.Duration) ([]domain.Subscription, error)
 }
 
 // OrderRepository manages order persistence.

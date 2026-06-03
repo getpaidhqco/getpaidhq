@@ -222,3 +222,42 @@ func TestSubscriptionRepo_FindDueForBilling(t *testing.T) {
 	require.False(t, ids["future"], "future renews_at should not be due")
 	require.False(t, ids["paused"], "paused should be excluded")
 }
+
+func TestSubscriptionRepo_FindUpcomingRenewals(t *testing.T) {
+	db := testDB(t)
+	repo := NewSubscriptionRepo(db)
+	ctx := context.Background()
+
+	orgId := uniqueOrg(t)
+	t.Cleanup(func() { cleanupOrg(t, db, orgId) })
+
+	now := time.Now().UTC()
+	mk := func(id string, renews time.Time) {
+		// Seed the FK parent chain; reuse the fixture but pin the sub fields.
+		f := seedSubFixture(t, db, orgId)
+		f.sub.Id = id
+		f.sub.Status = domain.SubscriptionStatusActive
+		f.sub.BillingInterval = domain.BillingIntervalMonth
+		f.sub.BillingIntervalQty = 1
+		f.sub.RenewsAt = renews
+		f.sub.Currency = "USD"
+		f.sub.Amount = 1000
+		f.sub.CreatedAt = now
+		f.sub.UpdatedAt = now
+		_, err := repo.Create(ctx, f.sub)
+		require.NoError(t, err)
+	}
+	mk("in-3-days", now.Add(72*time.Hour))   // inside 7d window
+	mk("in-10-days", now.Add(240*time.Hour)) // outside 7d window
+	mk("already-due", now.Add(-time.Hour))   // not upcoming (past)
+
+	up, err := repo.FindUpcomingRenewals(ctx, orgId, now, 7*24*time.Hour)
+	require.NoError(t, err)
+	ids := map[string]bool{}
+	for _, s := range up {
+		ids[s.Id] = true
+	}
+	require.True(t, ids["in-3-days"])
+	require.False(t, ids["in-10-days"])
+	require.False(t, ids["already-due"])
+}

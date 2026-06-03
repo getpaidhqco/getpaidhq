@@ -100,3 +100,13 @@ func (r *SubscriptionRepo) FindDueForBilling(ctx context.Context, orgId string, 
 		Find(&subs).Error
 	return subs, err
 }
+
+func (r *SubscriptionRepo) FindUpcomingRenewals(ctx context.Context, orgId string, now time.Time, within time.Duration) ([]domain.Subscription, error) {
+	var subs []domain.Subscription
+	err := dbFromCtx(ctx, r.db).
+		Scopes(OrgScope(orgId)).
+		Where("status = ? AND renews_at > ? AND renews_at <= ?",
+			domain.SubscriptionStatusActive, now, now.Add(within)).
+		Find(&subs).Error
+	return subs, err
+}
