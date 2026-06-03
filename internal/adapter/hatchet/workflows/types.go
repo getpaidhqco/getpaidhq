@@ -20,6 +20,11 @@ type BillingCycleInput struct {
 	Subscription domain.Subscription `json:"subscription"`
 }
 
+// OrgBillingInput is the input for the per-org billing fan-out run.
+type OrgBillingInput struct {
+	OrgId string `json:"org_id"`
+}
+
 // ReminderInput is the input for the subscription-charge-reminder durable task.
 type ReminderInput struct {
 	Subscription domain.Subscription `json:"subscription"`
