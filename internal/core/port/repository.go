@@ -97,7 +97,12 @@ type VariantRepository interface {
 type PriceRepository interface {
 	Create(ctx context.Context, entity domain.Price) (domain.Price, error)
 	FindById(ctx context.Context, orgId string, id string) (domain.Price, error)
+	// FindByIds batch-loads prices by ID — used by read-model composition.
+	FindByIds(ctx context.Context, orgId string, ids []string) ([]domain.Price, error)
 	FindByVariantId(ctx context.Context, orgId string, variantId string, p domain.Pagination) ([]domain.Price, int, error)
+	// FindByVariantIds batch-loads prices across many variants — used by
+	// Product/Variant read-model composition.
+	FindByVariantIds(ctx context.Context, orgId string, variantIds []string) ([]domain.Price, error)
 	Update(ctx context.Context, entity domain.Price) (domain.Price, error)
 	Delete(ctx context.Context, orgId string, id string) error
 }
