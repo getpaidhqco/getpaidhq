@@ -188,7 +188,8 @@ func TestBillingChargeAdvancesState(t *testing.T) {
 	sub.Cycles = 12
 	sub.CyclesProcessed = 0
 	sub.RenewsAt = time.Now().UTC().Add(-24 * time.Hour) // due
-	subRow := subscriptionRowFromDomain(sub); require.NoError(t, db.Omit("Customer", "OrderItem").Create(&subRow).Error)
+	subRow := subscriptionRowFromDomain(sub)
+	require.NoError(t, db.Omit("Customer", "OrderItem").Create(&subRow).Error)
 
 	svc := buildSubscriptionService(t, db)
 	subRepo := NewSubscriptionRepo(db)
@@ -290,7 +291,8 @@ func TestImmediateFirstCharge(t *testing.T) {
 	sub.RenewsAt = startDate           // due now/past (no upfront payment)
 	sub.CurrentPeriodStart = startDate // what SetActive (zero-amount) seeds
 	sub.CurrentPeriodEnd = startDate   // (NOT zero — this is the load-bearing seed)
-	subRow := subscriptionRowFromDomain(sub); require.NoError(t, db.Omit("Customer", "OrderItem").Create(&subRow).Error)
+	subRow := subscriptionRowFromDomain(sub)
+	require.NoError(t, db.Omit("Customer", "OrderItem").Create(&subRow).Error)
 
 	// The activation gate: this is exactly the predicate the Hatchet
 	// StartSubscriptionWorkflow checks before spawning billing-cycle-runner.

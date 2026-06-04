@@ -34,7 +34,7 @@ func (s *CartService) GetCart(orgId string, id string) (domain.Cart, error) {
 }
 
 // AddProduct adds product to cart. It returns updated cart.
-func (s *CartService) AddProduct(ctx context.Context, input domain.AddProductCommand) (domain.Cart, error) {
+func (s *CartService) AddProduct(ctx context.Context, input port.AddProductCommand) (domain.Cart, error) {
 
 	cartEntity, err := s.cartRepository.FindById(ctx, input.OrgId, input.CartId)
 	if err != nil {
@@ -84,7 +84,7 @@ func (s *CartService) AddProduct(ctx context.Context, input domain.AddProductCom
 }
 
 // RemoveItem removes an item from the cart. It returns updated cart.
-func (s *CartService) RemoveItem(ctx context.Context, input domain.RemoveItemCommand) (domain.Cart, error) {
+func (s *CartService) RemoveItem(ctx context.Context, input port.RemoveItemCommand) (domain.Cart, error) {
 
 	cartEntity, err := s.cartRepository.FindById(ctx, input.OrgId, input.CartId)
 	if err != nil {
@@ -103,7 +103,7 @@ func (s *CartService) RemoveItem(ctx context.Context, input domain.RemoveItemCom
 }
 
 // AdjustItem adjusts an item in the cart. It returns updated cart.
-func (s *CartService) AdjustItem(ctx context.Context, input domain.AdjustCommand) (domain.Cart, error) {
+func (s *CartService) AdjustItem(ctx context.Context, input port.AdjustCommand) (domain.Cart, error) {
 
 	cartEntity, err := s.cartRepository.FindById(ctx, input.OrgId, input.CartId)
 	if err != nil {

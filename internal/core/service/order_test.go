@@ -72,8 +72,6 @@ type fakeOrderRepo struct {
 	updated []domain.Order
 }
 
-
-
 func (r *fakeOrderRepo) FindById(_ context.Context, _, _ string) (domain.Order, error) {
 	if r.findErr != nil {
 		return domain.Order{}, r.findErr
