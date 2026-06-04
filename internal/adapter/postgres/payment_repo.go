@@ -18,59 +18,69 @@ func NewPaymentRepo(db *gorm.DB) port.PaymentRepository {
 }
 
 func (r *PaymentRepo) FindById(ctx context.Context, orgId string, id string) (domain.Payment, error) {
-	var payment domain.Payment
+	var row paymentRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
-		First(&payment).Error
-	return payment, translateErr(err)
+		First(&row).Error
+	if err != nil {
+		return domain.Payment{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *PaymentRepo) FindByPspId(ctx context.Context, orgId string, id string) (domain.Payment, error) {
-	var payment domain.Payment
+	var row paymentRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("psp_id = ?", id).
-		First(&payment).Error
-	return payment, translateErr(err)
+		First(&row).Error
+	if err != nil {
+		return domain.Payment{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *PaymentRepo) ListByPspId(ctx context.Context, psp domain.Gateway, pspId string) ([]domain.Payment, error) {
-	var payments []domain.Payment
+	var rows []paymentRow
 	err := dbFromCtx(ctx, r.db).
 		Where("psp = ? AND psp_id = ?", psp, pspId).
-		Find(&payments).Error
-	return payments, err
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return paymentRowsToDomain(rows), nil
 }
 
 func (r *PaymentRepo) FindBySubscriptionId(ctx context.Context, orgId string, id string, p domain.Pagination) ([]domain.Payment, int, error) {
-	var payments []domain.Payment
+	var rows []paymentRow
 	var count int64
-	err := dbFromCtx(ctx, r.db).Model(&domain.Payment{}).
+	if err := dbFromCtx(ctx, r.db).Model(&paymentRow{}).
 		Scopes(OrgScope(orgId)).
 		Where("subscription_id = ?", id).
-		Count(&count).Error
-	if err != nil {
+		Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
-	err = dbFromCtx(ctx, r.db).
+	if err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId), Paginate(p)).
 		Where("subscription_id = ?", id).
-		Find(&payments).Error
-	return payments, int(count), err
+		Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	return paymentRowsToDomain(rows), int(count), nil
 }
 
 func (r *PaymentRepo) Create(ctx context.Context, entity domain.Payment) (domain.Payment, error) {
-	err := dbFromCtx(ctx, r.db).Create(&entity).Error
-	if err != nil {
+	row := paymentRowFromDomain(entity)
+	if err := dbFromCtx(ctx, r.db).Create(&row).Error; err != nil {
 		return domain.Payment{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
 func (r *PaymentRepo) Update(ctx context.Context, entity domain.Payment) (domain.Payment, error) {
-	err := dbFromCtx(ctx, r.db).Save(&entity).Error
-	if err != nil {
+	row := paymentRowFromDomain(entity)
+	if err := dbFromCtx(ctx, r.db).Save(&row).Error; err != nil {
 		return domain.Payment{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
