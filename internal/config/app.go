@@ -147,6 +147,9 @@ func NewApp() (*App, error) {
 	gatewayAdapters := map[domain.Gateway]port.GatewayAdapter{
 		domain.Paystack:       paystack.NewAdapter(paymentRepo, pspRepo, settingRepo, logger, env.PaystackSecret),
 		domain.CheckoutDotCom: checkout_com.NewAdapter(logger, env.CheckoutWebhookSecret),
+		// In-memory, always-succeeds gateway. Harmless in prod (only used if an
+		// org's PSP config selects "memory"); enables local/offline charge testing.
+		domain.Memory: memory.NewGatewayAdapter(logger),
 	}
 	gatewayFactory := service.NewGatewayFactory(pspRepo, settingRepo, logger, gatewayAdapters)
 

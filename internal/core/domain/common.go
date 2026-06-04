@@ -23,5 +23,8 @@ type Gateway string
 const (
 	CheckoutDotCom Gateway = "CheckoutDotCom"
 	Paystack       Gateway = "Paystack"
+	// Memory is an in-memory, always-succeeds gateway used for local/offline
+	// charge testing. Only reached when an org's PSP config selects it.
+	Memory Gateway = "memory"
 )
 
