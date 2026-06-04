@@ -5,25 +5,25 @@ import (
 	"time"
 )
 
+// PaymentMethod is a saved token / card-on-file scoped to a Customer.
 type PaymentMethod struct {
-	OrgId          string              `gorm:"column:org_id;primaryKey" json:"org_id"`
-	Id             string              `gorm:"column:id;primaryKey" json:"id"`
-	Status         PaymentMethodStatus `gorm:"column:status" json:"status"`
-	Psp            string              `gorm:"column:psp" json:"psp"`
-	Name           string              `gorm:"column:name" json:"name"`
-	CustomerId     string              `gorm:"column:customer_id" json:"customer_id"`
-	BillingAddress Address             `gorm:"column:billing_address;serializer:json" json:"billing_address"`
-	Type           PaymentMethodType   `gorm:"column:type" json:"type"`
-	Token          string              `gorm:"column:token" json:"token"`
-	Details        any                 `gorm:"column:details;serializer:json" json:"details,omitempty"`
-	Metadata       map[string]string   `gorm:"column:metadata;serializer:json" json:"metadata,omitempty"`
-	ExpireAt       time.Time           `gorm:"column:expire_at" json:"expire_at"`
-	CreatedAt      time.Time           `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt      time.Time           `gorm:"column:updated_at" json:"updated_at"`
+	OrgId          string
+	Id             string
+	Status         PaymentMethodStatus
+	Psp            string
+	Name           string
+	CustomerId     string
+	BillingAddress Address
+	Type           PaymentMethodType
+	Token          string
+	Details        any
+	Metadata       map[string]string
+	ExpireAt       time.Time
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
-func (PaymentMethod) TableName() string { return "payment_methods" }
-
+// Address is a postal/billing address value object.
 type Address struct {
 	FirstName  string  `json:"first_name,omitempty"`
 	LastName   string  `json:"last_name,omitempty"`
