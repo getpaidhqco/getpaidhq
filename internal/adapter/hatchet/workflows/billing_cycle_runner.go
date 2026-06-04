@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"strconv"
 	"time"
 
 	"getpaidhq/internal/core/domain"
@@ -31,12 +32,15 @@ func NewBillingCycleRunnerWorkflow(client *hatchet.Client, subscriptionService p
 			billingRes, err := client.Run(ctx, "billing-cycle", BillingCycleInput{Subscription: sub},
 				hatchet.WithRunKey(BillingRunKey(sub.OrgId, sub.Id, sub.CyclesProcessed)),
 				hatchet.WithRunMetadata(map[string]string{
-					"orgId": sub.OrgId, "subscriptionId": sub.Id,
+					"orgId":          sub.OrgId,
+					"subscriptionId": sub.Id,
+					"cycle":          strconv.Itoa(sub.CyclesProcessed),
 				}),
 			)
 			if err != nil {
-				// Infra failure (e.g. no gateway). Non-fatal: log + exit; the next
-				// hourly sweep re-selects this sub (still due) and retries.
+				// Infra failure (e.g. no gateway). Non-fatal: the error is surfaced
+				// on the run and we exit; the next hourly sweep re-selects this sub
+				// (still due) and retries.
 				return sub, err
 			}
 
