@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/service"
 )
 
 func TestPagination_ToDomainPagination(t *testing.T) {
@@ -110,42 +111,43 @@ func TestFormatValidationErrors_ProducesFieldMessagePairs(t *testing.T) {
 
 // ---- response.go entity mappers ----
 
-func TestNewOrderItemFromEntity_MapsFieldsAndPrice(t *testing.T) {
-	item := domain.OrderItem{
-		Id:        "oi_1",
-		OrderId:   "ord_1",
-		PriceId:   "price_1",
-		ProductId: "prod_1",
-		VariantId: "var_1",
+func TestNewOrderItemResponseFromDetails_MapsFieldsAndPrice(t *testing.T) {
+	d := service.OrderItemDetails{
+		Item: domain.OrderItem{
+			Id:            "oi_1",
+			OrderId:       "ord_1",
+			PriceId:       "price_1",
+			ProductId:     "prod_1",
+			VariantId:     "var_1",
+			Description:   "desc",
+			Quantity:      2,
+			TaxTotal:      100,
+			DiscountTotal: 50,
+		},
 		Price: domain.Price{
 			Id: "price_1", Currency: domain.Currency("USD"), UnitPrice: 5000,
 			BillingInterval: domain.BillingInterval("month"), BillingIntervalQty: 1,
 		},
-		Description:   "desc",
-		Quantity:      2,
-		TaxTotal:      100,
-		DiscountTotal: 50,
 	}
-	got := NewOrderItemFromEntity(item)
+	got := NewOrderItemResponseFromDetails(d)
 
 	assert.Equal(t, "oi_1", got.Id)
 	assert.Equal(t, "ord_1", got.OrderId)
 	assert.Equal(t, 2, got.Quantity)
 	assert.Equal(t, int64(100), got.TaxTotal)
-	assert.Equal(t, "price_1", got.Price.Id, "embedded price mapped via NewPriceFromEntity")
+	assert.Equal(t, "price_1", got.Price.Id, "price mapped via NewPriceFromEntity")
 	assert.Equal(t, int64(5000), got.Price.UnitPrice)
 }
 
-func TestNewVariantFromEntity_MapsPricesArray(t *testing.T) {
-	v := domain.Variant{
-		Id:   "var_1",
-		Name: "Annual",
+func TestNewVariantResponseFromDetails_MapsPricesArray(t *testing.T) {
+	d := service.VariantDetails{
+		Variant: domain.Variant{Id: "var_1", Name: "Annual"},
 		Prices: []domain.Price{
 			{Id: "price_1", UnitPrice: 10000, Currency: domain.Currency("USD")},
 			{Id: "price_2", UnitPrice: 12000, Currency: domain.Currency("EUR")},
 		},
 	}
-	got := NewVariantFromEntity(v)
+	got := NewVariantResponseFromDetails(d)
 
 	assert.Equal(t, "var_1", got.Id)
 	assert.Equal(t, "Annual", got.Name)
@@ -154,9 +156,11 @@ func TestNewVariantFromEntity_MapsPricesArray(t *testing.T) {
 	assert.Equal(t, int64(12000), got.Prices[1].UnitPrice)
 }
 
-func TestNewVariantFromEntity_NoPricesYieldsNilSlice(t *testing.T) {
-	got := NewVariantFromEntity(domain.Variant{Id: "var_1", Name: "x"})
-	assert.Nil(t, got.Prices)
+func TestNewVariantResponseFromDetails_NoPricesYieldsEmptySlice(t *testing.T) {
+	got := NewVariantResponseFromDetails(service.VariantDetails{
+		Variant: domain.Variant{Id: "var_1", Name: "x"},
+	})
+	assert.Empty(t, got.Prices)
 }
 
 func TestNewPriceFromEntity_AllFields(t *testing.T) {

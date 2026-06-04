@@ -51,7 +51,7 @@ func TestCartService_AddProduct(t *testing.T) {
 		price := &fakePriceRepo{byId: domain.Price{OrgId: "org_1", Id: "price_1", UnitPrice: 1000}}
 		svc := NewCartService(cart, price, silentLogger{}, prod)
 
-		got, err := svc.AddProduct(context.Background(), domain.AddProductCommand{
+		got, err := svc.AddProduct(context.Background(), port.AddProductCommand{
 			OrgId: "org_1", CartId: "cart_1", ProductId: "prod_1", PriceId: "price_1", Quantity: 3,
 		})
 
@@ -66,7 +66,7 @@ func TestCartService_AddProduct(t *testing.T) {
 		cart := &fakeCartRepo{findErr: errors.New("no cart")}
 		svc := NewCartService(cart, &fakePriceRepo{}, silentLogger{}, &fakeProductRepo{})
 
-		_, err := svc.AddProduct(context.Background(), domain.AddProductCommand{OrgId: "org_1", CartId: "cart_x"})
+		_, err := svc.AddProduct(context.Background(), port.AddProductCommand{OrgId: "org_1", CartId: "cart_x"})
 		require.Error(t, err)
 		assert.Empty(t, cart.updated)
 	})
@@ -76,7 +76,7 @@ func TestCartService_AddProduct(t *testing.T) {
 		prod := &fakeProductRepo{byIdErr: errors.New("no product")}
 		svc := NewCartService(cart, &fakePriceRepo{}, silentLogger{}, prod)
 
-		_, err := svc.AddProduct(context.Background(), domain.AddProductCommand{OrgId: "org_1", CartId: "cart_1", ProductId: "prod_x"})
+		_, err := svc.AddProduct(context.Background(), port.AddProductCommand{OrgId: "org_1", CartId: "cart_1", ProductId: "prod_x"})
 		require.Error(t, err)
 		assert.Empty(t, cart.updated)
 	})
@@ -87,7 +87,7 @@ func TestCartService_AddProduct(t *testing.T) {
 		price := &fakePriceRepo{byIdErr: errors.New("no price")}
 		svc := NewCartService(cart, price, silentLogger{}, prod)
 
-		_, err := svc.AddProduct(context.Background(), domain.AddProductCommand{OrgId: "org_1", CartId: "cart_1", ProductId: "prod_1", PriceId: "price_x"})
+		_, err := svc.AddProduct(context.Background(), port.AddProductCommand{OrgId: "org_1", CartId: "cart_1", ProductId: "prod_1", PriceId: "price_x"})
 		require.Error(t, err)
 		assert.Empty(t, cart.updated)
 	})
@@ -106,7 +106,7 @@ func TestCartService_RemoveItem(t *testing.T) {
 	cart := &fakeCartRepo{cart: cartWithItem("ci_1", 2)}
 	svc := NewCartService(cart, &fakePriceRepo{}, silentLogger{}, &fakeProductRepo{})
 
-	got, err := svc.RemoveItem(context.Background(), domain.RemoveItemCommand{OrgId: "org_1", CartId: "cart_1", Id: "ci_1"})
+	got, err := svc.RemoveItem(context.Background(), port.RemoveItemCommand{OrgId: "org_1", CartId: "cart_1", Id: "ci_1"})
 
 	require.NoError(t, err)
 	assert.Empty(t, got.Data.Items, "the item was removed")
@@ -121,7 +121,7 @@ func TestCartService_AdjustItem(t *testing.T) {
 		cart := &fakeCartRepo{cart: cartWithItem("ci_1", 1)}
 		svc := NewCartService(cart, &fakePriceRepo{}, silentLogger{}, &fakeProductRepo{})
 
-		got, err := svc.AdjustItem(context.Background(), domain.AdjustCommand{OrgId: "org_1", CartId: "cart_1", ProductId: "ci_1", Quantity: 5})
+		got, err := svc.AdjustItem(context.Background(), port.AdjustCommand{OrgId: "org_1", CartId: "cart_1", ProductId: "ci_1", Quantity: 5})
 
 		require.NoError(t, err)
 		require.Len(t, got.Data.Items, 1)
@@ -134,7 +134,7 @@ func TestCartService_AdjustItem(t *testing.T) {
 		cart := &fakeCartRepo{cart: cartWithItem("ci_1", 1)}
 		svc := NewCartService(cart, &fakePriceRepo{}, silentLogger{}, &fakeProductRepo{})
 
-		_, err := svc.AdjustItem(context.Background(), domain.AdjustCommand{OrgId: "org_1", CartId: "cart_1", ProductId: "nope", Quantity: 5})
+		_, err := svc.AdjustItem(context.Background(), port.AdjustCommand{OrgId: "org_1", CartId: "cart_1", ProductId: "nope", Quantity: 5})
 
 		require.ErrorIs(t, err, domain.ErrItemNotFound)
 		assert.Empty(t, cart.updated)

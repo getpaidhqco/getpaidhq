@@ -24,7 +24,7 @@ func newSubscriptionHandlerForTest(
 	t.Helper()
 	narrow, err := service.NewSubscriptionService(
 		&fakeSessionRepo{}, &fakeSettingRepo{}, &fakeCartRepo{},
-		subRepo, &fakeCustomerRepo{}, &fakeOrderRepo{}, payRepo,
+		subRepo, &fakeCustomerRepo{}, &fakeOrderRepo{}, payRepo, nil,
 		// no gateway factory needed for the handler-level cases (they don't
 		// trigger charge attempts).
 		service.NewGatewayFactory(&fakePspRepo{}, &fakeSettingRepo{}, silentLogger{}, map[domain.Gateway]port.GatewayAdapter{}),

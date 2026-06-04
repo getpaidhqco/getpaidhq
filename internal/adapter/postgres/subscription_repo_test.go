@@ -75,15 +75,15 @@ func TestSubscriptionRepo(t *testing.T) {
 		assert.Equal(t, sub.Amount, created.Amount)
 		assert.Equal(t, domain.SubscriptionStatusActive, created.Status)
 		// Customer is preloaded on the create round-trip.
-		assert.Equal(t, fx.customer.Id, created.Customer.Id)
-		assert.Equal(t, fx.customer.Email, created.Customer.Email)
+		assert.Equal(t, fx.customer.Id, created.CustomerId)
+		// customer email is composed by service.SubscriptionDetails; not on the aggregate
 		assert.Equal(t, map[string]string{"plan": "pro"}, created.Metadata)
 
 		got, err := repo.FindById(ctx, orgId, sub.Id)
 		require.NoError(t, err)
 		assert.Equal(t, created.Id, got.Id)
 		assert.Equal(t, created.Amount, got.Amount)
-		assert.Equal(t, fx.customer.Id, got.Customer.Id)
+		assert.Equal(t, fx.customer.Id, got.CustomerId)
 	})
 
 	t.Run("Update mutates fields", func(t *testing.T) {

@@ -4,7 +4,6 @@ import (
 	"github.com/go-fuego/fuego"
 	"github.com/go-fuego/fuego/option"
 
-	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
 	"getpaidhq/internal/lib"
@@ -35,7 +34,7 @@ func (o *CartHandler) AddProduct(c fuego.ContextWithBody[AddItemRequest]) (CartR
 	if err != nil {
 		return CartResponse{}, err
 	}
-	cart, err := o.cartService.AddProduct(c.Context(), domain.AddProductCommand{
+	cart, err := o.cartService.AddProduct(c.Context(), port.AddProductCommand{
 		OrgId:     authUser.OrgId,
 		CartId:    c.PathParam("id"),
 		ProductId: input.ProductId,
@@ -61,7 +60,7 @@ func (o *CartHandler) RemoveItem(c fuego.ContextWithBody[RemoveItemRequest]) (Ca
 	// The previous code took `input.OrgId` from the deserialized payload,
 	// which let any authenticated user remove items from a cart in any org
 	// by passing a different OrgId.
-	cart, err := o.cartService.RemoveItem(c.Context(), domain.RemoveItemCommand{
+	cart, err := o.cartService.RemoveItem(c.Context(), port.RemoveItemCommand{
 		OrgId:  authUser.OrgId,
 		CartId: c.PathParam("id"),
 		Id:     input.Id,

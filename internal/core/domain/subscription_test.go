@@ -14,26 +14,26 @@ func TestNewSubscriptionFromOrderItem_FreeTrial(t *testing.T) {
 	orderItem := OrderItem{
 		OrgId:   "org_123",
 		OrderId: "order_123",
-		Price: Price{
-			BillingInterval:    BillingIntervalMonth,
-			BillingIntervalQty: 1,
-			Category:           PriceCategorySubscription,
-			Currency:           "USD",
-			UnitPrice:          1000,
-			TrialInterval:      trialInterval,
-			TrialIntervalQty:   1,
-		},
+	}
+	price := Price{
+		BillingInterval:    BillingIntervalMonth,
+		BillingIntervalQty: 1,
+		Category:           PriceCategorySubscription,
+		Currency:           "USD",
+		UnitPrice:          1000,
+		TrialInterval:      trialInterval,
+		TrialIntervalQty:   1,
 	}
 
-	subscription := NewSubscriptionFromOrderItem(orderItem)
+	subscription := NewSubscriptionFromOrderItem(orderItem, price)
 
 	assert.Equal(t, orderItem.OrgId, subscription.OrgId)
 	assert.Equal(t, orderItem.OrderId, subscription.OrderId)
 	assert.Equal(t, SubscriptionStatusPending, subscription.Status)
-	assert.Equal(t, orderItem.Price.BillingInterval, subscription.BillingInterval)
-	assert.Equal(t, orderItem.Price.BillingIntervalQty, subscription.BillingIntervalQty)
-	assert.Equal(t, string(orderItem.Price.Currency), subscription.Currency)
-	assert.Equal(t, orderItem.Price.UnitPrice, subscription.Amount)
+	assert.Equal(t, price.BillingInterval, subscription.BillingInterval)
+	assert.Equal(t, price.BillingIntervalQty, subscription.BillingIntervalQty)
+	assert.Equal(t, string(price.Currency), subscription.Currency)
+	assert.Equal(t, price.UnitPrice, subscription.Amount)
 	assert.Equal(t, 0, subscription.Cycles)
 	assert.Equal(t, 0, subscription.Retries)
 	assert.Equal(t, 0, subscription.CyclesProcessed)
@@ -128,19 +128,19 @@ func TestSetActivationDates(t *testing.T) {
 	orderItem := OrderItem{
 		OrgId:   "org_123",
 		OrderId: "order_123",
-		Price: Price{
-			BillingInterval:    BillingIntervalMonth,
-			BillingIntervalQty: 1,
-			Category:           PriceCategorySubscription,
-			Currency:           "USD",
-			UnitPrice:          1000,
-			TrialInterval:      BillingIntervalNone,
-			TrialIntervalQty:   0,
-		},
+	}
+	price := Price{
+		BillingInterval:    BillingIntervalMonth,
+		BillingIntervalQty: 1,
+		Category:           PriceCategorySubscription,
+		Currency:           "USD",
+		UnitPrice:          1000,
+		TrialInterval:      BillingIntervalNone,
+		TrialIntervalQty:   0,
 	}
 
-	subscription := NewSubscriptionFromOrderItem(orderItem)
-	subscription.SetActivationDates()
+	subscription := NewSubscriptionFromOrderItem(orderItem, price)
+	subscription.SetActivationDates(price)
 
 	assert.WithinDuration(t, now, subscription.StartDate, 10*time.Second)
 	assert.WithinDuration(t, now, subscription.CurrentPeriodStart, 10*time.Second)
@@ -158,7 +158,7 @@ func TestUpdateBillingAnchor(t *testing.T) {
 		CurrentPeriodEnd:   time.Now().UTC().AddDate(0, 1, 0),
 	}
 
-	prorationDetails := subscription.UpdateBillingAnchor(20, "none")
+	prorationDetails := subscription.UpdateBillingAnchor(20, "none", subscription.Amount)
 
 	assert.Equal(t, 20, subscription.BillingAnchor)
 	assert.Equal(t, 0, prorationDetails.CreditAmount)
@@ -169,7 +169,7 @@ func TestUpdateBillingAnchor(t *testing.T) {
 	assert.False(t, prorationDetails.NewPeriodEnd.IsZero())
 
 	subscription.BillingAnchor = 15
-	prorationDetails = subscription.UpdateBillingAnchor(25, "credit_unused")
+	prorationDetails = subscription.UpdateBillingAnchor(25, "credit_unused", subscription.Amount)
 
 	assert.Equal(t, 25, subscription.BillingAnchor)
 	assert.Greater(t, prorationDetails.CreditAmount, 0)
@@ -233,7 +233,7 @@ func TestCalculateProrationDetails(t *testing.T) {
 
 			details := subscription.CalculateProrationDetails(
 				tt.prorationMode, tt.referenceDate, 15, 20,
-				base.Add(5*day), base.Add(35*day),
+				base.Add(5*day), base.Add(35*day), subscription.Amount,
 			)
 
 			assert.Equal(t, tt.expectedCredit, details.CreditAmount)

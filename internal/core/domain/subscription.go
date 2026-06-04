@@ -22,18 +22,17 @@ const (
 	SubscriptionStatusError       SubscriptionStatus = "error"
 )
 
-// Subscription is the recurring-billing aggregate root. Customer and OrderItem
-// are populated by the repo when a Preload-equivalent is used; for code paths
-// that don't hydrate them, only CustomerId / OrderItemId are reliable.
+// Subscription is the recurring-billing aggregate root. Cross-aggregate
+// references are by ID only — Customer / OrderItem / Price are separate
+// aggregates and not embedded here. Use service.SubscriptionDetails when a
+// query needs the composed view, or call the relevant repo's FindByIds.
 type Subscription struct {
 	OrgId           string
 	Id              string
 	PspId           Gateway
 	OrderId         string
 	OrderItemId     string
-	OrderItem       OrderItem
 	CustomerId      string
-	Customer        Customer
 	Status          SubscriptionStatus
 	PaymentMethodId string
 
@@ -77,11 +76,15 @@ type ProrationDetails struct {
 	NewPeriodEnd       time.Time `json:"new_period_end"`
 }
 
+// CalculateProrationDetails computes credit details for a billing-anchor
+// change. unitPriceMinor is the subscription's fixed-price slice in minor
+// units (cents) — sourced by the caller from the linked Price.
 func (s *Subscription) CalculateProrationDetails(
 	prorationMode string,
 	referenceDate time.Time,
 	oldBillingAnchor, newBillingAnchor int,
 	newPeriodStart, newPeriodEnd time.Time,
+	unitPriceMinor int64,
 ) ProrationDetails {
 	details := ProrationDetails{
 		CreditAmount:       0,
@@ -109,12 +112,7 @@ func (s *Subscription) CalculateProrationDetails(
 			return details
 		}
 
-		// Stay in integer minor-units — a float round-trip would lose cents
-		// asymmetrically and produce off-by-one discrepancies at the cent
-		// boundary. Same truncation semantics as before (toward zero), which
-		// favors the merchant slightly; if business wants banker's rounding
-		// or ceiling, change here in one place.
-		creditAmount := (s.Amount * int64(daysRemaining)) / int64(totalDays)
+		creditAmount := (unitPriceMinor * int64(daysRemaining)) / int64(totalDays)
 		details.CreditAmount = int(creditAmount)
 		details.DaysCredited = daysRemaining
 	}
@@ -141,19 +139,9 @@ func (s *Subscription) GetNextChargeDate() time.Time {
 	return s.NextRetryAt
 }
 
-// IsDueForBilling reports whether the subscription is due to be billed at the given
-// instant. It is the engine-agnostic Go mirror of the SQL in
-// SubscriptionRepository.FindDueForBilling (postgres/subscription_repo.go) and the two
-// MUST stay in sync — the SQL is the hourly sweep's selection rule, this is what the
-// Hatchet activation-spawn uses to decide whether to kick off an immediate first charge.
-//
-// Due when any of:
-//   - active with a non-zero RenewsAt that is now-or-past, or
-//   - past_due with a non-zero NextRetryAt that is now-or-past, or
-//   - trial with a non-zero TrialEndsAt that is now-or-past.
-//
-// Zero (unset) dates map to NULL in the SQL and `col <= now` is false for NULL, so
-// they are never due — the `!X.IsZero()` guards mirror that exclusion.
+// IsDueForBilling reports whether the subscription is due to be billed at the
+// given instant. Engine-agnostic Go mirror of the SQL in
+// SubscriptionRepository.FindDueForBilling — keep both in sync.
 func (s *Subscription) IsDueForBilling(now time.Time) bool {
 	switch s.Status {
 	case SubscriptionStatusActive:
@@ -186,10 +174,6 @@ func (s *Subscription) CalculateNextBillingDate() time.Time {
 
 	base := s.CurrentPeriodEnd
 	if base.IsZero() {
-		// Recurring charge before a period boundary has been established
-		// (e.g. CurrentPeriodEnd not yet set/persisted): advance from
-		// StartDate instead of the zero time, which would otherwise produce
-		// a year-0001 billing date.
 		base = s.StartDate
 	}
 
@@ -230,7 +214,10 @@ func (s *Subscription) AddBillingInterval(base time.Time) time.Time {
 	return rsp
 }
 
-func (s *Subscription) UpdateBillingAnchor(anchor int, prorationMode string) ProrationDetails {
+// UpdateBillingAnchor changes the subscription's billing anchor. unitPriceMinor
+// is the linked Price's UnitPrice (in cents); the caller fetches it before
+// invoking this method.
+func (s *Subscription) UpdateBillingAnchor(anchor int, prorationMode string, unitPriceMinor int64) ProrationDetails {
 	now := time.Now()
 	year, month, _ := now.Date()
 	referenceTime := s.CurrentPeriodStart
@@ -253,7 +240,7 @@ func (s *Subscription) UpdateBillingAnchor(anchor int, prorationMode string) Pro
 	newPeriodEnd := s.AddBillingInterval(newPeriodStart)
 
 	details := s.CalculateProrationDetails(
-		prorationMode, now, oldBillingAnchor, anchor, newPeriodStart, newPeriodEnd,
+		prorationMode, now, oldBillingAnchor, anchor, newPeriodStart, newPeriodEnd, unitPriceMinor,
 	)
 
 	s.CurrentPeriodStart = newPeriodStart
@@ -263,39 +250,40 @@ func (s *Subscription) UpdateBillingAnchor(anchor int, prorationMode string) Pro
 	return details
 }
 
-func (s *Subscription) SetActivationDates() *Subscription {
-	price := s.OrderItem.Price
-	var startDate = time.Now().UTC()
+// SetActivationDates initializes the lifecycle date fields (StartDate /
+// TrialEndsAt / EndsAt / RenewsAt / CurrentPeriodStart / CurrentPeriodEnd /
+// BillingAnchor) from the Price the subscription is billed against. Price is
+// passed in explicitly — domain aggregates reference others by ID only.
+func (s *Subscription) SetActivationDates(price Price) *Subscription {
+	startDate := time.Now().UTC()
 	var trialEndsAt time.Time
 	var endsAt time.Time
 
-	if s.OrderItem.Price.TrialInterval != BillingIntervalNone {
-		switch s.OrderItem.Price.TrialInterval {
+	if price.TrialInterval != BillingIntervalNone {
+		switch price.TrialInterval {
 		case "minute":
-			trialEndsAt = startDate.Add(time.Minute * time.Duration(s.OrderItem.Price.TrialIntervalQty))
+			trialEndsAt = startDate.Add(time.Minute * time.Duration(price.TrialIntervalQty))
 		case "hour":
-			trialEndsAt = startDate.Add(time.Hour * time.Duration(s.OrderItem.Price.TrialIntervalQty))
+			trialEndsAt = startDate.Add(time.Hour * time.Duration(price.TrialIntervalQty))
 		case "day":
-			trialEndsAt = startDate.AddDate(0, 0, s.OrderItem.Price.TrialIntervalQty)
+			trialEndsAt = startDate.AddDate(0, 0, price.TrialIntervalQty)
 		case "week":
-			trialEndsAt = startDate.AddDate(0, 0, s.OrderItem.Price.TrialIntervalQty*7)
+			trialEndsAt = startDate.AddDate(0, 0, price.TrialIntervalQty*7)
 		case "month":
-			trialEndsAt = startDate.AddDate(0, s.OrderItem.Price.TrialIntervalQty, 0)
+			trialEndsAt = startDate.AddDate(0, price.TrialIntervalQty, 0)
 		case "year":
-			trialEndsAt = startDate.AddDate(s.OrderItem.Price.TrialIntervalQty, 0, 0)
+			trialEndsAt = startDate.AddDate(price.TrialIntervalQty, 0, 0)
 		}
 	}
 
-	if s.OrderItem.Price.Cycles > 0 {
-		endsAtV := calculateNextDate(price.BillingInterval, price.Cycles*price.BillingIntervalQty, startDate)
-		endsAt = endsAtV
+	if price.Cycles > 0 {
+		endsAt = calculateNextDate(price.BillingInterval, price.Cycles*price.BillingIntervalQty, startDate)
 	}
 
 	s.StartDate = startDate
 	s.TrialEndsAt = trialEndsAt
 	s.EndsAt = endsAt
-	renewsAt := s.CalculateNextBillingDate()
-	s.RenewsAt = renewsAt
+	s.RenewsAt = s.CalculateNextBillingDate()
 	s.CurrentPeriodStart = startDate
 	s.CurrentPeriodEnd = s.RenewsAt
 	s.BillingAnchor = startDate.Day()
@@ -303,8 +291,11 @@ func (s *Subscription) SetActivationDates() *Subscription {
 	return s
 }
 
-func (s *Subscription) SetActive(payment Payment) *Subscription {
-	s.SetActivationDates()
+// SetActive transitions the subscription to active. Price is the billing rule;
+// payment is the (possibly zero-value) first-cycle Payment that should be
+// reflected in LastCharge / TotalRevenue / CyclesProcessed.
+func (s *Subscription) SetActive(price Price, payment Payment) *Subscription {
+	s.SetActivationDates(price)
 	s.Status = SubscriptionStatusActive
 	if payment.OrgId != "" && payment.Amount > 0 {
 		s.LastCharge = payment.CompletedAt
@@ -352,20 +343,22 @@ func calculateNextDate(interval BillingInterval, qty int, startDate time.Time) t
 	return startDate
 }
 
-func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
+// NewSubscriptionFromOrderItem constructs a Subscription from an OrderItem +
+// its Price. Both arguments are required: the OrderItem carries the parent
+// Order linkage, the Price carries the billing rule.
+func NewSubscriptionFromOrderItem(item OrderItem, price Price) Subscription {
 	return Subscription{
 		OrgId:              item.OrgId,
 		Id:                 lib.GenerateId("sub"),
 		OrderId:            item.OrderId,
 		OrderItemId:        item.Id,
-		OrderItem:          item,
 		Status:             SubscriptionStatusPending,
-		BillingInterval:    item.Price.BillingInterval,
-		BillingIntervalQty: item.Price.BillingIntervalQty,
-		Cycles:             item.Price.Cycles,
+		BillingInterval:    price.BillingInterval,
+		BillingIntervalQty: price.BillingIntervalQty,
+		Cycles:             price.Cycles,
 		Retries:            0,
-		Currency:           string(item.Price.Currency),
-		Amount:             item.Price.UnitPrice,
+		Currency:           string(price.Currency),
+		Amount:             price.UnitPrice,
 		CyclesProcessed:    0,
 		TotalRevenue:       0,
 		CreatedAt:          time.Now().UTC(),

@@ -221,8 +221,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 			return domain.CreateOrderResponse{}, err
 		}
 
-		if orderItem.Price.Category == domain.PriceCategorySubscription {
-			subscription := domain.NewSubscriptionFromOrderItem(orderItem)
+		price, err := s.priceRepository.FindById(ctx, orgId, item.Price.Id)
+		if err != nil {
+			s.logger.Error("Failed to find price for order item", "price_id", item.Price.Id, "err", err.Error())
+			return domain.CreateOrderResponse{}, err
+		}
+		if price.Category == domain.PriceCategorySubscription {
+			subscription := domain.NewSubscriptionFromOrderItem(orderItem, price)
 			subscription.CustomerId = customerEntity.Id
 			subscription.PspId = input.PspId
 			subscription.PaymentMethodId = input.PaymentMethodId
@@ -423,7 +428,17 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 				}
 			}
 
-			subscription.SetActive(payment)
+			itemForPrice, err := s.orderRepository.FindOrderItemById(ctx, input.OrgId, subscription.OrderItemId)
+			if err != nil {
+				s.logger.Error("Failed to find order item for subscription activation", "subscription_id", subscription.Id, "err", err.Error())
+				return err
+			}
+			subPrice, err := s.priceRepository.FindById(ctx, input.OrgId, itemForPrice.PriceId)
+			if err != nil {
+				s.logger.Error("Failed to find price for subscription activation", "price_id", itemForPrice.PriceId, "err", err.Error())
+				return err
+			}
+			subscription.SetActive(subPrice, payment)
 			s.logger.Infof("Subscription [%s] activated. firstPaymentCharged=%t", subscription.Id, firstPaymentCharged)
 			newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 			if err != nil {
@@ -450,4 +465,99 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 		s.logger.Errorf("Failed to publish %s for order %s: %v", port.TopicOrderCompleted, order.Id, pubErr)
 	}
 	return order, nil
+}
+
+// GetDetails composes an OrderDetails read model: order + customer + items
+// (each item paired with its Price).
+func (s *OrderService) GetDetails(ctx context.Context, orgId, id string) (OrderDetails, error) {
+	order, err := s.orderRepository.FindById(ctx, orgId, id)
+	if err != nil {
+		return OrderDetails{}, err
+	}
+	customer, err := s.customerRepository.FindById(ctx, orgId, order.CustomerId)
+	if err != nil {
+		return OrderDetails{}, err
+	}
+	items, err := s.orderRepository.FindOrderItemsByOrderId(ctx, orgId, order.Id)
+	if err != nil {
+		return OrderDetails{}, err
+	}
+	priceIds := make([]string, 0, len(items))
+	seen := make(map[string]bool)
+	for _, it := range items {
+		if !seen[it.PriceId] {
+			seen[it.PriceId] = true
+			priceIds = append(priceIds, it.PriceId)
+		}
+	}
+	prices, err := s.priceRepository.FindByIds(ctx, orgId, priceIds)
+	if err != nil {
+		return OrderDetails{}, err
+	}
+	priceById := make(map[string]domain.Price, len(prices))
+	for _, p := range prices {
+		priceById[p.Id] = p
+	}
+	itemDetails := make([]OrderItemDetails, len(items))
+	for i, it := range items {
+		itemDetails[i] = OrderItemDetails{Item: it, Price: priceById[it.PriceId]}
+	}
+	return OrderDetails{Order: order, Customer: customer, Items: itemDetails}, nil
+}
+
+// ListDetails returns orders with their composed details. Customers and prices
+// are batch-loaded to avoid N+1.
+func (s *OrderService) ListDetails(ctx context.Context, orgId string, pagination domain.Pagination) ([]OrderDetails, int, error) {
+	orders, total, err := s.orderRepository.Find(ctx, orgId, pagination)
+	if err != nil {
+		return nil, 0, err
+	}
+	if len(orders) == 0 {
+		return []OrderDetails{}, total, nil
+	}
+	customerIds := make([]string, 0, len(orders))
+	cSeen := make(map[string]bool)
+	for _, o := range orders {
+		if !cSeen[o.CustomerId] {
+			cSeen[o.CustomerId] = true
+			customerIds = append(customerIds, o.CustomerId)
+		}
+	}
+	customers, err := s.customerRepository.FindByIds(ctx, orgId, customerIds)
+	if err != nil {
+		return nil, 0, err
+	}
+	customerById := make(map[string]domain.Customer, len(customers))
+	for _, c := range customers {
+		customerById[c.Id] = c
+	}
+	out := make([]OrderDetails, len(orders))
+	for i, o := range orders {
+		items, err := s.orderRepository.FindOrderItemsByOrderId(ctx, orgId, o.Id)
+		if err != nil {
+			return nil, 0, err
+		}
+		priceIds := make([]string, 0, len(items))
+		pSeen := make(map[string]bool)
+		for _, it := range items {
+			if !pSeen[it.PriceId] {
+				pSeen[it.PriceId] = true
+				priceIds = append(priceIds, it.PriceId)
+			}
+		}
+		prices, err := s.priceRepository.FindByIds(ctx, orgId, priceIds)
+		if err != nil {
+			return nil, 0, err
+		}
+		priceById := make(map[string]domain.Price, len(prices))
+		for _, p := range prices {
+			priceById[p.Id] = p
+		}
+		itemDetails := make([]OrderItemDetails, len(items))
+		for j, it := range items {
+			itemDetails[j] = OrderItemDetails{Item: it, Price: priceById[it.PriceId]}
+		}
+		out[i] = OrderDetails{Order: o, Customer: customerById[o.CustomerId], Items: itemDetails}
+	}
+	return out, total, nil
 }

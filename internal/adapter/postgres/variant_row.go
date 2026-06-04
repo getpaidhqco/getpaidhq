@@ -6,9 +6,8 @@ import (
 	"getpaidhq/internal/core/domain"
 )
 
-// variantRow is the postgres on-the-wire shape of a Variant. The Prices
-// slice is populated via gorm Preload("Prices") at the row level; mapper
-// converts to domain.Variant with []domain.Price.
+// variantRow is the postgres on-the-wire shape of a Variant. Prices are NOT
+// embedded — composition is a service-layer concern.
 type variantRow struct {
 	OrgId       string            `gorm:"column:org_id;primaryKey"`
 	Id          string            `gorm:"column:id;primaryKey"`
@@ -16,7 +15,6 @@ type variantRow struct {
 	Name        string            `gorm:"column:name"`
 	Description string            `gorm:"column:description"`
 	Metadata    map[string]string `gorm:"column:metadata;serializer:json"`
-	Prices      []priceRow        `gorm:"foreignKey:VariantId,OrgId;references:Id,OrgId"`
 	CreatedAt   time.Time         `gorm:"column:created_at"`
 	UpdatedAt   time.Time         `gorm:"column:updated_at"`
 }
@@ -31,17 +29,12 @@ func (r variantRow) toDomain() domain.Variant {
 		Name:        r.Name,
 		Description: r.Description,
 		Metadata:    r.Metadata,
-		Prices:      priceRowsToDomain(r.Prices),
 		CreatedAt:   r.CreatedAt,
 		UpdatedAt:   r.UpdatedAt,
 	}
 }
 
 func variantRowFromDomain(v domain.Variant) variantRow {
-	prices := make([]priceRow, len(v.Prices))
-	for i, p := range v.Prices {
-		prices[i] = priceRowFromDomain(p)
-	}
 	return variantRow{
 		OrgId:       v.OrgId,
 		Id:          v.Id,
@@ -49,7 +42,6 @@ func variantRowFromDomain(v domain.Variant) variantRow {
 		Name:        v.Name,
 		Description: v.Description,
 		Metadata:    v.Metadata,
-		Prices:      prices,
 		CreatedAt:   v.CreatedAt,
 		UpdatedAt:   v.UpdatedAt,
 	}

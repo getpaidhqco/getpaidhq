@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/service"
 )
 
 // ---------------------------------------------------------------------------
@@ -50,25 +51,27 @@ type OrderResponse struct {
 	CreatedAt  time.Time           `json:"created_at"`
 }
 
-func NewOrderFromEntity(entity domain.Order) OrderResponse {
-	var items []OrderItemResponse
-	for _, item := range entity.Items {
-		items = append(items, NewOrderItemFromEntity(item))
+// NewOrderResponseFromDetails composes the order response DTO from the
+// service-layer read model. Items render their nested Price via
+// NewOrderItemResponseFromDetails.
+func NewOrderResponseFromDetails(d service.OrderDetails) OrderResponse {
+	items := make([]OrderItemResponse, len(d.Items))
+	for i, it := range d.Items {
+		items[i] = NewOrderItemResponseFromDetails(it)
 	}
-
 	return OrderResponse{
-		Id:         entity.Id,
-		CustomerId: entity.CustomerId,
-		Customer:   NewCustomerFromEntity(entity.Customer),
-		Reference:  entity.Reference,
+		Id:         d.Order.Id,
+		CustomerId: d.Order.CustomerId,
+		Customer:   NewCustomerFromEntity(d.Customer),
+		Reference:  d.Order.Reference,
 		Items:      items,
-		Status:     string(entity.Status),
-		SessionId:  entity.SessionId,
-		CartId:     entity.CartId,
-		Currency:   entity.Currency,
-		Total:      entity.Total,
-		Metadata:   entity.Metadata,
-		CreatedAt:  entity.CreatedAt,
+		Status:     string(d.Order.Status),
+		SessionId:  d.Order.SessionId,
+		CartId:     d.Order.CartId,
+		Currency:   d.Order.Currency,
+		Total:      d.Order.Total,
+		Metadata:   d.Order.Metadata,
+		CreatedAt:  d.Order.CreatedAt,
 	}
 }
 
@@ -94,23 +97,25 @@ type OrderItemResponse struct {
 	UpdatedAt     time.Time         `json:"updated_at"`
 }
 
-func NewOrderItemFromEntity(entity domain.OrderItem) OrderItemResponse {
+// NewOrderItemResponseFromDetails composes the order-item response DTO from
+// the service-layer read model (Item + Price pair).
+func NewOrderItemResponseFromDetails(d service.OrderItemDetails) OrderItemResponse {
 	return OrderItemResponse{
-		Id:            entity.Id,
-		OrderId:       entity.OrderId,
-		PriceId:       entity.PriceId,
-		ProductId:     entity.ProductId,
-		VariantId:     entity.VariantId,
-		Price:         NewPriceFromEntity(entity.Price),
-		Description:   entity.Description,
-		Quantity:      entity.Quantity,
-		TaxTotal:      entity.TaxTotal,
-		DiscountTotal: entity.DiscountTotal,
-		Subtotal:      entity.Subtotal,
-		Total:         entity.Total,
-		Metadata:      entity.Metadata,
-		CreatedAt:     entity.CreatedAt,
-		UpdatedAt:     entity.UpdatedAt,
+		Id:            d.Item.Id,
+		OrderId:       d.Item.OrderId,
+		PriceId:       d.Item.PriceId,
+		ProductId:     d.Item.ProductId,
+		VariantId:     d.Item.VariantId,
+		Price:         NewPriceFromEntity(d.Price),
+		Description:   d.Item.Description,
+		Quantity:      d.Item.Quantity,
+		TaxTotal:      d.Item.TaxTotal,
+		DiscountTotal: d.Item.DiscountTotal,
+		Subtotal:      d.Item.Subtotal,
+		Total:         d.Item.Total,
+		Metadata:      d.Item.Metadata,
+		CreatedAt:     d.Item.CreatedAt,
+		UpdatedAt:     d.Item.UpdatedAt,
 	}
 }
 
@@ -156,37 +161,40 @@ type SubscriptionResponse struct {
 	UpdatedAt       time.Time         `json:"updated_at"`
 }
 
-func NewSubscriptionFromEntity(entity domain.Subscription) SubscriptionResponse {
+// NewSubscriptionResponseFromDetails composes the subscription response DTO
+// from the service-layer read model (Subscription + Customer pair).
+func NewSubscriptionResponseFromDetails(d service.SubscriptionDetails) SubscriptionResponse {
+	s := d.Subscription
 	return SubscriptionResponse{
-		Id:                 entity.Id,
-		OrderId:            entity.OrderId,
-		OrderItemId:        entity.OrderItemId,
-		Customer:           NewCustomerFromEntity(entity.Customer),
-		Status:             entity.Status,
-		PaymentMethodId:    entity.PaymentMethodId,
-		StartDate:          entity.StartDate,
-		EndDate:            entity.EndDate,
-		BillingInterval:    entity.BillingInterval,
-		BillingIntervalQty: entity.BillingIntervalQty,
-		Cycles:             entity.Cycles,
-		BillingAnchor:      entity.BillingAnchor,
-		TrialEndsAt:        entity.TrialEndsAt,
-		CancelAt:           entity.CancelAt,
-		EndsAt:             entity.EndsAt,
-		LastCharge:         entity.LastCharge,
-		RenewsAt:           entity.RenewsAt,
-		CurrentPeriodStart: entity.CurrentPeriodStart,
-		CurrentPeriodEnd:   entity.CurrentPeriodEnd,
-		Retries:            entity.Retries,
-		NextRetryAt:        entity.NextRetryAt,
-		Currency:           entity.Currency,
-		Amount:             entity.Amount,
-		Metadata:           entity.Metadata,
-		CyclesProcessed:    entity.CyclesProcessed,
-		TotalRevenue:       entity.TotalRevenue,
-		CancelledAt:        entity.CancelledAt,
-		CreatedAt:          entity.CreatedAt,
-		UpdatedAt:          entity.UpdatedAt,
+		Id:                 s.Id,
+		OrderId:            s.OrderId,
+		OrderItemId:        s.OrderItemId,
+		Customer:           NewCustomerFromEntity(d.Customer),
+		Status:             s.Status,
+		PaymentMethodId:    s.PaymentMethodId,
+		StartDate:          s.StartDate,
+		EndDate:            s.EndDate,
+		BillingInterval:    s.BillingInterval,
+		BillingIntervalQty: s.BillingIntervalQty,
+		Cycles:             s.Cycles,
+		BillingAnchor:      s.BillingAnchor,
+		TrialEndsAt:        s.TrialEndsAt,
+		CancelAt:           s.CancelAt,
+		EndsAt:             s.EndsAt,
+		LastCharge:         s.LastCharge,
+		RenewsAt:           s.RenewsAt,
+		CurrentPeriodStart: s.CurrentPeriodStart,
+		CurrentPeriodEnd:   s.CurrentPeriodEnd,
+		Retries:            s.Retries,
+		NextRetryAt:        s.NextRetryAt,
+		Currency:           s.Currency,
+		Amount:             s.Amount,
+		Metadata:           s.Metadata,
+		CyclesProcessed:    s.CyclesProcessed,
+		TotalRevenue:       s.TotalRevenue,
+		CancelledAt:        s.CancelledAt,
+		CreatedAt:          s.CreatedAt,
+		UpdatedAt:          s.UpdatedAt,
 	}
 }
 
@@ -234,19 +242,21 @@ type ProductResponse struct {
 	UpdatedAt   time.Time         `json:"updated_at"`
 }
 
-func NewProductFromEntity(entity domain.Product) ProductResponse {
-	var variants []VariantResponse
-	for _, variant := range entity.Variants {
-		variants = append(variants, NewVariantFromEntity(variant))
+// NewProductResponseFromDetails composes the product response DTO from the
+// service-layer read model (product + variants + nested prices).
+func NewProductResponseFromDetails(d service.ProductDetails) ProductResponse {
+	variants := make([]VariantResponse, len(d.Variants))
+	for i, v := range d.Variants {
+		variants[i] = NewVariantResponseFromDetails(v)
 	}
 	return ProductResponse{
-		Id:          entity.Id,
-		Name:        entity.Name,
-		Description: entity.Description,
+		Id:          d.Product.Id,
+		Name:        d.Product.Name,
+		Description: d.Product.Description,
 		Variants:    variants,
-		Metadata:    entity.Metadata,
-		CreatedAt:   entity.CreatedAt,
-		UpdatedAt:   entity.UpdatedAt,
+		Metadata:    d.Product.Metadata,
+		CreatedAt:   d.Product.CreatedAt,
+		UpdatedAt:   d.Product.UpdatedAt,
 	}
 }
 
@@ -262,17 +272,19 @@ type VariantResponse struct {
 	UpdatedAt time.Time       `json:"updated_at"`
 }
 
-func NewVariantFromEntity(entity domain.Variant) VariantResponse {
-	var prices []PriceResponse
-	for _, price := range entity.Prices {
-		prices = append(prices, NewPriceFromEntity(price))
+// NewVariantResponseFromDetails composes the variant response DTO from the
+// service-layer read model (Variant + Prices).
+func NewVariantResponseFromDetails(d service.VariantDetails) VariantResponse {
+	prices := make([]PriceResponse, len(d.Prices))
+	for i, p := range d.Prices {
+		prices[i] = NewPriceFromEntity(p)
 	}
 	return VariantResponse{
-		Id:        entity.Id,
-		Name:      entity.Name,
+		Id:        d.Variant.Id,
+		Name:      d.Variant.Name,
 		Prices:    prices,
-		CreatedAt: entity.CreatedAt,
-		UpdatedAt: entity.UpdatedAt,
+		CreatedAt: d.Variant.CreatedAt,
+		UpdatedAt: d.Variant.UpdatedAt,
 	}
 }
 

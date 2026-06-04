@@ -5,19 +5,16 @@ import (
 	"time"
 )
 
-// Order is the purchase aggregate. Customer and Items are populated by the
-// repository when a Preload-equivalent is used; for code paths that don't
-// hydrate them, only the IDs are reliable.
+// Order is the purchase aggregate. Cross-aggregate references are by ID only;
+// Customer and Items are loaded via service.OrderDetails composition.
 type Order struct {
 	OrgId      string
 	Id         string
 	CustomerId string
-	Customer   Customer
 	Reference  string
 	Status     OrderStatus
 	SessionId  string
 	CartId     string
-	Items      []OrderItem
 	Currency   string
 	Total      int64
 	Metadata   map[string]string

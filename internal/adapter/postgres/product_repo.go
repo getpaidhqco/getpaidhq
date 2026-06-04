@@ -22,8 +22,6 @@ func (r *ProductRepo) FindById(ctx context.Context, orgId string, id string) (do
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
-		Preload("Variants").
-		Preload("Variants.Prices").
 		First(&row).Error
 	if err != nil {
 		return domain.Product{}, translateErr(err)
@@ -49,8 +47,6 @@ func (r *ProductRepo) Find(ctx context.Context, orgId string, p domain.Paginatio
 	}
 	if err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId), Paginate(p)).
-		Preload("Variants").
-		Preload("Variants.Prices").
 		Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}

@@ -1,54 +1,99 @@
-hexagonal-domain-split refactor complete on main
+hexagonal-domain-split refactor — canonical finish complete
 
-Phase 0 (scaffolding + rules + input sweep):
-  f150469 plan
-  4b2aeb0 hexagonal & DDD rules doc
-  03c6cf4 row_helpers.go scaffold
-  13990f9 + e47874b + e2f83c7 32 *Input types from domain/ to port/
-  c7e8f08 + 1f2ddf8 + b5ea994 merges that landed Phase 0 on main
+Branch: worktree-hexagonal-finish (off main at c012141)
+Worktree: /Users/mdwt/dev/gphq/gphq-server/.claude/worktrees/hexagonal-finish
 
-Phase 1 (20 entity splits, one commit per group):
-  aebaa16  User
-  3b367e0  Session
-  d1e65e5  Setting
-  cf92cc2  MetadataStore
-  27afe5d  Org
-  f127d4a  PspConfig
-  1488f1d  Refund
-  2c6e795  ApiKey (transient RawKey lifted to port.CreatedApiKey)
-  2fe170b  WebhookSubscription
-  c268413  Customer (+ FindByIds)
-  3257b3e  Price (+ FindByIds + FindByVariantIds)
-  f53db84  PaymentMethod
-  b804e6a  OrderItem + Variant + Subscription + Order + Product (Wave 3+4)
-  e36a948  Payment
-  a88ec99  Cart
-  57cb289  Dunning bundle (6 entities)
+Verification results:
+  - 0 gorm: tags in internal/core/domain/
+  - 0 TableName() methods in internal/core/domain/
+  - 0 gorm.io imports in internal/core/domain/
+  - 0 cross-aggregate embedded relations on persisted domain entities
+    (subscription / order / order_item / variant / product all hold IDs only)
+  - 0 domain.*Input references anywhere — all in port/
+  - 3 read model files exist (order_read.go / product_read.go / subscription_read.go)
+  - go build ./... clean
+  - go test ./... clean
+  - go test -tags=integration ./internal/adapter/postgres/... clean
+  - go vet ./... clean
 
-Phase 3 (verification): build clean, unit + integration tests pass,
-go vet clean. internal/core/domain/ has zero gorm tags, zero TableName
-methods, zero gorm.io imports. Persisted entity types have zero json
-tags (value objects retain them as their JSON-column / wire shape per
-docs/internal/hexagonal-mapping-pattern.md).
+Phase A: Domain refactor (completed)
+  - Subscription: dropped embedded OrderItem + Customer; refactored
+    SetActivationDates(price), SetActive(price, payment),
+    NewSubscriptionFromOrderItem(item, price), UpdateBillingAnchor(...,
+    unitPriceMinor), CalculateProrationDetails(..., unitPriceMinor).
+  - Order, OrderItem, Variant, Product: dropped embedded relations.
+  - postgres row types: dropped embedded sub-rows + Preload calls from repos.
 
-Counts:
-  - 20 *_row.go files in internal/adapter/postgres/
-  - 27 row types + 26 toDomain mappers
-  - 32 *Input types in internal/core/port/
-  - Subscription's embedded Customer + OrderItem stay on the domain as
-    plain Go fields (no tags); same for Order's Customer + Items,
-    OrderItem's Price, Product's Variants, Variant's Prices. These are
-    populated by repo Preload at the row layer. The pure-aggregate
-    refactor (cross-aggregate-by-ID-only + read models) is a follow-up.
+Phase B: Read Models + Query Handlers (completed)
+  - service.SubscriptionDetails / OrderDetails / OrderItemDetails /
+    VariantDetails / ProductDetails.
+  - SubscriptionService.GetDetails / ListDetails
+  - OrderService.GetDetails / ListDetails
+  - ProductService.GetDetails / ListDetails / GetVariantDetails
+  - All use FindByIds batches to prevent N+1.
 
-Known follow-ups (not blocking):
-  - Promote inbound port interfaces (DunningService, OrderWorkflowService,
-    etc.) out of port/ if the project later prefers split inbound/outbound
-    packages — for now, port/ holds ALL ports per the user's stated
-    layout.
-  - Aggregate-boundary purification per the rules doc (drop embedded
-    related-entity fields from domain; add Read Models per Q3 Answer 2
-    when a composed query has a real use-case name).
-  - Per-entity DTO file split for response.go is partially done (per-entity
-    request/response files added for Session and Org; the legacy
-    response.go still contains the older entity response DTOs).
+Phase C: HTTP rewire (completed)
+  - NewOrderResponseFromDetails / NewOrderItemResponseFromDetails /
+    NewSubscriptionResponseFromDetails / NewProductResponseFromDetails /
+    NewVariantResponseFromDetails — composed from read models.
+  - Subscription, Order, Product handlers call GetDetails/ListDetails.
+  - Subscription mutation handlers (Pause/Cancel/Update/Resume) re-fetch
+    via GetDetails to assemble the nested response.
+
+Phase D: Service-internal readers fixed (completed)
+  - invoice.go: didn't reference embedded fields (already clean).
+  - order.go: fetches Price via priceRepository in CreateOrder + CompleteOrder
+    flows; SetActive call passes the fetched Price.
+  - order_workflow.go: fetches Customer for BillingAddress; fetches OrderItem
+    + Price for SetActivationDates.
+
+Phase E: Cart command types to port/ (completed)
+  - AddItemInput / AddProductCommand / RemoveItemCommand / AdjustCommand /
+    CreateCartInput moved from domain/cart.go to port/cart_input.go.
+  - JSON tags stripped (passive structs per the rules).
+
+Phase F: Split response.go per-entity (deferred — see "Known gaps")
+
+Phase G: Comprehensive handler audit (completed)
+  - 10 handler methods that returned domain.X converted to *Response DTOs.
+  - New PaymentMethodResponse + NewPaymentMethodResponse mapper.
+
+Phase H: Regenerate openapi.json + diff (skipped — see "Known gaps")
+
+Known gaps (not blocking; documented for follow-up):
+
+  1. domain/gateway.go still embeds Customer in ChargePaymentCommand and
+     InitPaymentCommand. These are gateway-integration command objects
+     (passed to GatewayProvider, an outbound port) that need the customer
+     snapshot for PSP-side data; not persisted aggregates. Borderline
+     case — leaving as-is.
+
+  2. internal/adapter/http/response.go is still one large file holding
+     the response DTOs for Order/OrderItem/Subscription/Customer/Product/
+     Variant/Price/Payment/ProrationDetails/Gateway/Cart. The plan also
+     called for a per-entity split (Session and Org were already done).
+     Mechanical cleanup; defer to a follow-up commit.
+
+  3. openapi.json regen + diff against base not run. The repo has no
+     openapi.json and no cmd/openapi-export; the canonical artifact is
+     produced by booting the Fuego server (which needs Postgres / Hatchet
+     / network). Defer to a separate boot.
+
+  4. GatewayResponse ↔ domain.PspConfig naming asymmetry kept. Renaming
+     to PspConfigResponse is an API rename; deferred.
+
+How to merge:
+
+  This branch (worktree-hexagonal-finish) is forked off local main at
+  the marker commit c012141. To land on main:
+
+    git checkout main
+    git merge worktree-hexagonal-finish
+
+  Two parallel work efforts the user had in-flight on main are NOT
+  included on this branch (they exist as uncommitted modifications in
+  the main checkout): Invoice / ADR 0002 changes and the Subscription.Amount
+  removal. The merge will need to reconcile those — the changes I made
+  to Subscription.Amount / UpdateBillingAnchor signature are minimal
+  enough that the rebase should be tractable, but a human review is
+  recommended before promoting.

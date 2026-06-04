@@ -358,3 +358,83 @@ func (s *ProductService) DeletePrice(ctx context.Context, orgId string, id strin
 	_ = s.pubsub.Publish(orgId, port.TopicPriceDeleted, price)
 	return nil
 }
+
+// GetDetails composes a ProductDetails read model: product + variants (each
+// variant paired with its prices).
+func (s *ProductService) GetDetails(ctx context.Context, orgId, id string) (ProductDetails, error) {
+	product, err := s.productRepository.FindById(ctx, orgId, id)
+	if err != nil {
+		return ProductDetails{}, err
+	}
+	variants, _, err := s.variantRepository.FindByProductId(ctx, orgId, product.Id, domain.Pagination{Page: 1, Limit: 1000})
+	if err != nil {
+		return ProductDetails{}, err
+	}
+	variantIds := make([]string, 0, len(variants))
+	for _, v := range variants {
+		variantIds = append(variantIds, v.Id)
+	}
+	prices, err := s.priceRepository.FindByVariantIds(ctx, orgId, variantIds)
+	if err != nil {
+		return ProductDetails{}, err
+	}
+	pricesByVariant := make(map[string][]domain.Price, len(variants))
+	for _, p := range prices {
+		pricesByVariant[p.VariantId] = append(pricesByVariant[p.VariantId], p)
+	}
+	variantDetails := make([]VariantDetails, len(variants))
+	for i, v := range variants {
+		variantDetails[i] = VariantDetails{Variant: v, Prices: pricesByVariant[v.Id]}
+	}
+	return ProductDetails{Product: product, Variants: variantDetails}, nil
+}
+
+// ListDetails returns products with their composed details. Variants and
+// prices are batch-loaded.
+func (s *ProductService) ListDetails(ctx context.Context, orgId string, pagination domain.Pagination) ([]ProductDetails, int, error) {
+	products, total, err := s.productRepository.Find(ctx, orgId, pagination)
+	if err != nil {
+		return nil, 0, err
+	}
+	if len(products) == 0 {
+		return []ProductDetails{}, total, nil
+	}
+	out := make([]ProductDetails, len(products))
+	for i, p := range products {
+		variants, _, err := s.variantRepository.FindByProductId(ctx, orgId, p.Id, domain.Pagination{Page: 1, Limit: 1000})
+		if err != nil {
+			return nil, 0, err
+		}
+		variantIds := make([]string, 0, len(variants))
+		for _, v := range variants {
+			variantIds = append(variantIds, v.Id)
+		}
+		prices, err := s.priceRepository.FindByVariantIds(ctx, orgId, variantIds)
+		if err != nil {
+			return nil, 0, err
+		}
+		pricesByVariant := make(map[string][]domain.Price, len(variants))
+		for _, pr := range prices {
+			pricesByVariant[pr.VariantId] = append(pricesByVariant[pr.VariantId], pr)
+		}
+		variantDetails := make([]VariantDetails, len(variants))
+		for j, v := range variants {
+			variantDetails[j] = VariantDetails{Variant: v, Prices: pricesByVariant[v.Id]}
+		}
+		out[i] = ProductDetails{Product: p, Variants: variantDetails}
+	}
+	return out, total, nil
+}
+
+// GetVariantDetails composes a VariantDetails read model.
+func (s *ProductService) GetVariantDetails(ctx context.Context, orgId, id string) (VariantDetails, error) {
+	variant, err := s.variantRepository.FindById(ctx, orgId, id)
+	if err != nil {
+		return VariantDetails{}, err
+	}
+	prices, _, err := s.priceRepository.FindByVariantId(ctx, orgId, variant.Id, domain.Pagination{Page: 1, Limit: 1000})
+	if err != nil {
+		return VariantDetails{}, err
+	}
+	return VariantDetails{Variant: variant, Prices: prices}, nil
+}

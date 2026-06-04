@@ -106,6 +106,25 @@ func (r *fakePriceRepo) Delete(_ context.Context, _, id string) error {
 	return nil
 }
 
+func (r *fakePriceRepo) FindByIds(_ context.Context, _ string, ids []string) ([]domain.Price, error) {
+	if r.byIdErr != nil {
+		return nil, r.byIdErr
+	}
+	want := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		want[id] = true
+	}
+	var out []domain.Price
+	if want[r.byId.Id] {
+		out = append(out, r.byId)
+	}
+	return out, nil
+}
+
+func (r *fakePriceRepo) FindByVariantIds(context.Context, string, []string) ([]domain.Price, error) {
+	return nil, nil
+}
+
 func newProductService(prod port.ProductRepository, vr port.VariantRepository, pr port.PriceRepository, ps port.PubSub) *ProductService {
 	if ps == nil {
 		ps = &recordingPubSub{}
