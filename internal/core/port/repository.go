@@ -58,6 +58,9 @@ type OrderRepository interface {
 // Also handles cohort operations (merged from CohortRepository).
 type CustomerRepository interface {
 	FindById(ctx context.Context, orgId string, id string) (domain.Customer, error)
+	// FindByIds batch-loads customers by their IDs within an org. Used to
+	// prevent N+1 when an application service composes a read model.
+	FindByIds(ctx context.Context, orgId string, ids []string) ([]domain.Customer, error)
 	FindByEmail(ctx context.Context, orgId string, email string) (domain.Customer, error)
 	Create(ctx context.Context, entity domain.Customer) (domain.Customer, error)
 	Update(ctx context.Context, entity domain.Customer) (domain.Customer, error)

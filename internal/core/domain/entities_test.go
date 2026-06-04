@@ -208,9 +208,7 @@ func TestTableNames(t *testing.T) {
 		// refund: TableName lives on postgres row (split per hexagonal refactor)
 		{"price", Price{}.TableName(), "prices"},
 		{"cart", Cart{}.TableName(), "carts"},
-		{"customer", Customer{}.TableName(), "customers"},
-		{"customer_cohort", CustomerCohort{}.TableName(), "customer_cohorts"},
-		{"cohort", Cohort{}.TableName(), "cohorts"},
+		// customer / customer_cohort / cohort: TableName lives on postgres row (split per hexagonal refactor)
 		// metadata_store: TableName lives on postgres row (split per hexagonal refactor)
 	}
 

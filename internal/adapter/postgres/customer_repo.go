@@ -18,70 +18,104 @@ func NewCustomerRepo(db *gorm.DB) port.CustomerRepository {
 }
 
 func (r *CustomerRepo) FindById(ctx context.Context, orgId string, id string) (domain.Customer, error) {
-	var customer domain.Customer
+	var row customerRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
-		First(&customer).Error
-	return customer, translateErr(err)
+		First(&row).Error
+	if err != nil {
+		return domain.Customer{}, translateErr(err)
+	}
+	return row.toDomain(), nil
+}
+
+// FindByIds batch-loads customers by their IDs within an org. Used by services
+// that compose read models to avoid N+1 (e.g. OrderService.ListDetails).
+func (r *CustomerRepo) FindByIds(ctx context.Context, orgId string, ids []string) ([]domain.Customer, error) {
+	if len(ids) == 0 {
+		return nil, nil
+	}
+	var rows []customerRow
+	err := dbFromCtx(ctx, r.db).
+		Scopes(OrgScope(orgId)).
+		Where("id IN ?", ids).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]domain.Customer, len(rows))
+	for i, row := range rows {
+		out[i] = row.toDomain()
+	}
+	return out, nil
 }
 
 func (r *CustomerRepo) FindByEmail(ctx context.Context, orgId string, email string) (domain.Customer, error) {
-	var customer domain.Customer
+	var row customerRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("email = ?", email).
-		First(&customer).Error
-	return customer, translateErr(err)
+		First(&row).Error
+	if err != nil {
+		return domain.Customer{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *CustomerRepo) Create(ctx context.Context, entity domain.Customer) (domain.Customer, error) {
-	err := r.writeCustomer(ctx, &entity, false).Error
-	if err != nil {
+	row := customerRowFromDomain(entity)
+	if err := r.writeRow(ctx, &row, false).Error; err != nil {
 		return domain.Customer{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
 func (r *CustomerRepo) Update(ctx context.Context, entity domain.Customer) (domain.Customer, error) {
-	err := r.writeCustomer(ctx, &entity, true).Error
-	if err != nil {
+	row := customerRowFromDomain(entity)
+	if err := r.writeRow(ctx, &row, true).Error; err != nil {
 		return domain.Customer{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
-// writeCustomer issues the insert/update for a customer, omitting
+// writeRow issues the insert/update for a customer row, omitting
 // default_payment_method_id when it is empty. The column is a nullable FK to
 // payment_methods; the domain models "no default" as the empty string, so
 // writing "" would violate the FK. Omitting it lets the column stay NULL.
-func (r *CustomerRepo) writeCustomer(ctx context.Context, entity *domain.Customer, update bool) *gorm.DB {
+func (r *CustomerRepo) writeRow(ctx context.Context, row *customerRow, update bool) *gorm.DB {
 	db := dbFromCtx(ctx, r.db)
-	if entity.DefaultPaymentMethodId == "" {
+	if row.DefaultPaymentMethodId == "" {
 		db = db.Omit("default_payment_method_id")
 	}
 	if update {
-		return db.Save(entity)
+		return db.Save(row)
 	}
-	return db.Create(entity)
+	return db.Create(row)
 }
 
 func (r *CustomerRepo) List(ctx context.Context, orgId string, pagination domain.Pagination) ([]domain.Customer, int, error) {
-	var customers []domain.Customer
+	var rows []customerRow
 	var count int64
-	err := dbFromCtx(ctx, r.db).Model(&domain.Customer{}).
+	if err := dbFromCtx(ctx, r.db).Model(&customerRow{}).
 		Scopes(OrgScope(orgId)).
-		Count(&count).Error
-	if err != nil {
+		Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
-	err = dbFromCtx(ctx, r.db).
+	if err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId), Paginate(pagination)).
-		Find(&customers).Error
-	return customers, int(count), err
+		Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]domain.Customer, len(rows))
+	for i, row := range rows {
+		out[i] = row.toDomain()
+	}
+	return out, int(count), nil
 }
 
 func (r *CustomerRepo) FindPaymentMethodById(ctx context.Context, orgId string, id string) (domain.PaymentMethod, error) {
+	// NOTE: this delegates to the payment_methods table; once PaymentMethod
+	// is split into its own row, route this through paymentMethodRow.
 	var pm domain.PaymentMethod
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
@@ -91,50 +125,51 @@ func (r *CustomerRepo) FindPaymentMethodById(ctx context.Context, orgId string, 
 }
 
 func (r *CustomerRepo) AddToCohort(ctx context.Context, orgId string, customerId string, cohortId string, cohortValue string) (domain.Customer, error) {
-	cc := domain.CustomerCohort{
+	cc := customerCohortRow{
 		OrgId:       orgId,
 		CustomerId:  customerId,
 		CohortId:    cohortId,
 		CohortValue: cohortValue,
 	}
-	err := dbFromCtx(ctx, r.db).Create(&cc).Error
-	if err != nil {
+	if err := dbFromCtx(ctx, r.db).Create(&cc).Error; err != nil {
 		return domain.Customer{}, err
 	}
 	return r.FindById(ctx, orgId, customerId)
 }
 
 func (r *CustomerRepo) FindCohortById(ctx context.Context, orgId string, id string) (domain.Cohort, error) {
-	var cohort domain.Cohort
+	var row cohortRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
-		First(&cohort).Error
-	return cohort, translateErr(err)
+		First(&row).Error
+	if err != nil {
+		return domain.Cohort{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *CustomerRepo) CreateCohort(ctx context.Context, input domain.Cohort) (domain.Cohort, error) {
-	err := dbFromCtx(ctx, r.db).Create(&input).Error
-	if err != nil {
+	row := cohortRowFromDomain(input)
+	if err := dbFromCtx(ctx, r.db).Create(&row).Error; err != nil {
 		return domain.Cohort{}, err
 	}
 	return r.FindCohortById(ctx, input.OrgId, input.Id)
 }
 
 func (r *CustomerRepo) UpdateCohort(ctx context.Context, input domain.Cohort) (domain.Cohort, error) {
-	err := dbFromCtx(ctx, r.db).Save(&input).Error
-	if err != nil {
+	row := cohortRowFromDomain(input)
+	if err := dbFromCtx(ctx, r.db).Save(&row).Error; err != nil {
 		return domain.Cohort{}, err
 	}
 	return r.FindCohortById(ctx, input.OrgId, input.Id)
 }
 
 func (r *CustomerRepo) DeleteCohort(ctx context.Context, input domain.Cohort) (domain.Cohort, error) {
-	err := dbFromCtx(ctx, r.db).
+	if err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(input.OrgId)).
 		Where("id = ?", input.Id).
-		Delete(&domain.Cohort{}).Error
-	if err != nil {
+		Delete(&cohortRow{}).Error; err != nil {
 		return domain.Cohort{}, err
 	}
 	return input, nil
