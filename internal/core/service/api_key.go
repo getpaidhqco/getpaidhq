@@ -27,20 +27,21 @@ func NewApiKeyService(repo port.ApiKeyRepository, pepper string, logger port.Log
 	return &ApiKeyService{repo: repo, logger: logger, pepper: pepper}
 }
 
-// Create mints a new key for the org. The returned ApiKey has RawKey set
-// to the plaintext token — handlers MUST surface it in the response and
-// then drop it; nothing else stores it.
-func (s *ApiKeyService) Create(ctx context.Context, orgId string, name string) (domain.ApiKey, error) {
+// Create mints a new key for the org. The returned port.CreatedApiKey pairs
+// the persisted ApiKey aggregate with the plaintext raw secret — the raw
+// secret is surfaced ONCE here and never persisted, never logged, never
+// re-derivable from the row.
+func (s *ApiKeyService) Create(ctx context.Context, orgId string, name string) (port.CreatedApiKey, error) {
 	secret, err := lib.GenerateApiKeySecret()
 	if err != nil {
-		return domain.ApiKey{}, err
+		return port.CreatedApiKey{}, err
 	}
 	keyId := lib.GenerateId("sk")
 	rawKey := keyId + "_" + secret
 	keyHash, err := lib.HashApiKey(rawKey, s.pepper)
 	if err != nil {
 		s.logger.Error("API key hash failed (check API_KEY_PEPPER)", "err", err.Error())
-		return domain.ApiKey{}, err
+		return port.CreatedApiKey{}, err
 	}
 
 	created, err := s.repo.Create(ctx, domain.ApiKey{
@@ -53,11 +54,9 @@ func (s *ApiKeyService) Create(ctx context.Context, orgId string, name string) (
 	})
 	if err != nil {
 		s.logger.Error("Failed to create API key", "org_id", orgId, "err", err)
-		return domain.ApiKey{}, err
+		return port.CreatedApiKey{}, err
 	}
-	// Side-channel the raw key on the way back. The repo never sees it.
-	created.RawKey = rawKey
-	return created, nil
+	return port.CreatedApiKey{ApiKey: created, Key: rawKey}, nil
 }
 
 func (s *ApiKeyService) List(ctx context.Context, orgId string, p domain.Pagination) ([]domain.ApiKey, int, error) {

@@ -64,19 +64,19 @@ func (h *ApiKeyHandler) Create(c fuego.ContextWithBody[CreateApiKeyInput]) (ApiK
 		return ApiKeyCreateResponse{}, err
 	}
 
-	k, err := h.apiKeyService.Create(c.Context(), authUser.OrgId, input.Name)
+	created, err := h.apiKeyService.Create(c.Context(), authUser.OrgId, input.Name)
 	if err != nil {
 		return ApiKeyCreateResponse{}, NewApiErrorFromError(err)
 	}
 	c.SetStatus(201)
 	return ApiKeyCreateResponse{
 		ApiKeyResponse: ApiKeyResponse{
-			Id:        k.Id,
-			Name:      k.Name,
-			CreatedAt: k.CreatedAt,
-			UpdatedAt: k.UpdatedAt,
+			Id:        created.ApiKey.Id,
+			Name:      created.ApiKey.Name,
+			CreatedAt: created.ApiKey.CreatedAt,
+			UpdatedAt: created.ApiKey.UpdatedAt,
 		},
-		Key: k.RawKey,
+		Key: created.Key,
 	}, nil
 }
 

@@ -18,12 +18,15 @@ func NewApiKeyRepo(db *gorm.DB) port.ApiKeyRepository {
 }
 
 func (r *ApiKeyRepo) FindById(ctx context.Context, orgId string, id string) (domain.ApiKey, error) {
-	var key domain.ApiKey
+	var row apiKeyRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
-		First(&key).Error
-	return key, translateErr(err)
+		First(&row).Error
+	if err != nil {
+		return domain.ApiKey{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 // FindByKey looks up an API key by its HMAC hash. The caller (apikey
@@ -35,42 +38,50 @@ func (r *ApiKeyRepo) FindById(ctx context.Context, orgId string, id string) (dom
 // The argument is named `keyHash` (not `key`) so call sites can't
 // accidentally pass the raw secret here.
 func (r *ApiKeyRepo) FindByKey(ctx context.Context, keyHash string) (domain.ApiKey, error) {
-	var apiKey domain.ApiKey
+	var row apiKeyRow
 	err := dbFromCtx(ctx, r.db).
 		Where("key_hash = ?", keyHash).
-		First(&apiKey).Error
-	return apiKey, translateErr(err)
+		First(&row).Error
+	if err != nil {
+		return domain.ApiKey{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
-// List returns the org's API keys with stable pagination. The key_hash
-// column is loaded — callers that surface results to the user MUST strip
-// it (the domain JSON tag already hides it; just don't reflect it).
+// List returns the org's API keys with stable pagination. Callers MUST NOT
+// surface KeyHash to end-users.
 func (r *ApiKeyRepo) List(ctx context.Context, orgId string, pagination domain.Pagination) ([]domain.ApiKey, int, error) {
-	var keys []domain.ApiKey
+	var rows []apiKeyRow
 	var count int64
 	if err := dbFromCtx(ctx, r.db).
-		Model(&domain.ApiKey{}).
+		Model(&apiKeyRow{}).
 		Scopes(OrgScope(orgId)).
 		Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
-	err := dbFromCtx(ctx, r.db).
+	if err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId), Paginate(pagination)).
-		Find(&keys).Error
-	return keys, int(count), err
+		Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]domain.ApiKey, len(rows))
+	for i, row := range rows {
+		out[i] = row.toDomain()
+	}
+	return out, int(count), nil
 }
 
 func (r *ApiKeyRepo) Create(ctx context.Context, entity domain.ApiKey) (domain.ApiKey, error) {
-	err := dbFromCtx(ctx, r.db).Create(&entity).Error
-	if err != nil {
+	row := apiKeyRowFromDomain(entity)
+	if err := dbFromCtx(ctx, r.db).Create(&row).Error; err != nil {
 		return domain.ApiKey{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
 func (r *ApiKeyRepo) Update(ctx context.Context, entity domain.ApiKey) (domain.ApiKey, error) {
-	err := dbFromCtx(ctx, r.db).Save(&entity).Error
-	if err != nil {
+	row := apiKeyRowFromDomain(entity)
+	if err := dbFromCtx(ctx, r.db).Save(&row).Error; err != nil {
 		return domain.ApiKey{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
@@ -80,5 +91,5 @@ func (r *ApiKeyRepo) Delete(ctx context.Context, orgId string, id string) error 
 	return dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
-		Delete(&domain.ApiKey{}).Error
+		Delete(&apiKeyRow{}).Error
 }

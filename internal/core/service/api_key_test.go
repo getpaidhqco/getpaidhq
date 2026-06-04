@@ -62,10 +62,10 @@ func TestApiKeyService_Create_HappyPath(t *testing.T) {
 	require.NoError(t, err)
 
 	// Surface contract.
-	assert.True(t, strings.HasPrefix(out.Id, "sk_"), "id must be sk-prefixed; got %q", out.Id)
-	assert.Equal(t, "ci-deploy", out.Name)
-	assert.NotEmpty(t, out.RawKey, "raw key must be returned once on create")
-	assert.True(t, strings.HasPrefix(out.RawKey, out.Id+"_"), "raw key must be <id>_<secret>")
+	assert.True(t, strings.HasPrefix(out.ApiKey.Id, "sk_"), "id must be sk-prefixed; got %q", out.ApiKey.Id)
+	assert.Equal(t, "ci-deploy", out.ApiKey.Name)
+	assert.NotEmpty(t, out.Key, "raw key must be returned once on create")
+	assert.True(t, strings.HasPrefix(out.Key, out.ApiKey.Id+"_"), "raw key must be <id>_<secret>")
 	// The hash is present on the returned struct (it's the persisted entity),
 	// but the domain JSON tag `json:"-"` and the handler's response DTO keep
 	// it off the wire — that's enforced in api_key_handler_test.go.
@@ -74,13 +74,13 @@ func TestApiKeyService_Create_HappyPath(t *testing.T) {
 	require.Len(t, repo.created, 1)
 	stored := repo.created[0]
 	assert.Equal(t, "org_1", stored.OrgId)
-	assert.Equal(t, out.Id, stored.Id)
+	assert.Equal(t, out.ApiKey.Id, stored.Id)
 	assert.Equal(t, "ci-deploy", stored.Name)
-	assert.NotEqual(t, out.RawKey, stored.KeyHash, "the stored hash must not equal the raw key")
+	assert.NotEqual(t, out.Key, stored.KeyHash, "the stored hash must not equal the raw key")
 
 	// Hash must verify under the configured pepper.
 	mac := hmac.New(sha256.New, []byte(testApiKeyPepper))
-	mac.Write([]byte(out.RawKey))
+	mac.Write([]byte(out.Key))
 	want := hex.EncodeToString(mac.Sum(nil))
 	assert.Equal(t, want, stored.KeyHash, "stored hash must be HMAC-SHA256(pepper, raw)")
 }
@@ -91,7 +91,7 @@ func TestApiKeyService_Create_OptionalName(t *testing.T) {
 
 	out, err := svc.Create(context.Background(), "org_1", "")
 	require.NoError(t, err)
-	assert.Empty(t, out.Name)
+	assert.Empty(t, out.ApiKey.Name)
 	require.Len(t, repo.created, 1)
 	assert.Empty(t, repo.created[0].Name)
 }
