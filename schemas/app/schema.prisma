@@ -42,28 +42,101 @@ model ApiKey {
 }
 
 model Org {
-  id            String          @id
-  country       String
-  status        OrgStatus       @default(active)
-  name          String
-  timezone      String          @default("UTC")
-  metadata      Json?
-  createdAt     DateTime        @default(now()) @map("created_at")
-  updatedAt     DateTime        @updatedAt @map("updated_at")
-  users         UserOrg[]
-  Session       Session[]
-  Variant       Variant[]
-  Price         Price[]
-  Order         Order[]
-  Customer      Customer[]
-  Subscription  Subscription[]
-  Payment       Payment[]
-  Setting       Setting[]
-  OrderItem     OrderItem[]
-  ApiKey        ApiKey[]
-  MetadataStore MetadataStore[]
+  id              String            @id
+  country         String
+  status          OrgStatus         @default(active)
+  name            String
+  timezone        String            @default("UTC")
+  metadata        Json?
+  createdAt       DateTime          @default(now()) @map("created_at")
+  updatedAt       DateTime          @updatedAt @map("updated_at")
+  users           UserOrg[]
+  Session         Session[]
+  Variant         Variant[]
+  Price           Price[]
+  Order           Order[]
+  Customer        Customer[]
+  Subscription    Subscription[]
+  Payment         Payment[]
+  Setting         Setting[]
+  OrderItem       OrderItem[]
+  ApiKey          ApiKey[]
+  MetadataStore   MetadataStore[]
+  Invoice         Invoice[]
+  InvoiceLineItem InvoiceLineItem[]
 
   @@map("orgs")
+}
+
+model Invoice {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  // Referenced by id (no Prisma relation) — the spine entities; gorm handles loads.
+  subscriptionId String @map("subscription_id")
+  customerId     String @map("customer_id")
+  orderId        String @map("order_id")
+
+  status   InvoiceStatus
+  currency String
+  subtotal Int           @default(0)
+  total    Int           @default(0)
+
+  cycle       Int
+  periodStart DateTime? @map("period_start")
+  periodEnd   DateTime? @map("period_end")
+
+  lineItems InvoiceLineItem[]
+
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, id])
+  @@unique([orgId, subscriptionId, cycle]) // one invoice per cycle (mirrors the billing RunKey)
+  @@map("invoices")
+}
+
+enum InvoiceStatus {
+  draft
+  open
+  paid
+  unpaid
+  void
+}
+
+model InvoiceLineItem {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  invoiceId String  @map("invoice_id")
+  invoice   Invoice @relation(fields: [orgId, invoiceId], references: [orgId, id], onDelete: Cascade)
+
+  priceId     String              @map("price_id")
+  kind        InvoiceLineItemKind
+  description String              @default("")
+
+  quantity   Decimal @db.Decimal(38, 9)
+  unitAmount Decimal @map("unit_amount") @db.Decimal(38, 9)
+  total      Int     @default(0)
+
+  metadata Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, id])
+  @@map("invoice_line_items")
+}
+
+enum InvoiceLineItemKind {
+  base
+  usage
 }
 
 model Gateway {
@@ -512,6 +585,8 @@ model Payment {
 
   subscriptionId String?       @map("subscription_id")
   subscription   Subscription? @relation(fields: [orgId, subscriptionId], references: [orgId, id])
+
+  invoiceId String? @map("invoice_id")
 
   amount   Int
   currency String

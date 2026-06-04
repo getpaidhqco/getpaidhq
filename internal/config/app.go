@@ -107,6 +107,7 @@ func NewApp() (*App, error) {
 	pspRepo := postgres.NewPspRepo(db)
 	metadataRepo := postgres.NewMetadataStoreRepo(db)
 	dunningRepo := postgres.NewDunningRepo(db)
+	invoiceRepo := postgres.NewInvoiceRepo(db)
 
 	// ---------------------------------------------------------------------------
 	// Infrastructure adapters
@@ -158,7 +159,8 @@ func NewApp() (*App, error) {
 	// ---------------------------------------------------------------------------
 	// Narrow services (no workflow engine).
 	// ---------------------------------------------------------------------------
-	subService, err := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, priceRepo, gatewayFactory, pubsub, reporter, logger, txManager)
+	invoiceService := service.NewInvoiceService(invoiceRepo, orderRepo, priceRepo, txManager, logger)
+	subService, err := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, priceRepo, gatewayFactory, invoiceService, pubsub, reporter, logger, txManager)
 	if err != nil {
 		return nil, err
 	}

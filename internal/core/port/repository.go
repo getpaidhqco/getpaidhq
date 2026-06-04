@@ -118,6 +118,18 @@ type PaymentRepository interface {
 	CreateRefund(ctx context.Context, refund domain.Refund) (domain.Refund, error)
 }
 
+// InvoiceRepository manages invoice + line-item persistence (operational DB).
+type InvoiceRepository interface {
+	// Create persists the Invoice and its LineItems atomically.
+	Create(ctx context.Context, entity domain.Invoice) (domain.Invoice, error)
+	FindById(ctx context.Context, orgId string, id string) (domain.Invoice, error)
+	// FindBySubscriptionCycle returns the invoice already built for a
+	// (subscription, cycle) pair, or port.ErrNotFound — the build idempotency guard.
+	FindBySubscriptionCycle(ctx context.Context, orgId, subscriptionId string, cycle int) (domain.Invoice, error)
+	FindBySubscriptionId(ctx context.Context, orgId, subscriptionId string, p domain.Pagination) ([]domain.Invoice, int, error)
+	Update(ctx context.Context, entity domain.Invoice) (domain.Invoice, error)
+}
+
 // PaymentMethodRepository manages payment method persistence.
 type PaymentMethodRepository interface {
 	FindById(ctx context.Context, orgId string, id string) (domain.PaymentMethod, error)

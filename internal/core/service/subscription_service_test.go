@@ -36,7 +36,13 @@ func newSubscriptionService(subRepo port.SubscriptionRepository, setting port.Se
 	if ps == nil {
 		ps = &recordingPubSub{}
 	}
-	svc, err := NewSubscriptionService(nil, setting, nil, subRepo, customer, order, payment, &fakePriceRepo{}, nil, ps, lib.ErrorReporter{}, silentLogger{}, nil)
+	// Invoice service resolves the per-cycle charge amount from the linked price.
+	// Wire it to yield total = 1000 (unit price 1000 × qty 1), matching the cost
+	// the charge-handler tests assert against.
+	invOrderRepo := &fakeOrderRepo{items: []domain.OrderItem{{Id: "oi_1", PriceId: "price_1", Quantity: 1}}}
+	invPriceRepo := &fakePriceRepo{byId: domain.Price{Id: "price_1", UnitPrice: 1000}}
+	invoiceSvc := NewInvoiceService(newFakeInvoiceRepo(), invOrderRepo, invPriceRepo, nil, silentLogger{})
+	svc, err := NewSubscriptionService(nil, setting, nil, subRepo, customer, order, payment, &fakePriceRepo{}, nil, invoiceSvc, ps, lib.ErrorReporter{}, silentLogger{}, nil)
 	if err != nil {
 		panic(err)
 	}

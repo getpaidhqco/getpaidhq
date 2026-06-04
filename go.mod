@@ -27,6 +27,7 @@ require (
 	github.com/redis/go-redis/v9 v9.7.3
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/rs/cors v1.11.1
+	github.com/shopspring/decimal v1.4.0
 	github.com/testcontainers/testcontainers-go v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.42.0
 	go.temporal.io/api v1.62.12
@@ -35,7 +36,6 @@ require (
 	golang.org/x/time v0.15.0
 	gorm.io/driver/postgres v1.6.0
 	gorm.io/gorm v1.31.1
-	sigs.k8s.io/yaml v1.6.0
 )
 
 require (
@@ -159,7 +159,6 @@ require (
 	go.opentelemetry.io/otel/sdk v1.43.0 // indirect
 	go.opentelemetry.io/otel/trace v1.43.0 // indirect
 	go.opentelemetry.io/proto/otlp v1.10.0 // indirect
-	go.yaml.in/yaml/v2 v2.4.3 // indirect
 	go.yaml.in/yaml/v3 v3.0.4 // indirect
 	golang.org/x/crypto v0.50.0 // indirect
 	golang.org/x/exp v0.0.0-20260218203240-3dfff04db8fa // indirect

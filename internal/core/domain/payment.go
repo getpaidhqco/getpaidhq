@@ -16,6 +16,7 @@ type Payment struct {
 	Reference      string
 	OrderId        string
 	SubscriptionId string
+	InvoiceId      string // the per-cycle Invoice this payment settles (ADR 0002)
 	Status         PaymentStatus
 	Recurring      bool
 	Currency       string

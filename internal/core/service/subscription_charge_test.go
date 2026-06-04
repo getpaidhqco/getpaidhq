@@ -32,6 +32,42 @@ func (f *subscriptionChargeGatewayFactory) NewGateway(ctx context.Context, orgId
 	return f.gw, f.err
 }
 
+type fakeInvoiceRepo struct {
+	port.InvoiceRepository
+	byCycle map[int]domain.Invoice
+	byId    map[string]domain.Invoice
+}
+
+func newFakeInvoiceRepo() *fakeInvoiceRepo {
+	return &fakeInvoiceRepo{byCycle: map[int]domain.Invoice{}, byId: map[string]domain.Invoice{}}
+}
+
+func (r *fakeInvoiceRepo) Create(_ context.Context, inv domain.Invoice) (domain.Invoice, error) {
+	r.byCycle[inv.Cycle] = inv
+	r.byId[inv.Id] = inv
+	return inv, nil
+}
+
+func (r *fakeInvoiceRepo) FindBySubscriptionCycle(_ context.Context, _, _ string, cycle int) (domain.Invoice, error) {
+	if inv, ok := r.byCycle[cycle]; ok {
+		return inv, nil
+	}
+	return domain.Invoice{}, port.ErrNotFound
+}
+
+func (r *fakeInvoiceRepo) FindById(_ context.Context, _, id string) (domain.Invoice, error) {
+	if inv, ok := r.byId[id]; ok {
+		return inv, nil
+	}
+	return domain.Invoice{}, port.ErrNotFound
+}
+
+func (r *fakeInvoiceRepo) Update(_ context.Context, inv domain.Invoice) (domain.Invoice, error) {
+	r.byId[inv.Id] = inv
+	r.byCycle[inv.Cycle] = inv
+	return inv, nil
+}
+
 func TestSubscriptionService_ChargeForBillingPeriod(t *testing.T) {
 	const (
 		orgId = "org_1"
@@ -53,7 +89,10 @@ func TestSubscriptionService_ChargeForBillingPeriod(t *testing.T) {
 		cr := &fakeCustomerRepo{customer: cus, paymentMethod: pm}
 		gf := &subscriptionChargeGatewayFactory{}
 		er := lib.NewErrorReporter(silentLogger{})
-		svc, _ := NewSubscriptionService(nil, nil, nil, sr, cr, nil, nil, nil, gf, &recordingPubSub{}, er, silentLogger{}, nil)
+		or := &fakeOrderRepo{items: []domain.OrderItem{{Id: "oi_1", PriceId: "price_1", Quantity: 1}}}
+		pr := &fakePriceRepo{byId: domain.Price{Id: "price_1", UnitPrice: 1000}}
+		is := NewInvoiceService(newFakeInvoiceRepo(), or, pr, nil, silentLogger{})
+		svc, _ := NewSubscriptionService(nil, nil, nil, sr, cr, or, nil, pr, gf, is, &recordingPubSub{}, er, silentLogger{}, nil)
 		return sr, cr, gf, svc
 	}
 

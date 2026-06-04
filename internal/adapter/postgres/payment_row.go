@@ -15,6 +15,7 @@ type paymentRow struct {
 	Reference      string               `gorm:"column:reference"`
 	OrderId        string               `gorm:"column:order_id"`
 	SubscriptionId string               `gorm:"column:subscription_id"`
+	InvoiceId      string               `gorm:"column:invoice_id"`
 	Status         domain.PaymentStatus `gorm:"column:status"`
 	Recurring      bool                 `gorm:"column:recurring"`
 	Currency       string               `gorm:"column:currency"`
@@ -39,6 +40,7 @@ func (r paymentRow) toDomain() domain.Payment {
 		Reference:      r.Reference,
 		OrderId:        r.OrderId,
 		SubscriptionId: r.SubscriptionId,
+		InvoiceId:      r.InvoiceId,
 		Status:         r.Status,
 		Recurring:      r.Recurring,
 		Currency:       r.Currency,
@@ -62,6 +64,7 @@ func paymentRowFromDomain(p domain.Payment) paymentRow {
 		Reference:      p.Reference,
 		OrderId:        p.OrderId,
 		SubscriptionId: p.SubscriptionId,
+		InvoiceId:      p.InvoiceId,
 		Status:         p.Status,
 		Recurring:      p.Recurring,
 		Currency:       p.Currency,

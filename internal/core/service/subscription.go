@@ -30,6 +30,7 @@ type SubscriptionService struct {
 	paymentRepository      port.PaymentRepository
 	priceRepository        port.PriceRepository
 	gatewayFactory         port.GatewayFactory
+	invoiceService         *InvoiceService
 	pubsub                 port.PubSub
 	errorReporter          lib.ErrorReporter
 	logger                 port.Logger
@@ -55,6 +56,7 @@ func NewSubscriptionService(
 	paymentRepository port.PaymentRepository,
 	priceRepository port.PriceRepository,
 	gatewayFactory port.GatewayFactory,
+	invoiceService *InvoiceService,
 	pubsub port.PubSub,
 	errorReporter lib.ErrorReporter,
 	logger port.Logger,
@@ -78,6 +80,7 @@ func NewSubscriptionService(
 		orderRepository:        orderRepository,
 		subscriptionRepository: subscriptionRepository,
 		gatewayFactory:         gatewayFactory,
+		invoiceService:         invoiceService,
 		pubsub:                 pubsub,
 		errorReporter:          errorReporter,
 		logger:                 logger,
@@ -457,6 +460,12 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 		return current, nil
 	}
 
+	inv, err := s.invoiceService.BuildForBillingPeriod(ctx, subscription)
+	if err != nil {
+		s.logger.Error("Failed to resolve invoice for charge success", "err", err.Error())
+		return domain.Subscription{}, err
+	}
+
 	payment := domain.Payment{
 		OrgId:          subscription.OrgId,
 		Id:             lib.GenerateId("pmt"),
@@ -465,13 +474,14 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 		Reference:      charge.Reference,
 		OrderId:        subscription.OrderId,
 		SubscriptionId: subscription.Id,
+		InvoiceId:      inv.Id,
 		Status:         charge.Status,
 		Recurring:      true,
 		Currency:       charge.Currency,
 		Amount:         charge.Amount,
 		PspFee:         0,
 		PlatformFee:    0,
-		NetAmount:      subscription.Amount,
+		NetAmount:      inv.Total,
 		Metadata:       nil,
 		CompletedAt:    input.ChargeResult.ProcessedAt,
 		CreatedAt:      time.Now().UTC(),
@@ -484,9 +494,13 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 		s.logger.Error("Failed to create payment", err.Error())
 	}
 
+	if _, err := s.invoiceService.MarkSettled(ctx, subscription.OrgId, inv.Id); err != nil {
+		s.logger.Error("Failed to mark invoice settled", "err", err.Error())
+	}
+
 	lastCharge := time.Now().UTC()
 	subscription.CyclesProcessed++
-	subscription.TotalRevenue += subscription.Amount
+	subscription.TotalRevenue += inv.Total
 	subscription.LastCharge = lastCharge
 	subscription.Retries = 0
 	subscription.NextRetryAt = time.Time{}
@@ -568,6 +582,12 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 		return current, nil
 	}
 
+	inv, err := s.invoiceService.BuildForBillingPeriod(ctx, subscription)
+	if err != nil {
+		s.logger.Error("Failed to resolve invoice for charge failure", "err", err.Error())
+		return domain.Subscription{}, err
+	}
+
 	payment := domain.Payment{
 		OrgId:          subscription.OrgId,
 		Id:             lib.GenerateId("pmt"),
@@ -576,13 +596,14 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 		Reference:      charge.Reference,
 		OrderId:        subscription.OrderId,
 		SubscriptionId: subscription.Id,
+		InvoiceId:      inv.Id,
 		Status:         charge.Status,
 		Recurring:      true,
 		Currency:       charge.Currency,
 		Amount:         charge.Amount,
 		PspFee:         0,
 		PlatformFee:    0,
-		NetAmount:      subscription.Amount,
+		NetAmount:      inv.Total,
 		Metadata:       nil,
 		CompletedAt:    input.ChargeResult.ProcessedAt,
 		CreatedAt:      time.Now().UTC(),
@@ -593,6 +614,10 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 	payment, err = s.paymentRepository.Create(ctx, payment)
 	if err != nil {
 		s.logger.Error("Failed to create payment", err.Error())
+	}
+
+	if _, err := s.invoiceService.MarkUnpaid(ctx, subscription.OrgId, inv.Id); err != nil {
+		s.logger.Error("Failed to mark invoice unpaid", "err", err.Error())
 	}
 
 	s.logger.Debug("Created payment for subscription")
@@ -658,13 +683,21 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 // caller should retry; engine adapters translate that into engine-specific
 // retryable errors.
 func (s *SubscriptionService) ChargeForBillingPeriod(ctx context.Context, currentSub domain.Subscription) (domain.ChargeResult, error) {
-	s.logger.Infof("ChargeForBillingPeriod [%s] amount=%d", currentSub.Id, currentSub.Amount)
+	s.logger.Infof("ChargeForBillingPeriod [%s]", currentSub.Id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, currentSub.OrgId, currentSub.Id)
 	if err != nil {
 		s.logger.Error("Failed to find subscription", "error", err.Error())
 		return domain.ChargeResult{}, err
 	}
+
+	// Build (idempotently) the invoice for this cycle; its total is what we charge.
+	invoice, err := s.invoiceService.BuildForBillingPeriod(ctx, subscription)
+	if err != nil {
+		s.logger.Error("Failed to build invoice", "error", err.Error())
+		return domain.ChargeResult{}, err
+	}
+	s.logger.Infof("ChargeForBillingPeriod [%s] invoice=%s total=%d", subscription.Id, invoice.Id, invoice.Total)
 
 	gw, err := s.gatewayFactory.NewGateway(ctx, subscription.OrgId, string(subscription.PspId))
 	if err != nil {
@@ -688,7 +721,7 @@ func (s *SubscriptionService) ChargeForBillingPeriod(ctx context.Context, curren
 		OrgId:          subscription.OrgId,
 		OrderId:        subscription.OrderId,
 		SubscriptionId: subscription.Id,
-		Amount:         subscription.Amount,
+		Amount:         invoice.Total,
 		Currency:       subscription.Currency,
 		PaymentMethod: domain.GatewayPaymentMethod{
 			PspId:       paymentMethod.Id,

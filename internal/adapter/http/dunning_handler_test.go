@@ -38,7 +38,7 @@ func newDunningHandlerForTest(
 	subSvc, err := service.NewSubscriptionService(
 		&fakeSessionRepo{}, &fakeSettingRepo{}, &fakeCartRepo{},
 		subRepo, custRepo, &fakeOrderRepo{}, &fakePaymentRepo{}, nil,
-		factory, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{}, nil,
+		factory, nil, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{}, nil,
 	)
 	if err != nil {
 		t.Fatalf("NewSubscriptionService: %v", err)
