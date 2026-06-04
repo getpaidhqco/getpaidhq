@@ -18,6 +18,7 @@ type PriceCategory string
 const (
 	OneTime                   PriceCategory = "one_time"
 	PriceCategorySubscription PriceCategory = "subscription"
+	PriceCategoryMetered      PriceCategory = "metered"
 	Free                      PriceCategory = "free"
 	Variable                  PriceCategory = "variable"
 )

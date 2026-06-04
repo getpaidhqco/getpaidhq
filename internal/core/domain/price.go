@@ -22,6 +22,8 @@ type Price struct {
 	TrialInterval      BillingInterval
 	TrialIntervalQty   int
 	TaxCode            string
+	BillableMetricId   string      // set when Category == metered: the meter usage is measured against
+	Tiers              []PriceTier // rate bands for Graduated / Volume schemes
 	Metadata           map[string]string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time

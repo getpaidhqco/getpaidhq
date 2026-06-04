@@ -64,6 +64,8 @@ model Org {
   MetadataStore   MetadataStore[]
   Invoice         Invoice[]
   InvoiceLineItem InvoiceLineItem[]
+  BillableMetric  BillableMetric[]
+  MeterEvent      MeterEvent[]
 
   @@map("orgs")
 }
@@ -282,7 +284,9 @@ model Price {
   minPrice       Int? @map("min_price")
   suggestedPrice Int? @map("suggested_price")
 
-  taxCode String? @map("tax_code")
+  taxCode          String? @map("tax_code")
+  billableMetricId String? @map("billable_metric_id")
+  tiers            Json?
 
   metadata Json?
 
@@ -298,6 +302,7 @@ model Price {
 enum PriceCategory {
   one_time
   subscription
+  metered
   free
   variable
 }
@@ -416,6 +421,7 @@ model Customer {
   orgId String @map("org_id")
   id    String @default(cuid())
 
+  externalId     String? @map("external_id")
   email          String
   firstName      String? @map("first_name")
   lastName       String? @map("last_name")
@@ -437,6 +443,7 @@ model Customer {
 
   @@id([orgId, id], map: "customer_primary_key")
   @@unique([orgId, email])
+  @@unique([orgId, externalId])
   @@index([orgId, email])
   @@map("customers")
 }
@@ -947,4 +954,51 @@ model CustomerDunningHistory {
 
   @@id([orgId, customerId])
   @@map("customer_dunning_history")
+}
+
+model BillableMetric {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  code          String
+  name          String
+  aggregation   String
+  fieldName     String? @map("field_name")
+  recurring     Boolean @default(false)
+  roundingMode  String? @map("rounding_mode")
+  roundingScale Int     @default(0) @map("rounding_scale")
+  metadata      Json?
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+
+  @@id([orgId, id])
+  @@unique([orgId, code])
+  @@map("billable_metrics")
+}
+
+model MeterEvent {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  customerId         String   @default("") @map("customer_id")
+  externalCustomerId String   @default("") @map("external_customer_id")
+  metricCode         String   @map("metric_code")
+  subscriptionId     String   @default("") @map("subscription_id")
+  externalId         String   @default("") @map("external_id")
+  metadata           Json?
+  value              Decimal  @default(0) @db.Decimal(38, 9)
+  timestamp          DateTime
+  createdAt          DateTime @default(now()) @map("created_at")
+
+  org Org @relation(fields: [orgId], references: [id], onDelete: Cascade)
+  // dedup uses a raw-SQL partial unique index (Prisma can't express the WHERE):
+  //   CREATE UNIQUE INDEX meter_events_external_id ON meter_events (org_id, external_id) WHERE external_id <> '';
+
+  @@id([orgId, id])
+  @@index([orgId, customerId, metricCode, timestamp])
+  @@index([orgId, externalCustomerId, metricCode, timestamp])
+  @@map("meter_events")
 }
