@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"slices"
 	"time"
 
 	"getpaidhq/internal/core/port"
@@ -31,7 +32,7 @@ func NewBillingSweepWorkflow(client *hatchet.Client, orgRepo port.OrgRepository,
 					// continue: one org's failure must not stop the rest
 				}
 			}
-			logger.Infof("billing-sweep fanned out to %d orgs", len(ids))
+			logger.Info("billing-sweep fanned out", "orgCount", len(ids))
 			return struct{}{}, nil
 		},
 		hatchet.WithCron("10 * * * *"), // hourly at :10, mirrors Lago's bill_customers cadence
@@ -70,12 +71,7 @@ func NewOrgBillingWorkflow(client *hatchet.Client, subRepo port.SubscriptionRepo
 			if err != nil {
 				logger.Error("org-billing: ResolveReminderConfig failed", "orgId", in.OrgId, "err", err.Error())
 			} else if cfg.Enabled && len(cfg.Offsets) > 0 {
-				maxOffset := cfg.Offsets[0]
-				for _, d := range cfg.Offsets {
-					if d > maxOffset {
-						maxOffset = d
-					}
-				}
+				maxOffset := slices.Max(cfg.Offsets) // guarded by len(Offsets) > 0 above
 				upcoming, err := subRepo.FindUpcomingRenewals(ctx, in.OrgId, now, maxOffset)
 				if err != nil {
 					logger.Error("org-billing: FindUpcomingRenewals failed", "orgId", in.OrgId, "err", err.Error())
@@ -98,11 +94,14 @@ func NewOrgBillingWorkflow(client *hatchet.Client, subRepo port.SubscriptionRepo
 							}
 						}
 					}
+					if len(upcoming) > 0 {
+						logger.Info("org-billing reminder scan", "orgId", in.OrgId, "upcoming", len(upcoming))
+					}
 				}
 			}
 
 			if len(due) > 0 {
-				logger.Infof("org-billing[%s] spawned %d billing-cycle-runner(s)", in.OrgId, len(due))
+				logger.Info("org-billing billing fan-out", "orgId", in.OrgId, "billingSpawned", len(due))
 			}
 			return struct{}{}, nil
 		},
