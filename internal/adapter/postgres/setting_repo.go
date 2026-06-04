@@ -19,17 +19,20 @@ func NewSettingRepo(db *gorm.DB) port.SettingRepository {
 }
 
 func (r *SettingRepo) FindById(ctx context.Context, orgId string, parentId string, id string) (domain.Setting, error) {
-	var setting domain.Setting
+	var row settingRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("parent_id = ? AND id = ?", parentId, id).
-		First(&setting).Error
-	return setting, translateErr(err)
+		First(&row).Error
+	if err != nil {
+		return domain.Setting{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *SettingRepo) Create(ctx context.Context, entity domain.Setting) (domain.Setting, error) {
-	err := dbFromCtx(ctx, r.db).Create(&entity).Error
-	if err != nil {
+	row := settingRowFromDomain(entity)
+	if err := dbFromCtx(ctx, r.db).Create(&row).Error; err != nil {
 		return domain.Setting{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.ParentId, entity.Id)
@@ -39,12 +42,13 @@ func (r *SettingRepo) Upsert(ctx context.Context, entity domain.Setting) (domain
 	// Generic setting upsert (not reminder-specific). value_type is in DoUpdates
 	// so a future caller writing a different Type on an existing key gets correct
 	// update semantics rather than a stale type.
+	row := settingRowFromDomain(entity)
 	err := dbFromCtx(ctx, r.db).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "org_id"}, {Name: "parent_id"}, {Name: "id"}},
 			DoUpdates: clause.AssignmentColumns([]string{"value", "value_type", "updated_at"}),
 		}).
-		Create(&entity).Error
+		Create(&row).Error
 	if err != nil {
 		return domain.Setting{}, err
 	}
