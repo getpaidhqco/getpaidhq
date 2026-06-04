@@ -35,7 +35,11 @@ func NewBillingSweepWorkflow(client *hatchet.Client, orgRepo port.OrgRepository,
 			logger.Info("billing-sweep fanned out", "orgCount", len(ids))
 			return struct{}{}, nil
 		},
-		hatchet.WithCron("10 * * * *"), // hourly at :10, mirrors Lago's bill_customers cadence
+		// WithWorkflowCron (a WorkflowOption), NOT WithCron (a TaskOption): on a
+		// standalone task, WithCron's value lands in taskConfig.onCron and is
+		// silently dropped — only WithWorkflowCron populates the registered
+		// workflow's OnCron/CronTriggers. Hourly at :10, mirrors Lago's cadence.
+		hatchet.WithWorkflowCron("10 * * * *"),
 	)
 }
 

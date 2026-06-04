@@ -4,7 +4,7 @@
 
 **Goal:** Replace the immortal per-subscription `subscription-runner` durable loop on Hatchet with a Lago-style **hourly cron → per-org fan-out → one fresh `billing-cycle-runner` task per due subscription**, so each renewal is a short, *completing* durable task that ages out of the creation-time-partitioned retention model cleanly.
 
-**Architecture:** Three new Hatchet workflows form a fan-out tree, each level doing no work of the next: (1) `billing-sweep` — a cron-triggered standalone task (`WithCron("10 * * * *")`) that lists org ids and spawns one `org-billing` run per org; (2) `org-billing` — a standalone task that queries *that org's* due subscriptions and spawns one `billing-cycle-runner` per due sub (idempotent via `billing_<org>_<sub>_<cycle>`); (3) `billing-cycle-runner` — a **bounded** durable task that runs exactly one cycle (spawn the existing `billing-cycle` charge DAG → optionally wait ≤1h for the PSP webhook → `HandleSubscriptionChargeSuccess/Failure`) and **exits**. State lives on the subscription row (`RenewsAt`/`NextRetryAt`/`CyclesProcessed`/`Status`), so the next hourly sweep picks up the next cycle and paused/cancelled subs simply aren't selected. The old `subscription-runner` is retired and Hatchet's `StartSubscriptionWorkflow` becomes a no-op.
+**Architecture:** Three new Hatchet workflows form a fan-out tree, each level doing no work of the next: (1) `billing-sweep` — a cron-triggered standalone task (`WithWorkflowCron("10 * * * *")`) that lists org ids and spawns one `org-billing` run per org; (2) `org-billing` — a standalone task that queries *that org's* due subscriptions and spawns one `billing-cycle-runner` per due sub (idempotent via `billing_<org>_<sub>_<cycle>`); (3) `billing-cycle-runner` — a **bounded** durable task that runs exactly one cycle (spawn the existing `billing-cycle` charge DAG → optionally wait ≤1h for the PSP webhook → `HandleSubscriptionChargeSuccess/Failure`) and **exits**. State lives on the subscription row (`RenewsAt`/`NextRetryAt`/`CyclesProcessed`/`Status`), so the next hourly sweep picks up the next cycle and paused/cancelled subs simply aren't selected. The old `subscription-runner` is retired and Hatchet's `StartSubscriptionWorkflow` becomes a no-op.
 
 **Tech Stack:** Go 1.24, Hatchet Go SDK (`github.com/hatchet-dev/hatchet/sdks/go` @ v0.86.5), GORM/Postgres, Testcontainers integration tests (`//go:build integration`, `testDB(t)`).
 
@@ -1107,7 +1107,10 @@ func NewBillingSweepWorkflow(client *hatchet.Client, orgRepo port.OrgRepository,
 			logger.Infof("billing-sweep fanned out to %d orgs", len(ids))
 			return struct{}{}, nil
 		},
-		hatchet.WithCron("10 * * * *"), // hourly at :10, mirrors Lago's bill_customers cadence
+		// MUST be WithWorkflowCron (a WorkflowOption), NOT WithCron (a TaskOption):
+		// on a standalone task, WithCron lands in taskConfig.onCron and is silently
+		// dropped — only WithWorkflowCron populates the registered OnCron/CronTriggers.
+		hatchet.WithWorkflowCron("10 * * * *"), // hourly at :10, mirrors Lago's cadence
 	)
 }
 
