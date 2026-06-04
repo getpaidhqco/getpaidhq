@@ -1,129 +1,143 @@
 ---
 title: System Architecture (Hexagonal / Ports & Adapters)
-description: How GetPaidHQ is structured as a hexagon: domain and services at the center, ports as interfaces, adapters depending inward only.
+description: How GetPaidHQ wires Fuego HTTP, the CORS-rate-limit-authn chain, core services and ports, and driven adapters (postgres, redis, nats, hatchet, cedar, apikey).
 ---
 
 # System Architecture (Hexagonal / Ports & Adapters)
 
-GetPaidHQ (the `getpaidhq` module, a.k.a. payloop) is a Go subscription-billing backend built as a hexagon: a pure core (`internal/core`) surrounded by adapters (`internal/adapter`). The core declares **ports** — Go interfaces in `internal/core/port` — and adapters implement them. Dependencies point **inward only**: adapters import `internal/core/port` and `internal/core/domain`, but the core imports no adapter. There is no DI framework; everything is hand-wired in `NewApp` in `internal/config/app.go`, including the `WORKFLOW_ENGINE` switch that picks Hatchet (default) or Temporal behind the same `port.Engine`.
+GetPaidHQ is a Go subscription-billing backend built on ports-and-adapters (hexagonal) architecture. Driving adapters (the Fuego HTTP API and the cron scheduler) call inward through the core's service layer; the core depends only on `port` interfaces, never on concrete infrastructure. Driven adapters (Postgres, Redis, NATS, Hatchet/Temporal, Cedar, Clerk, Cognito, API-key, Paystack, Checkout.com) implement those ports and are injected at boot by `NewApp` in `internal/config/app.go`.
 
-## The hexagon
+As of commit `a46c4e0`, **API-key authentication is enabled** as a real `port.Authenticator` (alongside Clerk), and the **global middleware order was changed so CORS is now the OUTERMOST layer**. The full request-time chain is `CORS -> rate-limit -> authn -> router`, wired in `BuildServer` in `internal/config/server.go`.
 
 ```mermaid
 flowchart LR
-    subgraph DRIVING["Driving side - inbound"]
-        HTTP["Fuego HTTP API + middleware<br/>internal/adapter/http"]
-        CRON["Cron scheduler<br/>internal/adapter/cron"]
-    end
+    subgraph driving["Driving side (inbound)"]
+        client["HTTP client / browser"]
+        cron["Cron scheduler<br/>port.Scheduler"]
 
-    subgraph CORE["Core - internal/core"]
-        DOMAIN["domain<br/>entities + value objects<br/>internal/core/domain"]
-        SVC["application services<br/>internal/core/service"]
-        subgraph PORTS["ports - interfaces<br/>internal/core/port"]
-            P_REPO["Repositories"]
-            P_PUBSUB["PubSub"]
-            P_CACHE["CacheClient"]
-            P_ENGINE["Engine / DunningEngine"]
-            P_GW["GatewayAdapter / PaymentGateway"]
-            P_AUTHN["Authenticator / AuthProvider"]
-            P_AUTHZ["Authz"]
-            P_SCHED["Scheduler"]
-            P_RL["RateLimiter"]
+        subgraph chain["Fuego global middleware (request-time order)"]
+            direction TB
+            cors["1. CORS (OUTERMOST)<br/>NewCorsMiddleware"]
+            rl["2. Rate-limit<br/>NewRateLimitMiddleware"]
+            authn["3. Authn<br/>NewAuthnWrapperMiddleware"]
+            router["4. Fuego router /api"]
+            cors --> rl --> authn --> router
         end
     end
 
-    subgraph DRIVEN["Driven side - outbound adapters"]
-        PG["postgres - GORM repos + TxManager"]
-        REDIS["redis - cache + GCRA rate limiter"]
-        MEM["memory - cache + rate limiter"]
-        NATS["nats - PubSub"]
-        HATCHET["hatchet - Engine + DunningEngine"]
-        TEMPORAL["temporal - Engine + DunningEngine"]
-        CEDAR["cedar - Authz"]
-        CLERK["clerk - Authenticator + AuthProvider"]
-        COGNITO["cognito - Authenticator"]
-        APIKEY["apikey - middleware"]
-        PAYSTACK["paystack - GatewayAdapter"]
-        CKO["checkout_com - GatewayAdapter"]
+    subgraph core["Core (hexagon)"]
+        handlers["HTTP handlers<br/>OrderHandler, CustomerHandler,<br/>ApiKeyHandler, DunningHandler, ..."]
+        services["Services<br/>OrderService, SubscriptionService,<br/>ApiKeyService, DunningService, ..."]
+        ports["Ports (interfaces)<br/>Repository, PubSub, CacheClient,<br/>Engine/DunningEngine, GatewayAdapter,<br/>Authenticator, Authz, Scheduler, RateLimiter"]
+        domain["Domain<br/>Order, Subscription, Customer,<br/>Payment, ApiKey, DunningCampaign"]
+        handlers --> services --> domain
+        services --> ports
     end
 
-    HTTP --> SVC
-    CRON --> SVC
-    SVC --> DOMAIN
-    SVC --> PORTS
+    subgraph driven["Driven side (outbound adapters)"]
+        postgres["postgres (GORM)"]
+        redis["redis"]
+        memory["memory (in-process)"]
+        nats["nats"]
+        hatchet["hatchet"]
+        temporal["temporal"]
+        cedar["cedar"]
+        clerk["clerk"]
+        cognito["cognito"]
+        apikey["apikey (ENABLED)"]
+        paystack["paystack"]
+        checkout["checkout_com"]
+    end
 
-    PG -.implements.-> P_REPO
-    REDIS -.implements.-> P_CACHE
-    REDIS -.implements.-> P_RL
-    MEM -.implements.-> P_CACHE
-    MEM -.implements.-> P_RL
-    NATS -.implements.-> P_PUBSUB
-    HATCHET -.implements.-> P_ENGINE
-    TEMPORAL -.implements.-> P_ENGINE
-    CEDAR -.implements.-> P_AUTHZ
-    CLERK -.implements.-> P_AUTHN
-    COGNITO -.implements.-> P_AUTHN
-    PAYSTACK -.implements.-> P_GW
-    CKO -.implements.-> P_GW
-    PG -.implements.-> P_SCHED
+    client --> cors
+    cron --> services
+    router --> handlers
 
-    HTTP -.uses.-> P_AUTHN
-    HTTP -.uses.-> P_AUTHZ
-    HTTP -.uses.-> P_RL
+    ports -.implemented by.-> postgres
+    ports -.implemented by.-> redis
+    ports -.implemented by.-> memory
+    ports -.implemented by.-> nats
+    ports -.implemented by.-> hatchet
+    ports -.implemented by.-> temporal
+    ports -.implemented by.-> cedar
+    ports -.implemented by.-> clerk
+    ports -.implemented by.-> cognito
+    ports -.implemented by.-> apikey
+    ports -.implemented by.-> paystack
+    ports -.implemented by.-> checkout
 ```
 
-## Ports and their adapters
-
 ```mermaid
-flowchart TD
-    subgraph repo["Repository ports - internal/core/port/repository.go + dunning.go"]
-        R1["SubscriptionRepository / OrderRepository / CustomerRepository"]
-        R2["ProductRepository / VariantRepository / PriceRepository"]
-        R3["PaymentRepository / PaymentMethodRepository"]
-        R4["SessionRepository / CartRepository / OrgRepository"]
-        R5["PspRepository / SettingRepository / ApiKeyRepository"]
-        R6["IdempotencyKeyRepository - Claim / Release"]
-        R7["WebhookSubscriptionRepository / MetadataStoreRepository"]
-        R8["ReportRepository / DunningRepository"]
+flowchart LR
+    subgraph ports["Ports (internal/core/port)"]
+        pRepo["Repository interfaces<br/>incl. ApiKeyRepository"]
+        pPubSub["PubSub"]
+        pCache["CacheClient"]
+        pEngine["Engine + DunningEngine"]
+        pGateway["GatewayAdapter"]
+        pAuthn["Authenticator"]
+        pAuthz["Authz"]
+        pSched["Scheduler"]
+        pRL["RateLimiter"]
     end
-    PGADP["postgres adapter<br/>NewSubscriptionRepo, NewOrderRepo, ... NewDunningRepo<br/>+ TxManager.RunInTx, ErrNotFound translation"]
-    repo --> PGADP
 
-    PUBSUB["PubSub - Publish / Subscribe / Close"] --> NATSADP["nats.NewNatsPubSub"]
-    CACHE["CacheClient - Set / Get / Delete"] --> CACHEADP["redis.NewRedisClient OR memory cache"]
-    RL["RateLimiter - Allow per key, rps, burst"] --> RLADP["redis.NewRateLimiter GCRA OR memory.NewRateLimiter"]
-    SCHED["Scheduler - ScheduleTask cron"] --> CRONADP["cron.NewCronScheduler"]
+    subgraph adapters["Adapters (internal/adapter)"]
+        aPostgres["postgres<br/>NewSubscriptionRepo, NewApiKeyRepo, ..."]
+        aNats["nats<br/>NewNatsPubSub"]
+        aRedisCache["redis<br/>NewRedisClient"]
+        aHatchet["hatchet<br/>NewHatchetEngine"]
+        aTemporal["temporal<br/>NewTemporalEngine"]
+        aPaystack["paystack<br/>NewAdapter"]
+        aCheckout["checkout_com<br/>NewAdapter"]
+        aClerk["clerk<br/>NewClerkMiddleware"]
+        aApiKey["apikey (ENABLED)<br/>NewApiKeyMiddleware"]
+        aCognito["cognito<br/>NewCognitoMiddleware"]
+        aCedar["cedar<br/>NewCedarAuthz"]
+        aCron["cron<br/>NewCronScheduler"]
+        aRedisRL["redis<br/>NewRateLimiter (distributed)"]
+        aMemRL["memory<br/>NewRateLimiter (per-instance)"]
+    end
 
-    ENGINE["Engine + DunningEngine<br/>Start/Update/Cancel/SignalSubscriptionWorkflow<br/>StartWorkflow, Start/Signal/CancelDunningWorkflow"]
-    ENGINE --> HADP["hatchet.NewHatchetEngine"]
-    ENGINE --> TADP["temporal.NewTemporalEngine"]
-
-    GW["GatewayAdapter - CreateGateway / CreateWebhookParser<br/>PaymentGateway - InitPayment / ChargePayment"]
-    GW --> PSADP["paystack.NewAdapter"]
-    GW --> CKOADP["checkout_com.NewAdapter"]
-
-    AUTHN["Authenticator - Authenticate token<br/>AuthProvider - CreateOrg / webhook"]
-    AUTHN --> CLERKADP["clerk.NewClerkMiddleware / NewClerkClient"]
-    AUTHN --> COGADP["cognito - alternative"]
-    AUTHN --> APIKEYADP["apikey middleware - alternative"]
-
-    AUTHZ["Authz - Enforce user, action, resource"] --> CEDARADP["cedar.NewCedarAuthz"]
+    pRepo --> aPostgres
+    pPubSub --> aNats
+    pCache --> aRedisCache
+    pEngine --> aHatchet
+    pEngine --> aTemporal
+    pGateway --> aPaystack
+    pGateway --> aCheckout
+    pAuthn --> aClerk
+    pAuthn --> aApiKey
+    pAuthn --> aCognito
+    pAuthz --> aCedar
+    pSched --> aCron
+    pRL --> aRedisRL
+    pRL --> aMemRL
 ```
 
 ## How it works
 
-**Composition root.** `NewApp` in `internal/config/app.go` constructs everything top-down: two GORM `*gorm.DB` handles via `postgres.NewDatabase` (operational + reporting, falling back to the primary if `REPORTING_DATABASE_URL` is absent), a `postgres.NewTxManager`, then every `postgres.New*Repo`, then the infrastructure adapters (`nats.NewNatsPubSub`, `redis.NewRedisClient`, `cedar.NewCedarAuthz`, `cron.NewCronScheduler`), then services, then HTTP handlers. The function returns errors rather than panicking so a bad config exits cleanly.
+### Boot and wiring
+`NewApp` in `internal/config/app.go` constructs every repository, infrastructure adapter, service and handler by hand (no DI container), then calls `BuildServer` in `internal/config/server.go` to assemble the Fuego server. Long-lived resources (NATS pubsub, the workflow-engine worker, the cron scheduler, and the Redis rate limiter when present) are collected as `io.Closer`s and torn down in reverse order by `App.shutdown` on `SIGTERM`/interrupt.
 
-**Driving side (inbound).** HTTP is the primary driver. `BuildServer` in `internal/config/server.go` builds a `*fuego.Server`, sets slowloris timeouts on the embedded `*http.Server`, groups routes under `/api`, and calls each handler's `RegisterRoutes`. Global middleware is appended so the request-time order is **rate-limit → authn → cors → router** (fuego runs the last-appended middleware outermost). `middleware.NewRateLimitMiddleware` keys on the trusted-proxy-resolved client IP (`handler.ClientIP`) and is opt-in via `RATE_LIMIT_RPS`; `middleware.NewAuthnWrapperMiddleware` runs the `[]port.Authenticator` chain, skipping `port.PublicPaths` (`/api/health`, `/api/notify`). Handlers depend on application services plus `port.Authz` (`internal/adapter/http`). The second driver is the cron `port.Scheduler`, used by `service.NewReportService` and `service.NewCustomerService` to register periodic tasks.
+### Middleware order: CORS is outermost
+`BuildServer` appends middleware to a slice passed to `fuego.WithGlobalMiddlewares`, which runs the **last** appended entry **outermost**. The slice is built in the reverse of execution order: authn first, then rate-limit, then CORS last, producing the request-time chain `CORS -> rate-limit -> authn -> router`.
 
-**Core.** Application services live in `internal/core/service` (e.g. `service.NewSubscriptionService` in `internal/core/service/subscription.go`, `service.NewOrderService`, `service.NewDunningService`). They depend only on ports and `domain`. Engine-aware orchestration is layered on top: `service.NewSubscriptionOrchestrationService` wraps `subService` + `port.Engine`, and `service.NewDunningOrchestrationService` wraps the dunning service + `port.DunningEngine`. HTTP handlers call orchestration services; workflow steps/activities call the narrow domain services — keeping orchestration out of the durable layer.
+CORS (`middleware.NewCorsMiddleware`) is outermost on purpose: `rs/cors` writes `Access-Control-Allow-Origin` on the way in before delegating to the next handler. If CORS sat inside authn or rate-limit, a `401` from the authenticator or a `429` from the limiter would be returned **without** CORS headers, and the browser would surface it as an opaque "Failed to fetch" instead of a debuggable HTTP status. Keeping CORS outermost guarantees every response — success or failure — carries the correct CORS headers. Rate-limit (`middleware.NewRateLimitMiddleware`) sits inside CORS but outside authn so it sheds abusive callers before the relatively expensive authenticator chain and protects the auth path from brute-force/floods; it is keyed by the securely-resolved client IP (`handler.ClientIP` with `handler.ParseTrustedProxies`) and is a pass-through when `RATE_LIMIT_RPS` is non-positive or the backend is nil. Authn (`middleware.NewAuthnWrapperMiddleware`) is innermost of the three and is only attached when at least one `port.Authenticator` is supplied.
 
-**Driven side (outbound).** Adapters implement ports and never leak their tech across the boundary. The postgres repos translate driver errors to `port.ErrNotFound` so services can `errors.Is` without importing GORM, and `port.TxManager.RunInTx` threads the tx through `ctx` (used with `FindByIdForUpdate`'s `SELECT ... FOR UPDATE` for subscription state transitions). `port.IdempotencyKeyRepository.Claim`/`Release` give webhook handlers atomic exactly-once semantics. Payment gateways are selected at runtime: `gatewayAdapters` maps `domain.Paystack`→`paystack.NewAdapter` and `domain.CheckoutDotCom`→`checkout_com.NewAdapter`, and `service.NewGatewayFactory` resolves the right `domain.GatewayProvider` per org from `PspRepository`/`SettingRepository` config.
+### Authentication: Clerk + API-key (both enabled)
+`NewApp` builds `authenticators := []port.Authenticator{clerkAuth, apiKeyAuth}`. Clerk (`clerk.NewClerkMiddleware`) is tried first; a non-Clerk token (an `x-api-key` value) fails its check and falls through to the API-key authenticator (`apikey.NewApiKeyMiddleware`). The two token shapes are disjoint, so order only decides which authenticator "wins" a token it can actually validate. `ApiKeyMiddleware.Authenticate` in `internal/adapter/apikey/middleware.go` hashes the raw key with the server pepper via `lib.HashApiKey`, looks it up through `ApiKeyRepo.FindByKey` (HMAC-hash lookup on a unique index, no timing leak) in `internal/adapter/postgres/api_key_repo.go`, and returns a `port.AuthUser` carrying the key's `OrgId` with `RoleAdmin`.
 
-**Rate limiter / cache backend selection.** In `NewApp`, if `REDIS_HOST` is set the `port.RateLimiter` is `redis.NewRateLimiter` (a cluster-wide GCRA budget); otherwise `memory.NewRateLimiter` (per-instance). The middleware fails open on backend errors, so neither is a hard dependency.
+### API-key handler / service / repo
+The full API-key slice is registered in `config.Handlers`:
+- Handler `handler.NewApiKeyHandler` in `internal/adapter/http/api_key_handler.go` exposes `GET/POST /api/api-keys` and `DELETE /api/api-keys/{id}`, gating each route through `port.Authz` (`ActionCreateApiKey`, `ActionListApiKeys`, `ActionDeleteApiKey`). The plaintext key is returned exactly once from `Create`.
+- Service `service.NewApiKeyService` in `internal/core/service/api_key.go` mints keys of the form `sk_{id}_{secret}`, hashes them with the pepper, and side-channels the raw key back on creation only.
+- Repo `postgres.NewApiKeyRepo` implements `port.ApiKeyRepository` (`internal/core/port/repository.go`).
 
-**Workflow engine parity.** `WORKFLOW_ENGINE` (default `hatchet`) selects the `port.Engine` + `port.DunningEngine` implementation; an unrecognized value returns `errUnsupportedEngine`. Both adapters take the same engine-agnostic services in their constructors. For Temporal, `temporalact.NewOrderActivities`/`NewOutgoingWebhookActivities`/`NewDunningActivities` are passed to `temporal.NewTemporalEngine`; for Hatchet, `hatchetsteps.NewOutgoingWebhookSteps`/`NewDunningSteps` are passed to `hatchet.NewHatchetEngine`. The engine drives a per-subscription durable runner: `NewSubscriptionRunnerWorkflow` in `internal/adapter/hatchet/workflows/subscription_runner.go` awaits event keys defined in `keys.go` — `SubscriptionRunKey` (idempotent run key), `UpdateEventKey` (`subscription.paused/resumed/cancelled/activated`, `refresh-state`), `CancelEventKey`, `WebhookEventKey` (resolves a `Pending` payment with a `domain.ChargeResult`), plus `ReminderRunKey`/`BillingRunKey` for de-duped spawns. Dunning uses the parallel keys in `dunning_keys.go` (`DunningRunKey`, `DunningSignalKey`, `DunningPaymentMethodUpdatedKey`).
+### Authorization
+`cedar.NewCedarAuthz` implements `port.Authz`; handlers call `Enforce(authUser, action, resource)` before doing work. Policies live in `policy.cedar`: `admin` may perform any action but only when `principal.org_id == resource.org_id`, and `owner` is granted an explicit action list that includes the API-key actions.
 
-**Event bridges.** `service.NewSubscriptionEventBridge` subscribes the chosen engine to `subscription.*` NATS topics so both engines share one fan-in path; `service.NewReportEventBridge` projects domain events into the reporting DB. These are wired in `NewApp` and fail the boot on a subscribe error.
+### Workflow engine selection
+`WORKFLOW_ENGINE` (default `hatchet`) selects the orchestration adapter in `NewApp`. Both `hatchet.NewHatchetEngine` and `temporal.NewTemporalEngine` return a concrete type satisfying both `port.Engine` and `port.DunningEngine` (`internal/core/port/workflow.go`, `internal/core/port/dunning.go`); an unrecognized value returns `errUnsupportedEngine` for a clean startup failure. `service.NewSubscriptionEventBridge` fans `subscription.*` NATS topics into the chosen engine.
 
-**Shutdown.** `NewApp` collects long-lived resources implementing `io.Closer` (`pubsub` always; the engine worker, cron scheduler, and Redis rate limiter when applicable). `App.Run` runs `fuego`'s blocking `Server.Run` in a goroutine, owns `SIGINT`/`SIGTERM` via `signal.NotifyContext`, drains HTTP with a 10s `Server.Shutdown`, then `App.shutdown` closes resources in reverse construction order (best effort).
+### Other driven ports
+`nats.NewNatsPubSub` implements `port.PubSub`; `redis.NewRedisClient` implements `port.CacheClient`; the rate limiter is `redis.NewRateLimiter` (distributed, cluster-wide budget) when `REDIS_HOST` is set, otherwise `memory.NewRateLimiter` (per-instance), both implementing `port.RateLimiter`. Payment gateways are registered in a `map[domain.Gateway]port.GatewayAdapter` with `paystack.NewAdapter` and `checkout_com.NewAdapter`, consumed by `service.NewGatewayFactory`. `cron.NewCronScheduler` implements `port.Scheduler`.
