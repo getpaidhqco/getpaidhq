@@ -1,7 +1,5 @@
 components:
   schemas:
-    "":
-      description: ' schema'
     ActivatePaymentTokenRequest:
       description: ActivatePaymentTokenRequest schema
       properties:
@@ -1104,6 +1102,8 @@ components:
           format: date-time
           type: string
       type: object
+    EmptyResponse:
+      description: EmptyResponse schema
     GatewayResponse:
       description: GatewayResponse schema
       properties:
@@ -1641,6 +1641,19 @@ components:
         old_billing_anchor:
           nullable: true
           type: integer
+      type: object
+    ReminderConfigDTO:
+      description: ReminderConfigDTO schema
+      properties:
+        enabled:
+          type: boolean
+        offsets:
+          items:
+            type: string
+            x-fuego-required-marker: true
+          type: array
+      required:
+      - offsets
       type: object
     RemoveItemRequest:
       description: RemoveItemRequest schema
@@ -2279,9 +2292,104 @@ paths:
       summary: 'Admin: create a payment update token'
       tags:
       - api
-      - ""
       - admin/subscriptions
       - Payment Update Tokens
+  /api/billing/reminder-config:
+    get:
+      description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ReminderConfigHandler).Get`\n\n####
+        Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
+      operationId: GET_/api/billing/reminder-config
+      parameters:
+      - in: header
+        name: Accept
+        schema:
+          type: string
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReminderConfigDTO'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ReminderConfigDTO'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPError'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/HTTPError'
+          description: Bad Request _(validation or deserialization error)_
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPError'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/HTTPError'
+          description: Internal Server Error _(panics)_
+        default:
+          description: ""
+      summary: Get renewal reminder config
+      tags:
+      - api
+      - billing/reminder-config
+      - Billing
+    put:
+      description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ReminderConfigHandler).Put`\n\n####
+        Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
+      operationId: PUT_/api/billing/reminder-config
+      parameters:
+      - in: header
+        name: Accept
+        schema:
+          type: string
+      requestBody:
+        content:
+          '*/*':
+            schema:
+              $ref: '#/components/schemas/ReminderConfigDTO'
+        description: Request body for handler.ReminderConfigDTO
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReminderConfigDTO'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ReminderConfigDTO'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPError'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/HTTPError'
+          description: Bad Request _(validation or deserialization error)_
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPError'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/HTTPError'
+          description: Internal Server Error _(panics)_
+        default:
+          description: ""
+      summary: Set renewal reminder config
+      tags:
+      - api
+      - billing/reminder-config
+      - Billing
   /api/carts/{id}/add:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*CartHandler).AddProduct`\n\n####
@@ -2337,7 +2445,6 @@ paths:
       summary: Add a product to a cart
       tags:
       - api
-      - ""
       - carts
       - Carts
   /api/carts/{id}/remove:
@@ -2395,7 +2502,6 @@ paths:
       summary: Remove an item from a cart
       tags:
       - api
-      - ""
       - carts
       - Carts
   /api/customers:
@@ -2441,7 +2547,6 @@ paths:
       summary: List customers
       tags:
       - api
-      - ""
       - customers
       - Customers
     post:
@@ -2493,7 +2598,6 @@ paths:
       summary: Create a customer
       tags:
       - api
-      - ""
       - customers
       - Customers
   /api/customers/{id}:
@@ -2544,7 +2648,6 @@ paths:
       summary: Get a customer
       tags:
       - api
-      - ""
       - customers
       - Customers
   /api/customers/{id}/dunning-history:
@@ -2595,7 +2698,6 @@ paths:
       summary: Get a customer's dunning history
       tags:
       - api
-      - ""
       - customers
       - Dunning
   /api/customers/{id}/payment-methods:
@@ -2653,7 +2755,6 @@ paths:
       summary: Add a payment method to a customer
       tags:
       - api
-      - ""
       - customers
       - Customers
   /api/customers/{id}/payment-methods/{pmid}:
@@ -2716,7 +2817,6 @@ paths:
       summary: Update a customer's payment method
       tags:
       - api
-      - ""
       - customers
       - Customers
   /api/dunning/campaigns:
@@ -2762,7 +2862,6 @@ paths:
       summary: List dunning campaigns
       tags:
       - api
-      - ""
       - dunning/campaigns
       - Dunning Campaigns
   /api/dunning/campaigns/{id}:
@@ -2813,7 +2912,6 @@ paths:
       summary: Get a dunning campaign
       tags:
       - api
-      - ""
       - dunning/campaigns
       - Dunning Campaigns
     patch:
@@ -2870,7 +2968,6 @@ paths:
       summary: Update a dunning campaign
       tags:
       - api
-      - ""
       - dunning/campaigns
       - Dunning Campaigns
   /api/dunning/campaigns/{id}/attempts:
@@ -2921,7 +3018,6 @@ paths:
       summary: List dunning campaign attempts
       tags:
       - api
-      - ""
       - dunning/campaigns
       - Dunning Campaigns
     post:
@@ -2978,7 +3074,6 @@ paths:
       summary: Trigger a manual dunning attempt
       tags:
       - api
-      - ""
       - dunning/campaigns
       - Dunning Campaigns
   /api/dunning/campaigns/{id}/communications:
@@ -3029,7 +3124,6 @@ paths:
       summary: List dunning campaign communications
       tags:
       - api
-      - ""
       - dunning/campaigns
       - Dunning Campaigns
   /api/dunning/configurations:
@@ -3075,7 +3169,6 @@ paths:
       summary: List dunning configurations
       tags:
       - api
-      - ""
       - dunning/configurations
       - Dunning Configurations
     post:
@@ -3127,7 +3220,6 @@ paths:
       summary: Create a dunning configuration
       tags:
       - api
-      - ""
       - dunning/configurations
       - Dunning Configurations
   /api/dunning/configurations/{id}:
@@ -3178,7 +3270,6 @@ paths:
       summary: Get a dunning configuration
       tags:
       - api
-      - ""
       - dunning/configurations
       - Dunning Configurations
     patch:
@@ -3235,7 +3326,6 @@ paths:
       summary: Update a dunning configuration
       tags:
       - api
-      - ""
       - dunning/configurations
       - Dunning Configurations
   /api/gateways:
@@ -3288,7 +3378,6 @@ paths:
       summary: Configure a payment service provider
       tags:
       - api
-      - ""
       - gateways
       - Payment Service Providers
   /api/health:
@@ -3334,7 +3423,6 @@ paths:
       summary: Liveness probe
       tags:
       - api
-      - ""
       - Health
   /api/notify:
     post:
@@ -3380,7 +3468,6 @@ paths:
       summary: PSP webhook receiver
       tags:
       - api
-      - ""
       - Webhooks
   /api/orders:
     get:
@@ -3425,7 +3512,6 @@ paths:
       summary: List orders
       tags:
       - api
-      - ""
       - orders
       - Orders
     post:
@@ -3477,7 +3563,6 @@ paths:
       summary: Create an order
       tags:
       - api
-      - ""
       - orders
       - Orders
   /api/orders/{id}:
@@ -3528,7 +3613,6 @@ paths:
       summary: Get an order
       tags:
       - api
-      - ""
       - orders
       - Orders
   /api/orders/{id}/complete:
@@ -3586,7 +3670,6 @@ paths:
       summary: Complete an order
       tags:
       - api
-      - ""
       - orders
       - Orders
   /api/orders/{id}/subscriptions:
@@ -3641,7 +3724,6 @@ paths:
       summary: List subscriptions for an order
       tags:
       - api
-      - ""
       - orders
       - Orders
   /api/organizations:
@@ -3694,7 +3776,6 @@ paths:
       summary: Create an organization
       tags:
       - api
-      - ""
       - organizations
       - Organizations
   /api/payment-methods/{id}:
@@ -3745,7 +3826,6 @@ paths:
       summary: Get a payment method
       tags:
       - api
-      - ""
       - payment-methods
       - Payment Methods
   /api/payment-tokens/activate:
@@ -3798,7 +3878,6 @@ paths:
       summary: Activate a payment update token
       tags:
       - api
-      - ""
       - payment-tokens
       - Payment Update Tokens
   /api/payment-tokens/verify:
@@ -3851,7 +3930,6 @@ paths:
       summary: Verify a payment update token
       tags:
       - api
-      - ""
       - payment-tokens
       - Payment Update Tokens
   /api/prices:
@@ -3904,7 +3982,6 @@ paths:
       summary: Create a price
       tags:
       - api
-      - ""
       - prices
       - Prices
   /api/prices/{priceId}:
@@ -3927,10 +4004,10 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/'
+                $ref: '#/components/schemas/EmptyResponse'
             application/xml:
               schema:
-                $ref: '#/components/schemas/'
+                $ref: '#/components/schemas/EmptyResponse'
           description: OK
         "400":
           content:
@@ -3955,7 +4032,6 @@ paths:
       summary: Delete a price
       tags:
       - api
-      - ""
       - prices
       - Prices
     get:
@@ -4005,7 +4081,6 @@ paths:
       summary: Get a price
       tags:
       - api
-      - ""
       - prices
       - Prices
     patch:
@@ -4062,7 +4137,6 @@ paths:
       summary: Update a price
       tags:
       - api
-      - ""
       - prices
       - Prices
   /api/products:
@@ -4108,7 +4182,6 @@ paths:
       summary: List products
       tags:
       - api
-      - ""
       - products
       - Products
     post:
@@ -4160,7 +4233,6 @@ paths:
       summary: Create a product
       tags:
       - api
-      - ""
       - products
       - Products
   /api/products/{id}:
@@ -4183,10 +4255,10 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/'
+                $ref: '#/components/schemas/EmptyResponse'
             application/xml:
               schema:
-                $ref: '#/components/schemas/'
+                $ref: '#/components/schemas/EmptyResponse'
           description: OK
         "400":
           content:
@@ -4211,7 +4283,6 @@ paths:
       summary: Delete a product
       tags:
       - api
-      - ""
       - products
       - Products
     get:
@@ -4261,7 +4332,6 @@ paths:
       summary: Get a product
       tags:
       - api
-      - ""
       - products
       - Products
     patch:
@@ -4318,7 +4388,6 @@ paths:
       summary: Update a product
       tags:
       - api
-      - ""
       - products
       - Products
   /api/products/{id}/variants:
@@ -4369,7 +4438,6 @@ paths:
       summary: List variants of a product
       tags:
       - api
-      - ""
       - products
       - Products
     post:
@@ -4426,7 +4494,6 @@ paths:
       summary: Add a variant to a product
       tags:
       - api
-      - ""
       - products
       - Products
   /api/sessions:
@@ -4479,7 +4546,6 @@ paths:
       summary: Create a session
       tags:
       - api
-      - ""
       - sessions
       - Sessions
   /api/subscriptions:
@@ -4525,7 +4591,6 @@ paths:
       summary: List subscriptions
       tags:
       - api
-      - ""
       - subscriptions
       - Subscriptions
   /api/subscriptions/{id}:
@@ -4576,7 +4641,6 @@ paths:
       summary: Get a subscription
       tags:
       - api
-      - ""
       - subscriptions
       - Subscriptions
     patch:
@@ -4633,7 +4697,6 @@ paths:
       summary: Update subscription metadata
       tags:
       - api
-      - ""
       - subscriptions
       - Subscriptions
   /api/subscriptions/{id}/billing-anchor:
@@ -4691,7 +4754,6 @@ paths:
       summary: Update subscription billing anchor
       tags:
       - api
-      - ""
       - subscriptions
       - Subscriptions
   /api/subscriptions/{id}/cancel:
@@ -4749,7 +4811,6 @@ paths:
       summary: Cancel a subscription
       tags:
       - api
-      - ""
       - subscriptions
       - Subscriptions
   /api/subscriptions/{id}/pause:
@@ -4807,7 +4868,6 @@ paths:
       summary: Pause a subscription
       tags:
       - api
-      - ""
       - subscriptions
       - Subscriptions
   /api/subscriptions/{id}/payments:
@@ -4858,7 +4918,6 @@ paths:
       summary: List subscription payments
       tags:
       - api
-      - ""
       - subscriptions
       - Subscriptions
   /api/subscriptions/{id}/resume:
@@ -4916,7 +4975,6 @@ paths:
       summary: Resume a subscription
       tags:
       - api
-      - ""
       - subscriptions
       - Subscriptions
   /api/variants/{variantId}:
@@ -4939,10 +4997,10 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/'
+                $ref: '#/components/schemas/EmptyResponse'
             application/xml:
               schema:
-                $ref: '#/components/schemas/'
+                $ref: '#/components/schemas/EmptyResponse'
           description: OK
         "400":
           content:
@@ -4967,7 +5025,6 @@ paths:
       summary: Delete a variant
       tags:
       - api
-      - ""
       - variants
       - Variants
     get:
@@ -5017,7 +5074,6 @@ paths:
       summary: Get a variant
       tags:
       - api
-      - ""
       - variants
       - Variants
     put:
@@ -5074,7 +5130,6 @@ paths:
       summary: Update a variant
       tags:
       - api
-      - ""
       - variants
       - Variants
   /api/variants/{variantId}/prices:
@@ -5125,7 +5180,6 @@ paths:
       summary: List prices of a variant
       tags:
       - api
-      - ""
       - variants
       - Variants
   /api/webhooks:
@@ -5171,7 +5225,6 @@ paths:
       summary: List webhook subscriptions
       tags:
       - api
-      - ""
       - webhooks
       - Webhook Subscriptions
     post:
@@ -5223,6 +5276,5 @@ paths:
       summary: Create a webhook subscription
       tags:
       - api
-      - ""
       - webhooks
       - Webhook Subscriptions

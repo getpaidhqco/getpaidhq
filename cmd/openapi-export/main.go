@@ -23,19 +23,20 @@ func main() {
 	// the underlying service, so nil is safe here.
 	customer := handler.NewCustomerHandler(nil, logger, nil)
 	handlers := config.Handlers{
-		Health:        handler.NewHealthHandler(logger),
-		Order:         handler.NewOrderHandler(nil, logger, nil),
-		Subscription:  handler.NewSubscriptionHandler(nil, logger, nil),
-		Customer:      customer,
-		Product:       handler.NewProductHandler(nil, logger, nil),
-		Cart:          handler.NewCartHandler(nil, logger, nil),
-		Session:       handler.NewSessionHandler(nil, logger, nil),
-		Webhook:       handler.NewWebhookHandler(nil, logger),
-		WebhookSub:    handler.NewWebhookSubscriptionHandler(nil, logger, nil),
-		Org:           handler.NewOrgHandler(nil, logger),
-		Psp:           handler.NewPspHandler(nil, logger, nil),
-		PaymentMethod: handler.NewPaymentMethodHandler(customer),
-		Dunning:       handler.NewDunningHandler(nil, nil, logger, nil, nil),
+		Health:         handler.NewHealthHandler(logger),
+		Order:          handler.NewOrderHandler(nil, logger, nil),
+		Subscription:   handler.NewSubscriptionHandler(nil, logger, nil),
+		Customer:       customer,
+		Product:        handler.NewProductHandler(nil, logger, nil),
+		Cart:           handler.NewCartHandler(nil, logger, nil),
+		Session:        handler.NewSessionHandler(nil, logger, nil),
+		Webhook:        handler.NewWebhookHandler(nil, logger),
+		WebhookSub:     handler.NewWebhookSubscriptionHandler(nil, logger, nil),
+		Org:            handler.NewOrgHandler(nil, logger),
+		Psp:            handler.NewPspHandler(nil, logger, nil),
+		PaymentMethod:  handler.NewPaymentMethodHandler(customer),
+		Dunning:        handler.NewDunningHandler(nil, nil, logger, nil, nil),
+		ReminderConfig: handler.NewReminderConfigHandler(nil, logger),
 	}
 
 	server := config.BuildServer(config.ServerDeps{

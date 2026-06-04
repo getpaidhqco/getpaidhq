@@ -18,20 +18,21 @@ import (
 // builds them with nil services (NilHandlers) since route registration
 // reads only metadata.
 type Handlers struct {
-	Health            *handler.HealthHandler
-	Order             *handler.OrderHandler
-	Subscription      *handler.SubscriptionHandler
-	Customer          *handler.CustomerHandler
-	Product           *handler.ProductHandler
-	Cart              *handler.CartHandler
-	Session           *handler.SessionHandler
-	Webhook           *handler.WebhookHandler
-	WebhookSub        *handler.WebhookSubscriptionHandler
-	Org               *handler.OrgHandler
-	Psp               *handler.PspHandler
-	PaymentMethod     *handler.PaymentMethodHandler
-	Dunning           *handler.DunningHandler
-	ApiKey            *handler.ApiKeyHandler
+	Health         *handler.HealthHandler
+	Order          *handler.OrderHandler
+	Subscription   *handler.SubscriptionHandler
+	Customer       *handler.CustomerHandler
+	Product        *handler.ProductHandler
+	Cart           *handler.CartHandler
+	Session        *handler.SessionHandler
+	Webhook        *handler.WebhookHandler
+	WebhookSub     *handler.WebhookSubscriptionHandler
+	Org            *handler.OrgHandler
+	Psp            *handler.PspHandler
+	PaymentMethod  *handler.PaymentMethodHandler
+	Dunning        *handler.DunningHandler
+	ApiKey         *handler.ApiKeyHandler
+	ReminderConfig *handler.ReminderConfigHandler
 }
 
 // ServerDeps groups the cross-cutting wiring the server needs that is
@@ -174,5 +175,8 @@ func registerAll(api *fuego.Server, h Handlers) {
 	}
 	if h.ApiKey != nil {
 		h.ApiKey.RegisterRoutes(api)
+	}
+	if h.ReminderConfig != nil {
+		h.ReminderConfig.RegisterRoutes(api)
 	}
 }

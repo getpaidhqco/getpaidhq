@@ -226,6 +226,9 @@ func NewApp() (*App, error) {
 	pspService := service.NewPspService(pspRepo, settingRepo, logger, pubsub)
 	webhookService := service.NewWebhookService(logger, gatewayFactory, engine, idempotencyRepo, subRepo)
 	metadataService := service.NewMetadataService(metadataRepo, logger)
+	// Named (not inlined) because Task 6 also passes this into the Hatchet engine
+	// as the per-tenant reminder-config resolver for the billing sweep.
+	reminderConfigService := service.NewReminderConfigService(settingRepo, logger)
 
 	_ = metadataService
 	_ = userService
@@ -235,20 +238,21 @@ func NewApp() (*App, error) {
 	// ---------------------------------------------------------------------------
 	customerHandler := handler.NewCustomerHandler(customerService, logger, authzEngine)
 	handlers := Handlers{
-		Health:        handler.NewHealthHandler(logger),
-		Order:         handler.NewOrderHandler(orderService, logger, authzEngine),
-		Subscription:  handler.NewSubscriptionHandler(subOrchestrationService, logger, authzEngine),
-		Customer:      customerHandler,
-		Product:       handler.NewProductHandler(productService, logger, authzEngine),
-		Cart:          handler.NewCartHandler(cartService, logger, authzEngine),
-		Session:       handler.NewSessionHandler(sessionService, logger, authzEngine),
-		Webhook:       handler.NewWebhookHandler(webhookService, logger),
-		WebhookSub:    handler.NewWebhookSubscriptionHandler(webhookSubService, logger, authzEngine),
-		Org:           handler.NewOrgHandler(orgService, logger),
-		Psp:           handler.NewPspHandler(pspService, logger, authzEngine),
-		PaymentMethod: handler.NewPaymentMethodHandler(customerHandler),
-		Dunning:       handler.NewDunningHandler(dunningOrchestrationService, subService, logger, authzEngine, trustedProxies),
-		ApiKey:        handler.NewApiKeyHandler(apiKeyService, logger, authzEngine),
+		Health:         handler.NewHealthHandler(logger),
+		Order:          handler.NewOrderHandler(orderService, logger, authzEngine),
+		Subscription:   handler.NewSubscriptionHandler(subOrchestrationService, logger, authzEngine),
+		Customer:       customerHandler,
+		Product:        handler.NewProductHandler(productService, logger, authzEngine),
+		Cart:           handler.NewCartHandler(cartService, logger, authzEngine),
+		Session:        handler.NewSessionHandler(sessionService, logger, authzEngine),
+		Webhook:        handler.NewWebhookHandler(webhookService, logger),
+		WebhookSub:     handler.NewWebhookSubscriptionHandler(webhookSubService, logger, authzEngine),
+		Org:            handler.NewOrgHandler(orgService, logger),
+		Psp:            handler.NewPspHandler(pspService, logger, authzEngine),
+		PaymentMethod:  handler.NewPaymentMethodHandler(customerHandler),
+		Dunning:        handler.NewDunningHandler(dunningOrchestrationService, subService, logger, authzEngine, trustedProxies),
+		ApiKey:         handler.NewApiKeyHandler(apiKeyService, logger, authzEngine),
+		ReminderConfig: handler.NewReminderConfigHandler(reminderConfigService, logger),
 	}
 
 	port := env.ServerPort
