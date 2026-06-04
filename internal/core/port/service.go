@@ -31,6 +31,12 @@ type WebhookSubscriptionService interface {
 	SendWebhook(ctx context.Context, input OutgoingWebhookPayload) error
 }
 
+// ReminderConfigResolver resolves the per-tenant renewal-reminder policy.
+// The billing sweep depends only on this read method.
+type ReminderConfigResolver interface {
+	ResolveReminderConfig(ctx context.Context, orgId string) (domain.ReminderConfig, error)
+}
+
 // GatewayFactory creates payment gateway instances from configuration.
 type GatewayFactory interface {
 	NewGateway(ctx context.Context, orgId string, id string) (domain.GatewayProvider, error)
