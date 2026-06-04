@@ -34,6 +34,7 @@ type Handlers struct {
 	Dunning        *handler.DunningHandler
 	ApiKey         *handler.ApiKeyHandler
 	ReminderConfig *handler.ReminderConfigHandler
+	Usage          *handler.UsageHandler
 }
 
 // ServerDeps groups the cross-cutting wiring the server needs that is
@@ -189,5 +190,8 @@ func registerAll(api *fuego.Server, h Handlers) {
 	}
 	if h.ReminderConfig != nil {
 		h.ReminderConfig.RegisterRoutes(api)
+	}
+	if h.Usage != nil {
+		h.Usage.RegisterRoutes(api)
 	}
 }

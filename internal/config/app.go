@@ -108,6 +108,8 @@ func NewApp() (*App, error) {
 	metadataRepo := postgres.NewMetadataStoreRepo(db)
 	dunningRepo := postgres.NewDunningRepo(db)
 	invoiceRepo := postgres.NewInvoiceRepo(db)
+	meterRepo := postgres.NewMeterRepo(db)
+	eventStore := postgres.NewEventStore(db)
 
 	// ---------------------------------------------------------------------------
 	// Infrastructure adapters
@@ -160,6 +162,7 @@ func NewApp() (*App, error) {
 	// Narrow services (no workflow engine).
 	// ---------------------------------------------------------------------------
 	invoiceService := service.NewInvoiceService(invoiceRepo, orderRepo, priceRepo, txManager, logger)
+	usageService := service.NewUsageService(meterRepo, eventStore, pubsub, logger)
 	subService, err := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, priceRepo, gatewayFactory, invoiceService, pubsub, reporter, logger, txManager)
 	if err != nil {
 		return nil, err
@@ -260,6 +263,7 @@ func NewApp() (*App, error) {
 		Dunning:        handler.NewDunningHandler(dunningOrchestrationService, subService, logger, authzEngine, trustedProxies),
 		ApiKey:         handler.NewApiKeyHandler(apiKeyService, logger, authzEngine),
 		ReminderConfig: handler.NewReminderConfigHandler(reminderConfigService, logger),
+		Usage:          handler.NewUsageHandler(usageService, logger),
 	}
 
 	port := env.ServerPort
