@@ -246,9 +246,9 @@ func TestBillingChargeAdvancesState(t *testing.T) {
 // TestImmediateFirstCharge pins the "no upfront checkout payment, due now" case —
 // the one the Hatchet activation-spawn of billing-cycle-runner exists to serve.
 // A subscription is activated without an upfront payment (e.g. system-charges-now
-// or a just-ended trial), so SetActivationDates with amount 0 seeds
-// CyclesProcessed=0, RenewsAt = StartDate (= now, via the cycle-0 rule), and
-// CurrentPeriodStart = CurrentPeriodEnd = StartDate.
+// or a just-ended trial), so SetActive with a zero-amount payment (which calls
+// the no-arg SetActivationDates) seeds CyclesProcessed=0, RenewsAt = StartDate
+// (= now, via the cycle-0 rule), and CurrentPeriodStart = CurrentPeriodEnd = StartDate.
 //
 // This proves two things:
 //   - the subscription IS due (IsDueForBilling == true), which is what gates the
@@ -257,7 +257,7 @@ func TestBillingChargeAdvancesState(t *testing.T) {
 //     state AND correct period boundaries (CurrentPeriodStart == StartDate,
 //     CurrentPeriodEnd == StartDate + one interval) WITHOUT any handler change —
 //     i.e. the period-init guard (A1) is not needed when CurrentPeriodEnd is
-//     seeded from StartDate (the non-zero value SetActivationDates produces).
+//     seeded from StartDate (the non-zero value SetActive/SetActivationDates produce).
 func TestImmediateFirstCharge(t *testing.T) {
 	db := testDB(t)
 	ctx := context.Background()
@@ -270,7 +270,7 @@ func TestImmediateFirstCharge(t *testing.T) {
 	pspConfigId := seedMemoryPsp(t, db, orgId)
 	pm := seedPaymentMethod(t, db, orgId, fx.customer.Id)
 
-	// Reconstruct the state SetActivationDates(payment{amount:0}) leaves behind:
+	// Reconstruct the state SetActive(payment{amount:0}) leaves behind:
 	// active, cycle 0, StartDate ≈ now, RenewsAt = StartDate (cycle-0 rule),
 	// CurrentPeriodStart = CurrentPeriodEnd = StartDate.
 	startDate := time.Now().UTC().Add(-time.Minute).Truncate(time.Microsecond)
@@ -286,7 +286,7 @@ func TestImmediateFirstCharge(t *testing.T) {
 	sub.CyclesProcessed = 0
 	sub.StartDate = startDate
 	sub.RenewsAt = startDate            // due now/past (no upfront payment)
-	sub.CurrentPeriodStart = startDate  // what SetActivationDates(amount 0) seeds
+	sub.CurrentPeriodStart = startDate  // what SetActive (zero-amount) seeds
 	sub.CurrentPeriodEnd = startDate    // (NOT zero — this is the load-bearing seed)
 	require.NoError(t, db.Create(&sub).Error)
 
