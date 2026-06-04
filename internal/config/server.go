@@ -14,9 +14,10 @@ import (
 )
 
 // Handlers groups every HTTP handler the application registers. The full
-// app builds these against live services in NewApp; cmd/openapi-export
-// builds them with nil services (NilHandlers) since route registration
-// reads only metadata.
+// app builds these against live services in NewApp. Route registration
+// reads only metadata, so nil services are also safe for spec-only
+// constructions (Fuego writes the OpenAPI spec to openapi.json at the
+// repo root on s.Run() — see opts below).
 type Handlers struct {
 	Health         *handler.HealthHandler
 	Order          *handler.OrderHandler
@@ -37,7 +38,7 @@ type Handlers struct {
 
 // ServerDeps groups the cross-cutting wiring the server needs that is
 // independent of business handlers: middleware, the validator instance,
-// and the listen address. The OpenAPI exporter passes a minimal set.
+// and the listen address.
 type ServerDeps struct {
 	Addr           string
 	Logger         port.Logger
@@ -51,9 +52,9 @@ type ServerDeps struct {
 }
 
 // BuildServer wires every HTTP route onto a fresh *fuego.Server. Used by
-// both the live application (App.Run) and the OpenAPI exporter, which is
-// why the side-effecting middleware is attached here rather than in
-// NewApp — the same configuration must reach the spec generator.
+// App.Run. Side-effecting middleware is attached here so the same
+// configuration is reflected in the generated OpenAPI spec that Fuego
+// writes on startup.
 func BuildServer(deps ServerDeps, h Handlers) *fuego.Server {
 	// Global middleware ordering. fuego.WithGlobalMiddlewares executes the LAST
 	// entry OUTERMOST (first on the way in), so to make a middleware run
@@ -104,6 +105,16 @@ func BuildServer(deps ServerDeps, h Handlers) *fuego.Server {
 		fuego.WithErrorSerializer(handler.ApiErrorSerializer),
 		fuego.WithGlobalMiddlewares(mws...),
 		fuego.WithoutStartupMessages(),
+		// Canonical OpenAPI artifact: ./openapi.json at the repo root.
+		// Fuego writes it on s.Run() (engine.go:OutputOpenAPISpec). The default
+		// would land it at doc/openapi.json; we keep it at the project root
+		// because it is the API contract every other repo in the workspace
+		// consumes (getpaidhq-sdk, gphq-web, gphq-checkout). The same in-
+		// memory spec is also served at runtime from /swagger/openapi.json
+		// for Swagger UI — that endpoint is not read from disk.
+		fuego.WithEngineOptions(fuego.WithOpenAPIConfig(fuego.OpenAPIConfig{
+			JSONFilePath: "openapi.json",
+		})),
 	}
 	if deps.Validator != nil {
 		opts = append(opts, fuego.WithValidator(deps.Validator))

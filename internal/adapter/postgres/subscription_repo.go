@@ -86,6 +86,10 @@ func (r *SubscriptionRepo) Find(ctx context.Context, orgId string, p domain.Pagi
 	return subs, int(count), err
 }
 
+// FindDueForBilling selects subscriptions due for a charge now. Keep the status/
+// date rule below in sync with domain.Subscription.IsDueForBilling — that Go method
+// is the per-subscription mirror of this SQL (used by the Hatchet activation spawn),
+// and the two must agree on what "due" means.
 func (r *SubscriptionRepo) FindDueForBilling(ctx context.Context, orgId string, now time.Time) ([]domain.Subscription, error) {
 	var subs []domain.Subscription
 	// Unset date columns are NULL (serializer:nulltime maps zero time → NULL),

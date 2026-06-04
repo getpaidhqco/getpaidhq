@@ -241,3 +241,72 @@ func TestCalculateProrationDetails(t *testing.T) {
 		})
 	}
 }
+
+func TestSubscription_IsDueForBilling(t *testing.T) {
+	now := time.Date(2026, 6, 4, 12, 0, 0, 0, time.UTC)
+	past := now.Add(-time.Hour)
+	future := now.Add(time.Hour)
+
+	tests := []struct {
+		name string
+		sub  Subscription
+		want bool
+	}{
+		{
+			name: "active and due (renews in past)",
+			sub:  Subscription{Status: SubscriptionStatusActive, RenewsAt: past},
+			want: true,
+		},
+		{
+			name: "active and due (renews exactly now)",
+			sub:  Subscription{Status: SubscriptionStatusActive, RenewsAt: now},
+			want: true,
+		},
+		{
+			name: "active but renews in future (not due)",
+			sub:  Subscription{Status: SubscriptionStatusActive, RenewsAt: future},
+			want: false,
+		},
+		{
+			name: "active with zero renews (not due)",
+			sub:  Subscription{Status: SubscriptionStatusActive},
+			want: false,
+		},
+		{
+			name: "past_due with retry in past (due)",
+			sub:  Subscription{Status: SubscriptionStatusPastDue, NextRetryAt: past},
+			want: true,
+		},
+		{
+			name: "past_due with zero retry (not due)",
+			sub:  Subscription{Status: SubscriptionStatusPastDue},
+			want: false,
+		},
+		{
+			name: "trial ended (due)",
+			sub:  Subscription{Status: SubscriptionStatusTrial, TrialEndsAt: past},
+			want: true,
+		},
+		{
+			name: "trial not ended (not due)",
+			sub:  Subscription{Status: SubscriptionStatusTrial, TrialEndsAt: future},
+			want: false,
+		},
+		{
+			name: "trial with zero trial-ends (not due)",
+			sub:  Subscription{Status: SubscriptionStatusTrial},
+			want: false,
+		},
+		{
+			name: "cancelled with past renews (not due)",
+			sub:  Subscription{Status: SubscriptionStatusCancelled, RenewsAt: past},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, tt.sub.IsDueForBilling(now))
+		})
+	}
+}

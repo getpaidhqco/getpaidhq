@@ -41,4 +41,4 @@ node_modules
 .claude/.credentials.json
 
 # understand-anything generated knowledge graph (regenerable; per-commit snapshot)
-.understand-anything/
+.understand-anything/.claude/

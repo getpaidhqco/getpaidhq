@@ -159,6 +159,32 @@ func (s *Subscription) GetNextChargeDate() time.Time {
 	return s.NextRetryAt
 }
 
+// IsDueForBilling reports whether the subscription is due to be billed at the given
+// instant. It is the engine-agnostic Go mirror of the SQL in
+// SubscriptionRepository.FindDueForBilling (postgres/subscription_repo.go) and the two
+// MUST stay in sync — the SQL is the hourly sweep's selection rule, this is what the
+// Hatchet activation-spawn uses to decide whether to kick off an immediate first charge.
+//
+// Due when any of:
+//   - active with a non-zero RenewsAt that is now-or-past, or
+//   - past_due with a non-zero NextRetryAt that is now-or-past, or
+//   - trial with a non-zero TrialEndsAt that is now-or-past.
+//
+// Zero (unset) dates map to NULL in the SQL and `col <= now` is false for NULL, so
+// they are never due — the `!X.IsZero()` guards mirror that exclusion.
+func (s *Subscription) IsDueForBilling(now time.Time) bool {
+	switch s.Status {
+	case SubscriptionStatusActive:
+		return !s.RenewsAt.IsZero() && !s.RenewsAt.After(now)
+	case SubscriptionStatusPastDue:
+		return !s.NextRetryAt.IsZero() && !s.NextRetryAt.After(now)
+	case SubscriptionStatusTrial:
+		return !s.TrialEndsAt.IsZero() && !s.TrialEndsAt.After(now)
+	default:
+		return false
+	}
+}
+
 func (s *Subscription) SetMetadata(meta map[string]string) *Subscription {
 	if s.Metadata == nil {
 		s.Metadata = make(map[string]string)
