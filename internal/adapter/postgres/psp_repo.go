@@ -18,17 +18,20 @@ func NewPspRepo(db *gorm.DB) port.PspRepository {
 }
 
 func (r *PspRepo) FindById(ctx context.Context, orgId string, id string) (domain.PspConfig, error) {
-	var config domain.PspConfig
+	var row pspConfigRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
-		First(&config).Error
-	return config, translateErr(err)
+		First(&row).Error
+	if err != nil {
+		return domain.PspConfig{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *PspRepo) Create(ctx context.Context, input domain.PspConfig) (domain.PspConfig, error) {
-	err := dbFromCtx(ctx, r.db).Create(&input).Error
-	if err != nil {
+	row := pspConfigRowFromDomain(input)
+	if err := dbFromCtx(ctx, r.db).Create(&row).Error; err != nil {
 		return domain.PspConfig{}, err
 	}
 	return r.FindById(ctx, input.OrgId, input.Id)
