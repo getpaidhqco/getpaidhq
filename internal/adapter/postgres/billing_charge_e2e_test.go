@@ -242,3 +242,89 @@ func TestBillingChargeAdvancesState(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, totalAfter, "stale replay must not write a duplicate payment")
 }
+
+// TestImmediateFirstCharge pins the "no upfront checkout payment, due now" case —
+// the one the Hatchet activation-spawn of billing-cycle-runner exists to serve.
+// A subscription is activated without an upfront payment (e.g. system-charges-now
+// or a just-ended trial), so SetActivationDates with amount 0 seeds
+// CyclesProcessed=0, RenewsAt = StartDate (= now, via the cycle-0 rule), and
+// CurrentPeriodStart = CurrentPeriodEnd = StartDate.
+//
+// This proves two things:
+//   - the subscription IS due (IsDueForBilling == true), which is what gates the
+//     Hatchet spawn;
+//   - charging it via the SAME path the runner uses produces correct cycle-1
+//     state AND correct period boundaries (CurrentPeriodStart == StartDate,
+//     CurrentPeriodEnd == StartDate + one interval) WITHOUT any handler change —
+//     i.e. the period-init guard (A1) is not needed when CurrentPeriodEnd is
+//     seeded from StartDate (the non-zero value SetActivationDates produces).
+func TestImmediateFirstCharge(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+
+	orgId := uniqueOrg(t)
+	cleanupOrg(t, db, orgId)
+
+	fx := seedSubFixture(t, db, orgId)
+
+	pspConfigId := seedMemoryPsp(t, db, orgId)
+	pm := seedPaymentMethod(t, db, orgId, fx.customer.Id)
+
+	// Reconstruct the state SetActivationDates(payment{amount:0}) leaves behind:
+	// active, cycle 0, StartDate ≈ now, RenewsAt = StartDate (cycle-0 rule),
+	// CurrentPeriodStart = CurrentPeriodEnd = StartDate.
+	startDate := time.Now().UTC().Add(-time.Minute).Truncate(time.Microsecond)
+	sub := fx.sub
+	sub.PspId = domain.Gateway(pspConfigId)
+	sub.PaymentMethodId = pm.Id
+	sub.Status = domain.SubscriptionStatusActive
+	sub.Amount = 1999
+	sub.Currency = "USD"
+	sub.BillingInterval = domain.BillingIntervalMonth
+	sub.BillingIntervalQty = 1
+	sub.Cycles = 12
+	sub.CyclesProcessed = 0
+	sub.StartDate = startDate
+	sub.RenewsAt = startDate            // due now/past (no upfront payment)
+	sub.CurrentPeriodStart = startDate  // what SetActivationDates(amount 0) seeds
+	sub.CurrentPeriodEnd = startDate    // (NOT zero — this is the load-bearing seed)
+	require.NoError(t, db.Create(&sub).Error)
+
+	// The activation gate: this is exactly the predicate the Hatchet
+	// StartSubscriptionWorkflow checks before spawning billing-cycle-runner.
+	assert.True(t, sub.IsDueForBilling(time.Now().UTC()), "no-upfront-payment sub must be immediately due")
+
+	svc := buildSubscriptionService(t, db)
+	paymentRepo := NewPaymentRepo(db)
+
+	// (a) Charge the first period -> succeeded.
+	result, err := svc.ChargeForBillingPeriod(ctx, sub)
+	require.NoError(t, err)
+	assert.Equal(t, domain.PaymentStatusSucceeded, result.Status)
+
+	// (b) Apply the success -> cycle 1, still active, payment row written, and —
+	// critically — correct period boundaries without any handler fix.
+	updated, err := svc.HandleSubscriptionChargeSuccess(ctx, domain.SubscriptionChargeInput{
+		Subscription: sub,
+		ChargeResult: result,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, 1, updated.CyclesProcessed, "immediate first charge advances to cycle 1")
+	assert.Equal(t, domain.SubscriptionStatusActive, updated.Status, "stays active below the cycle cap")
+
+	payments, total, err := paymentRepo.FindBySubscriptionId(ctx, orgId, sub.Id, domain.Pagination{Page: 1, Limit: 10})
+	require.NoError(t, err)
+	require.Equal(t, 1, total, "exactly one payment row exists for the first charge")
+	require.Len(t, payments, 1)
+	assert.Equal(t, domain.PaymentStatusSucceeded, payments[0].Status)
+
+	// The period assertion — proves period-init is already correct for cycle 1
+	// without the A1 guard. CurrentPeriodStart rolls from the seeded
+	// CurrentPeriodEnd (= StartDate), and CurrentPeriodEnd advances one interval.
+	expectedPeriodEnd := startDate.AddDate(0, 1, 0) // StartDate + 1 month
+	assert.WithinDuration(t, startDate, updated.CurrentPeriodStart, time.Second,
+		"cycle-1 CurrentPeriodStart must equal StartDate")
+	assert.WithinDuration(t, expectedPeriodEnd, updated.CurrentPeriodEnd, time.Second,
+		"cycle-1 CurrentPeriodEnd must be StartDate + one billing interval, not zero")
+	assert.False(t, updated.CurrentPeriodEnd.IsZero(), "period end must not be the zero time")
+}
