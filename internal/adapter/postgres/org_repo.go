@@ -28,11 +28,15 @@ func (r *OrgRepo) Create(ctx context.Context, entity domain.Org) (domain.Org, er
 	return created, translateErr(err)
 }
 
+// ListIds returns all org ids. The billing sweep fans out to every tenant and
+// relies on the per-org FindDueForBilling to gate on subscription status, so
+// filtering orgs here would silently drop billable subscriptions in
+// trial/other-status orgs. Excluding terminal/suspended orgs is a future
+// refinement that would be layered here if needed.
 func (r *OrgRepo) ListIds(ctx context.Context) ([]string, error) {
 	var ids []string
 	err := dbFromCtx(ctx, r.db).
 		Model(&domain.Org{}).
-		Where("status = ?", domain.OrgStatusActive).
 		Pluck("id", &ids).Error
 	return ids, err
 }

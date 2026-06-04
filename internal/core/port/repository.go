@@ -28,9 +28,11 @@ type SubscriptionRepository interface {
 	Update(ctx context.Context, entity domain.Subscription) (domain.Subscription, error)
 	FindByOrderId(ctx context.Context, orgId string, orderId string) ([]domain.Subscription, error)
 	Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Subscription, int, error)
-	// FindDueForBilling returns running subscriptions in org whose next charge
-	// date is at or before `now`, per Subscription.GetNextChargeDate() semantics.
-	// Used by the per-org billing run to fan out one billing-cycle per due sub.
+	// FindDueForBilling returns subscriptions in org that are due to be charged
+	// at or before `now`, per their status: active subs whose renews_at <= now,
+	// past_due subs whose next_retry <= now, and trial subs whose
+	// trial_ends_at <= now. Used by the per-org billing run to fan out one
+	// billing-cycle per due sub.
 	FindDueForBilling(ctx context.Context, orgId string, now time.Time) ([]domain.Subscription, error)
 	// FindUpcomingRenewals returns active subscriptions whose renews_at falls in
 	// (now, now+within]. The reminder sweep then picks per-offset stages from this set.
@@ -132,8 +134,12 @@ type CartRepository interface {
 // OrgRepository manages organization persistence.
 type OrgRepository interface {
 	Create(ctx context.Context, entity domain.Org) (domain.Org, error)
-	// ListIds returns every org id. Used by the billing sweep to fan out
+	// ListIds returns all org ids. Used by the billing sweep to fan out
 	// one per-org billing run per tenant (tenant = the sharding axis).
+	// The per-org FindDueForBilling gates on subscription status, so this
+	// intentionally returns every org rather than filtering by org status;
+	// excluding terminal/suspended orgs is a future refinement that would be
+	// layered here if needed.
 	ListIds(ctx context.Context) ([]string, error)
 }
 

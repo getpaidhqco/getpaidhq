@@ -187,7 +187,7 @@ func TestSubscriptionRepo_FindDueForBilling(t *testing.T) {
 	ctx := context.Background()
 
 	orgId := uniqueOrg(t)
-	t.Cleanup(func() { cleanupOrg(t, db, orgId) })
+	cleanupOrg(t, db, orgId)
 
 	now := time.Now().UTC()
 	mk := func(id string, status domain.SubscriptionStatus, renews time.Time) {
@@ -229,7 +229,7 @@ func TestSubscriptionRepo_FindUpcomingRenewals(t *testing.T) {
 	ctx := context.Background()
 
 	orgId := uniqueOrg(t)
-	t.Cleanup(func() { cleanupOrg(t, db, orgId) })
+	cleanupOrg(t, db, orgId)
 
 	now := time.Now().UTC()
 	mk := func(id string, renews time.Time) {

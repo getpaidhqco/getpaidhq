@@ -18,7 +18,7 @@ func TestOrgRepo_ListIds(t *testing.T) {
 	ctx := context.Background()
 
 	orgId := uniqueOrg(t)
-	t.Cleanup(func() { cleanupOrg(t, db, orgId) })
+	cleanupOrg(t, db, orgId)
 
 	_, err := repo.Create(ctx, domain.Org{
 		Id:        orgId,
