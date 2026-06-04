@@ -4,7 +4,6 @@ import (
 	"github.com/go-fuego/fuego"
 	"github.com/go-fuego/fuego/option"
 
-	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
 	"getpaidhq/internal/lib"
@@ -177,14 +176,14 @@ func (s *ProductHandler) Delete(c fuego.ContextNoBody) (EmptyResponse, error) {
 	return EmptyResponse{}, nil
 }
 
-func (s *ProductHandler) CreatePrice(c fuego.ContextWithBody[CreatePriceRequest]) (domain.Price, error) {
+func (s *ProductHandler) CreatePrice(c fuego.ContextWithBody[CreatePriceRequest]) (PriceResponse, error) {
 	if err := enforce(c, s.authz, port.ActionCreatePrice); err != nil {
-		return domain.Price{}, err
+		return PriceResponse{}, err
 	}
 	authUser := AuthUserFrom(c)
 	input, err := c.Body()
 	if err != nil {
-		return domain.Price{}, err
+		return PriceResponse{}, err
 	}
 	price, err := s.productService.CreateProductPrice(c.Context(), port.CreatePriceInput{
 		OrgId:              authUser.OrgId,
@@ -208,21 +207,21 @@ func (s *ProductHandler) CreatePrice(c fuego.ContextWithBody[CreatePriceRequest]
 		// Single-handling rule: this error is returned to the caller; logging
 		// it here would produce a duplicate entry in aggregators when the
 		// serializer / request-logging middleware records the response.
-		return domain.Price{}, NewApiErrorFromError(err)
+		return PriceResponse{}, NewApiErrorFromError(err)
 	}
-	return price, nil
+	return NewPriceFromEntity(price), nil
 }
 
-func (s *ProductHandler) GetPrice(c fuego.ContextNoBody) (domain.Price, error) {
+func (s *ProductHandler) GetPrice(c fuego.ContextNoBody) (PriceResponse, error) {
 	if err := enforce(c, s.authz, port.ActionGetPrice); err != nil {
-		return domain.Price{}, err
+		return PriceResponse{}, err
 	}
 	authUser := AuthUserFrom(c)
 	price, err := s.productService.GetPrice(c.Context(), authUser.OrgId, c.PathParam("priceId"))
 	if err != nil {
-		return domain.Price{}, NewApiErrorFromError(err)
+		return PriceResponse{}, NewApiErrorFromError(err)
 	}
-	return price, nil
+	return NewPriceFromEntity(price), nil
 }
 
 func (s *ProductHandler) ListPrices(c fuego.ContextNoBody) (ListResponse, error) {
@@ -241,14 +240,14 @@ func (s *ProductHandler) ListPrices(c fuego.ContextNoBody) (ListResponse, error)
 	}, nil
 }
 
-func (s *ProductHandler) UpdatePrice(c fuego.ContextWithBody[CreatePriceRequest]) (domain.Price, error) {
+func (s *ProductHandler) UpdatePrice(c fuego.ContextWithBody[CreatePriceRequest]) (PriceResponse, error) {
 	if err := enforce(c, s.authz, port.ActionUpdatePrice); err != nil {
-		return domain.Price{}, err
+		return PriceResponse{}, err
 	}
 	authUser := AuthUserFrom(c)
 	input, err := c.Body()
 	if err != nil {
-		return domain.Price{}, err
+		return PriceResponse{}, err
 	}
 	price, err := s.productService.UpdatePrice(c.Context(), authUser.OrgId, c.PathParam("priceId"), port.CreatePriceInput{
 		OrgId:              authUser.OrgId,
@@ -269,9 +268,9 @@ func (s *ProductHandler) UpdatePrice(c fuego.ContextWithBody[CreatePriceRequest]
 		Metadata:           input.Metadata,
 	})
 	if err != nil {
-		return domain.Price{}, NewApiErrorFromError(err)
+		return PriceResponse{}, NewApiErrorFromError(err)
 	}
-	return price, nil
+	return NewPriceFromEntity(price), nil
 }
 
 func (s *ProductHandler) DeletePrice(c fuego.ContextNoBody) (EmptyResponse, error) {
@@ -286,14 +285,14 @@ func (s *ProductHandler) DeletePrice(c fuego.ContextNoBody) (EmptyResponse, erro
 	return EmptyResponse{}, nil
 }
 
-func (s *ProductHandler) CreateVariant(c fuego.ContextWithBody[CreateVariantRequest]) (domain.Variant, error) {
+func (s *ProductHandler) CreateVariant(c fuego.ContextWithBody[CreateVariantRequest]) (VariantResponse, error) {
 	if err := enforce(c, s.authz, port.ActionCreateVariant); err != nil {
-		return domain.Variant{}, err
+		return VariantResponse{}, err
 	}
 	authUser := AuthUserFrom(c)
 	req, err := c.Body()
 	if err != nil {
-		return domain.Variant{}, err
+		return VariantResponse{}, err
 	}
 	input := port.CreateVariantInput{
 		Name:        req.Name,
@@ -302,21 +301,21 @@ func (s *ProductHandler) CreateVariant(c fuego.ContextWithBody[CreateVariantRequ
 	}
 	variant, err := s.productService.CreateVariant(c.Context(), authUser.OrgId, c.PathParam("id"), input)
 	if err != nil {
-		return domain.Variant{}, NewApiErrorFromError(err)
+		return VariantResponse{}, NewApiErrorFromError(err)
 	}
-	return variant, nil
+	return NewVariantResponseFromDetails(service.VariantDetails{Variant: variant}), nil
 }
 
-func (s *ProductHandler) GetVariant(c fuego.ContextNoBody) (domain.Variant, error) {
+func (s *ProductHandler) GetVariant(c fuego.ContextNoBody) (VariantResponse, error) {
 	if err := enforce(c, s.authz, port.ActionGetVariant); err != nil {
-		return domain.Variant{}, err
+		return VariantResponse{}, err
 	}
 	authUser := AuthUserFrom(c)
 	variant, err := s.productService.GetVariant(c.Context(), authUser.OrgId, c.PathParam("variantId"))
 	if err != nil {
-		return domain.Variant{}, NewApiErrorFromError(err)
+		return VariantResponse{}, NewApiErrorFromError(err)
 	}
-	return variant, nil
+	return NewVariantResponseFromDetails(service.VariantDetails{Variant: variant}), nil
 }
 
 func (s *ProductHandler) ListVariants(c fuego.ContextNoBody) (ListResponse, error) {
@@ -335,14 +334,14 @@ func (s *ProductHandler) ListVariants(c fuego.ContextNoBody) (ListResponse, erro
 	}, nil
 }
 
-func (s *ProductHandler) UpdateVariant(c fuego.ContextWithBody[UpdateVariantRequest]) (domain.Variant, error) {
+func (s *ProductHandler) UpdateVariant(c fuego.ContextWithBody[UpdateVariantRequest]) (VariantResponse, error) {
 	if err := enforce(c, s.authz, port.ActionUpdateVariant); err != nil {
-		return domain.Variant{}, err
+		return VariantResponse{}, err
 	}
 	authUser := AuthUserFrom(c)
 	req, err := c.Body()
 	if err != nil {
-		return domain.Variant{}, err
+		return VariantResponse{}, err
 	}
 	input := port.UpdateVariantInput{
 		Name:        req.Name,
@@ -351,9 +350,9 @@ func (s *ProductHandler) UpdateVariant(c fuego.ContextWithBody[UpdateVariantRequ
 	}
 	variant, err := s.productService.UpdateVariant(c.Context(), authUser.OrgId, c.PathParam("variantId"), input)
 	if err != nil {
-		return domain.Variant{}, NewApiErrorFromError(err)
+		return VariantResponse{}, NewApiErrorFromError(err)
 	}
-	return variant, nil
+	return NewVariantResponseFromDetails(service.VariantDetails{Variant: variant}), nil
 }
 
 func (s *ProductHandler) DeleteVariant(c fuego.ContextNoBody) (EmptyResponse, error) {

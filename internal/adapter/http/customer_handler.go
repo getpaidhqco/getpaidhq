@@ -4,7 +4,6 @@ import (
 	"github.com/go-fuego/fuego"
 	"github.com/go-fuego/fuego/option"
 
-	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
 	"getpaidhq/internal/lib"
@@ -33,50 +32,50 @@ func (cc *CustomerHandler) RegisterRoutes(s *fuego.Server) {
 	fuego.Put(g, "/{id}/payment-methods/{pmid}", cc.UpdateCustomerPaymentMethod, option.Summary("Update a customer's payment method"))
 }
 
-func (cc *CustomerHandler) Create(c fuego.ContextWithBody[port.CreateCustomerInput]) (domain.Customer, error) {
+func (cc *CustomerHandler) Create(c fuego.ContextWithBody[port.CreateCustomerInput]) (CustomerResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !cc.authz.Enforce(authUser, port.ActionCreateCustomer, "") {
-		return domain.Customer{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return CustomerResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	input, err := c.Body()
 	if err != nil {
-		return domain.Customer{}, err
+		return CustomerResponse{}, err
 	}
 
 	customer, err := cc.customerService.Create(c.Context(), authUser.OrgId, input)
 	if err != nil {
-		return domain.Customer{}, NewApiErrorFromError(err)
+		return CustomerResponse{}, NewApiErrorFromError(err)
 	}
-	return customer, nil
+	return NewCustomerFromEntity(customer), nil
 }
 
-func (cc *CustomerHandler) CreateCustomerPaymentMethod(c fuego.ContextWithBody[port.CreatePaymentMethodInput]) (domain.PaymentMethod, error) {
+func (cc *CustomerHandler) CreateCustomerPaymentMethod(c fuego.ContextWithBody[port.CreatePaymentMethodInput]) (PaymentMethodResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !cc.authz.Enforce(authUser, port.ActionCreatePaymentMethod, "") {
-		return domain.PaymentMethod{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return PaymentMethodResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	input, err := c.Body()
 	if err != nil {
-		return domain.PaymentMethod{}, err
+		return PaymentMethodResponse{}, err
 	}
 	input.OrgId = authUser.OrgId
 	input.CustomerId = c.PathParam("id")
 
 	pm, err := cc.customerService.CreatePaymentMethod(c.Context(), authUser.OrgId, input)
 	if err != nil {
-		return domain.PaymentMethod{}, NewApiErrorFromError(err)
+		return PaymentMethodResponse{}, NewApiErrorFromError(err)
 	}
-	return pm, nil
+	return NewPaymentMethodResponse(pm), nil
 }
 
-func (cc *CustomerHandler) UpdateCustomerPaymentMethod(c fuego.ContextWithBody[port.UpdatePaymentMethodInput]) (domain.PaymentMethod, error) {
+func (cc *CustomerHandler) UpdateCustomerPaymentMethod(c fuego.ContextWithBody[port.UpdatePaymentMethodInput]) (PaymentMethodResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !cc.authz.Enforce(authUser, port.ActionUpdatePaymentMethod, "") {
-		return domain.PaymentMethod{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return PaymentMethodResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	input, err := c.Body()
 	if err != nil {
-		return domain.PaymentMethod{}, err
+		return PaymentMethodResponse{}, err
 	}
 	input.OrgId = authUser.OrgId
 	input.CustomerId = c.PathParam("id")
@@ -84,18 +83,18 @@ func (cc *CustomerHandler) UpdateCustomerPaymentMethod(c fuego.ContextWithBody[p
 
 	pm, err := cc.customerService.UpdatePaymentMethod(c.Context(), authUser.OrgId, input)
 	if err != nil {
-		return domain.PaymentMethod{}, NewApiErrorFromError(err)
+		return PaymentMethodResponse{}, NewApiErrorFromError(err)
 	}
-	return pm, nil
+	return NewPaymentMethodResponse(pm), nil
 }
 
-func (cc *CustomerHandler) GetCustomerPaymentMethod(c fuego.ContextNoBody) (domain.PaymentMethod, error) {
+func (cc *CustomerHandler) GetCustomerPaymentMethod(c fuego.ContextNoBody) (PaymentMethodResponse, error) {
 	authUser := AuthUserFrom(c)
 	pm, err := cc.customerService.GetPaymentMethod(c.Context(), authUser.OrgId, c.PathParam("id"))
 	if err != nil {
-		return domain.PaymentMethod{}, NewApiErrorFromError(err)
+		return PaymentMethodResponse{}, NewApiErrorFromError(err)
 	}
-	return pm, nil
+	return NewPaymentMethodResponse(pm), nil
 }
 
 func (cc *CustomerHandler) Get(c fuego.ContextNoBody) (CustomerResponse, error) {
