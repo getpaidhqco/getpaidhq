@@ -155,7 +155,7 @@ func TestOrderService_CompleteOrder_Rejections(t *testing.T) {
 		name      string
 		order     domain.Order
 		orderErr  error
-		input     domain.CompleteOrderInput
+		input     CompleteOrderInput
 		assertErr func(t *testing.T, err error)
 	}{
 		{
@@ -163,17 +163,17 @@ func TestOrderService_CompleteOrder_Rejections(t *testing.T) {
 			order: pendingOrder(),
 			// FindById error wins regardless of other input.
 			orderErr: errors.New("missing"),
-			input:    domain.CompleteOrderInput{OrgId: "org_1", Id: "ord_1", PaymentMethodId: "pm_1"},
+			input:    CompleteOrderInput{OrgId: "org_1", Id: "ord_1", PaymentMethodId: "pm_1"},
 		},
 		{
 			name:  "order not pending",
 			order: domain.Order{OrgId: "org_1", Id: "ord_1", Status: domain.OrderStatusCompleted},
-			input: domain.CompleteOrderInput{OrgId: "org_1", Id: "ord_1", PaymentMethodId: "pm_1"},
+			input: CompleteOrderInput{OrgId: "org_1", Id: "ord_1", PaymentMethodId: "pm_1"},
 		},
 		{
 			name:  "no payment method provided",
 			order: pendingOrder(),
-			input: domain.CompleteOrderInput{OrgId: "org_1", Id: "ord_1"}, // no PaymentMethodId, no token
+			input: CompleteOrderInput{OrgId: "org_1", Id: "ord_1"}, // no PaymentMethodId, no token
 		},
 	}
 
@@ -209,9 +209,9 @@ func TestOrderService_CompleteOrder_HappyPath(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newOrderServiceForTest(&fakeTxManager{}, engine, orderRepo, custRepo, subRepo, &fakePaymentMethodRepo{}, payRepo, ps)
 
-		got, err := svc.CompleteOrder(context.Background(), domain.CompleteOrderInput{
+		got, err := svc.CompleteOrder(context.Background(), CompleteOrderInput{
 			OrgId: "org_1", Id: "ord_1", PaymentMethodId: "pm_1",
-			Payment: domain.CompleteOrderInputPayment{Amount: 5000, Currency: "USD"},
+			Payment: CompleteOrderInputPayment{Amount: 5000, Currency: "USD"},
 		})
 
 		require.NoError(t, err)
@@ -235,9 +235,9 @@ func TestOrderService_CompleteOrder_HappyPath(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newOrderServiceForTest(&fakeTxManager{}, engine, orderRepo, custRepo, subRepo, &fakePaymentMethodRepo{}, payRepo, ps)
 
-		_, err := svc.CompleteOrder(context.Background(), domain.CompleteOrderInput{
+		_, err := svc.CompleteOrder(context.Background(), CompleteOrderInput{
 			OrgId: "org_1", Id: "ord_1", PaymentMethodId: "pm_1",
-			Payment: domain.CompleteOrderInputPayment{Amount: 0},
+			Payment: CompleteOrderInputPayment{Amount: 0},
 		})
 
 		require.NoError(t, err)
@@ -253,9 +253,9 @@ func TestOrderService_CompleteOrder_HappyPath(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newOrderServiceForTest(&fakeTxManager{}, engine, orderRepo, &fakeCustomerRepo{}, subRepo, pmRepo, &fakePaymentRepo{}, ps)
 
-		_, err := svc.CompleteOrder(context.Background(), domain.CompleteOrderInput{
+		_, err := svc.CompleteOrder(context.Background(), CompleteOrderInput{
 			OrgId: "org_1", Id: "ord_1",
-			PaymentMethod: domain.CompleteOrderInputPaymentMethod{
+			PaymentMethod: CompleteOrderInputPaymentMethod{
 				Token: "tok_visa", Type: domain.PaymentMethodType("card"), Name: "Visa",
 			},
 		})

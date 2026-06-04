@@ -47,7 +47,7 @@ func NewCustomerService(
 	return svc, nil
 }
 
-func (s *CustomerService) Create(ctx context.Context, orgId string, input domain.CreateCustomerInput) (domain.Customer, error) {
+func (s *CustomerService) Create(ctx context.Context, orgId string, input CreateCustomerInput) (domain.Customer, error) {
 	// check for existing customer — a not-found result is the expected happy
 	// path (no duplicate), so only a real lookup failure should abort.
 	exists, err := s.customerRepository.FindByEmail(ctx, orgId, input.Email)
@@ -91,7 +91,7 @@ func (s *CustomerService) GetPaymentMethod(ctx context.Context, orgId string, id
 	return paymentMethod, nil
 }
 
-func (s *CustomerService) CreatePaymentMethod(ctx context.Context, orgId string, input domain.CreatePaymentMethodInput) (domain.PaymentMethod, error) {
+func (s *CustomerService) CreatePaymentMethod(ctx context.Context, orgId string, input CreatePaymentMethodInput) (domain.PaymentMethod, error) {
 
 	customer, err := s.customerRepository.FindById(ctx, orgId, input.CustomerId)
 	if err != nil {
@@ -157,7 +157,7 @@ func (s *CustomerService) CreatePaymentMethod(ctx context.Context, orgId string,
 	return newPaymentMethod, nil
 }
 
-func (s *CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string, input domain.UpdatePaymentMethodInput) (domain.PaymentMethod, error) {
+func (s *CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string, input UpdatePaymentMethodInput) (domain.PaymentMethod, error) {
 
 	customer, err := s.customerRepository.FindById(ctx, orgId, input.CustomerId)
 	if err != nil {

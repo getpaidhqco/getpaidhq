@@ -70,9 +70,9 @@ func TestValidationErrorToText_AllTags(t *testing.T) {
 	}
 
 	cases := []struct {
-		name     string
-		errs     validator.ValidationErrors
-		wantSub  string
+		name    string
+		errs    validator.ValidationErrors
+		wantSub string
 	}{
 		{"required", validateOne(t, required{}), "required"},
 		{"email", validateOne(t, email{Field: "nope"}), "Invalid email"},

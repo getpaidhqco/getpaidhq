@@ -18,14 +18,14 @@ import (
 // fakeDunningEngine records port.DunningEngine calls.
 type fakeDunningEngine struct {
 	mu          sync.Mutex
-	started     []domain.StartDunningWorkflowInput
+	started     []port.StartDunningWorkflowInput
 	signals     []string
 	cancels     int
 	wfId, runId string
 	startErr    error
 }
 
-func (e *fakeDunningEngine) StartDunningWorkflow(_ context.Context, in domain.StartDunningWorkflowInput) (string, string, error) {
+func (e *fakeDunningEngine) StartDunningWorkflow(_ context.Context, in port.StartDunningWorkflowInput) (string, string, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.started = append(e.started, in)
@@ -53,7 +53,7 @@ func TestSubscriptionOrchestration_PauseSignalsEngineAndPublishes(t *testing.T) 
 	narrow := newSubscriptionService(subRepo, nil, nil, nil, nil, ps)
 	svc := NewSubscriptionOrchestrationService(narrow, engine, silentLogger{})
 
-	got, err := svc.PauseSubscription(context.Background(), domain.PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+	got, err := svc.PauseSubscription(context.Background(), PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 	require.NoError(t, err)
 	assert.Equal(t, domain.SubscriptionStatusPaused, got.Status)
@@ -68,7 +68,7 @@ func TestSubscriptionOrchestration_DoesNotSignalWhenNarrowRejects(t *testing.T) 
 	narrow := newSubscriptionService(subRepo, nil, nil, nil, nil, nil)
 	svc := NewSubscriptionOrchestrationService(narrow, engine, silentLogger{})
 
-	_, err := svc.PauseSubscription(context.Background(), domain.PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+	_, err := svc.PauseSubscription(context.Background(), PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 	require.Error(t, err)
 	assert.Empty(t, engine.updates, "no engine signal when the DB transition is rejected")
@@ -81,7 +81,7 @@ func TestSubscriptionOrchestration_CancelSignalsEngine(t *testing.T) {
 	narrow := newSubscriptionService(subRepo, nil, nil, nil, nil, ps)
 	svc := NewSubscriptionOrchestrationService(narrow, engine, silentLogger{})
 
-	got, err := svc.CancelSubscription(context.Background(), domain.CancelSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+	got, err := svc.CancelSubscription(context.Background(), CancelSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 	require.NoError(t, err)
 	assert.Equal(t, domain.SubscriptionStatusCancelled, got.Status)
@@ -108,7 +108,7 @@ func TestSubscriptionOrchestration_EngineErrorPropagates(t *testing.T) {
 	narrow := newSubscriptionService(subRepo, nil, nil, nil, nil, &recordingPubSub{})
 	svc := NewSubscriptionOrchestrationService(narrow, engine, silentLogger{})
 
-	_, err := svc.PauseSubscription(context.Background(), domain.PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+	_, err := svc.PauseSubscription(context.Background(), PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 	require.Error(t, err, "engine signalling failure surfaces to the caller")
 }
@@ -136,7 +136,7 @@ func TestDunningOrchestration_StartCreatesCampaignAndStoresHandles(t *testing.T)
 	engine := &fakeDunningEngine{wfId: "dunning-runner", runId: "run_123"}
 	svc := newDunningOrchestration(dr, sr, cr, engine, nil)
 
-	got, err := svc.StartDunningWorkflow(context.Background(), domain.StartDunningWorkflowInput{
+	got, err := svc.StartDunningWorkflow(context.Background(), port.StartDunningWorkflowInput{
 		OrgId: "org_1", SubscriptionId: "sub_1", CustomerId: "cust_1", FailedAmount: 5000, Currency: "USD",
 		InitialFailureReason: "card_declined",
 	})
@@ -197,21 +197,21 @@ func TestDunningOrchestration_PauseResumeCancelSignalEngine(t *testing.T) {
 
 	t.Run("pause signals dunning.pause", func(t *testing.T) {
 		_, engine, svc := mk(domain.DunningStatusActive)
-		_, err := svc.PauseCampaign(context.Background(), domain.PauseDunningCampaignInput{OrgId: "org_1", CampaignId: "dc_1"})
+		_, err := svc.PauseCampaign(context.Background(), port.PauseDunningCampaignInput{OrgId: "org_1", CampaignId: "dc_1"})
 		require.NoError(t, err)
 		assert.Contains(t, engine.signals, "dunning.pause")
 	})
 
 	t.Run("resume signals dunning.resume", func(t *testing.T) {
 		_, engine, svc := mk(domain.DunningStatusPaused)
-		_, err := svc.ResumeCampaign(context.Background(), domain.ResumeDunningCampaignInput{OrgId: "org_1", CampaignId: "dc_1"})
+		_, err := svc.ResumeCampaign(context.Background(), port.ResumeDunningCampaignInput{OrgId: "org_1", CampaignId: "dc_1"})
 		require.NoError(t, err)
 		assert.Contains(t, engine.signals, "dunning.resume")
 	})
 
 	t.Run("cancel cancels the workflow", func(t *testing.T) {
 		_, engine, svc := mk(domain.DunningStatusActive)
-		_, err := svc.CancelCampaign(context.Background(), domain.CancelDunningCampaignInput{OrgId: "org_1", CampaignId: "dc_1"})
+		_, err := svc.CancelCampaign(context.Background(), port.CancelDunningCampaignInput{OrgId: "org_1", CampaignId: "dc_1"})
 		require.NoError(t, err)
 		assert.Equal(t, 1, engine.cancels)
 	})

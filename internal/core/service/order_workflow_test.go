@@ -25,8 +25,8 @@ func newOrderWorkflowService(
 	return NewOrderWorkflowService(orderRepo, &fakeCustomerRepo{}, subRepo, pmRepo, payRepo, ps, silentLogger{})
 }
 
-func completeSessionInput() domain.CompleteCheckoutSessionInput {
-	return domain.CompleteCheckoutSessionInput{
+func completeSessionInput() port.CompleteCheckoutSessionInput {
+	return port.CompleteCheckoutSessionInput{
 		OrgId:   "org_1",
 		OrderId: "ord_1",
 		PaymentContext: domain.PaymentWebhookContext{

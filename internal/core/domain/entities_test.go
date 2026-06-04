@@ -93,9 +93,9 @@ func TestParseAddress(t *testing.T) {
 
 func TestCardDetail_GetExpiryDate(t *testing.T) {
 	tests := []struct {
-		name  string
-		card  CardDetail
-		want  time.Time
+		name string
+		card CardDetail
+		want time.Time
 	}{
 		{
 			name: "valid month/year -> first of month UTC",
@@ -194,92 +194,11 @@ func TestParsePaymentWebhookContext(t *testing.T) {
 	})
 }
 
-func TestNewPrice_IntervalDefaulting(t *testing.T) {
-	t.Run("empty billing and trial intervals default to none", func(t *testing.T) {
-		p := NewPrice("org_1", "var_1", CreatePriceInput{
-			Currency:  "USD",
-			UnitPrice: 1000,
-		})
-		assert.Equal(t, BillingIntervalNone, p.BillingInterval)
-		assert.Equal(t, BillingIntervalNone, p.TrialInterval)
-		assert.Equal(t, "org_1", p.OrgId)
-		assert.Equal(t, "var_1", p.VariantId)
-		assert.Equal(t, Currency("USD"), p.Currency)
-		assert.NotEmpty(t, p.Id, "id generated")
-	})
-
-	t.Run("explicit intervals are preserved", func(t *testing.T) {
-		p := NewPrice("org_1", "var_1", CreatePriceInput{
-			Currency:           "EUR",
-			UnitPrice:          500,
-			BillingInterval:    BillingIntervalMonth,
-			BillingIntervalQty: 1,
-			TrialInterval:      BillingIntervalDay,
-			TrialIntervalQty:   14,
-		})
-		assert.Equal(t, BillingIntervalMonth, p.BillingInterval)
-		assert.Equal(t, BillingIntervalDay, p.TrialInterval)
-		assert.Equal(t, 14, p.TrialIntervalQty)
-	})
-}
-
-func TestNewFromCreateInput(t *testing.T) {
-	now := time.Now().UTC()
-
-	t.Run("no trial -> StartDate is now, TrialEndsAt zero", func(t *testing.T) {
-		s := NewFromCreateInput(CreateSubscriptionInput{
-			OrgId:              "org_1",
-			Amount:             1000,
-			Currency:           "USD",
-			BillingInterval:    BillingIntervalMonth,
-			BillingIntervalQty: 1,
-			TrialInterval:      BillingIntervalNone,
-		})
-		assert.Equal(t, "org_1", s.OrgId)
-		assert.Equal(t, SubscriptionStatusPending, s.Status)
-		assert.WithinDuration(t, now, s.StartDate, 5*time.Second)
-		assert.True(t, s.TrialEndsAt.IsZero())
-		assert.Equal(t, s.StartDate.Day(), s.BillingAnchor)
-		assert.NotEmpty(t, s.Id)
-	})
-
-	trialCases := []struct {
-		name     string
-		interval BillingInterval
-		qty      int
-		offset   func(time.Time) time.Time
-	}{
-		{"minute trial", BillingIntervalMinute, 30, func(t time.Time) time.Time { return t.Add(30 * time.Minute) }},
-		{"hour trial", BillingIntervalHour(), 4, func(t time.Time) time.Time { return t.Add(4 * time.Hour) }},
-		{"day trial", BillingIntervalDay, 7, func(t time.Time) time.Time { return t.AddDate(0, 0, 7) }},
-		{"week trial", BillingIntervalWeek, 2, func(t time.Time) time.Time { return t.AddDate(0, 0, 14) }},
-		{"month trial", BillingIntervalMonth, 1, func(t time.Time) time.Time { return t.AddDate(0, 1, 0) }},
-		{"year trial", BillingIntervalYear, 1, func(t time.Time) time.Time { return t.AddDate(1, 0, 0) }},
-	}
-
-	for _, tc := range trialCases {
-		t.Run(tc.name+" pushes StartDate out and sets TrialEndsAt", func(t *testing.T) {
-			before := time.Now().UTC()
-			s := NewFromCreateInput(CreateSubscriptionInput{
-				OrgId:              "org_1",
-				Amount:             1000,
-				Currency:           "USD",
-				BillingInterval:    BillingIntervalMonth,
-				BillingIntervalQty: 1,
-				TrialInterval:      tc.interval,
-				TrialIntervalQty:   tc.qty,
-			})
-			assert.WithinDuration(t, tc.offset(before), s.StartDate, 5*time.Second)
-			assert.Equal(t, s.StartDate, s.TrialEndsAt, "TrialEndsAt mirrors the pushed StartDate")
-		})
-	}
-}
-
 func TestTableNames(t *testing.T) {
 	tests := []struct {
-		name  string
-		got   string
-		want  string
+		name string
+		got  string
+		want string
 	}{
 		{"subscription", Subscription{}.TableName(), "subscriptions"},
 		{"order", Order{}.TableName(), "orders"},

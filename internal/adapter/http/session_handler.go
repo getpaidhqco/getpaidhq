@@ -34,7 +34,7 @@ func (s *SessionHandler) Create(c fuego.ContextWithBody[domain.CreateSessionRequ
 		return domain.CreateSessionResponse{}, err
 	}
 	s.logger.Debug("Creating session", "input", input)
-	session, err := s.sessionService.CreateSession(c.Context(), domain.CreateSessionInput{
+	session, err := s.sessionService.CreateSession(c.Context(), service.CreateSessionInput{
 		OrgId:    authUser.OrgId,
 		Currency: input.Currency,
 		Country:  input.Country,

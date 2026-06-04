@@ -1,8 +1,9 @@
 package pubsub
 
 import (
-	"github.com/nats-io/nats.go"
 	"testing"
+
+	"github.com/nats-io/nats.go"
 
 	"time"
 )

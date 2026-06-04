@@ -4,7 +4,6 @@ import (
 	"github.com/go-fuego/fuego"
 	"github.com/go-fuego/fuego/option"
 
-	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
 )
@@ -42,7 +41,7 @@ func (s *WebhookSubscriptionHandler) Create(c fuego.ContextWithBody[CreateWebhoo
 	if err != nil {
 		return nil, err
 	}
-	webhook, err := s.webhookSubscriptionService.Create(c.Context(), domain.CreateWebhookSubscriptionInput{
+	webhook, err := s.webhookSubscriptionService.Create(c.Context(), service.CreateWebhookSubscriptionInput{
 		OrgId:  authUser.OrgId,
 		Url:    input.Url,
 		Events: input.Events,

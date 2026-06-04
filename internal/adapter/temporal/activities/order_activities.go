@@ -49,7 +49,7 @@ func (a *OrderActivities) log(ctx context.Context, msg string, keyvals ...any) {
 func (a *OrderActivities) CompleteOrder(ctx context.Context, paymentContext domain.PaymentWebhookContext) (domain.Order, error) {
 	a.log(ctx, "CompleteOrder", "OrgId", paymentContext.OrgId, "OrderId", paymentContext.OrderId)
 
-	order, err := a.orderService.CompleteCheckoutSession(ctx, domain.CompleteCheckoutSessionInput{
+	order, err := a.orderService.CompleteCheckoutSession(ctx, port.CompleteCheckoutSessionInput{
 		OrgId:          paymentContext.OrgId,
 		OrderId:        paymentContext.OrderId,
 		PaymentContext: paymentContext,
@@ -93,12 +93,12 @@ func (a *OrderActivities) HandleChargeResult(ctx context.Context, subscription d
 	a.log(ctx, "HandleChargeResult", "id", subscription.Id)
 
 	if chargeResult.Status == domain.PaymentStatusSucceeded {
-		return a.subscriptionService.HandleSubscriptionChargeSuccess(ctx, domain.SubscriptionChargeInput{
+		return a.subscriptionService.HandleSubscriptionChargeSuccess(ctx, port.SubscriptionChargeInput{
 			Subscription: subscription,
 			ChargeResult: chargeResult,
 		})
 	}
-	return a.subscriptionService.HandleSubscriptionChargeFailure(ctx, domain.SubscriptionChargeInput{
+	return a.subscriptionService.HandleSubscriptionChargeFailure(ctx, port.SubscriptionChargeInput{
 		Subscription: subscription,
 		ChargeResult: chargeResult,
 	})

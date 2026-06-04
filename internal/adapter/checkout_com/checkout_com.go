@@ -4,6 +4,9 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
+
 	"github.com/checkout/checkout-sdk-go"
 	checkout_common "github.com/checkout/checkout-sdk-go/common"
 	"github.com/checkout/checkout-sdk-go/configuration"
@@ -14,8 +17,6 @@ import (
 	"github.com/checkout/checkout-sdk-go/payments/nas"
 	"github.com/checkout/checkout-sdk-go/payments/nas/sources"
 	payment_sessions "github.com/checkout/checkout-sdk-go/payments/sessions"
-	"getpaidhq/internal/core/domain"
-	"getpaidhq/internal/core/port"
 )
 
 type CheckoutDotCom struct {

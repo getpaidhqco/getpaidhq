@@ -69,7 +69,7 @@ func NewOrderService(
 }
 
 // CreateOrder creates a new order from a session/cart or direct cart items.
-func (s *OrderService) CreateOrder(ctx context.Context, input domain.CreateOrderInput) (domain.CreateOrderResponse, error) {
+func (s *OrderService) CreateOrder(ctx context.Context, input CreateOrderInput) (domain.CreateOrderResponse, error) {
 	s.logger.Info("Creating order for cart", "session", input.SessionId)
 	orgId := input.OrgId
 	orderId := lib.GenerateId("order")
@@ -309,7 +309,7 @@ func (s *OrderService) ListOrderSubscriptions(ctx context.Context, orgId string,
 // (subscription workflow starts and the order.completed pubsub event) fire
 // only after the tx commits — running them inside would orphan workflows
 // and pubsub messages on rollback.
-func (s *OrderService) CompleteOrder(ctx context.Context, input domain.CompleteOrderInput) (domain.Order, error) {
+func (s *OrderService) CompleteOrder(ctx context.Context, input CompleteOrderInput) (domain.Order, error) {
 	s.logger.Infof("Completing order [%s][%s]", input.OrgId, input.Id)
 
 	var order domain.Order

@@ -16,12 +16,12 @@ import (
 // update/refund writes ProcessRefund performs.
 type fakeRefundPaymentRepo struct {
 	port.PaymentRepository
-	byPspId     domain.Payment
-	byPspIdErr  error
-	updateErr   error
-	refundErr   error
-	updated     []domain.Payment
-	refunds     []domain.Refund
+	byPspId    domain.Payment
+	byPspIdErr error
+	updateErr  error
+	refundErr  error
+	updated    []domain.Payment
+	refunds    []domain.Refund
 }
 
 func (r *fakeRefundPaymentRepo) FindByPspId(_ context.Context, _, _ string) (domain.Payment, error) {

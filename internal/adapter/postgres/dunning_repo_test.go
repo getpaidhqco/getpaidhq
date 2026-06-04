@@ -8,9 +8,10 @@ import (
 	"testing"
 	"time"
 
+	"getpaidhq/internal/core/port"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"getpaidhq/internal/core/port"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/lib"

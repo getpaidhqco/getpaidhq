@@ -45,18 +45,18 @@ func (f *fakeEngine) SignalSubscriptionWorkflow(ctx context.Context, signal stri
 // so reuse port.Logger directly via a no-op embed.
 type silentLogger struct{}
 
-func (silentLogger) Debug(string, ...any)              {}
-func (silentLogger) Info(string, ...any)               {}
-func (silentLogger) Warn(string, ...any)               {}
-func (silentLogger) Error(string, ...any)              {}
-func (silentLogger) Sync() error                       { return nil }
-func (silentLogger) Fatalf(string, ...any)             {}
-func (silentLogger) Fatal(string, ...any)              {}
-func (silentLogger) Infof(string, ...any)              {}
-func (silentLogger) Debugf(string, ...any)             {}
-func (silentLogger) Errorf(string, ...any)             {}
-func (silentLogger) Panicf(string, ...any)             {}
-func (silentLogger) Warnf(string, ...any)              {}
+func (silentLogger) Debug(string, ...any)  {}
+func (silentLogger) Info(string, ...any)   {}
+func (silentLogger) Warn(string, ...any)   {}
+func (silentLogger) Error(string, ...any)  {}
+func (silentLogger) Sync() error           { return nil }
+func (silentLogger) Fatalf(string, ...any) {}
+func (silentLogger) Fatal(string, ...any)  {}
+func (silentLogger) Infof(string, ...any)  {}
+func (silentLogger) Debugf(string, ...any) {}
+func (silentLogger) Errorf(string, ...any) {}
+func (silentLogger) Panicf(string, ...any) {}
+func (silentLogger) Warnf(string, ...any)  {}
 
 // fakePubSub captures the topic->handler registration so the test can inject
 // raw bytes directly.

@@ -1,9 +1,10 @@
 package lib
 
 import (
+	"log"
+
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
-	"log"
 )
 
 // Env has environment stored

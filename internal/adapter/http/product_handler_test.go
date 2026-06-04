@@ -42,8 +42,8 @@ func TestProductHandler_AuthzGuards(t *testing.T) {
 	}{
 		{"list", http.MethodGet, "/api/products", nil},
 		{"get", http.MethodGet, "/api/products/prod_1", nil},
-		{"create", http.MethodPost, "/api/products", domain.CreateProductInput{Name: "p", Variants: []domain.CreateProductVariantInput{{Name: "v", Prices: []domain.CreateProductPriceInput{{Category: "one_time", Scheme: "fixed", Currency: "USD", UnitPrice: 1}}}}}},
-		{"update", http.MethodPatch, "/api/products/prod_1", domain.UpdateProductInput{Name: "x"}},
+		{"create", http.MethodPost, "/api/products", CreateProductRequest{Name: "p", Variants: []CreateProductVariantRequest{{Name: "v", Prices: []CreateProductPriceRequest{{Category: "one_time", Scheme: "fixed", Currency: "USD", UnitPrice: 1}}}}}},
+		{"update", http.MethodPatch, "/api/products/prod_1", UpdateProductRequest{Name: "x"}},
 		{"delete", http.MethodDelete, "/api/products/prod_1", nil},
 	}
 	for _, tt := range tests {
@@ -115,10 +115,10 @@ func TestProductHandler_Create(t *testing.T) {
 		ts := newTestServer(fixedAuthMiddleware(adminUser()))
 		h.RegisterRoutes(ts.api())
 
-		rec := doJSON(t, ts, http.MethodPost, "/api/products", domain.CreateProductInput{
+		rec := doJSON(t, ts, http.MethodPost, "/api/products", CreateProductRequest{
 			Name: "Subscription",
-			Variants: []domain.CreateProductVariantInput{
-				{Name: "Monthly", Prices: []domain.CreateProductPriceInput{
+			Variants: []CreateProductVariantRequest{
+				{Name: "Monthly", Prices: []CreateProductPriceRequest{
 					{Category: "subscription", Scheme: "fixed", Currency: "USD", UnitPrice: 1000},
 				}},
 			},
@@ -187,7 +187,7 @@ func TestProductHandler_Update(t *testing.T) {
 	ts := newTestServer(fixedAuthMiddleware(adminUser()))
 	h.RegisterRoutes(ts.api())
 
-	rec := doJSON(t, ts, http.MethodPatch, "/api/products/prod_1", domain.UpdateProductInput{Name: "New"})
+	rec := doJSON(t, ts, http.MethodPatch, "/api/products/prod_1", UpdateProductRequest{Name: "New"})
 
 	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
 	require.Len(t, prod.updated, 1)
@@ -201,7 +201,7 @@ func TestProductHandler_CreateVariant(t *testing.T) {
 	ts := newTestServer(fixedAuthMiddleware(adminUser()))
 	h.RegisterRoutes(ts.api())
 
-	rec := doJSON(t, ts, http.MethodPost, "/api/products/prod_1/variants", domain.CreateVariantInput{Name: "Yearly"})
+	rec := doJSON(t, ts, http.MethodPost, "/api/products/prod_1/variants", CreateVariantRequest{Name: "Yearly"})
 
 	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
 	require.Len(t, variant.created, 1)
@@ -226,7 +226,7 @@ func TestProductHandler_UpdateVariant(t *testing.T) {
 	ts := newTestServer(fixedAuthMiddleware(adminUser()))
 	h.RegisterRoutes(ts.api())
 
-	rec := doJSON(t, ts, http.MethodPut, "/api/variants/var_1", domain.UpdateVariantInput{Name: "Yearly"})
+	rec := doJSON(t, ts, http.MethodPut, "/api/variants/var_1", UpdateVariantRequest{Name: "Yearly"})
 
 	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
 }

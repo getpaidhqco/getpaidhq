@@ -51,14 +51,14 @@ type DunningRepository interface {
 // steps depend on this; HTTP handlers depend on DunningOrchestrationService.
 type DunningService interface {
 	// Campaign lifecycle
-	CreateCampaign(ctx context.Context, input domain.CreateDunningCampaignInput) (domain.DunningCampaign, error)
+	CreateCampaign(ctx context.Context, input CreateDunningCampaignInput) (domain.DunningCampaign, error)
 	FindCampaignById(ctx context.Context, orgId string, id string) (domain.DunningCampaign, error)
 	ListCampaigns(ctx context.Context, orgId string, p domain.Pagination) ([]domain.DunningCampaign, int, error)
 	ListCampaignsBySubscription(ctx context.Context, orgId string, subscriptionId string, p domain.Pagination) ([]domain.DunningCampaign, int, error)
 	ListCampaignsByCustomer(ctx context.Context, orgId string, customerId string, p domain.Pagination) ([]domain.DunningCampaign, int, error)
-	PauseCampaign(ctx context.Context, input domain.PauseDunningCampaignInput) (domain.DunningCampaign, error)
-	ResumeCampaign(ctx context.Context, input domain.ResumeDunningCampaignInput) (domain.DunningCampaign, error)
-	CancelCampaign(ctx context.Context, input domain.CancelDunningCampaignInput) (domain.DunningCampaign, error)
+	PauseCampaign(ctx context.Context, input PauseDunningCampaignInput) (domain.DunningCampaign, error)
+	ResumeCampaign(ctx context.Context, input ResumeDunningCampaignInput) (domain.DunningCampaign, error)
+	CancelCampaign(ctx context.Context, input CancelDunningCampaignInput) (domain.DunningCampaign, error)
 	UpdateCampaign(ctx context.Context, campaign domain.DunningCampaign) (domain.DunningCampaign, error)
 	MarkCampaignRecovered(ctx context.Context, orgId string, campaignId string, recoveryMethod string, recoveredAmount int64) (domain.DunningCampaign, error)
 	MarkCampaignFailed(ctx context.Context, orgId string, campaignId string, finalFailureReason string) (domain.DunningCampaign, error)
@@ -69,7 +69,7 @@ type DunningService interface {
 
 	// Attempts
 	ListAttemptsByCampaign(ctx context.Context, orgId string, campaignId string, p domain.Pagination) ([]domain.DunningAttempt, int, error)
-	TriggerManualAttempt(ctx context.Context, input domain.TriggerManualAttemptInput) (domain.DunningAttempt, error)
+	TriggerManualAttempt(ctx context.Context, input TriggerManualAttemptInput) (domain.DunningAttempt, error)
 	UpdateCampaignWithAttemptResult(ctx context.Context, attempt domain.DunningAttempt, config domain.DunningConfig, attemptContext domain.DunningAttemptContext) (domain.DunningCampaign, error)
 	ExecuteAttempt(ctx context.Context, orgId string, campaignId string, attemptType domain.DunningAttemptType) (domain.DunningAttempt, error)
 
@@ -78,16 +78,16 @@ type DunningService interface {
 	SendCommunication(ctx context.Context, orgId string, campaignId string, attemptNumber int) error
 
 	// Tokens
-	CreatePaymentUpdateToken(ctx context.Context, input domain.CreatePaymentUpdateTokenInput) (domain.PaymentUpdateToken, error)
+	CreatePaymentUpdateToken(ctx context.Context, input CreatePaymentUpdateTokenInput) (domain.PaymentUpdateToken, error)
 	VerifyPaymentUpdateToken(ctx context.Context, orgId string, tokenId string) (domain.PaymentUpdateToken, error)
-	ActivatePaymentUpdateToken(ctx context.Context, input domain.ActivatePaymentUpdateTokenInput) (domain.PaymentUpdateToken, error)
+	ActivatePaymentUpdateToken(ctx context.Context, input ActivatePaymentUpdateTokenInput) (domain.PaymentUpdateToken, error)
 	RevokePaymentUpdateToken(ctx context.Context, orgId string, tokenId string) (domain.PaymentUpdateToken, error)
 
 	// Configurations
-	CreateConfiguration(ctx context.Context, input domain.CreateDunningConfigurationInput) (domain.DunningConfiguration, error)
+	CreateConfiguration(ctx context.Context, input CreateDunningConfigurationInput) (domain.DunningConfiguration, error)
 	GetConfiguration(ctx context.Context, orgId string, id string) (domain.DunningConfiguration, error)
 	ListConfigurations(ctx context.Context, orgId string, p domain.Pagination) ([]domain.DunningConfiguration, int, error)
-	UpdateConfiguration(ctx context.Context, input domain.UpdateDunningConfigurationInput) (domain.DunningConfiguration, error)
+	UpdateConfiguration(ctx context.Context, input UpdateDunningConfigurationInput) (domain.DunningConfiguration, error)
 	ResolveConfig(ctx context.Context, orgId string) (domain.DunningConfig, error)
 	// LoadConfigForCampaign prefers the snapshot stored on the campaign at
 	// start time; falls back to ResolveConfig if the snapshot is empty (e.g.
@@ -105,7 +105,7 @@ type DunningService interface {
 // Returns (workflowId, workflowRunId, error). The workflow handle is stored on
 // the campaign so the orchestrator can address it later (signals, cancel).
 type DunningEngine interface {
-	StartDunningWorkflow(ctx context.Context, input domain.StartDunningWorkflowInput) (string, string, error)
+	StartDunningWorkflow(ctx context.Context, input StartDunningWorkflowInput) (string, string, error)
 	SignalDunningWorkflow(ctx context.Context, signal string, campaign domain.DunningCampaign, payload any) error
 	CancelDunningWorkflow(ctx context.Context, campaign domain.DunningCampaign) error
 }

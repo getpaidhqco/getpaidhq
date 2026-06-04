@@ -65,7 +65,7 @@ func NewBillingCycleRunnerWorkflow(client *hatchet.Client, subscriptionService p
 			}
 
 			// 3. Apply the result (idempotent per cycle — see plan Task 0).
-			input := domain.SubscriptionChargeInput{Subscription: sub, ChargeResult: chargeResult}
+			input := port.SubscriptionChargeInput{Subscription: sub, ChargeResult: chargeResult}
 			if chargeResult.Status == domain.PaymentStatusSucceeded {
 				return subscriptionService.HandleSubscriptionChargeSuccess(ctx, input)
 			}

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
+	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 
 	"getpaidhq/internal/adapter/hatchet/steps"
 	"getpaidhq/internal/adapter/hatchet/workflows"
@@ -22,11 +22,13 @@ import (
 // a real DAG workflow end-to-end.
 //
 // Prerequisites:
-//   docker compose -f docker/docker-compose.yml up -d postgresql hatchet-lite
+//
+//	docker compose -f docker/docker-compose.yml up -d postgresql hatchet-lite
 //
 // Run:
-//   HATCHET_CLIENT_TOKEN=*** \
-//   go test -v -tags=integration -run TestHatchetIntegration ./internal/adapter/hatchet/
+//
+//	HATCHET_CLIENT_TOKEN=*** \
+//	go test -v -tags=integration -run TestHatchetIntegration ./internal/adapter/hatchet/
 func TestHatchetIntegration(t *testing.T) {
 	token := os.Getenv("HATCHET_CLIENT_TOKEN")
 	if token == "" {

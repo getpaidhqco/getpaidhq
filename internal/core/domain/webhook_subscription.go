@@ -13,10 +13,3 @@ type WebhookSubscription struct {
 }
 
 func (WebhookSubscription) TableName() string { return "webhook_subscriptions" }
-
-type CreateWebhookSubscriptionInput struct {
-	OrgId  string   `json:"org_id"`
-	Url    string   `json:"url"`
-	Events []string `json:"events"`
-	Secret string   `json:"secret"`
-}

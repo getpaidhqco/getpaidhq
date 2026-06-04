@@ -43,10 +43,10 @@ import (
 )
 
 var (
-	sharedDB    *gorm.DB
-	sharedOnce  sync.Once
-	sharedErr   error
-	container   *postgres.PostgresContainer
+	sharedDB   *gorm.DB
+	sharedOnce sync.Once
+	sharedErr  error
+	container  *postgres.PostgresContainer
 )
 
 func allModels() []any {

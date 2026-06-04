@@ -54,7 +54,7 @@ func NewDunningService(
 
 // ---- Campaigns ----
 
-func (s *DunningService) CreateCampaign(ctx context.Context, input domain.CreateDunningCampaignInput) (domain.DunningCampaign, error) {
+func (s *DunningService) CreateCampaign(ctx context.Context, input port.CreateDunningCampaignInput) (domain.DunningCampaign, error) {
 	s.logger.Info("Creating dunning campaign", "orgId", input.OrgId, "subscriptionId", input.SubscriptionId)
 
 	if _, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.SubscriptionId); err != nil {
@@ -114,7 +114,7 @@ func (s *DunningService) ListCampaignsByCustomer(ctx context.Context, orgId, cus
 	return s.dunningRepository.FindCampaignsByCustomerId(ctx, orgId, customerId, p)
 }
 
-func (s *DunningService) PauseCampaign(ctx context.Context, input domain.PauseDunningCampaignInput) (domain.DunningCampaign, error) {
+func (s *DunningService) PauseCampaign(ctx context.Context, input port.PauseDunningCampaignInput) (domain.DunningCampaign, error) {
 	c, err := s.FindCampaignById(ctx, input.OrgId, input.CampaignId)
 	if err != nil {
 		return domain.DunningCampaign{}, err
@@ -132,7 +132,7 @@ func (s *DunningService) PauseCampaign(ctx context.Context, input domain.PauseDu
 	return updated, nil
 }
 
-func (s *DunningService) ResumeCampaign(ctx context.Context, input domain.ResumeDunningCampaignInput) (domain.DunningCampaign, error) {
+func (s *DunningService) ResumeCampaign(ctx context.Context, input port.ResumeDunningCampaignInput) (domain.DunningCampaign, error) {
 	c, err := s.FindCampaignById(ctx, input.OrgId, input.CampaignId)
 	if err != nil {
 		return domain.DunningCampaign{}, err
@@ -150,7 +150,7 @@ func (s *DunningService) ResumeCampaign(ctx context.Context, input domain.Resume
 	return updated, nil
 }
 
-func (s *DunningService) CancelCampaign(ctx context.Context, input domain.CancelDunningCampaignInput) (domain.DunningCampaign, error) {
+func (s *DunningService) CancelCampaign(ctx context.Context, input port.CancelDunningCampaignInput) (domain.DunningCampaign, error) {
 	c, err := s.FindCampaignById(ctx, input.OrgId, input.CampaignId)
 	if err != nil {
 		return domain.DunningCampaign{}, err
@@ -251,7 +251,7 @@ func (s *DunningService) ListAttemptsByCampaign(ctx context.Context, orgId, camp
 // TriggerManualAttempt is the same flow as ExecuteAttempt but recorded with
 // AttemptType=manual and a TriggeredBy stamp from the caller. Used by the
 // admin HTTP endpoint and the payment-method-updated signal handler.
-func (s *DunningService) TriggerManualAttempt(ctx context.Context, input domain.TriggerManualAttemptInput) (domain.DunningAttempt, error) {
+func (s *DunningService) TriggerManualAttempt(ctx context.Context, input port.TriggerManualAttemptInput) (domain.DunningAttempt, error) {
 	s.logger.Info("Triggering manual dunning attempt", "campaignId", input.CampaignId)
 	attempt, err := s.runChargeAttempt(ctx, input.OrgId, input.CampaignId, domain.DunningAttemptTypeManual, input.TriggeredBy, input.PaymentMethodId)
 	if err != nil {
@@ -501,7 +501,7 @@ func (s *DunningService) SendCommunication(ctx context.Context, orgId, campaignI
 
 // ---- Tokens ----
 
-func (s *DunningService) CreatePaymentUpdateToken(ctx context.Context, input domain.CreatePaymentUpdateTokenInput) (domain.PaymentUpdateToken, error) {
+func (s *DunningService) CreatePaymentUpdateToken(ctx context.Context, input port.CreatePaymentUpdateTokenInput) (domain.PaymentUpdateToken, error) {
 	s.logger.Info("Creating payment update token", "subscriptionId", input.SubscriptionId)
 
 	if _, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.SubscriptionId); err != nil {
@@ -528,7 +528,7 @@ func (s *DunningService) CreatePaymentUpdateToken(ctx context.Context, input dom
 	expiresAt := now.Add(time.Duration(expiryHours) * time.Hour)
 	token := domain.PaymentUpdateToken{
 		OrgId:             input.OrgId,
-		TokenId:            lib.GenerateId("payment_update_token"),
+		TokenId:           lib.GenerateId("payment_update_token"),
 		SubscriptionId:    input.SubscriptionId,
 		CustomerId:        input.CustomerId,
 		DunningCampaignId: input.DunningCampaignId,
@@ -579,7 +579,7 @@ func (s *DunningService) VerifyPaymentUpdateToken(ctx context.Context, orgId, to
 	return t, nil
 }
 
-func (s *DunningService) ActivatePaymentUpdateToken(ctx context.Context, input domain.ActivatePaymentUpdateTokenInput) (domain.PaymentUpdateToken, error) {
+func (s *DunningService) ActivatePaymentUpdateToken(ctx context.Context, input port.ActivatePaymentUpdateTokenInput) (domain.PaymentUpdateToken, error) {
 	t, err := s.VerifyPaymentUpdateToken(ctx, input.OrgId, input.TokenId)
 	if err != nil {
 		return domain.PaymentUpdateToken{}, err
@@ -618,7 +618,7 @@ func (s *DunningService) RevokePaymentUpdateToken(ctx context.Context, orgId, to
 
 // ---- Configurations ----
 
-func (s *DunningService) CreateConfiguration(ctx context.Context, input domain.CreateDunningConfigurationInput) (domain.DunningConfiguration, error) {
+func (s *DunningService) CreateConfiguration(ctx context.Context, input port.CreateDunningConfigurationInput) (domain.DunningConfiguration, error) {
 	configMap, err := configToMap(input.Config)
 	if err != nil {
 		return domain.DunningConfiguration{}, lib.NewCustomError(lib.BadRequestError, "Invalid dunning config", err)
@@ -660,7 +660,7 @@ func (s *DunningService) ListConfigurations(ctx context.Context, orgId string, p
 	return s.dunningRepository.FindConfigurations(ctx, orgId, p)
 }
 
-func (s *DunningService) UpdateConfiguration(ctx context.Context, input domain.UpdateDunningConfigurationInput) (domain.DunningConfiguration, error) {
+func (s *DunningService) UpdateConfiguration(ctx context.Context, input port.UpdateDunningConfigurationInput) (domain.DunningConfiguration, error) {
 	c, err := s.GetConfiguration(ctx, input.OrgId, input.Id)
 	if err != nil {
 		return domain.DunningConfiguration{}, err
@@ -778,4 +778,3 @@ func configFromMap(m map[string]any) (domain.DunningConfig, error) {
 	}
 	return c, nil
 }
-

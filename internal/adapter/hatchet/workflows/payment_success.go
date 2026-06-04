@@ -15,9 +15,9 @@ import (
 //  1. complete-order:        Mark the order paid and capture the row.
 //  2. get-subscriptions:     Load any subscriptions tied to the order.
 //  3. spawn-subscription-runner:
-//                            Start the long-running subscription-runner durable
-//                            task via the engine port — same code path as the
-//                            HTTP /orders/:id/complete handler.
+//     Start the long-running subscription-runner durable
+//     task via the engine port — same code path as the
+//     HTTP /orders/:id/complete handler.
 //
 // Only the first subscription is processed — preserving today's behaviour
 // intentionally.
@@ -31,7 +31,7 @@ func NewPaymentSuccessWorkflow(
 
 	completeOrder := wf.NewTask("complete-order",
 		func(ctx hatchet.Context, input PaymentSuccessInput) (domain.Order, error) {
-			return orderService.CompleteCheckoutSession(ctx, domain.CompleteCheckoutSessionInput{
+			return orderService.CompleteCheckoutSession(ctx, port.CompleteCheckoutSessionInput{
 				OrgId:          input.PaymentContext.OrgId,
 				OrderId:        input.PaymentContext.OrderId,
 				PaymentContext: input.PaymentContext,

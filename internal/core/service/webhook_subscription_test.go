@@ -49,7 +49,7 @@ func TestWebhookSubscriptionService_Create(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newWebhookSubscriptionService(repo, ps)
 
-		got, err := svc.Create(context.Background(), domain.CreateWebhookSubscriptionInput{
+		got, err := svc.Create(context.Background(), CreateWebhookSubscriptionInput{
 			OrgId: "org_1", Url: "https://example.com/hook", Events: []string{"order.completed"}, Secret: "sek",
 		})
 
@@ -65,7 +65,7 @@ func TestWebhookSubscriptionService_Create(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newWebhookSubscriptionService(repo, ps)
 
-		_, err := svc.Create(context.Background(), domain.CreateWebhookSubscriptionInput{OrgId: "org_1"})
+		_, err := svc.Create(context.Background(), CreateWebhookSubscriptionInput{OrgId: "org_1"})
 
 		require.Error(t, err)
 		assert.False(t, ps.hasTopic(port.TopicWebhookSubscriptionCreated))

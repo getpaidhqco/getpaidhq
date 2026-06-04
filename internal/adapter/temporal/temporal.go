@@ -223,7 +223,7 @@ func (t *Temporal) SignalSubscriptionWorkflow(ctx context.Context, signal string
 
 // ---- port.DunningEngine ----
 
-func (t *Temporal) StartDunningWorkflow(ctx context.Context, input domain.StartDunningWorkflowInput) (string, string, error) {
+func (t *Temporal) StartDunningWorkflow(ctx context.Context, input port.StartDunningWorkflowInput) (string, string, error) {
 	campaignId := ""
 	if input.Metadata != nil {
 		campaignId = input.Metadata["campaign_id"]

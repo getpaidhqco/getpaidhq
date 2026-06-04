@@ -35,18 +35,18 @@ import (
 // preserve the interface contract relied on elsewhere.
 type noopLogger struct{}
 
-func (noopLogger) Debug(string, ...any)          {}
-func (noopLogger) Info(string, ...any)           {}
-func (noopLogger) Warn(string, ...any)           {}
-func (noopLogger) Error(string, ...any)          {}
-func (noopLogger) Fatal(string, ...any)          {}
-func (noopLogger) Debugf(string, ...any)         {}
-func (noopLogger) Infof(string, ...any)          {}
-func (noopLogger) Warnf(string, ...any)          {}
-func (noopLogger) Errorf(string, ...any)         {}
-func (noopLogger) Panicf(t string, a ...any)     { panic(t) }
-func (noopLogger) Fatalf(string, ...any)         {}
-func (noopLogger) Sync() error                   { return nil }
+func (noopLogger) Debug(string, ...any)      {}
+func (noopLogger) Info(string, ...any)       {}
+func (noopLogger) Warn(string, ...any)       {}
+func (noopLogger) Error(string, ...any)      {}
+func (noopLogger) Fatal(string, ...any)      {}
+func (noopLogger) Debugf(string, ...any)     {}
+func (noopLogger) Infof(string, ...any)      {}
+func (noopLogger) Warnf(string, ...any)      {}
+func (noopLogger) Errorf(string, ...any)     {}
+func (noopLogger) Panicf(t string, a ...any) { panic(t) }
+func (noopLogger) Fatalf(string, ...any)     {}
+func (noopLogger) Sync() error               { return nil }
 
 // noopPubSub satisfies port.PubSub without any transport. SubscriptionService's
 // constructor subscribes to "subscription.workflow.>", and the charge handlers
@@ -201,7 +201,7 @@ func TestBillingChargeAdvancesState(t *testing.T) {
 	assert.NotEmpty(t, result.Reference)
 
 	// (b) Apply the success -> state advances + a payment row is written.
-	updated, err := svc.HandleSubscriptionChargeSuccess(ctx, domain.SubscriptionChargeInput{
+	updated, err := svc.HandleSubscriptionChargeSuccess(ctx, port.SubscriptionChargeInput{
 		Subscription: sub,
 		ChargeResult: result,
 	})
@@ -227,7 +227,7 @@ func TestBillingChargeAdvancesState(t *testing.T) {
 	// be a no-op. The handler's per-cycle guard sees the persisted row already
 	// advanced past the snapshot's cycle and skips, so cycles do NOT advance
 	// again and no duplicate payment is written.
-	again, err := svc.HandleSubscriptionChargeSuccess(ctx, domain.SubscriptionChargeInput{
+	again, err := svc.HandleSubscriptionChargeSuccess(ctx, port.SubscriptionChargeInput{
 		Subscription: sub, // still CyclesProcessed == 0
 		ChargeResult: result,
 	})

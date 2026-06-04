@@ -1,37 +1,19 @@
 package domain
 
-import "time"
-
+// CartItem is an item in a shopping cart or order.
 type CartItem struct {
 	ProductId string `json:"product_id" validate:"required"`
 	PriceId   string `json:"price_id" validate:"required"`
 	Quantity  int    `json:"quantity" validate:"required"`
 }
 
-type CreateOrderInput struct {
-	OrgId           string                     `json:"org_id" validate:"required"`
-	Customer        CreateOrderCommandCustomer `json:"customer" validate:"required"`
-	SessionId       string                     `json:"session_id"`
-	Currency        string                     `json:"currency"`
-	CartItems       []CartItem                 `json:"items"`
-	PspId           Gateway                    `json:"psp_id" validate:"required"`
-	PaymentMethodId string                     `json:"payment_method_id"`
-	Metadata        map[string]string          `json:"metadata"`
-	Options         map[string]string          `json:"options"`
-}
-
+// CreateOrderResponse is the result of a successful order creation.
 type CreateOrderResponse struct {
 	Order Order               `json:"order"`
 	Psp   InitPaymentResponse `json:"psp"`
 }
 
-type CompleteCheckoutSessionInput struct {
-	OrgId          string                `json:"org_id" validate:"required"`
-	OrderId        string                `json:"cart_id" validate:"required"`
-	PaymentContext PaymentWebhookContext `json:"payment_context"`
-	Metadata       map[string]string     `json:"metadata"`
-}
-
+// CreateOrderCommandCustomer holds the customer details provided when creating an order.
 type CreateOrderCommandCustomer struct {
 	Id        string            `json:"id"`
 	Email     string            `json:"email"`
@@ -41,35 +23,7 @@ type CreateOrderCommandCustomer struct {
 	Metadata  map[string]string `json:"metadata"`
 }
 
-type CompleteOrderInput struct {
-	OrgId           string                          `json:"org_id"`
-	Id              string                          `json:"id"`
-	PaymentMethodId string                          `json:"payment_method_id"`
-	PaymentMethod   CompleteOrderInputPaymentMethod `json:"payment_method"`
-	Payment         CompleteOrderInputPayment       `json:"payment"`
-	Metadata        map[string]string               `json:"metadata"`
-}
-
-type CompleteOrderInputPayment struct {
-	PspId       string            `json:"psp_id"`
-	CompletedAt time.Time         `json:"completed_at"`
-	Reference   string            `json:"reference"`
-	Amount      int64             `json:"amount"`
-	Currency    string            `json:"currency"`
-	Metadata    map[string]string `json:"metadata"`
-}
-
-type CompleteOrderInputPaymentMethod struct {
-	Psp            string            `json:"psp"`
-	Name           string            `json:"name"`
-	IsDefault      bool              `json:"is_default"`
-	BillingAddress Address           `json:"billing_address"`
-	Type           PaymentMethodType `json:"type" validate:"required"`
-	Details        any               `json:"details"`
-	Token          string            `json:"token"`
-	Metadata       map[string]string `json:"metadata"`
-}
-
+// CreateOrderRow is the database row shape for order creation.
 type CreateOrderRow struct {
 	OrgId     string                     `json:"org_id" validate:"required"`
 	Customer  CreateOrderCommandCustomer `json:"customer" validate:"required"`
@@ -78,6 +32,7 @@ type CreateOrderRow struct {
 	Metadata  map[string]string          `json:"metadata"`
 }
 
+// CartInput holds cart pricing details.
 type CartInput struct {
 	Currency     string  `json:"currency" validate:"required"`
 	Total        float64 `json:"total" validate:"required"`

@@ -430,7 +430,7 @@ func TestDunningService_ActivatePaymentUpdateToken(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newDunningServiceForTest(dr, &fakeSubRepo{}, ps)
 
-		got, err := svc.ActivatePaymentUpdateToken(context.Background(), domain.ActivatePaymentUpdateTokenInput{
+		got, err := svc.ActivatePaymentUpdateToken(context.Background(), port.ActivatePaymentUpdateTokenInput{
 			OrgId: "org_1", TokenId: "tok_1", UsedIp: "203.0.113.7",
 		})
 
@@ -447,7 +447,7 @@ func TestDunningService_ActivatePaymentUpdateToken(t *testing.T) {
 		}}
 		svc := newDunningServiceForTest(dr, &fakeSubRepo{}, &recordingPubSub{})
 
-		got, err := svc.ActivatePaymentUpdateToken(context.Background(), domain.ActivatePaymentUpdateTokenInput{
+		got, err := svc.ActivatePaymentUpdateToken(context.Background(), port.ActivatePaymentUpdateTokenInput{
 			OrgId: "org_1", TokenId: "tok_1",
 		})
 
@@ -463,7 +463,7 @@ func TestDunningService_ActivatePaymentUpdateToken(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newDunningServiceForTest(dr, &fakeSubRepo{}, ps)
 
-		_, err := svc.ActivatePaymentUpdateToken(context.Background(), domain.ActivatePaymentUpdateTokenInput{OrgId: "org_1", TokenId: "tok_1"})
+		_, err := svc.ActivatePaymentUpdateToken(context.Background(), port.ActivatePaymentUpdateTokenInput{OrgId: "org_1", TokenId: "tok_1"})
 
 		require.Error(t, err)
 		assert.False(t, ps.hasTopic(port.TopicDunningTokenActivated), "no activation event on rejected token")

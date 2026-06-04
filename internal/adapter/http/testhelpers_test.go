@@ -352,13 +352,13 @@ func (e *recordingEngine) SignalSubscriptionWorkflow(context.Context, string, do
 // recordingDunningEngine satisfies port.DunningEngine.
 type recordingDunningEngine struct {
 	mu        sync.Mutex
-	started   []domain.StartDunningWorkflowInput
+	started   []port.StartDunningWorkflowInput
 	signals   []string
 	cancelled []domain.DunningCampaign
 	startErr  error
 }
 
-func (e *recordingDunningEngine) StartDunningWorkflow(_ context.Context, in domain.StartDunningWorkflowInput) (string, string, error) {
+func (e *recordingDunningEngine) StartDunningWorkflow(_ context.Context, in port.StartDunningWorkflowInput) (string, string, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	if e.startErr != nil {
@@ -606,8 +606,10 @@ func (r *fakeVariantRepo) FindByProductId(context.Context, string, string, domai
 	return r.listResult, total, nil
 }
 
-func (r *fakeVariantRepo) Update(_ context.Context, v domain.Variant) (domain.Variant, error) { return v, nil }
-func (r *fakeVariantRepo) Delete(context.Context, string, string) error                       { return nil }
+func (r *fakeVariantRepo) Update(_ context.Context, v domain.Variant) (domain.Variant, error) {
+	return v, nil
+}
+func (r *fakeVariantRepo) Delete(context.Context, string, string) error { return nil }
 
 // fakePriceRepo satisfies port.PriceRepository.
 type fakePriceRepo struct {
@@ -639,8 +641,10 @@ func (r *fakePriceRepo) FindByVariantId(context.Context, string, string, domain.
 	return r.listResult, total, nil
 }
 
-func (r *fakePriceRepo) Update(_ context.Context, p domain.Price) (domain.Price, error) { return p, nil }
-func (r *fakePriceRepo) Delete(context.Context, string, string) error                   { return nil }
+func (r *fakePriceRepo) Update(_ context.Context, p domain.Price) (domain.Price, error) {
+	return p, nil
+}
+func (r *fakePriceRepo) Delete(context.Context, string, string) error { return nil }
 
 // fakeSessionRepo satisfies port.SessionRepository.
 type fakeSessionRepo struct {
