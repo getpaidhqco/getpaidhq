@@ -2,9 +2,10 @@ package redis
 
 import (
 	"context"
-	"github.com/redis/go-redis/v9"
 	"getpaidhq/internal/core/port"
 	"time"
+
+	"github.com/redis/go-redis/v9"
 )
 
 // RedisClient is a concrete implementation of the Cache interface using Redis.

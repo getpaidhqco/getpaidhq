@@ -183,9 +183,9 @@ func TestDunningRunnerWorkflow(t *testing.T) {
 
 		config := domain.DunningConfig{
 			ImmediateRetries: domain.ImmediateRetriesConfig{
-				Enabled:     true,
-				MaxAttempts: 2,
-				Intervals:   []string{"1m", "5m"},
+				Enabled:      true,
+				MaxAttempts:  2,
+				Intervals:    []string{"1m", "5m"},
 				FailureTypes: []string{"rate_limit"},
 			},
 		}

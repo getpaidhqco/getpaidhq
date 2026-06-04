@@ -119,15 +119,15 @@ func (h *DunningHandler) UpdateCampaign(c fuego.ContextWithBody[UpdateDunningCam
 	var campaign domain.DunningCampaign
 	switch input.Status {
 	case "paused":
-		campaign, err = h.dunningService.PauseCampaign(c.Context(), domain.PauseDunningCampaignInput{
+		campaign, err = h.dunningService.PauseCampaign(c.Context(), port.PauseDunningCampaignInput{
 			OrgId: authUser.OrgId, CampaignId: id, Reason: input.Reason,
 		})
 	case "active":
-		campaign, err = h.dunningService.ResumeCampaign(c.Context(), domain.ResumeDunningCampaignInput{
+		campaign, err = h.dunningService.ResumeCampaign(c.Context(), port.ResumeDunningCampaignInput{
 			OrgId: authUser.OrgId, CampaignId: id, Reason: input.Reason,
 		})
 	case "cancelled":
-		campaign, err = h.dunningService.CancelCampaign(c.Context(), domain.CancelDunningCampaignInput{
+		campaign, err = h.dunningService.CancelCampaign(c.Context(), port.CancelDunningCampaignInput{
 			OrgId: authUser.OrgId, CampaignId: id, Reason: input.Reason,
 		})
 	default:
@@ -170,7 +170,7 @@ func (h *DunningHandler) TriggerManualAttempt(c fuego.ContextWithBody[TriggerMan
 	if err != nil {
 		return DunningAttemptResponse{}, err
 	}
-	attempt, err := h.dunningService.TriggerManualAttempt(c.Context(), domain.TriggerManualAttemptInput{
+	attempt, err := h.dunningService.TriggerManualAttempt(c.Context(), port.TriggerManualAttemptInput{
 		OrgId:           authUser.OrgId,
 		CampaignId:      id,
 		PaymentMethodId: input.PaymentMethodID,
@@ -223,7 +223,7 @@ func (h *DunningHandler) ActivatePaymentToken(c fuego.ContextWithBody[ActivatePa
 	if err != nil {
 		return PaymentUpdateTokenResponse{}, err
 	}
-	token, err := h.dunningService.ActivatePaymentUpdateToken(c.Context(), domain.ActivatePaymentUpdateTokenInput{
+	token, err := h.dunningService.ActivatePaymentUpdateToken(c.Context(), port.ActivatePaymentUpdateTokenInput{
 		OrgId:   authUser.OrgId,
 		TokenId: input.TokenID,
 		UsedIp:  clientIP(c.Request(), h.trustedProxies),
@@ -250,7 +250,7 @@ func (h *DunningHandler) CreatePaymentToken(c fuego.ContextWithBody[CreatePaymen
 		return PaymentUpdateTokenResponse{}, NewApiErrorFromError(err)
 	}
 
-	token, err := h.dunningService.CreatePaymentUpdateToken(c.Context(), domain.CreatePaymentUpdateTokenInput{
+	token, err := h.dunningService.CreatePaymentUpdateToken(c.Context(), port.CreatePaymentUpdateTokenInput{
 		OrgId:          authUser.OrgId,
 		SubscriptionId: subscription.Id,
 		CustomerId:     subscription.CustomerId,
@@ -311,7 +311,7 @@ func (h *DunningHandler) CreateConfiguration(c fuego.ContextWithBody[CreateDunni
 	if err != nil {
 		return DunningConfigurationResponse{}, err
 	}
-	cfg, err := h.dunningService.CreateConfiguration(c.Context(), domain.CreateDunningConfigurationInput{
+	cfg, err := h.dunningService.CreateConfiguration(c.Context(), port.CreateDunningConfigurationInput{
 		OrgId:            authUser.OrgId,
 		Name:             input.Name,
 		Description:      input.Description,
@@ -340,7 +340,7 @@ func (h *DunningHandler) UpdateConfiguration(c fuego.ContextWithBody[UpdateDunni
 	if err != nil {
 		return DunningConfigurationResponse{}, err
 	}
-	cfg, err := h.dunningService.UpdateConfiguration(c.Context(), domain.UpdateDunningConfigurationInput{
+	cfg, err := h.dunningService.UpdateConfiguration(c.Context(), port.UpdateDunningConfigurationInput{
 		OrgId:            authUser.OrgId,
 		Id:               id,
 		Name:             input.Name,

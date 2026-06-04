@@ -1,8 +1,9 @@
 package postgres
 
 import (
-	"gorm.io/gorm"
 	"getpaidhq/internal/core/port"
+
+	"gorm.io/gorm"
 )
 
 type UserRepo struct {

@@ -74,7 +74,7 @@ func (s *DunningOrchestrationService) HandleSubscriptionChargeFailure(topic stri
 		return
 	}
 
-	if _, err := s.StartDunningWorkflow(context.Background(), domain.StartDunningWorkflowInput{
+	if _, err := s.StartDunningWorkflow(context.Background(), port.StartDunningWorkflowInput{
 		OrgId:                payload.Subscription.OrgId,
 		SubscriptionId:       payload.Subscription.Id,
 		CustomerId:           payload.Subscription.CustomerId,
@@ -106,7 +106,7 @@ func (s *DunningOrchestrationService) HandleSubscriptionChargeFailure(topic stri
 // stored on the campaign reflects the policy in force at campaign start; the
 // runner reads back the snapshot instead of re-resolving live config on every
 // resume.
-func (s *DunningOrchestrationService) StartDunningWorkflow(ctx context.Context, input domain.StartDunningWorkflowInput) (domain.DunningCampaign, error) {
+func (s *DunningOrchestrationService) StartDunningWorkflow(ctx context.Context, input port.StartDunningWorkflowInput) (domain.DunningCampaign, error) {
 	s.logger.Info("Starting dunning workflow", "orgId", input.OrgId, "subscriptionId", input.SubscriptionId)
 
 	resolved, err := s.ResolveConfig(ctx, input.OrgId)
@@ -120,7 +120,7 @@ func (s *DunningOrchestrationService) StartDunningWorkflow(ctx context.Context, 
 		snapshot = nil
 	}
 
-	campaign, err := s.CreateCampaign(ctx, domain.CreateDunningCampaignInput{
+	campaign, err := s.CreateCampaign(ctx, port.CreateDunningCampaignInput{
 		OrgId:                input.OrgId,
 		SubscriptionId:       input.SubscriptionId,
 		CustomerId:           input.CustomerId,
@@ -153,7 +153,7 @@ func (s *DunningOrchestrationService) StartDunningWorkflow(ctx context.Context, 
 
 // PauseCampaign / ResumeCampaign / CancelCampaign override the narrow service
 // methods to also signal the engine.
-func (s *DunningOrchestrationService) PauseCampaign(ctx context.Context, input domain.PauseDunningCampaignInput) (domain.DunningCampaign, error) {
+func (s *DunningOrchestrationService) PauseCampaign(ctx context.Context, input port.PauseDunningCampaignInput) (domain.DunningCampaign, error) {
 	c, err := s.DunningService.PauseCampaign(ctx, input)
 	if err != nil {
 		return c, err
@@ -164,7 +164,7 @@ func (s *DunningOrchestrationService) PauseCampaign(ctx context.Context, input d
 	return c, nil
 }
 
-func (s *DunningOrchestrationService) ResumeCampaign(ctx context.Context, input domain.ResumeDunningCampaignInput) (domain.DunningCampaign, error) {
+func (s *DunningOrchestrationService) ResumeCampaign(ctx context.Context, input port.ResumeDunningCampaignInput) (domain.DunningCampaign, error) {
 	c, err := s.DunningService.ResumeCampaign(ctx, input)
 	if err != nil {
 		return c, err
@@ -175,7 +175,7 @@ func (s *DunningOrchestrationService) ResumeCampaign(ctx context.Context, input 
 	return c, nil
 }
 
-func (s *DunningOrchestrationService) CancelCampaign(ctx context.Context, input domain.CancelDunningCampaignInput) (domain.DunningCampaign, error) {
+func (s *DunningOrchestrationService) CancelCampaign(ctx context.Context, input port.CancelDunningCampaignInput) (domain.DunningCampaign, error) {
 	c, err := s.DunningService.CancelCampaign(ctx, input)
 	if err != nil {
 		return c, err

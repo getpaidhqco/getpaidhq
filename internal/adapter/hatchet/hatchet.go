@@ -277,7 +277,7 @@ func (e *portError) Error() string { return e.Msg }
 // The orchestrator passes input.Metadata["campaign_id"] to identify which
 // campaign this run is for; if absent we fall back to subscriptionId-based
 // idempotency.
-func (h Hatchet) StartDunningWorkflow(ctx context.Context, input domain.StartDunningWorkflowInput) (string, string, error) {
+func (h Hatchet) StartDunningWorkflow(ctx context.Context, input port.StartDunningWorkflowInput) (string, string, error) {
 	campaignId := ""
 	if input.Metadata != nil {
 		campaignId = input.Metadata["campaign_id"]

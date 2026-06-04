@@ -121,10 +121,10 @@ func TestProductService_CreateProduct(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newProductService(prod, vr, pr, ps)
 
-		got, err := svc.CreateProduct(context.Background(), "org_1", domain.CreateProductInput{
+		got, err := svc.CreateProduct(context.Background(), "org_1", port.CreateProductInput{
 			Name: "Plan",
-			Variants: []domain.CreateProductVariantInput{
-				{Name: "Monthly", Prices: []domain.CreateProductPriceInput{{Currency: "USD", UnitPrice: 1000}}},
+			Variants: []port.CreateProductVariantInput{
+				{Name: "Monthly", Prices: []port.CreateProductPriceInput{{Currency: "USD", UnitPrice: 1000}}},
 			},
 		})
 
@@ -141,7 +141,7 @@ func TestProductService_CreateProduct(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newProductService(prod, &fakeVariantRepo{}, &fakePriceRepo{}, ps)
 
-		_, err := svc.CreateProduct(context.Background(), "org_1", domain.CreateProductInput{Name: "Plan"})
+		_, err := svc.CreateProduct(context.Background(), "org_1", port.CreateProductInput{Name: "Plan"})
 
 		require.Error(t, err)
 		assert.False(t, ps.hasTopic(port.TopicProductCreated))
@@ -154,7 +154,7 @@ func TestProductService_UpdateProduct(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newProductService(prod, &fakeVariantRepo{}, &fakePriceRepo{}, ps)
 
-		got, err := svc.UpdateProduct(context.Background(), "org_1", "prod_1", domain.UpdateProductInput{Name: "New", Description: "d"})
+		got, err := svc.UpdateProduct(context.Background(), "org_1", "prod_1", port.UpdateProductInput{Name: "New", Description: "d"})
 
 		require.NoError(t, err)
 		assert.Equal(t, "New", got.Name)
@@ -167,7 +167,7 @@ func TestProductService_UpdateProduct(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newProductService(prod, &fakeVariantRepo{}, &fakePriceRepo{}, ps)
 
-		_, err := svc.UpdateProduct(context.Background(), "org_1", "prod_x", domain.UpdateProductInput{Name: "New"})
+		_, err := svc.UpdateProduct(context.Background(), "org_1", "prod_x", port.UpdateProductInput{Name: "New"})
 
 		require.Error(t, err)
 		assert.Empty(t, prod.updated)
@@ -192,7 +192,7 @@ func TestProductService_CreateProductPrice(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newProductService(&fakeProductRepo{}, &fakeVariantRepo{}, pr, ps)
 
-		got, err := svc.CreateProductPrice(context.Background(), domain.CreatePriceInput{OrgId: "org_1", Currency: "USD", UnitPrice: 500})
+		got, err := svc.CreateProductPrice(context.Background(), port.CreatePriceInput{OrgId: "org_1", Currency: "USD", UnitPrice: 500})
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.BillingIntervalNone, got.BillingInterval)
@@ -208,7 +208,7 @@ func TestProductService_Variants(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newProductService(&fakeProductRepo{}, vr, &fakePriceRepo{}, ps)
 
-		got, err := svc.CreateVariant(context.Background(), "org_1", "prod_1", domain.CreateVariantInput{Name: "Monthly"})
+		got, err := svc.CreateVariant(context.Background(), "org_1", "prod_1", port.CreateVariantInput{Name: "Monthly"})
 
 		require.NoError(t, err)
 		assert.Equal(t, "prod_1", got.ProductId)
@@ -220,7 +220,7 @@ func TestProductService_Variants(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newProductService(&fakeProductRepo{}, vr, &fakePriceRepo{}, ps)
 
-		got, err := svc.UpdateVariant(context.Background(), "org_1", "var_1", domain.UpdateVariantInput{Name: "New"})
+		got, err := svc.UpdateVariant(context.Background(), "org_1", "var_1", port.UpdateVariantInput{Name: "New"})
 
 		require.NoError(t, err)
 		assert.Equal(t, "New", got.Name)
@@ -246,7 +246,7 @@ func TestProductService_Prices(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newProductService(&fakeProductRepo{}, &fakeVariantRepo{}, pr, ps)
 
-		got, err := svc.UpdatePrice(context.Background(), "org_1", "price_1", domain.CreatePriceInput{Label: "New", Currency: "USD", UnitPrice: 700})
+		got, err := svc.UpdatePrice(context.Background(), "org_1", "price_1", port.CreatePriceInput{Label: "New", Currency: "USD", UnitPrice: 700})
 
 		require.NoError(t, err)
 		assert.Equal(t, "New", got.Label)

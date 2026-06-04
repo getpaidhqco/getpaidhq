@@ -34,7 +34,7 @@ func NewPaymentSuccessWorkflow(
 
 	completeOrder := wf.NewTask("complete-order",
 		func(ctx hatchet.Context, input PaymentSuccessInput) (domain.Order, error) {
-			return orderService.CompleteCheckoutSession(ctx, domain.CompleteCheckoutSessionInput{
+			return orderService.CompleteCheckoutSession(ctx, port.CompleteCheckoutSessionInput{
 				OrgId:          input.PaymentContext.OrgId,
 				OrderId:        input.PaymentContext.OrderId,
 				PaymentContext: input.PaymentContext,

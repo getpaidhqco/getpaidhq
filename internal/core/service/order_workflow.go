@@ -48,7 +48,7 @@ func NewOrderWorkflowService(
 
 // CompleteCheckoutSession marks a pending order as completed via a payment webhook.
 // This handles the PSP-triggered flow (Paystack/Checkout.com webhook -> order completion).
-func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, input domain.CompleteCheckoutSessionInput) (domain.Order, error) {
+func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, input port.CompleteCheckoutSessionInput) (domain.Order, error) {
 	s.logger.Info("Completing order via checkout session", "order_id", input.OrderId)
 	orgId := input.OrgId
 	orderId := input.OrderId

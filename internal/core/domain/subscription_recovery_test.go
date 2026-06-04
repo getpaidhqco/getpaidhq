@@ -8,7 +8,9 @@ import (
 )
 
 // TestRetryPolicy_GetNextCharge pins the retry-spacing math:
-//   nextCharge = RenewsAt + (RetryPeriod * interval) / (RetryAttempts - Retries)
+//
+//	nextCharge = RenewsAt + (RetryPeriod * interval) / (RetryAttempts - Retries)
+//
 // so each successive retry of the same campaign lands a larger gap from the
 // renewal date, and the schedule terminates (zero time) once attempts are spent.
 // A frozen base keeps it deterministic; expected offsets are written as plain

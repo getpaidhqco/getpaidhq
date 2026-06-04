@@ -7,8 +7,8 @@ import "time"
 // is. Callers receive the raw secret exactly once when the key is
 // created; after that, only KeyHash is available.
 type ApiKey struct {
-	OrgId   string `gorm:"column:org_id;primaryKey" json:"org_id" validate:"required"`
-	Id      string `gorm:"column:id;primaryKey" json:"id" validate:"required"`
+	OrgId string `gorm:"column:org_id;primaryKey" json:"org_id" validate:"required"`
+	Id    string `gorm:"column:id;primaryKey" json:"id" validate:"required"`
 	// Name is an optional human-readable label set at creation time
 	// (e.g. "ci-deploy"). Purely metadata — authentication uses the
 	// hash only.

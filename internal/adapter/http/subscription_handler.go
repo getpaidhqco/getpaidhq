@@ -67,7 +67,7 @@ func (s *SubscriptionHandler) Update(c fuego.ContextWithBody[domain.UpdateSubscr
 		return domain.Subscription{}, err
 	}
 
-	subscription, err := s.subsService.Update(c.Context(), domain.UpdateSubscriptionInput{
+	subscription, err := s.subsService.Update(c.Context(), port.UpdateSubscriptionInput{
 		OrgId:    authUser.OrgId,
 		Id:       c.PathParam("id"),
 		Status:   input.Status,
@@ -89,7 +89,7 @@ func (s *SubscriptionHandler) Pause(c fuego.ContextWithBody[PauseSubscriptionReq
 		return domain.Subscription{}, err
 	}
 
-	subscription, err := s.subsService.PauseSubscription(c.Context(), domain.PauseSubscriptionInput{
+	subscription, err := s.subsService.PauseSubscription(c.Context(), port.PauseSubscriptionInput{
 		OrgId:  authUser.OrgId,
 		Id:     c.PathParam("id"),
 		Reason: input.Reason,
@@ -110,7 +110,7 @@ func (s *SubscriptionHandler) Resume(c fuego.ContextWithBody[ResumeSubscriptionR
 		return domain.Subscription{}, err
 	}
 
-	subscription, err := s.subsService.ResumeSubscription(c.Context(), domain.ResumeSubscriptionInput{
+	subscription, err := s.subsService.ResumeSubscription(c.Context(), port.ResumeSubscriptionInput{
 		OrgId:          authUser.OrgId,
 		Id:             c.PathParam("id"),
 		ResumeBehavior: input.ResumeBehavior,
@@ -131,7 +131,7 @@ func (s *SubscriptionHandler) Cancel(c fuego.ContextWithBody[PauseSubscriptionRe
 		return SubscriptionResponse{}, err
 	}
 
-	subscription, err := s.subsService.CancelSubscription(c.Context(), domain.CancelSubscriptionInput{
+	subscription, err := s.subsService.CancelSubscription(c.Context(), port.CancelSubscriptionInput{
 		OrgId:  authUser.OrgId,
 		Id:     c.PathParam("id"),
 		Reason: input.Reason,
@@ -152,7 +152,7 @@ func (s *SubscriptionHandler) UpdateBillingAnchor(c fuego.ContextWithBody[Update
 		return ProrationDetailsResponse{}, err
 	}
 
-	prorationDetails, err := s.subsService.UpdateBillingAnchor(c.Context(), domain.UpdateBillingAnchorInput{
+	prorationDetails, err := s.subsService.UpdateBillingAnchor(c.Context(), port.UpdateBillingAnchorInput{
 		OrgId:         authUser.OrgId,
 		Id:            c.PathParam("id"),
 		BillingAnchor: input.BillingAnchor,

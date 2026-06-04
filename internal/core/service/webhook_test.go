@@ -62,7 +62,9 @@ func (e *webhookEngine) StartWorkflow(_ context.Context, id port.WorkflowType, _
 	e.startedWorkflows[id]++
 	return port.WorkflowResult{}, e.startWorkflowErr
 }
-func (e *webhookEngine) StartSubscriptionWorkflow(context.Context, domain.Subscription) error { return nil }
+func (e *webhookEngine) StartSubscriptionWorkflow(context.Context, domain.Subscription) error {
+	return nil
+}
 func (e *webhookEngine) UpdateSubscriptionWorkflow(context.Context, string, domain.Subscription) error {
 	return nil
 }

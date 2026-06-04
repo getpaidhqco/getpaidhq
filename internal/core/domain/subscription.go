@@ -1,29 +1,10 @@
 package domain
 
 import (
-	"maps"
 	"getpaidhq/internal/lib"
+	"maps"
 	"time"
 )
-
-type CreateSubscriptionInput struct {
-	OrgId string `json:"org_id"`
-
-	PaymentMethodId string `json:"payment_method_id" validate:"required"`
-	Activate        bool   `json:"activate"`
-
-	Amount   int64  `json:"amount" validate:"required"`
-	Currency string `json:"currency" validate:"required"`
-
-	BillingInterval    BillingInterval `json:"billing_interval" validate:"required"`
-	BillingIntervalQty int             `json:"billing_interval_qty" validate:"required"`
-	Cycles             int             `json:"cycles"`
-
-	TrialInterval    BillingInterval `json:"trial_interval"`
-	TrialIntervalQty int             `json:"trial_interval_qty"`
-
-	Metadata map[string]string `json:"metadata"`
-}
 
 type SubscriptionStatus string
 
@@ -384,47 +365,6 @@ func NewSubscriptionFromOrderItem(item OrderItem) Subscription {
 		Retries:            0,
 		Currency:           string(item.Price.Currency),
 		Amount:             item.Price.UnitPrice,
-		CyclesProcessed:    0,
-		TotalRevenue:       0,
-		CreatedAt:          time.Now().UTC(),
-		UpdatedAt:          time.Now().UTC(),
-	}
-}
-
-func NewFromCreateInput(input CreateSubscriptionInput) Subscription {
-	var startDate = time.Now().UTC()
-	var trialEndsAt time.Time
-	if input.TrialInterval != BillingIntervalNone {
-		switch input.TrialInterval {
-		case "minute":
-			startDate = startDate.Add(time.Minute * time.Duration(input.TrialIntervalQty))
-		case "hour":
-			startDate = startDate.Add(time.Hour * time.Duration(input.TrialIntervalQty))
-		case "day":
-			startDate = startDate.AddDate(0, 0, input.TrialIntervalQty)
-		case "week":
-			startDate = startDate.AddDate(0, 0, input.TrialIntervalQty*7)
-		case "month":
-			startDate = startDate.AddDate(0, input.TrialIntervalQty, 0)
-		case "year":
-			startDate = startDate.AddDate(input.TrialIntervalQty, 0, 0)
-		}
-		trialEndsAt = startDate
-	}
-
-	return Subscription{
-		OrgId:              input.OrgId,
-		Id:                 lib.GenerateId("sub"),
-		Status:             SubscriptionStatusPending,
-		StartDate:          startDate,
-		BillingInterval:    input.BillingInterval,
-		BillingIntervalQty: input.BillingIntervalQty,
-		Cycles:             0,
-		BillingAnchor:      startDate.Day(),
-		TrialEndsAt:        trialEndsAt,
-		Retries:            0,
-		Currency:           input.Currency,
-		Amount:             input.Amount,
 		CyclesProcessed:    0,
 		TotalRevenue:       0,
 		CreatedAt:          time.Now().UTC(),

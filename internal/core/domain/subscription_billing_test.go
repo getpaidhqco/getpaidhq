@@ -160,8 +160,8 @@ func TestGetNextChargeDate(t *testing.T) {
 		{
 			name:   "other status returns RenewsAt when it is earlier",
 			status: SubscriptionStatusPaused,
-			renews: retry,   // earlier
-			retry:  renews,  // later
+			renews: retry,  // earlier
+			retry:  renews, // later
 			want:   retry,
 		},
 		{

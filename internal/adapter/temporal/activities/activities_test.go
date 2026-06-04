@@ -20,16 +20,16 @@ import (
 
 type fakeDunningService struct {
 	port.DunningService
-	loadConfigCalls        []struct{ orgId, campaignId string }
-	loadConfigReturn       domain.DunningConfig
-	loadConfigErr          error
-	executeCalls           []struct {
+	loadConfigCalls  []struct{ orgId, campaignId string }
+	loadConfigReturn domain.DunningConfig
+	loadConfigErr    error
+	executeCalls     []struct {
 		orgId, campaignId string
 		attemptType       domain.DunningAttemptType
 	}
-	executeReturn          domain.DunningAttempt
-	executeErr             error
-	updateCampaignCalls    []struct {
+	executeReturn       domain.DunningAttempt
+	executeErr          error
+	updateCampaignCalls []struct {
 		attempt        domain.DunningAttempt
 		config         domain.DunningConfig
 		attemptContext domain.DunningAttemptContext
@@ -40,13 +40,13 @@ type fakeDunningService struct {
 		orgId, campaignId string
 		attemptNumber     int
 	}
-	sendCommunicationErr   error
-	markFailedCalls        []struct{ orgId, campaignId, reason string }
-	markFailedReturn       domain.DunningCampaign
-	markFailedErr          error
-	failAndCancelCalls     []struct{ orgId, campaignId, reason string }
-	failAndCancelReturn    domain.DunningCampaign
-	failAndCancelErr       error
+	sendCommunicationErr error
+	markFailedCalls      []struct{ orgId, campaignId, reason string }
+	markFailedReturn     domain.DunningCampaign
+	markFailedErr        error
+	failAndCancelCalls   []struct{ orgId, campaignId, reason string }
+	failAndCancelReturn  domain.DunningCampaign
+	failAndCancelErr     error
 }
 
 func (f *fakeDunningService) LoadConfigForCampaign(_ context.Context, orgId, campaignId string) (domain.DunningConfig, error) {
@@ -86,12 +86,12 @@ func (f *fakeDunningService) FailCampaignAndCancelSubscription(_ context.Context
 
 type fakeOrderWorkflowService struct {
 	port.OrderWorkflowService
-	completeCheckoutCalls  []domain.CompleteCheckoutSessionInput
+	completeCheckoutCalls  []port.CompleteCheckoutSessionInput
 	completeCheckoutReturn domain.Order
 	completeCheckoutErr    error
 }
 
-func (f *fakeOrderWorkflowService) CompleteCheckoutSession(_ context.Context, in domain.CompleteCheckoutSessionInput) (domain.Order, error) {
+func (f *fakeOrderWorkflowService) CompleteCheckoutSession(_ context.Context, in port.CompleteCheckoutSessionInput) (domain.Order, error) {
 	f.completeCheckoutCalls = append(f.completeCheckoutCalls, in)
 	return f.completeCheckoutReturn, f.completeCheckoutErr
 }
@@ -129,33 +129,33 @@ func (f *fakeSubscriptionRepository) FindById(_ context.Context, orgId, id strin
 
 type fakeSubscriptionService struct {
 	port.SubscriptionService
-	chargeCalls            []domain.Subscription
-	chargeReturn           domain.ChargeResult
-	chargeErr              error
-	handleChargeSuccessCalls []domain.SubscriptionChargeInput
+	chargeCalls               []domain.Subscription
+	chargeReturn              domain.ChargeResult
+	chargeErr                 error
+	handleChargeSuccessCalls  []port.SubscriptionChargeInput
 	handleChargeSuccessReturn domain.Subscription
-	handleChargeSuccessErr  error
-	handleChargeFailureCalls []domain.SubscriptionChargeInput
+	handleChargeSuccessErr    error
+	handleChargeFailureCalls  []port.SubscriptionChargeInput
 	handleChargeFailureReturn domain.Subscription
-	handleChargeFailureErr  error
-	markAsErrorCalls       []struct {
+	handleChargeFailureErr    error
+	markAsErrorCalls          []struct {
 		sub domain.Subscription
 		err error
 	}
-	markAsErrorErr         error
-	sendReminderCalls      []struct{ orgId, id string }
-	sendReminderErr        error
+	markAsErrorErr    error
+	sendReminderCalls []struct{ orgId, id string }
+	sendReminderErr   error
 }
 
 func (f *fakeSubscriptionService) ChargeForBillingPeriod(_ context.Context, s domain.Subscription) (domain.ChargeResult, error) {
 	f.chargeCalls = append(f.chargeCalls, s)
 	return f.chargeReturn, f.chargeErr
 }
-func (f *fakeSubscriptionService) HandleSubscriptionChargeSuccess(_ context.Context, in domain.SubscriptionChargeInput) (domain.Subscription, error) {
+func (f *fakeSubscriptionService) HandleSubscriptionChargeSuccess(_ context.Context, in port.SubscriptionChargeInput) (domain.Subscription, error) {
 	f.handleChargeSuccessCalls = append(f.handleChargeSuccessCalls, in)
 	return f.handleChargeSuccessReturn, f.handleChargeSuccessErr
 }
-func (f *fakeSubscriptionService) HandleSubscriptionChargeFailure(_ context.Context, in domain.SubscriptionChargeInput) (domain.Subscription, error) {
+func (f *fakeSubscriptionService) HandleSubscriptionChargeFailure(_ context.Context, in port.SubscriptionChargeInput) (domain.Subscription, error) {
 	f.handleChargeFailureCalls = append(f.handleChargeFailureCalls, in)
 	return f.handleChargeFailureReturn, f.handleChargeFailureErr
 }

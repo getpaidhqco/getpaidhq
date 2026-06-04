@@ -35,7 +35,7 @@ func NewProductService(
 	}
 }
 
-func (s *ProductService) CreateProduct(ctx context.Context, orgId string, input domain.CreateProductInput) (domain.Product, error) {
+func (s *ProductService) CreateProduct(ctx context.Context, orgId string, input port.CreateProductInput) (domain.Product, error) {
 
 	product, err := s.productRepository.Create(ctx,
 		domain.Product{
@@ -69,7 +69,7 @@ func (s *ProductService) CreateProduct(ctx context.Context, orgId string, input 
 
 		for _, p := range v.Prices {
 			_, err := s.priceRepository.Create(ctx,
-				domain.NewPrice(orgId, variant.Id, domain.CreatePriceInput{
+				port.CreatePriceInput{
 					OrgId:              orgId,
 					Label:              p.Label,
 					VariantId:          variant.Id,
@@ -86,7 +86,7 @@ func (s *ProductService) CreateProduct(ctx context.Context, orgId string, input 
 					TrialIntervalQty:   p.TrialIntervalQty,
 					TaxCode:            p.TaxCode,
 					Metadata:           p.Metadata,
-				}))
+				}.ToPrice(orgId, variant.Id))
 			if err != nil {
 				s.logger.Error("Failed to create price", err.Error())
 				return domain.Product{}, err
@@ -124,7 +124,7 @@ func (s *ProductService) FindById(ctx context.Context, orgId string, id string) 
 	return product, nil
 }
 
-func (s *ProductService) CreateProductPrice(ctx context.Context, input domain.CreatePriceInput) (domain.Price, error) {
+func (s *ProductService) CreateProductPrice(ctx context.Context, input port.CreatePriceInput) (domain.Price, error) {
 
 	if input.BillingInterval == "" {
 		input.BillingInterval = domain.BillingIntervalNone
@@ -164,7 +164,7 @@ func (s *ProductService) CreateProductPrice(ctx context.Context, input domain.Cr
 	return price, nil
 }
 
-func (s *ProductService) UpdateProduct(ctx context.Context, orgId string, id string, input domain.UpdateProductInput) (domain.Product, error) {
+func (s *ProductService) UpdateProduct(ctx context.Context, orgId string, id string, input port.UpdateProductInput) (domain.Product, error) {
 	product, err := s.productRepository.FindById(ctx, orgId, id)
 	if err != nil {
 		s.logger.Error("Failed to find product", err.Error())
@@ -203,7 +203,7 @@ func (s *ProductService) DeleteProduct(ctx context.Context, orgId string, id str
 	return nil
 }
 
-func (s *ProductService) CreateVariant(ctx context.Context, orgId string, productId string, input domain.CreateVariantInput) (domain.Variant, error) {
+func (s *ProductService) CreateVariant(ctx context.Context, orgId string, productId string, input port.CreateVariantInput) (domain.Variant, error) {
 	variant, err := s.variantRepository.Create(ctx, domain.Variant{
 		OrgId:       orgId,
 		Id:          lib.GenerateId("var"),
@@ -243,7 +243,7 @@ func (s *ProductService) ListVariants(ctx context.Context, orgId string, product
 	return variants, total, nil
 }
 
-func (s *ProductService) UpdateVariant(ctx context.Context, orgId string, id string, input domain.UpdateVariantInput) (domain.Variant, error) {
+func (s *ProductService) UpdateVariant(ctx context.Context, orgId string, id string, input port.UpdateVariantInput) (domain.Variant, error) {
 	variant, err := s.variantRepository.FindById(ctx, orgId, id)
 	if err != nil {
 		s.logger.Error("Failed to find variant", err.Error())
@@ -302,7 +302,7 @@ func (s *ProductService) ListPrices(ctx context.Context, orgId string, variantId
 	return prices, total, nil
 }
 
-func (s *ProductService) UpdatePrice(ctx context.Context, orgId string, id string, input domain.CreatePriceInput) (domain.Price, error) {
+func (s *ProductService) UpdatePrice(ctx context.Context, orgId string, id string, input port.CreatePriceInput) (domain.Price, error) {
 	price, err := s.priceRepository.FindById(ctx, orgId, id)
 	if err != nil {
 		s.logger.Error("Failed to find price", err.Error())

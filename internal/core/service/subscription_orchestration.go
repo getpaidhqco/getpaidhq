@@ -50,7 +50,7 @@ func (s *SubscriptionOrchestrationService) Activate(ctx context.Context, orgId s
 	return subscription, nil
 }
 
-func (s *SubscriptionOrchestrationService) PauseSubscription(ctx context.Context, input domain.PauseSubscriptionInput) (domain.Subscription, error) {
+func (s *SubscriptionOrchestrationService) PauseSubscription(ctx context.Context, input port.PauseSubscriptionInput) (domain.Subscription, error) {
 	subscription, err := s.SubscriptionService.PauseSubscription(ctx, input)
 	if err != nil {
 		return domain.Subscription{}, err
@@ -68,7 +68,7 @@ func (s *SubscriptionOrchestrationService) PauseSubscription(ctx context.Context
 	return subscription, nil
 }
 
-func (s *SubscriptionOrchestrationService) ResumeSubscription(ctx context.Context, input domain.ResumeSubscriptionInput) (domain.Subscription, error) {
+func (s *SubscriptionOrchestrationService) ResumeSubscription(ctx context.Context, input port.ResumeSubscriptionInput) (domain.Subscription, error) {
 	newSub, err := s.SubscriptionService.ResumeSubscription(ctx, input)
 	if err != nil {
 		return domain.Subscription{}, err
@@ -86,7 +86,7 @@ func (s *SubscriptionOrchestrationService) ResumeSubscription(ctx context.Contex
 	return newSub, nil
 }
 
-func (s *SubscriptionOrchestrationService) CancelSubscription(ctx context.Context, input domain.CancelSubscriptionInput) (domain.Subscription, error) {
+func (s *SubscriptionOrchestrationService) CancelSubscription(ctx context.Context, input port.CancelSubscriptionInput) (domain.Subscription, error) {
 	subscription, err := s.SubscriptionService.CancelSubscription(ctx, input)
 	if err != nil {
 		return domain.Subscription{}, err

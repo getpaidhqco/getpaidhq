@@ -48,10 +48,10 @@ const (
 type TokenStatus string
 
 const (
-	TokenStatusActive          TokenStatus = "active"
-	TokenStatusExpired         TokenStatus = "expired"
-	TokenStatusRevoked         TokenStatus = "revoked"
-	TokenStatusMaxUsesReached  TokenStatus = "max_uses_reached"
+	TokenStatusActive         TokenStatus = "active"
+	TokenStatusExpired        TokenStatus = "expired"
+	TokenStatusRevoked        TokenStatus = "revoked"
+	TokenStatusMaxUsesReached TokenStatus = "max_uses_reached"
 )
 
 type DunningConfigScope string
@@ -208,10 +208,10 @@ type PaymentUpdateToken struct {
 	AdminReason    string `gorm:"column:admin_reason" json:"admin_reason,omitempty"`
 	AdminNotes     string `gorm:"column:admin_notes" json:"admin_notes,omitempty"`
 
-	CreatedBy   string    `gorm:"column:created_by" json:"created_by,omitempty"`
-	CreatedAt   time.Time `gorm:"column:created_at" json:"created_at"`
-	LastUsedAt  time.Time `gorm:"column:last_used_at" json:"last_used_at,omitzero"`
-	LastUsedIp  string    `gorm:"column:last_used_ip" json:"last_used_ip,omitempty"`
+	CreatedBy  string    `gorm:"column:created_by" json:"created_by,omitempty"`
+	CreatedAt  time.Time `gorm:"column:created_at" json:"created_at"`
+	LastUsedAt time.Time `gorm:"column:last_used_at" json:"last_used_at,omitzero"`
+	LastUsedIp string    `gorm:"column:last_used_ip" json:"last_used_ip,omitempty"`
 }
 
 func (PaymentUpdateToken) TableName() string { return "payment_update_tokens" }

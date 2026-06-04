@@ -40,23 +40,23 @@ func (noopLogger) Sync() error           { return nil }
 type fakeDunningService struct {
 	port.DunningService
 
-	loadConfigCalls       []loadConfigCall
-	loadConfigReturn      domain.DunningConfig
-	loadConfigErr         error
-	executeCalls          []executeCall
-	executeReturn         domain.DunningAttempt
-	executeErr            error
-	updateCampaignCalls   []updateCampaignCall
-	updateCampaignReturn  domain.DunningCampaign
-	updateCampaignErr     error
+	loadConfigCalls        []loadConfigCall
+	loadConfigReturn       domain.DunningConfig
+	loadConfigErr          error
+	executeCalls           []executeCall
+	executeReturn          domain.DunningAttempt
+	executeErr             error
+	updateCampaignCalls    []updateCampaignCall
+	updateCampaignReturn   domain.DunningCampaign
+	updateCampaignErr      error
 	sendCommunicationCalls []sendCommunicationCall
-	sendCommunicationErr  error
-	markFailedCalls       []markFailedCall
-	markFailedReturn      domain.DunningCampaign
-	markFailedErr         error
-	failAndCancelCalls    []markFailedCall
-	failAndCancelReturn   domain.DunningCampaign
-	failAndCancelErr      error
+	sendCommunicationErr   error
+	markFailedCalls        []markFailedCall
+	markFailedReturn       domain.DunningCampaign
+	markFailedErr          error
+	failAndCancelCalls     []markFailedCall
+	failAndCancelReturn    domain.DunningCampaign
+	failAndCancelErr       error
 }
 
 type loadConfigCall struct{ orgId, campaignId string }

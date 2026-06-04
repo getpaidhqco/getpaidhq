@@ -27,4 +27,3 @@ const (
 	// charge testing. Only reached when an org's PSP config selects it.
 	Memory Gateway = "memory"
 )
-

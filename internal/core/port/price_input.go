@@ -1,0 +1,79 @@
+package port
+
+import (
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/lib"
+	"time"
+)
+
+// CreatePriceInput is the command input for PriceService.Create.
+type CreatePriceInput struct {
+	OrgId              string
+	Label              string
+	VariantId          string
+	Category           domain.PriceCategory
+	Scheme             domain.PriceScheme
+	Cycles             int
+	Currency           string
+	UnitPrice          int64
+	MinPrice           int64
+	SuggestedPrice     int64
+	BillingInterval    domain.BillingInterval
+	BillingIntervalQty int
+	TrialInterval      domain.BillingInterval
+	TrialIntervalQty   int
+	TaxCode            string
+	Metadata           map[string]string
+}
+
+// ToPrice constructs a domain.Price from the input. Replaces the old domain.NewPrice
+// factory, which would have required domain to reference CreatePriceInput.
+func (input CreatePriceInput) ToPrice(orgId, variantId string) domain.Price {
+	billingInterval := input.BillingInterval
+	if billingInterval == "" {
+		billingInterval = domain.BillingIntervalNone
+	}
+	trialInterval := input.TrialInterval
+	if trialInterval == "" {
+		trialInterval = domain.BillingIntervalNone
+	}
+	return domain.Price{
+		OrgId:              orgId,
+		Id:                 lib.GenerateId("price"),
+		Label:              input.Label,
+		VariantId:          variantId,
+		Category:           input.Category,
+		Scheme:             input.Scheme,
+		Cycles:             input.Cycles,
+		Currency:           domain.Currency(input.Currency),
+		UnitPrice:          input.UnitPrice,
+		MinPrice:           input.MinPrice,
+		SuggestedPrice:     input.SuggestedPrice,
+		BillingInterval:    billingInterval,
+		BillingIntervalQty: input.BillingIntervalQty,
+		TrialInterval:      trialInterval,
+		TrialIntervalQty:   input.TrialIntervalQty,
+		TaxCode:            input.TaxCode,
+		Metadata:           input.Metadata,
+		CreatedAt:          time.Now().UTC(),
+		UpdatedAt:          time.Now().UTC(),
+	}
+}
+
+// CreateProductPriceInput is a price within a CreateProductVariantInput.
+type CreateProductPriceInput struct {
+	Label              string
+	Category           domain.PriceCategory
+	Scheme             domain.PriceScheme
+	Cycles             int
+	Currency           string
+	UnitPrice          int64
+	MinPrice           int64
+	SuggestedPrice     int64
+	BillingInterval    domain.BillingInterval
+	BillingIntervalQty int
+	TrialInterval      domain.BillingInterval
+	TrialIntervalQty   int
+	TaxCode            string
+	Metadata           map[string]string
+}

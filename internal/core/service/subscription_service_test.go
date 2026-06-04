@@ -48,7 +48,7 @@ func TestSubscriptionService_Create(t *testing.T) {
 	ps := &recordingPubSub{}
 	svc := newSubscriptionService(subRepo, nil, nil, nil, nil, ps)
 
-	got, err := svc.Create(context.Background(), domain.CreateSubscriptionInput{
+	got, err := svc.Create(context.Background(), port.CreateSubscriptionInput{
 		OrgId: "org_1", PaymentMethodId: "pm_1", Amount: 1000, Currency: "USD",
 	})
 
@@ -63,7 +63,7 @@ func TestSubscriptionService_PauseSubscription(t *testing.T) {
 		subRepo := &fakeSubRepo{sub: domain.Subscription{OrgId: "org_1", Id: "sub_1", Status: domain.SubscriptionStatusActive}}
 		svc := newSubscriptionService(subRepo, nil, nil, nil, nil, nil)
 
-		got, err := svc.PauseSubscription(context.Background(), domain.PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+		got, err := svc.PauseSubscription(context.Background(), port.PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.SubscriptionStatusPaused, got.Status)
@@ -75,7 +75,7 @@ func TestSubscriptionService_PauseSubscription(t *testing.T) {
 		subRepo := &fakeSubRepo{sub: domain.Subscription{OrgId: "org_1", Id: "sub_1", Status: domain.SubscriptionStatusPaused}}
 		svc := newSubscriptionService(subRepo, nil, nil, nil, nil, nil)
 
-		_, err := svc.PauseSubscription(context.Background(), domain.PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+		_, err := svc.PauseSubscription(context.Background(), port.PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 		require.Error(t, err)
 		assert.Empty(t, subRepo.updated, "no update on rejection")
@@ -87,7 +87,7 @@ func TestSubscriptionService_ResumeSubscription(t *testing.T) {
 		subRepo := &fakeSubRepo{sub: domain.Subscription{OrgId: "org_1", Id: "sub_1", Status: domain.SubscriptionStatusActive}}
 		svc := newSubscriptionService(subRepo, nil, nil, nil, nil, nil)
 
-		_, err := svc.ResumeSubscription(context.Background(), domain.ResumeSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+		_, err := svc.ResumeSubscription(context.Background(), port.ResumeSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 		require.Error(t, err)
 		assert.Empty(t, subRepo.updated)
@@ -100,7 +100,7 @@ func TestSubscriptionService_ResumeSubscription(t *testing.T) {
 		}}
 		svc := newSubscriptionService(subRepo, nil, nil, nil, nil, nil)
 
-		got, err := svc.ResumeSubscription(context.Background(), domain.ResumeSubscriptionInput{
+		got, err := svc.ResumeSubscription(context.Background(), port.ResumeSubscriptionInput{
 			OrgId: "org_1", Id: "sub_1", ResumeBehavior: domain.StartNewBillingPeriod,
 		})
 
@@ -115,7 +115,7 @@ func TestSubscriptionService_ResumeSubscription(t *testing.T) {
 		subRepo := &fakeSubRepo{sub: domain.Subscription{OrgId: "org_1", Id: "sub_1", Status: domain.SubscriptionStatusPaused}}
 		svc := newSubscriptionService(subRepo, nil, nil, nil, nil, nil)
 
-		_, err := svc.ResumeSubscription(context.Background(), domain.ResumeSubscriptionInput{
+		_, err := svc.ResumeSubscription(context.Background(), port.ResumeSubscriptionInput{
 			OrgId: "org_1", Id: "sub_1", ResumeBehavior: domain.ContinueExistingBillingPeriod,
 		})
 
@@ -131,7 +131,7 @@ func TestSubscriptionService_CancelSubscription(t *testing.T) {
 		}}
 		svc := newSubscriptionService(subRepo, nil, nil, nil, nil, nil)
 
-		got, err := svc.CancelSubscription(context.Background(), domain.CancelSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+		got, err := svc.CancelSubscription(context.Background(), port.CancelSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.SubscriptionStatusCancelled, got.Status)
@@ -143,7 +143,7 @@ func TestSubscriptionService_CancelSubscription(t *testing.T) {
 		subRepo := &fakeSubRepo{sub: domain.Subscription{OrgId: "org_1", Id: "sub_1", Status: domain.SubscriptionStatusCancelled}}
 		svc := newSubscriptionService(subRepo, nil, nil, nil, nil, nil)
 
-		_, err := svc.CancelSubscription(context.Background(), domain.CancelSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+		_, err := svc.CancelSubscription(context.Background(), port.CancelSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 		require.Error(t, err)
 		assert.Empty(t, subRepo.updated)
@@ -165,7 +165,7 @@ func TestSubscriptionService_HandleSubscriptionChargeSuccess(t *testing.T) {
 			OrgId: "org_1", Id: "sub_1", Amount: 1000, Cycles: 0, CyclesProcessed: 0, TotalRevenue: 0,
 			BillingInterval: domain.BillingInterval("month"), BillingIntervalQty: 1,
 		}
-		got, err := svc.HandleSubscriptionChargeSuccess(context.Background(), domain.SubscriptionChargeInput{Subscription: sub, ChargeResult: charge()})
+		got, err := svc.HandleSubscriptionChargeSuccess(context.Background(), port.SubscriptionChargeInput{Subscription: sub, ChargeResult: charge()})
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.SubscriptionStatusActive, got.Status)
@@ -183,7 +183,7 @@ func TestSubscriptionService_HandleSubscriptionChargeSuccess(t *testing.T) {
 		svc := newSubscriptionService(subRepo, nil, nil, nil, payRepo, ps)
 
 		sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", Amount: 1000, Cycles: 2, CyclesProcessed: 1}
-		got, err := svc.HandleSubscriptionChargeSuccess(context.Background(), domain.SubscriptionChargeInput{Subscription: sub, ChargeResult: charge()})
+		got, err := svc.HandleSubscriptionChargeSuccess(context.Background(), port.SubscriptionChargeInput{Subscription: sub, ChargeResult: charge()})
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.SubscriptionStatusCompleted, got.Status)
@@ -204,7 +204,7 @@ func TestSubscriptionService_HandleSubscriptionChargeFailure(t *testing.T) {
 		svc := newSubscriptionService(subRepo, settingRepo, nil, nil, payRepo, ps)
 
 		sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", Amount: 1000, Retries: 0, RenewsAt: time.Now().UTC()}
-		got, err := svc.HandleSubscriptionChargeFailure(context.Background(), domain.SubscriptionChargeInput{Subscription: sub, ChargeResult: failCharge})
+		got, err := svc.HandleSubscriptionChargeFailure(context.Background(), port.SubscriptionChargeInput{Subscription: sub, ChargeResult: failCharge})
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.SubscriptionStatusPastDue, got.Status)
@@ -222,7 +222,7 @@ func TestSubscriptionService_HandleSubscriptionChargeFailure(t *testing.T) {
 		svc := newSubscriptionService(subRepo, settingRepo, nil, nil, payRepo, ps)
 
 		sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", Amount: 1000, Retries: 3, RenewsAt: time.Now().UTC()}
-		got, err := svc.HandleSubscriptionChargeFailure(context.Background(), domain.SubscriptionChargeInput{Subscription: sub, ChargeResult: failCharge})
+		got, err := svc.HandleSubscriptionChargeFailure(context.Background(), port.SubscriptionChargeInput{Subscription: sub, ChargeResult: failCharge})
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.SubscriptionStatusCancelled, got.Status)
@@ -240,7 +240,7 @@ func TestSubscriptionService_HandleSubscriptionChargeFailure(t *testing.T) {
 		svc := newSubscriptionService(subRepo, settingRepo, nil, nil, payRepo, ps)
 
 		sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", Amount: 1000, Retries: 2, RenewsAt: time.Now().UTC()}
-		got, err := svc.HandleSubscriptionChargeFailure(context.Background(), domain.SubscriptionChargeInput{Subscription: sub, ChargeResult: failCharge})
+		got, err := svc.HandleSubscriptionChargeFailure(context.Background(), port.SubscriptionChargeInput{Subscription: sub, ChargeResult: failCharge})
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.SubscriptionStatusUnpaid, got.Status)

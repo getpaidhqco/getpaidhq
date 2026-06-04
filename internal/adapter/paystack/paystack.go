@@ -4,13 +4,14 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
+	"strconv"
+
 	paystacklib "github.com/mdwt/paystack-go"
 	pscommon "github.com/mdwt/paystack-go/common"
 	pserrors "github.com/mdwt/paystack-go/errors"
 	"github.com/mdwt/paystack-go/transactions"
-	"getpaidhq/internal/core/domain"
-	"getpaidhq/internal/core/port"
-	"strconv"
 )
 
 type Paystack struct {

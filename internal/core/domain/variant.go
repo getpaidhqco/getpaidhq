@@ -15,12 +15,3 @@ type Variant struct {
 }
 
 func (Variant) TableName() string { return "variants" }
-
-type CreateVariantInput struct {
-	OrgId       string            `json:"org_id"`
-	Id          string            `json:"id"`
-	ProductId   string            `json:"product_id"`
-	Name        string            `json:"name"`
-	Description string            `json:"description"`
-	Metadata    map[string]string `json:"metadata"`
-}

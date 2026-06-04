@@ -1,8 +1,9 @@
 package domain
 
-import "maps"
-
-import "time"
+import (
+	"maps"
+	"time"
+)
 
 type Payment struct {
 	OrgId          string            `gorm:"column:org_id;primaryKey" json:"org_id"`

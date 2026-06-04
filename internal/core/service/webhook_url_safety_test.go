@@ -31,8 +31,8 @@ func TestIsPublicUnicast_AcceptsPublicAddresses(t *testing.T) {
 	// Sanity-check a few real public addresses. We do NOT do DNS here —
 	// the function operates on net.IP values directly.
 	good := []string{
-		"8.8.8.8",        // Google DNS
-		"1.1.1.1",        // Cloudflare DNS
+		"8.8.8.8", // Google DNS
+		"1.1.1.1", // Cloudflare DNS
 		"2606:4700:4700::1111",
 		"104.16.0.1", // Cloudflare
 	}

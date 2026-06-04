@@ -51,11 +51,11 @@ func (s *ReminderConfigService) SetReminderConfig(ctx context.Context, orgId str
 	}
 	now := time.Now().UTC()
 	_, err = s.settings.Upsert(ctx, domain.Setting{
-		OrgId:     orgId,
-		ParentId:  domain.ReminderConfigSettingParent,
-		Id:        domain.ReminderConfigSettingId,
-		Type:      "json",
-		Value:     value,
+		OrgId:    orgId,
+		ParentId: domain.ReminderConfigSettingParent,
+		Id:       domain.ReminderConfigSettingId,
+		Type:     "json",
+		Value:    value,
 		// CreatedAt is inert on conflict: Upsert's DoUpdates omits created_at, so
 		// the DB keeps the original — the column is effectively immutable after
 		// the first write.

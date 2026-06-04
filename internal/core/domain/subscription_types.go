@@ -1,11 +1,5 @@
 package domain
 
-// SubscriptionChargeInput wraps a subscription and the result of a charge attempt.
-type SubscriptionChargeInput struct {
-	Subscription Subscription `json:"subscription"`
-	ChargeResult ChargeResult `json:"charge_result"`
-}
-
 // ProrationBillingMode determines how proration is calculated for subscription changes.
 type ProrationBillingMode string
 
@@ -39,39 +33,6 @@ type UpdateSubscriptionRequest struct {
 	Status               SubscriptionStatus `json:"status"`
 	DefaultPaymentMethod string             `json:"default_payment_method"`
 	Metadata             map[string]string  `json:"metadata"`
-}
-
-type UpdateSubscriptionInput struct {
-	OrgId                string             `json:"org_id"`
-	Id                   string             `json:"id"`
-	Status               SubscriptionStatus `json:"status"`
-	DefaultPaymentMethod string             `json:"default_payment_method"`
-	Metadata             map[string]string  `json:"metadata"`
-}
-
-type PauseSubscriptionInput struct {
-	OrgId  string `json:"org_id"`
-	Id     string `json:"id"`
-	Reason string `json:"reason"`
-}
-
-type ResumeSubscriptionInput struct {
-	OrgId          string                     `json:"org_id"`
-	Id             string                     `json:"id"`
-	ResumeBehavior SubscriptionResumeBehavior `json:"resume_behavior"`
-}
-
-type CancelSubscriptionInput struct {
-	OrgId  string `json:"org_id"`
-	Id     string `json:"id"`
-	Reason string `json:"reason"`
-}
-
-type UpdateBillingAnchorInput struct {
-	OrgId         string        `json:"org_id"`
-	Id            string        `json:"id"`
-	BillingAnchor int           `json:"billing_anchor"`
-	ProrationMode ProrationMode `json:"proration_mode"`
 }
 
 type ProcessSubscriptionChargeInput struct {
