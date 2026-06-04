@@ -161,8 +161,10 @@ Details: `research/lago/usage-based-billing.md` §6–7.
 ## 7. Where it fits in gphq — two parity adapters behind one port
 
 `port.EventStore` is the seam. Both adapters implement the same interface; config
-picks one (or both, for shadow-compare). Same `UsageQuery` in, same `float64` out;
-different mechanics inside — which is the whole point of being able to compare them.
+picks one (or both, to compare). Same `UsageQuery` in, same `float64` out; different
+mechanics inside, so we can compare them. Events attach to a **customer** and a
+**metric**, and may carry an optional **`external_id`** that serves as the dedup key
+(see the design spec for the field meanings).
 
 ```
                   UsageService / billing-cycle workflow
@@ -170,8 +172,8 @@ different mechanics inside — which is the whole point of being able to compare
               ┌─────────┴──────────┐
   USAGE_EVENT_STORE=postgres   USAGE_EVENT_STORE=clickhouse
               │                    │
-  internal/adapter/postgres/   internal/adapter/clickhouse/
-    event_store.go               event_store.go
+  internal/adapter/usage/      internal/adapter/usage/
+    postgres/event_store.go      clickhouse/event_store.go
   - dedup on WRITE             - dedup on READ
     (ON CONFLICT)                (ReplacingMergeTree + argMax)
   - row store, B-tree         - column store, sparse index
@@ -181,29 +183,36 @@ different mechanics inside — which is the whole point of being able to compare
 **ClickHouse schema** (gphq `meter_events`):
 ```sql
 CREATE TABLE meter_events (
-  org_id          String,
-  subscription_id String,
-  code            String,
-  transaction_id  String,
-  timestamp       DateTime64(3, 'UTC'),
-  value           Decimal(38, 9),
-  properties      Map(String, String),
-  ingested_at     DateTime64(3, 'UTC') DEFAULT now64()
+  org_id               String,
+  customer_id          String,
+  external_customer_id String,
+  metric_code          String,
+  subscription_id      String,
+  external_id          String,
+  timestamp            DateTime64(3, 'UTC'),
+  value                Decimal(38, 9),
+  metadata             Map(String, String),
+  id                   String,
+  ingested_at          DateTime64(3, 'UTC') DEFAULT now64()
 )
 ENGINE = ReplacingMergeTree(ingested_at)
 PARTITION BY toYYYYMM(timestamp)
-ORDER BY (org_id, subscription_id, code, timestamp, transaction_id);
+ORDER BY (org_id, customer_id, metric_code, timestamp, id);
 ```
-`transaction_id` last in `ORDER BY` makes the full tuple the dedup key;
-`ingested_at` as version means a re-sent event collapses to the latest copy.
+`id` (unique) is last in `ORDER BY`, so two distinct events at the same instant are
+never merged into one. Resends that share an `external_id` are collapsed at read time
+instead — group by `external_id` when it's set, else by `id` (so events without one
+are all kept). `ingested_at` is the version, so a collapsed duplicate keeps the latest
+copy.
 
-**Methods, side by side** (same outcome, different SQL):
+**Methods, side by side** (same outcome, different SQL). `dedup_key` below is
+`coalesce(nullif(external_id,''), id)`:
 
 | port method | Postgres adapter | ClickHouse adapter |
 |---|---|---|
-| `Ingest` | `INSERT ... ON CONFLICT (org,sub,txn) DO NOTHING` — exactly-once on write | append to batch buffer → chunked `INSERT` (or `async_insert`); dedup deferred to read |
-| `Count` | `count(*)` | `uniqExact(transaction_id)` |
-| `Sum` | `COALESCE(SUM(value),0)` | `SUM` over `argMax(value, ingested_at) GROUP BY transaction_id` |
+| `Ingest` | `INSERT ... ON CONFLICT (org, external_id) DO NOTHING` | `INSERT` with `async_insert`; dedup deferred to read |
+| `Count` | `count(*)` | `uniqExact(dedup_key)` |
+| `Sum` | `COALESCE(SUM(value),0)` | `SUM` over `argMax(value, ingested_at) GROUP BY dedup_key` |
 | `Max` | `MAX(value)` | `max(value)` |
 | `UniqueCount` | `COUNT(DISTINCT value)` | `uniqExact(value)` |
 | `Latest` | `value ORDER BY timestamp DESC LIMIT 1` | `argMax(value, timestamp)` |
@@ -226,23 +235,22 @@ so boundary semantics can't drift (a classic parity bug).
 ```
 USAGE_EVENT_STORE=postgres    # default
 USAGE_EVENT_STORE=clickhouse
-USAGE_EVENT_STORE=shadow      # write both, read postgres, async-compare clickhouse, log diffs
+USAGE_EVENT_STORE=compare     # write both, read postgres, check clickhouse in background, log diffs
 ```
-`shadow` is how you compare on real data at zero risk: every aggregation runs both,
-returns Postgres, logs mismatches + timings.
+`compare` checks the two on real data without affecting billing: every aggregation
+runs both, returns Postgres, logs mismatches + timings.
 
 **Parity test harness:** one table-driven test feeds the same event set (including
-duplicate `transaction_id`s, out-of-window events, boundary timestamps) into both
-adapters, runs every aggregation across several `UsageQuery`s, and asserts equality
-within an epsilon. Same test body, two adapters — that *is* the parity guarantee and
-doubles as the correctness spec.
+resent duplicates, out-of-window events, boundary timestamps) into both adapters,
+runs every aggregation across several `UsageQuery`s, and asserts equality within an
+epsilon. Same test body, two adapters — that's how we know they agree.
 
 ---
 
 ## 8. Recommendation
 
 Ship the **Postgres adapter first**, but **define the port and write the parity
-harness up front** so the ClickHouse adapter is a drop-in you can A/B via `shadow`
+harness up front** so the ClickHouse adapter slots in and can be checked via `compare`
 mode. Don't stand up the Kafka-engine/MV tier — a NATS consumer doing batched
 INSERTs gives the same ClickHouse benefits without running Kafka. You then get a
 real, measured comparison (latency, correctness, ops cost) on your own data before

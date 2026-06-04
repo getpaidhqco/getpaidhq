@@ -73,7 +73,7 @@ RESTful API mounted under `/api`. Main groups:
 - `PUT /api/customers/:id/payment-methods/:pmid` — update payment method
 - `GET /api/payment-methods/:id` — get details
 
-Plus endpoints for orders, products, sessions, carts, webhooks, webhook subscriptions, organizations, reports, and PSPs. See `openapi.yml` for the full surface.
+Plus endpoints for orders, products, sessions, carts, webhooks, webhook subscriptions, organizations, reports, and PSPs. See `openapi.json` (regenerated at the repo root on every server boot) for the full surface.
 
 ## Data model
 
