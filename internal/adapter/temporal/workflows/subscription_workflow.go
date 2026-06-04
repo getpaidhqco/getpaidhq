@@ -17,7 +17,9 @@ import (
 // On each iteration:
 //
 //  1. Compute the next charge date from the current state.
-//  2. Spawn a charge-reminder child workflow one minute before, detached.
+//  2. Resolve the per-tenant reminder config (once per cycle, via activity) and
+//     spawn a detached charge-reminder child per configured offset stage. Config
+//     edits apply on the next cycle (a running cycle's reminders are fixed).
 //  3. Wait for the charge time OR any of:
 //     - signal subscription.paused / .resumed / .cancelled / .activated
 //     - signal refresh-state
@@ -116,7 +118,9 @@ func SubscriptionWorkflow(ctx temporal.Context, input domain.Subscription) (doma
 		// Reminders — resolve the per-tenant config ONCE per cycle (changes apply
 		// next cycle), then schedule one detached child per offset stage.
 		var reminderCfg domain.ReminderConfig
-		_ = temporal.ExecuteActivity(actCtx, act.ResolveReminderConfig, sub.OrgId).Get(ctx, &reminderCfg)
+		if err := temporal.ExecuteActivity(actCtx, act.ResolveReminderConfig, sub.OrgId).Get(actCtx, &reminderCfg); err != nil {
+			logger.Warn("ResolveReminderConfig failed; skipping reminders this cycle", "orgId", sub.OrgId, "err", err)
+		}
 		if reminderCfg.Enabled {
 			for _, offset := range reminderCfg.Offsets {
 				reminderAt := next.Add(-offset)
@@ -175,8 +179,8 @@ func SubscriptionWorkflow(ctx temporal.Context, input domain.Subscription) (doma
 
 		// Billing — child workflow, identical contract to Hatchet's DAG.
 		billingCtx := temporal.WithChildOptions(ctx, temporal.ChildWorkflowOptions{
-			WorkflowID:                BillingCycleWorkflowID(sub.OrgId, sub.Id, sub.CyclesProcessed),
-			WorkflowIDReusePolicy:     enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
+			WorkflowID:            BillingCycleWorkflowID(sub.OrgId, sub.Id, sub.CyclesProcessed),
+			WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
 		})
 		var chargeResult domain.ChargeResult
 		if err := temporal.ExecuteChildWorkflow(billingCtx, BillingCycleWorkflow, BillingCycleInput{Subscription: sub}).
