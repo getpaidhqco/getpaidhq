@@ -1,4 +1,4 @@
-package service
+package port
 
 import (
 	"getpaidhq/internal/core/domain"
@@ -102,7 +102,3 @@ type UpdateBillingAnchorInput struct {
 	BillingAnchor int
 	ProrationMode domain.ProrationMode
 }
-
-// SubscriptionChargeInput is defined in internal/core/port/service_input.go because
-// it appears in port.SubscriptionService interface signatures.
-// See port.SubscriptionChargeInput.

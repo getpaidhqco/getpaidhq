@@ -1,4 +1,4 @@
-package service
+package port
 
 // CreateProductInput is the command input for ProductService.Create.
 type CreateProductInput struct {

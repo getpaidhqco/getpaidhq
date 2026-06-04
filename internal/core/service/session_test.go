@@ -33,7 +33,7 @@ func TestSessionService_CreateSession(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := NewSessionService(sess, cart, silentLogger{}, ps)
 
-		got, err := svc.CreateSession(context.Background(), CreateSessionInput{OrgId: "org_1", Currency: "USD"})
+		got, err := svc.CreateSession(context.Background(), port.CreateSessionInput{OrgId: "org_1", Currency: "USD"})
 
 		require.NoError(t, err)
 		require.Len(t, cart.created, 1)
@@ -49,7 +49,7 @@ func TestSessionService_CreateSession(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := NewSessionService(sess, cart, silentLogger{}, ps)
 
-		_, err := svc.CreateSession(context.Background(), CreateSessionInput{OrgId: "org_1", Currency: "USD"})
+		_, err := svc.CreateSession(context.Background(), port.CreateSessionInput{OrgId: "org_1", Currency: "USD"})
 
 		require.Error(t, err)
 		assert.Empty(t, sess.created)

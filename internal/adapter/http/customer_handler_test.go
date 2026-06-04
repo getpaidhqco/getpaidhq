@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
 	"getpaidhq/internal/lib"
 )
@@ -44,7 +45,7 @@ func TestCustomerHandler_Create(t *testing.T) {
 		ts := newTestServer(fixedAuthMiddleware(adminUser()))
 		h.RegisterRoutes(ts.api())
 
-		rec := doJSON(t, ts, http.MethodPost, "/api/customers", service.CreateCustomerInput{
+		rec := doJSON(t, ts, http.MethodPost, "/api/customers", port.CreateCustomerInput{
 			Email:     "jane@example.com",
 			FirstName: "Jane",
 			LastName:  "Doe",
@@ -69,7 +70,7 @@ func TestCustomerHandler_Create(t *testing.T) {
 		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
 		h.RegisterRoutes(ts.api())
 
-		rec := doJSON(t, ts, http.MethodPost, "/api/customers", service.CreateCustomerInput{
+		rec := doJSON(t, ts, http.MethodPost, "/api/customers", port.CreateCustomerInput{
 			Email: "x@example.com",
 		})
 
@@ -86,7 +87,7 @@ func TestCustomerHandler_Create(t *testing.T) {
 		ts := newTestServer(fixedAuthMiddleware(adminUser()))
 		h.RegisterRoutes(ts.api())
 
-		rec := doJSON(t, ts, http.MethodPost, "/api/customers", service.CreateCustomerInput{
+		rec := doJSON(t, ts, http.MethodPost, "/api/customers", port.CreateCustomerInput{
 			Email: "dup@example.com",
 		})
 
@@ -101,7 +102,7 @@ func TestCustomerHandler_Create(t *testing.T) {
 		ts := newTestServer(fixedAuthMiddleware(adminUser()))
 		h.RegisterRoutes(ts.api())
 
-		rec := doJSON(t, ts, http.MethodPost, "/api/customers", service.CreateCustomerInput{
+		rec := doJSON(t, ts, http.MethodPost, "/api/customers", port.CreateCustomerInput{
 			Email: "x@example.com",
 		})
 
@@ -178,7 +179,7 @@ func TestCustomerHandler_CreatePaymentMethod(t *testing.T) {
 		ts := newTestServer(fixedAuthMiddleware(adminUser()))
 		h.RegisterRoutes(ts.api())
 
-		rec := doJSON(t, ts, http.MethodPost, "/api/customers/cus_1/payment-methods", service.CreatePaymentMethodInput{
+		rec := doJSON(t, ts, http.MethodPost, "/api/customers/cus_1/payment-methods", port.CreatePaymentMethodInput{
 			Psp:   "paystack",
 			Name:  "Visa ****",
 			Type:  domain.PaymentMethodType("card"),
@@ -198,7 +199,7 @@ func TestCustomerHandler_CreatePaymentMethod(t *testing.T) {
 		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
 		h.RegisterRoutes(ts.api())
 
-		rec := doJSON(t, ts, http.MethodPost, "/api/customers/cus_1/payment-methods", service.CreatePaymentMethodInput{
+		rec := doJSON(t, ts, http.MethodPost, "/api/customers/cus_1/payment-methods", port.CreatePaymentMethodInput{
 			Psp: "paystack", Name: "Visa", Type: domain.PaymentMethodType("card"), Token: "tok",
 		})
 
@@ -213,7 +214,7 @@ func TestCustomerHandler_CreatePaymentMethod(t *testing.T) {
 		ts := newTestServer(fixedAuthMiddleware(adminUser()))
 		h.RegisterRoutes(ts.api())
 
-		rec := doJSON(t, ts, http.MethodPost, "/api/customers/cus_x/payment-methods", service.CreatePaymentMethodInput{
+		rec := doJSON(t, ts, http.MethodPost, "/api/customers/cus_x/payment-methods", port.CreatePaymentMethodInput{
 			Psp: "paystack", Name: "Visa", Type: domain.PaymentMethodType("card"), Token: "tok",
 		})
 
@@ -233,7 +234,7 @@ func TestCustomerHandler_UpdatePaymentMethod(t *testing.T) {
 		ts := newTestServer(fixedAuthMiddleware(adminUser()))
 		h.RegisterRoutes(ts.api())
 
-		rec := doJSON(t, ts, http.MethodPut, "/api/customers/cus_1/payment-methods/pm_1", service.UpdatePaymentMethodInput{
+		rec := doJSON(t, ts, http.MethodPut, "/api/customers/cus_1/payment-methods/pm_1", port.UpdatePaymentMethodInput{
 			Token: "tok_new",
 		})
 
@@ -249,7 +250,7 @@ func TestCustomerHandler_UpdatePaymentMethod(t *testing.T) {
 		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
 		h.RegisterRoutes(ts.api())
 
-		rec := doJSON(t, ts, http.MethodPut, "/api/customers/cus_1/payment-methods/pm_1", service.UpdatePaymentMethodInput{
+		rec := doJSON(t, ts, http.MethodPut, "/api/customers/cus_1/payment-methods/pm_1", port.UpdatePaymentMethodInput{
 			Token: "tok_new",
 		})
 

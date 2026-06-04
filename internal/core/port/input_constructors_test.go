@@ -1,10 +1,11 @@
-package service
+package port_test
 
 import (
 	"testing"
 	"time"
 
 	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -15,7 +16,7 @@ func TestCreateSubscriptionInput_ToSubscription(t *testing.T) {
 	now := time.Now().UTC()
 
 	t.Run("no trial -> StartDate is now, TrialEndsAt zero", func(t *testing.T) {
-		s := CreateSubscriptionInput{
+		s := port.CreateSubscriptionInput{
 			OrgId:              "org_1",
 			Amount:             1000,
 			Currency:           "USD",
@@ -48,7 +49,7 @@ func TestCreateSubscriptionInput_ToSubscription(t *testing.T) {
 	for _, tc := range trialCases {
 		t.Run(tc.name+" pushes StartDate out and sets TrialEndsAt", func(t *testing.T) {
 			before := time.Now().UTC()
-			s := CreateSubscriptionInput{
+			s := port.CreateSubscriptionInput{
 				OrgId:              "org_1",
 				Amount:             1000,
 				Currency:           "USD",
@@ -67,7 +68,7 @@ func TestCreateSubscriptionInput_ToSubscription(t *testing.T) {
 // It moved here when NewPrice was replaced by CreatePriceInput.ToPrice.
 func TestCreatePriceInput_ToPrice(t *testing.T) {
 	t.Run("empty billing and trial intervals default to none", func(t *testing.T) {
-		p := CreatePriceInput{
+		p := port.CreatePriceInput{
 			Currency:  "USD",
 			UnitPrice: 1000,
 		}.ToPrice("org_1", "var_1")
@@ -80,7 +81,7 @@ func TestCreatePriceInput_ToPrice(t *testing.T) {
 	})
 
 	t.Run("explicit intervals are preserved", func(t *testing.T) {
-		p := CreatePriceInput{
+		p := port.CreatePriceInput{
 			Currency:           "EUR",
 			UnitPrice:          500,
 			BillingInterval:    domain.BillingIntervalMonth,

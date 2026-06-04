@@ -1,4 +1,4 @@
-package service
+package port
 
 // CreateWebhookSubscriptionInput is the command input for WebhookSubscriptionService.Create.
 type CreateWebhookSubscriptionInput struct {

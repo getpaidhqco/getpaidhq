@@ -127,7 +127,7 @@ func (s *SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, o
 	return subs, nil
 }
 
-func (s *SubscriptionService) Create(ctx context.Context, input CreateSubscriptionInput) (domain.Subscription, error) {
+func (s *SubscriptionService) Create(ctx context.Context, input port.CreateSubscriptionInput) (domain.Subscription, error) {
 	s.logger.Info("Creating new subscription", "orgId", input.OrgId)
 
 	subscription := input.ToSubscription()
@@ -141,7 +141,7 @@ func (s *SubscriptionService) Create(ctx context.Context, input CreateSubscripti
 	return subscription, nil
 }
 
-func (s *SubscriptionService) Update(ctx context.Context, input UpdateSubscriptionInput) (domain.Subscription, error) {
+func (s *SubscriptionService) Update(ctx context.Context, input port.UpdateSubscriptionInput) (domain.Subscription, error) {
 	s.logger.Info("Updating subscription", "orgId", input.OrgId, "id", input.Id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
@@ -208,7 +208,7 @@ func (s *SubscriptionService) Activate(ctx context.Context, orgId string, id str
 // PauseSubscription updates the subscription state in the database.
 // The orchestration wrapper additionally signals the workflow engine.
 // The read-then-write is atomic via SELECT FOR UPDATE — see Activate.
-func (s *SubscriptionService) PauseSubscription(ctx context.Context, input PauseSubscriptionInput) (domain.Subscription, error) {
+func (s *SubscriptionService) PauseSubscription(ctx context.Context, input port.PauseSubscriptionInput) (domain.Subscription, error) {
 	s.logger.Info("Pausing subscription", "orgId", input.OrgId, "id", input.Id)
 
 	var subscription domain.Subscription
@@ -258,7 +258,7 @@ func (s *SubscriptionService) List(ctx context.Context, orgId string, pagination
 // ResumeSubscription updates the subscription state in the database.
 // The orchestration wrapper additionally signals the workflow engine.
 // The read-then-write is atomic via SELECT FOR UPDATE — see Activate.
-func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input ResumeSubscriptionInput) (domain.Subscription, error) {
+func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input port.ResumeSubscriptionInput) (domain.Subscription, error) {
 	s.logger.Info("Resuming subscription", "orgId", input.OrgId, "id", input.Id)
 
 	var newSub domain.Subscription
@@ -320,7 +320,7 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input Resu
 // CancelSubscription cancels a subscription. It will continue through its current billing cycle.
 // The orchestration wrapper additionally signals the workflow engine.
 // The read-then-write is atomic via SELECT FOR UPDATE — see Activate.
-func (s *SubscriptionService) CancelSubscription(ctx context.Context, input CancelSubscriptionInput) (domain.Subscription, error) {
+func (s *SubscriptionService) CancelSubscription(ctx context.Context, input port.CancelSubscriptionInput) (domain.Subscription, error) {
 	s.logger.Info("Cancelling subscription", "orgId", input.OrgId, "id", input.Id)
 
 	var subscription domain.Subscription
@@ -360,7 +360,7 @@ func (s *SubscriptionService) CancelSubscription(ctx context.Context, input Canc
 	return subscription, nil
 }
 
-func (s *SubscriptionService) UpdateBillingAnchor(ctx context.Context, input UpdateBillingAnchorInput) (domain.ProrationDetails, error) {
+func (s *SubscriptionService) UpdateBillingAnchor(ctx context.Context, input port.UpdateBillingAnchorInput) (domain.ProrationDetails, error) {
 	s.logger.Infof("Updating billing anchor for subscription %s", input.Id)
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)

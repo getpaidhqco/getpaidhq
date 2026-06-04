@@ -120,7 +120,7 @@ func TestCustomerService_Create(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newCustomerService(repo, &fakePaymentMethodRepoFull{}, ps)
 
-		got, err := svc.Create(context.Background(), "org_1", CreateCustomerInput{Email: "a@b.com", FirstName: "Ada"})
+		got, err := svc.Create(context.Background(), "org_1", port.CreateCustomerInput{Email: "a@b.com", FirstName: "Ada"})
 
 		require.NoError(t, err)
 		assert.Equal(t, "org_1", got.OrgId)
@@ -134,7 +134,7 @@ func TestCustomerService_Create(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newCustomerService(repo, &fakePaymentMethodRepoFull{}, ps)
 
-		_, err := svc.Create(context.Background(), "org_1", CreateCustomerInput{Email: "a@b.com"})
+		_, err := svc.Create(context.Background(), "org_1", port.CreateCustomerInput{Email: "a@b.com"})
 
 		require.Error(t, err)
 		assert.Empty(t, repo.created)
@@ -145,7 +145,7 @@ func TestCustomerService_Create(t *testing.T) {
 		repo := &fakeCustomerRepoFull{byEmailErr: errors.New("db down")}
 		svc := newCustomerService(repo, &fakePaymentMethodRepoFull{}, nil)
 
-		_, err := svc.Create(context.Background(), "org_1", CreateCustomerInput{Email: "a@b.com"})
+		_, err := svc.Create(context.Background(), "org_1", port.CreateCustomerInput{Email: "a@b.com"})
 
 		require.Error(t, err)
 		assert.Empty(t, repo.created)
@@ -159,7 +159,7 @@ func TestCustomerService_CreatePaymentMethod(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newCustomerService(repo, pm, ps)
 
-		got, err := svc.CreatePaymentMethod(context.Background(), "org_1", CreatePaymentMethodInput{
+		got, err := svc.CreatePaymentMethod(context.Background(), "org_1", port.CreatePaymentMethodInput{
 			CustomerId: "cus_1", Name: "Visa", Token: "tok_1", BillingAddress: addressFor(),
 		})
 
@@ -176,7 +176,7 @@ func TestCustomerService_CreatePaymentMethod(t *testing.T) {
 		pm := &fakePaymentMethodRepoFull{}
 		svc := newCustomerService(repo, pm, nil)
 
-		got, err := svc.CreatePaymentMethod(context.Background(), "org_1", CreatePaymentMethodInput{
+		got, err := svc.CreatePaymentMethod(context.Background(), "org_1", port.CreatePaymentMethodInput{
 			CustomerId: "cus_1", Token: "tok_1",
 		})
 
@@ -189,7 +189,7 @@ func TestCustomerService_CreatePaymentMethod(t *testing.T) {
 		pm := &fakePaymentMethodRepoFull{}
 		svc := newCustomerService(repo, pm, nil)
 
-		_, err := svc.CreatePaymentMethod(context.Background(), "org_1", CreatePaymentMethodInput{CustomerId: "cus_1", Token: "tok_1"})
+		_, err := svc.CreatePaymentMethod(context.Background(), "org_1", port.CreatePaymentMethodInput{CustomerId: "cus_1", Token: "tok_1"})
 
 		require.Error(t, err)
 		assert.Empty(t, pm.created)
@@ -200,7 +200,7 @@ func TestCustomerService_CreatePaymentMethod(t *testing.T) {
 		pm := &fakePaymentMethodRepoFull{}
 		svc := newCustomerService(repo, pm, nil)
 
-		_, err := svc.CreatePaymentMethod(context.Background(), "org_1", CreatePaymentMethodInput{CustomerId: "cus_x", Token: "tok_1", BillingAddress: addressFor()})
+		_, err := svc.CreatePaymentMethod(context.Background(), "org_1", port.CreatePaymentMethodInput{CustomerId: "cus_x", Token: "tok_1", BillingAddress: addressFor()})
 
 		require.Error(t, err)
 		assert.Empty(t, pm.created)
@@ -211,7 +211,7 @@ func TestCustomerService_CreatePaymentMethod(t *testing.T) {
 		pm := &fakePaymentMethodRepoFull{}
 		svc := newCustomerService(repo, pm, nil)
 
-		got, err := svc.CreatePaymentMethod(context.Background(), "org_1", CreatePaymentMethodInput{
+		got, err := svc.CreatePaymentMethod(context.Background(), "org_1", port.CreatePaymentMethodInput{
 			CustomerId: "cus_1", Token: "tok_1", IsDefault: true,
 		})
 
@@ -228,7 +228,7 @@ func TestCustomerService_UpdatePaymentMethod(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newCustomerService(repo, pm, ps)
 
-		got, err := svc.UpdatePaymentMethod(context.Background(), "org_1", UpdatePaymentMethodInput{
+		got, err := svc.UpdatePaymentMethod(context.Background(), "org_1", port.UpdatePaymentMethodInput{
 			CustomerId: "cus_1", PaymentMethodId: "pm_1", Token: "new",
 		})
 
@@ -243,7 +243,7 @@ func TestCustomerService_UpdatePaymentMethod(t *testing.T) {
 		pm := &fakePaymentMethodRepoFull{byIdErr: errors.New("missing")}
 		svc := newCustomerService(repo, pm, nil)
 
-		_, err := svc.UpdatePaymentMethod(context.Background(), "org_1", UpdatePaymentMethodInput{CustomerId: "cus_1", PaymentMethodId: "pm_x"})
+		_, err := svc.UpdatePaymentMethod(context.Background(), "org_1", port.UpdatePaymentMethodInput{CustomerId: "cus_1", PaymentMethodId: "pm_x"})
 
 		require.Error(t, err)
 		assert.Empty(t, pm.updated)

@@ -53,7 +53,7 @@ func TestSubscriptionOrchestration_PauseSignalsEngineAndPublishes(t *testing.T) 
 	narrow := newSubscriptionService(subRepo, nil, nil, nil, nil, ps)
 	svc := NewSubscriptionOrchestrationService(narrow, engine, silentLogger{})
 
-	got, err := svc.PauseSubscription(context.Background(), PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+	got, err := svc.PauseSubscription(context.Background(), port.PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 	require.NoError(t, err)
 	assert.Equal(t, domain.SubscriptionStatusPaused, got.Status)
@@ -68,7 +68,7 @@ func TestSubscriptionOrchestration_DoesNotSignalWhenNarrowRejects(t *testing.T) 
 	narrow := newSubscriptionService(subRepo, nil, nil, nil, nil, nil)
 	svc := NewSubscriptionOrchestrationService(narrow, engine, silentLogger{})
 
-	_, err := svc.PauseSubscription(context.Background(), PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+	_, err := svc.PauseSubscription(context.Background(), port.PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 	require.Error(t, err)
 	assert.Empty(t, engine.updates, "no engine signal when the DB transition is rejected")
@@ -81,7 +81,7 @@ func TestSubscriptionOrchestration_CancelSignalsEngine(t *testing.T) {
 	narrow := newSubscriptionService(subRepo, nil, nil, nil, nil, ps)
 	svc := NewSubscriptionOrchestrationService(narrow, engine, silentLogger{})
 
-	got, err := svc.CancelSubscription(context.Background(), CancelSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+	got, err := svc.CancelSubscription(context.Background(), port.CancelSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 	require.NoError(t, err)
 	assert.Equal(t, domain.SubscriptionStatusCancelled, got.Status)
@@ -108,7 +108,7 @@ func TestSubscriptionOrchestration_EngineErrorPropagates(t *testing.T) {
 	narrow := newSubscriptionService(subRepo, nil, nil, nil, nil, &recordingPubSub{})
 	svc := NewSubscriptionOrchestrationService(narrow, engine, silentLogger{})
 
-	_, err := svc.PauseSubscription(context.Background(), PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+	_, err := svc.PauseSubscription(context.Background(), port.PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 	require.Error(t, err, "engine signalling failure surfaces to the caller")
 }

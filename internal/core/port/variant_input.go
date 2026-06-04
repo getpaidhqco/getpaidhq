@@ -1,4 +1,4 @@
-package service
+package port
 
 // CreateVariantInput is the command input for VariantService.Create.
 type CreateVariantInput struct {

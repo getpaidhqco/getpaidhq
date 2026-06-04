@@ -76,7 +76,7 @@ func NewWebhookSubscriptionService(
 	return s
 }
 
-func (s *WebhookSubscriptionService) Create(ctx context.Context, input CreateWebhookSubscriptionInput) (domain.WebhookSubscription, error) {
+func (s *WebhookSubscriptionService) Create(ctx context.Context, input port.CreateWebhookSubscriptionInput) (domain.WebhookSubscription, error) {
 	// Refuse to STORE a webhook URL that points at internal infra. The
 	// runtime DialContext also re-checks at send time (DNS rebinding
 	// defense) but rejecting at create gives the customer a useful

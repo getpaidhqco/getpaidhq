@@ -76,11 +76,11 @@ func (s *ProductHandler) Create(c fuego.ContextWithBody[CreateProductRequest]) (
 	if err != nil {
 		return ProductResponse{}, err
 	}
-	variants := make([]service.CreateProductVariantInput, len(req.Variants))
+	variants := make([]port.CreateProductVariantInput, len(req.Variants))
 	for i, v := range req.Variants {
-		prices := make([]service.CreateProductPriceInput, len(v.Prices))
+		prices := make([]port.CreateProductPriceInput, len(v.Prices))
 		for j, p := range v.Prices {
-			prices[j] = service.CreateProductPriceInput{
+			prices[j] = port.CreateProductPriceInput{
 				Label:              p.Label,
 				Category:           p.Category,
 				Scheme:             p.Scheme,
@@ -97,14 +97,14 @@ func (s *ProductHandler) Create(c fuego.ContextWithBody[CreateProductRequest]) (
 				Metadata:           p.Metadata,
 			}
 		}
-		variants[i] = service.CreateProductVariantInput{
+		variants[i] = port.CreateProductVariantInput{
 			Name:        v.Name,
 			Description: v.Description,
 			Metadata:    v.Metadata,
 			Prices:      prices,
 		}
 	}
-	input := service.CreateProductInput{
+	input := port.CreateProductInput{
 		Name:        req.Name,
 		Description: req.Description,
 		Metadata:    req.Metadata,
@@ -146,7 +146,7 @@ func (s *ProductHandler) Update(c fuego.ContextWithBody[UpdateProductRequest]) (
 	if err != nil {
 		return ProductResponse{}, err
 	}
-	input := service.UpdateProductInput{
+	input := port.UpdateProductInput{
 		Name:        req.Name,
 		Description: req.Description,
 		Metadata:    req.Metadata,
@@ -179,7 +179,7 @@ func (s *ProductHandler) CreatePrice(c fuego.ContextWithBody[CreatePriceRequest]
 	if err != nil {
 		return domain.Price{}, err
 	}
-	price, err := s.productService.CreateProductPrice(c.Context(), service.CreatePriceInput{
+	price, err := s.productService.CreateProductPrice(c.Context(), port.CreatePriceInput{
 		OrgId:              authUser.OrgId,
 		VariantId:          input.VariantId,
 		Category:           input.Category,
@@ -243,7 +243,7 @@ func (s *ProductHandler) UpdatePrice(c fuego.ContextWithBody[CreatePriceRequest]
 	if err != nil {
 		return domain.Price{}, err
 	}
-	price, err := s.productService.UpdatePrice(c.Context(), authUser.OrgId, c.PathParam("priceId"), service.CreatePriceInput{
+	price, err := s.productService.UpdatePrice(c.Context(), authUser.OrgId, c.PathParam("priceId"), port.CreatePriceInput{
 		OrgId:              authUser.OrgId,
 		VariantId:          input.VariantId,
 		Category:           input.Category,
@@ -288,7 +288,7 @@ func (s *ProductHandler) CreateVariant(c fuego.ContextWithBody[CreateVariantRequ
 	if err != nil {
 		return domain.Variant{}, err
 	}
-	input := service.CreateVariantInput{
+	input := port.CreateVariantInput{
 		Name:        req.Name,
 		Description: req.Description,
 		Metadata:    req.Metadata,
@@ -337,7 +337,7 @@ func (s *ProductHandler) UpdateVariant(c fuego.ContextWithBody[UpdateVariantRequ
 	if err != nil {
 		return domain.Variant{}, err
 	}
-	input := service.UpdateVariantInput{
+	input := port.UpdateVariantInput{
 		Name:        req.Name,
 		Description: req.Description,
 		Metadata:    req.Metadata,

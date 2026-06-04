@@ -59,7 +59,7 @@ func (o *OrderHandler) CreateOrder(c fuego.ContextWithBody[CreateOrderRequest]) 
 		return CreateOrderResponse{}, NewApiError(lib.ValidationError, "Currency is required", nil)
 	}
 
-	rsp, err := o.service.CreateOrder(c.Context(), service.CreateOrderInput{
+	rsp, err := o.service.CreateOrder(c.Context(), port.CreateOrderInput{
 		OrgId:    authUser.OrgId,
 		Currency: input.Cart.Currency,
 		Customer: domain.CreateOrderCommandCustomer{
@@ -109,11 +109,11 @@ func (o *OrderHandler) CompleteOrder(c fuego.ContextWithBody[CompleteOrderReques
 		completedAt = parsed
 	}
 
-	order, err := o.service.CompleteOrder(c.Context(), service.CompleteOrderInput{
+	order, err := o.service.CompleteOrder(c.Context(), port.CompleteOrderInput{
 		OrgId:           authUser.OrgId,
 		Id:              id,
 		PaymentMethodId: input.PaymentMethodId,
-		PaymentMethod: service.CompleteOrderInputPaymentMethod{
+		PaymentMethod: port.CompleteOrderInputPaymentMethod{
 			Psp:       input.PaymentMethod.Psp,
 			Name:      input.PaymentMethod.Name,
 			IsDefault: input.PaymentMethod.IsDefault,
@@ -134,7 +134,7 @@ func (o *OrderHandler) CompleteOrder(c fuego.ContextWithBody[CompleteOrderReques
 			Token:    input.PaymentMethod.Token,
 			Metadata: input.PaymentMethod.Metadata,
 		},
-		Payment: service.CompleteOrderInputPayment{
+		Payment: port.CompleteOrderInputPayment{
 			PspId:       input.Payment.PspId,
 			CompletedAt: completedAt,
 			Reference:   input.Payment.Reference,

@@ -41,7 +41,7 @@ func (s *WebhookSubscriptionHandler) Create(c fuego.ContextWithBody[CreateWebhoo
 	if err != nil {
 		return nil, err
 	}
-	webhook, err := s.webhookSubscriptionService.Create(c.Context(), service.CreateWebhookSubscriptionInput{
+	webhook, err := s.webhookSubscriptionService.Create(c.Context(), port.CreateWebhookSubscriptionInput{
 		OrgId:  authUser.OrgId,
 		Url:    input.Url,
 		Events: input.Events,

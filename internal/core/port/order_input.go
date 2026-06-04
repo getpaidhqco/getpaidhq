@@ -1,4 +1,4 @@
-package service
+package port
 
 import (
 	"getpaidhq/internal/core/domain"

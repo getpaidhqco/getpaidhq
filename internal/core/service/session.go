@@ -28,7 +28,7 @@ func NewSessionService(
 	}
 }
 
-func (s *SessionService) CreateSession(ctx context.Context, input CreateSessionInput) (domain.Session, error) {
+func (s *SessionService) CreateSession(ctx context.Context, input port.CreateSessionInput) (domain.Session, error) {
 	cartEntity, err := s.cartRepository.Create(ctx, domain.Cart{
 		OrgId: input.OrgId,
 		Id:    lib.GenerateId("cart"),

@@ -48,7 +48,7 @@ func TestSubscriptionService_Create(t *testing.T) {
 	ps := &recordingPubSub{}
 	svc := newSubscriptionService(subRepo, nil, nil, nil, nil, ps)
 
-	got, err := svc.Create(context.Background(), CreateSubscriptionInput{
+	got, err := svc.Create(context.Background(), port.CreateSubscriptionInput{
 		OrgId: "org_1", PaymentMethodId: "pm_1", Amount: 1000, Currency: "USD",
 	})
 
@@ -63,7 +63,7 @@ func TestSubscriptionService_PauseSubscription(t *testing.T) {
 		subRepo := &fakeSubRepo{sub: domain.Subscription{OrgId: "org_1", Id: "sub_1", Status: domain.SubscriptionStatusActive}}
 		svc := newSubscriptionService(subRepo, nil, nil, nil, nil, nil)
 
-		got, err := svc.PauseSubscription(context.Background(), PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+		got, err := svc.PauseSubscription(context.Background(), port.PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.SubscriptionStatusPaused, got.Status)
@@ -75,7 +75,7 @@ func TestSubscriptionService_PauseSubscription(t *testing.T) {
 		subRepo := &fakeSubRepo{sub: domain.Subscription{OrgId: "org_1", Id: "sub_1", Status: domain.SubscriptionStatusPaused}}
 		svc := newSubscriptionService(subRepo, nil, nil, nil, nil, nil)
 
-		_, err := svc.PauseSubscription(context.Background(), PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+		_, err := svc.PauseSubscription(context.Background(), port.PauseSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 		require.Error(t, err)
 		assert.Empty(t, subRepo.updated, "no update on rejection")
@@ -87,7 +87,7 @@ func TestSubscriptionService_ResumeSubscription(t *testing.T) {
 		subRepo := &fakeSubRepo{sub: domain.Subscription{OrgId: "org_1", Id: "sub_1", Status: domain.SubscriptionStatusActive}}
 		svc := newSubscriptionService(subRepo, nil, nil, nil, nil, nil)
 
-		_, err := svc.ResumeSubscription(context.Background(), ResumeSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+		_, err := svc.ResumeSubscription(context.Background(), port.ResumeSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 		require.Error(t, err)
 		assert.Empty(t, subRepo.updated)
@@ -100,7 +100,7 @@ func TestSubscriptionService_ResumeSubscription(t *testing.T) {
 		}}
 		svc := newSubscriptionService(subRepo, nil, nil, nil, nil, nil)
 
-		got, err := svc.ResumeSubscription(context.Background(), ResumeSubscriptionInput{
+		got, err := svc.ResumeSubscription(context.Background(), port.ResumeSubscriptionInput{
 			OrgId: "org_1", Id: "sub_1", ResumeBehavior: domain.StartNewBillingPeriod,
 		})
 
@@ -115,7 +115,7 @@ func TestSubscriptionService_ResumeSubscription(t *testing.T) {
 		subRepo := &fakeSubRepo{sub: domain.Subscription{OrgId: "org_1", Id: "sub_1", Status: domain.SubscriptionStatusPaused}}
 		svc := newSubscriptionService(subRepo, nil, nil, nil, nil, nil)
 
-		_, err := svc.ResumeSubscription(context.Background(), ResumeSubscriptionInput{
+		_, err := svc.ResumeSubscription(context.Background(), port.ResumeSubscriptionInput{
 			OrgId: "org_1", Id: "sub_1", ResumeBehavior: domain.ContinueExistingBillingPeriod,
 		})
 
@@ -131,7 +131,7 @@ func TestSubscriptionService_CancelSubscription(t *testing.T) {
 		}}
 		svc := newSubscriptionService(subRepo, nil, nil, nil, nil, nil)
 
-		got, err := svc.CancelSubscription(context.Background(), CancelSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+		got, err := svc.CancelSubscription(context.Background(), port.CancelSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.SubscriptionStatusCancelled, got.Status)
@@ -143,7 +143,7 @@ func TestSubscriptionService_CancelSubscription(t *testing.T) {
 		subRepo := &fakeSubRepo{sub: domain.Subscription{OrgId: "org_1", Id: "sub_1", Status: domain.SubscriptionStatusCancelled}}
 		svc := newSubscriptionService(subRepo, nil, nil, nil, nil, nil)
 
-		_, err := svc.CancelSubscription(context.Background(), CancelSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
+		_, err := svc.CancelSubscription(context.Background(), port.CancelSubscriptionInput{OrgId: "org_1", Id: "sub_1"})
 
 		require.Error(t, err)
 		assert.Empty(t, subRepo.updated)
