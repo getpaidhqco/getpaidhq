@@ -72,6 +72,8 @@ type fakeOrderRepo struct {
 	updated []domain.Order
 }
 
+
+
 func (r *fakeOrderRepo) FindById(_ context.Context, _, _ string) (domain.Order, error) {
 	if r.findErr != nil {
 		return domain.Order{}, r.findErr
@@ -81,6 +83,19 @@ func (r *fakeOrderRepo) FindById(_ context.Context, _, _ string) (domain.Order, 
 
 func (r *fakeOrderRepo) FindOrderItemsByOrderId(_ context.Context, _, _ string) ([]domain.OrderItem, error) {
 	return r.items, nil
+}
+
+func (r *fakeOrderRepo) FindOrderItemById(_ context.Context, _, id string) (domain.OrderItem, error) {
+	for _, it := range r.items {
+		if it.Id == id {
+			return it, nil
+		}
+	}
+	// Fall back to the first item — tests that don't set Id on items still work.
+	if len(r.items) > 0 {
+		return r.items[0], nil
+	}
+	return domain.OrderItem{}, nil
 }
 
 func (r *fakeOrderRepo) Update(_ context.Context, o domain.Order) (domain.Order, error) {
@@ -102,6 +117,10 @@ func (r *fakeCustomerRepo) FindById(_ context.Context, _, _ string) (domain.Cust
 		return domain.Customer{}, r.findErr
 	}
 	return r.customer, nil
+}
+
+func (r *fakeCustomerRepo) FindByIds(_ context.Context, _ string, ids []string) ([]domain.Customer, error) {
+	return []domain.Customer{r.customer}, nil
 }
 
 func (r *fakeCustomerRepo) FindPaymentMethodById(_ context.Context, _, _ string) (domain.PaymentMethod, error) {
@@ -143,7 +162,7 @@ func newOrderServiceForTest(
 ) *OrderService {
 	// session/cart/price/product repos and gateway factory are unused by
 	// CompleteOrder.
-	return NewOrderService(tx, engine, nil, nil, nil, orderRepo, custRepo, subRepo, payRepo, pmRepo, nil, nil, ps, silentLogger{})
+	return NewOrderService(tx, engine, nil, &fakePriceRepo{}, nil, orderRepo, custRepo, subRepo, payRepo, pmRepo, nil, nil, ps, silentLogger{})
 }
 
 func pendingOrder() domain.Order {

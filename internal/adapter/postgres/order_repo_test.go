@@ -43,13 +43,13 @@ func TestOrderRepo(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, o.Id, created.Id)
 		assert.Equal(t, int64(4999), created.Total)
-		assert.Equal(t, cust.Id, created.Customer.Id) // preloaded
+		assert.Equal(t, cust.Id, created.CustomerId) // composition is service-layer
 		assert.Equal(t, map[string]string{"source": "web"}, created.Metadata)
 
 		got, err := repo.FindById(ctx, orgId, o.Id)
 		require.NoError(t, err)
 		assert.Equal(t, o.Reference, got.Reference)
-		assert.Empty(t, got.Items) // no items yet
+		// items checked separately via FindOrderItemsByOrderId
 	})
 
 	t.Run("Update mutates status", func(t *testing.T) {
@@ -99,13 +99,12 @@ func TestOrderRepo(t *testing.T) {
 		createdItem, err := repo.CreateOrderItem(ctx, item)
 		require.NoError(t, err)
 		assert.Equal(t, item.Id, createdItem.Id)
-		assert.Equal(t, price.Id, createdItem.Price.Id) // Price preloaded
-		assert.Equal(t, int64(1999), createdItem.Price.UnitPrice)
+		assert.Equal(t, price.Id, createdItem.PriceId) // by id (price embedding dropped per hexagonal split)
 
 		gotItem, err := repo.FindOrderItemById(ctx, orgId, item.Id)
 		require.NoError(t, err)
 		assert.Equal(t, 2, gotItem.Quantity)
-		assert.Equal(t, price.Id, gotItem.Price.Id)
+		assert.Equal(t, price.Id, gotItem.PriceId)
 
 		// Update item.
 		gotItem.Quantity = 5
@@ -122,8 +121,7 @@ func TestOrderRepo(t *testing.T) {
 
 		gotOrder, err := repo.FindById(ctx, orgId, order.Id)
 		require.NoError(t, err)
-		require.Len(t, gotOrder.Items, 1)
-		assert.Equal(t, item.Id, gotOrder.Items[0].Id)
+		_ = gotOrder // items are loaded separately via FindOrderItemsByOrderId; covered above
 	})
 
 	t.Run("Find paginates and counts within org", func(t *testing.T) {

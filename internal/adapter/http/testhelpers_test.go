@@ -439,6 +439,18 @@ func (r *fakeCustomerRepo) List(context.Context, string, domain.Pagination) ([]d
 	return r.listResult, total, nil
 }
 
+func (r *fakeCustomerRepo) FindByIds(_ context.Context, _ string, ids []string) ([]domain.Customer, error) {
+	want := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		want[id] = true
+	}
+	var out []domain.Customer
+	if want[r.byId.Id] {
+		out = append(out, r.byId)
+	}
+	return out, nil
+}
+
 func (r *fakeCustomerRepo) FindPaymentMethodById(context.Context, string, string) (domain.PaymentMethod, error) {
 	if r.pmErr != nil {
 		return domain.PaymentMethod{}, r.pmErr
@@ -645,6 +657,28 @@ func (r *fakePriceRepo) Update(_ context.Context, p domain.Price) (domain.Price,
 	return p, nil
 }
 func (r *fakePriceRepo) Delete(context.Context, string, string) error { return nil }
+
+func (r *fakePriceRepo) FindByIds(_ context.Context, _ string, ids []string) ([]domain.Price, error) {
+	// Match against the canned byId / listResult.
+	want := make(map[string]bool, len(ids))
+	for _, id := range ids {
+		want[id] = true
+	}
+	var out []domain.Price
+	if want[r.byId.Id] {
+		out = append(out, r.byId)
+	}
+	for _, p := range r.listResult {
+		if want[p.Id] {
+			out = append(out, p)
+		}
+	}
+	return out, nil
+}
+
+func (r *fakePriceRepo) FindByVariantIds(context.Context, string, []string) ([]domain.Price, error) {
+	return r.listResult, nil
+}
 
 // fakeSessionRepo satisfies port.SessionRepository.
 type fakeSessionRepo struct {

@@ -7,32 +7,38 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func monthlyItem(trial BillingInterval, trialQty, cycles int) OrderItem {
+// monthlyPrice / monthlyItem build a Price + OrderItem pair for testing.
+// The Price was previously embedded on OrderItem.Price; after the hexagonal
+// split it's a separate aggregate passed alongside the item.
+func monthlyPrice(trial BillingInterval, trialQty, cycles int) Price {
+	return Price{
+		BillingInterval:    BillingIntervalMonth,
+		BillingIntervalQty: 1,
+		Category:           PriceCategorySubscription,
+		Currency:           "USD",
+		UnitPrice:          1000,
+		TrialInterval:      trial,
+		TrialIntervalQty:   trialQty,
+		Cycles:             cycles,
+	}
+}
+
+func monthlyItem() OrderItem {
 	return OrderItem{
 		OrgId:   "org_1",
 		OrderId: "order_1",
-		Price: Price{
-			BillingInterval:    BillingIntervalMonth,
-			BillingIntervalQty: 1,
-			Category:           PriceCategorySubscription,
-			Currency:           "USD",
-			UnitPrice:          1000,
-			TrialInterval:      trial,
-			TrialIntervalQty:   trialQty,
-			Cycles:             cycles,
-		},
 	}
 }
 
 func TestSetActivationDates_NoTrialNoCycles(t *testing.T) {
 	now := time.Now().UTC()
-	s := NewSubscriptionFromOrderItem(monthlyItem(BillingIntervalNone, 0, 0))
+	price := monthlyPrice(BillingIntervalNone, 0, 0)
+	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
 
-	got := s.SetActivationDates()
+	got := s.SetActivationDates(price)
 
 	assert.Same(t, &s, got)
 	assert.WithinDuration(t, now, s.StartDate, 5*time.Second)
-	// First cycle: CalculateNextBillingDate returns StartDate, so RenewsAt == StartDate.
 	assert.Equal(t, s.StartDate, s.RenewsAt)
 	assert.Equal(t, s.StartDate, s.CurrentPeriodStart)
 	assert.Equal(t, s.RenewsAt, s.CurrentPeriodEnd)
@@ -42,28 +48,29 @@ func TestSetActivationDates_NoTrialNoCycles(t *testing.T) {
 }
 
 func TestSetActivationDates_WithTrialSetsTrialEnd(t *testing.T) {
-	s := NewSubscriptionFromOrderItem(monthlyItem(BillingIntervalMonth, 1, 0))
+	price := monthlyPrice(BillingIntervalMonth, 1, 0)
+	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
 
-	s.SetActivationDates()
+	s.SetActivationDates(price)
 
 	assert.False(t, s.TrialEndsAt.IsZero(), "trial set -> TrialEndsAt populated")
-	// Trial of 1 month from start.
 	assert.Equal(t, s.StartDate.AddDate(0, 1, 0), s.TrialEndsAt)
 }
 
 func TestSetActivationDates_WithCyclesSetsEndsAt(t *testing.T) {
-	s := NewSubscriptionFromOrderItem(monthlyItem(BillingIntervalNone, 0, 12))
+	price := monthlyPrice(BillingIntervalNone, 0, 12)
+	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
 
-	s.SetActivationDates()
+	s.SetActivationDates(price)
 
 	assert.False(t, s.EndsAt.IsZero(), "cycles>0 -> EndsAt populated")
-	// 12 cycles * 1 month interval qty = 12 months from start.
 	assert.Equal(t, s.StartDate.AddDate(0, 12, 0), s.EndsAt)
 }
 
 func TestSetActive_FirstCycle(t *testing.T) {
 	now := time.Now().UTC()
-	s := NewSubscriptionFromOrderItem(monthlyItem(BillingIntervalNone, 0, 0))
+	price := monthlyPrice(BillingIntervalNone, 0, 0)
+	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
 
 	payment := Payment{
 		OrgId:       "org_1",
@@ -71,14 +78,13 @@ func TestSetActive_FirstCycle(t *testing.T) {
 		CompletedAt: now,
 	}
 
-	got := s.SetActive(payment)
+	got := s.SetActive(price, payment)
 
 	assert.Same(t, &s, got)
 	assert.Equal(t, SubscriptionStatusActive, s.Status)
 	assert.Equal(t, int64(1000), s.TotalRevenue)
 	assert.Equal(t, 1, s.CyclesProcessed, "first successful charge increments to 1")
 	assert.Equal(t, now, s.LastCharge)
-	// After CyclesProcessed becomes 1, RenewsAt advances one month from StartDate.
 	assert.Equal(t, s.StartDate.AddDate(0, 1, 0), s.RenewsAt)
 	assert.Equal(t, s.StartDate, s.CurrentPeriodStart)
 	assert.Equal(t, s.RenewsAt, s.CurrentPeriodEnd)
@@ -86,51 +92,44 @@ func TestSetActive_FirstCycle(t *testing.T) {
 
 func TestSetActive_RecurringChargeIncrementsCycles(t *testing.T) {
 	now := time.Now().UTC()
-	s := NewSubscriptionFromOrderItem(monthlyItem(BillingIntervalNone, 0, 0))
-	// Simulate a subscription that already has one cycle processed.
+	price := monthlyPrice(BillingIntervalNone, 0, 0)
+	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
 	s.CyclesProcessed = 1
 	s.LastCharge = now.AddDate(0, -1, 0)
 
 	payment := Payment{OrgId: "org_1", Amount: 1000, CompletedAt: now}
 
-	s.SetActive(payment)
+	s.SetActive(price, payment)
 
-	// SetActive always re-runs SetActivationDates (which resets StartDate to now),
-	// then on a successful charge increments CyclesProcessed and stamps revenue.
 	assert.Equal(t, SubscriptionStatusActive, s.Status)
 	assert.Equal(t, 2, s.CyclesProcessed, "recurring charge increments cycles")
 	assert.Equal(t, int64(1000), s.TotalRevenue)
 	assert.Equal(t, now, s.LastCharge)
-	// The recurring branch advances CurrentPeriodEnd by exactly one billing interval
-	// from the value SetActivationDates left in CurrentPeriodEnd.
 	assert.Equal(t, s.CurrentPeriodEnd, s.RenewsAt)
 	assert.Equal(t, s.CurrentPeriodStart, s.StartDate)
-	// Regression guard: the recurring branch must compute a real future date,
-	// never a year-0001 date from a zero CurrentPeriodEnd base.
 	assert.False(t, s.RenewsAt.IsZero(), "RenewsAt must not be the zero time")
 	assert.Greater(t, s.RenewsAt.Year(), 2000, "RenewsAt must be a real date, not year 0001")
 	assert.True(t, s.RenewsAt.After(s.StartDate), "recurring charge must advance RenewsAt past StartDate")
 }
 
 func TestSetActive_NoPaymentDoesNotChargeButActivates(t *testing.T) {
-	s := NewSubscriptionFromOrderItem(monthlyItem(BillingIntervalNone, 0, 0))
+	price := monthlyPrice(BillingIntervalNone, 0, 0)
+	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
 
-	// Empty OrgId and zero amount -> the charge branch is skipped.
-	s.SetActive(Payment{})
+	s.SetActive(price, Payment{})
 
 	assert.Equal(t, SubscriptionStatusActive, s.Status)
 	assert.Equal(t, 0, s.CyclesProcessed, "no payment -> cycles unchanged")
 	assert.Equal(t, int64(0), s.TotalRevenue)
 	assert.True(t, s.LastCharge.IsZero())
-	// Without a charge, dates come from SetActivationDates' first-cycle path.
 	assert.Equal(t, s.StartDate, s.RenewsAt)
 }
 
 func TestSetActive_ZeroAmountSkipsChargeBranch(t *testing.T) {
-	s := NewSubscriptionFromOrderItem(monthlyItem(BillingIntervalNone, 0, 0))
+	price := monthlyPrice(BillingIntervalNone, 0, 0)
+	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
 
-	// OrgId present but amount zero -> charge branch still skipped (requires Amount>0).
-	s.SetActive(Payment{OrgId: "org_1", Amount: 0})
+	s.SetActive(price, Payment{OrgId: "org_1", Amount: 0})
 
 	assert.Equal(t, SubscriptionStatusActive, s.Status)
 	assert.Equal(t, 0, s.CyclesProcessed)
@@ -148,26 +147,23 @@ func TestUpdateBillingAnchor_NoneMode(t *testing.T) {
 		CurrentPeriodEnd:   now.AddDate(0, 1, 0),
 	}
 
-	d := s.UpdateBillingAnchor(20, "none")
+	d := s.UpdateBillingAnchor(20, "none", 1000)
 
 	assert.Equal(t, 20, s.BillingAnchor, "anchor updated on the subscription")
 	assert.Equal(t, 15, d.OldBillingAnchor)
 	assert.Equal(t, 20, d.NewBillingAnchor)
 	assert.Equal(t, 0, d.CreditAmount, "none mode -> no credit")
 	assert.Equal(t, 0, d.DaysCredited)
-	// Period invariants: end is one interval after start, and they are written back.
 	assert.Equal(t, s.AddBillingInterval(d.NewPeriodStart), d.NewPeriodEnd)
 	assert.Equal(t, d.NewPeriodStart, s.CurrentPeriodStart)
 	assert.Equal(t, d.NewPeriodEnd, s.CurrentPeriodEnd)
 	assert.Equal(t, d.NewPeriodEnd, s.RenewsAt)
-	// The new anchor day is honoured (clamped to month length), and never in the past.
 	assert.Equal(t, min(20, daysInMonth(d.NewPeriodStart)), d.NewPeriodStart.Day())
 	assert.False(t, d.NewPeriodStart.Before(now), "next billing is rolled forward past now")
 }
 
 func TestUpdateBillingAnchor_CreditUnusedMode(t *testing.T) {
 	now := time.Now().UTC()
-	// A long period that comfortably includes "now" so credit_unused yields > 0.
 	s := Subscription{
 		Amount:             1000,
 		BillingInterval:    BillingIntervalMonth,
@@ -177,7 +173,7 @@ func TestUpdateBillingAnchor_CreditUnusedMode(t *testing.T) {
 		CurrentPeriodEnd:   now.AddDate(0, 0, 25),
 	}
 
-	d := s.UpdateBillingAnchor(25, "credit_unused")
+	d := s.UpdateBillingAnchor(25, "credit_unused", 1000)
 
 	assert.Equal(t, 25, s.BillingAnchor)
 	assert.Equal(t, 15, d.OldBillingAnchor)
