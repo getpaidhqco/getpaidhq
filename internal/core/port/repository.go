@@ -153,6 +153,8 @@ type PspRepository interface {
 type SettingRepository interface {
 	FindById(ctx context.Context, orgId string, parentId string, id string) (domain.Setting, error)
 	Create(ctx context.Context, entity domain.Setting) (domain.Setting, error)
+	// Upsert creates or replaces a setting by its (OrgId, ParentId, Id) key.
+	Upsert(ctx context.Context, entity domain.Setting) (domain.Setting, error)
 }
 
 // ApiKeyRepository manages API key persistence.
