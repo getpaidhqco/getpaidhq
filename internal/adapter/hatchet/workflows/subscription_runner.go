@@ -178,12 +178,3 @@ func isTerminalStatus(s domain.SubscriptionStatus) bool {
 		s == domain.SubscriptionStatusExpired ||
 		s == domain.SubscriptionStatusCompleted
 }
-
-func containsKey(keys []string, target string) bool {
-	for _, k := range keys {
-		if k == target {
-			return true
-		}
-	}
-	return false
-}
