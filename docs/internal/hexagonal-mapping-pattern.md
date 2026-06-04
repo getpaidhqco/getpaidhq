@@ -46,9 +46,9 @@ in this repo is wrong and should be fixed.
 | Enum / status type | `internal/core/domain/` | none | `SubscriptionStatus`, `OrderStatus`, `Currency` |
 | Domain service | `internal/core/domain/` | none | pure functions or methods that encode business rules |
 | Domain event | `internal/core/domain/` | none | `OrderCompletedEvent` |
-| Command / Query Input | `internal/core/service/` | none | `service.CreateSubscriptionInput` |
+| Port interface (inbound & outbound) | `internal/core/port/` | none | `port.SubscriptionService`, `port.SubscriptionRepository`, `port.Engine` |
+| Command / Query Input (parameter of a port method) | `internal/core/port/` | none | `port.CreateSubscriptionInput` |
 | **Read Model** (composed query result) | `internal/core/service/` | none | `service.OrderDetails`, `service.SubscriptionDetails` |
-| Port interface | `internal/core/port/` | none | `port.Repository`, `port.Engine` |
 | HTTP Request DTO | `internal/adapter/http/` | `json:""`, `validate:""` | `CreateSubscriptionRequest` |
 | HTTP Response DTO | `internal/adapter/http/` | `json:""` | `SubscriptionResponse` |
 | Postgres row | `internal/adapter/postgres/` | `gorm:""` | `subscriptionRow` |
@@ -65,9 +65,9 @@ in this repo is wrong and should be fixed.
 3. **No wire-format concerns.** No JSON field naming, no `omitempty`
    considerations.
 
-4. **No command/input types.** A `CreateSubscriptionInput` is a use-case
-   concern (it describes how the outside world drives the application). It
-   lives in `internal/core/service/`, not here.
+4. **No command/input types.** A `CreateSubscriptionInput` is a parameter of
+   a port method — it lives in `internal/core/port/` with the interface it
+   serves, not in `domain/`.
 
 5. **Cross-aggregate references are by ID.** A `Subscription` holds
    `CustomerId string`, not an embedded `Customer Customer` field. Loading the
@@ -86,20 +86,39 @@ in this repo is wrong and should be fixed.
    other fields (e.g. a cart total), it does not belong as a struct field on
    the domain entity. Use a service result type or a method.
 
+## Port layer rules (`internal/core/port/`)
+
+1. **ALL port interfaces live here**, both inbound (driver) and outbound
+   (driven). Inbound ports are use-case contracts implemented by application
+   services; outbound ports are interfaces the core uses to talk to adapters.
+   We keep them in one package — distinguishing driver/driven is conceptual,
+   not a directory split.
+
+2. **Input types are parameters of port methods → they live in `port/` too.**
+   `CreateSubscriptionInput` is part of the contract of
+   `port.SubscriptionService.Create(...)`. Putting the input in a separate
+   package would split the contract artificially.
+
+3. **No tags on Input types.** Passive structs. Validation happens at the
+   HTTP boundary on the request DTO; the request maps to an input via
+   `.ToInput(orgId)`.
+
+4. **Optional input methods.** It's fine for an input to carry a
+   factory/constructor method that returns a domain aggregate
+   (e.g. `(CreateSubscriptionInput).ToSubscription() domain.Subscription`),
+   since `port/` may import `domain/`.
+
+5. **No business logic.** Ports are interfaces and the types their methods
+   take/return. Business rules live on domain methods or in services.
+
 ## Application (service) layer rules
 
-1. **Use cases / application services live here**, one per file usually
-   (`subscription.go`, `order.go`, ...). They depend on:
-   - Domain types (entities, value objects, domain services)
-   - Port interfaces (never concrete adapters)
-   - Their own command/input types and Read Models
+1. **Use cases / application services live here.** One per entity typically
+   (`subscription.go`, `order.go`, ...). They IMPLEMENT inbound port
+   interfaces declared in `port/`. They CONSUME outbound port interfaces
+   also declared in `port/`.
 
-2. **Command and query INPUT types live here.** Examples:
-   - `service.CreateSubscriptionInput`
-   - `service.PauseSubscriptionInput`
-   - `service.GetOrderQuery` (only when the query needs a named type)
-
-3. **READ MODELS live here.** A read model is the composed result of a named
+2. **READ MODELS live here.** A read model is the composed result of a named
    query. It exists when the HTTP response (or another adapter's response)
    nests related entities. Examples:
    - `service.OrderDetails { Order domain.Order; Customer domain.Customer; Items []service.OrderItemDetails }`
@@ -119,18 +138,14 @@ in this repo is wrong and should be fixed.
    - List endpoints reuse the same read model (`ListDetails([]Details)`)
      unless a real list-specific shape demands its own model.
 
-4. **Input and read model types are passive structs with no tags.**
-   Validation already happened at the HTTP boundary; the request DTO carries
-   `validate:""` tags and maps to an Input via `.ToInput(...)`.
-
-5. **Application services do NOT import adapters.** If a service needs HTTP
+3. **Application services do NOT import adapters.** If a service needs HTTP
    request shape, that's a sign the request shape is wrong, not that the
    service should import HTTP.
 
-6. **Application services orchestrate; they do not contain business rules.**
+4. **Application services orchestrate; they do not contain business rules.**
    Business rules live on domain methods. The service composes them.
 
-7. **Repositories return aggregate roots only.** A subscription repo returns
+5. **Repositories return aggregate roots only.** A subscription repo returns
    `domain.Subscription`, never `Subscription + Customer`. Composition is the
    application service's job (it calls multiple repos, or calls batched
    variants like `FindByIds`).
@@ -181,7 +196,7 @@ in this repo is wrong and should be fixed.
 - Workflow step inputs are serialized over the durable log as JSON.
 - Moving a Go type to a different package does NOT change the JSON shape —
   serialization is field-name-based, not type-name-based.
-- Therefore the input-types-to-service-package sweep is safe as long as
+- Therefore the input-types-to-port-package sweep is safe as long as
   **field names are preserved**.
 - For prod-style deploys with in-flight tasks: drain workers → deploy → restart.
 
@@ -189,15 +204,18 @@ in this repo is wrong and should be fixed.
 
 1. Define the **domain** type in `internal/core/domain/<entity>.go`. Pure Go,
    no tags. ID-only references.
-2. Define **input types** for the use cases in `internal/core/service/<entity>_input.go`
-   (or inline in the service file if there are 1–2). Plain structs, no tags.
-3. Define the **service** in `internal/core/service/<entity>.go`. Takes ports
-   in its constructor. Methods accept `service.*Input` types.
-4. If the entity has a nested response shape, define the **read model** in
+2. Define the **inbound port interface** (the use case) in
+   `internal/core/port/<entity>_service.go` and its **input types** in
+   `internal/core/port/<entity>_input.go`. Plain structs, no tags.
+3. Define the **outbound port interface** (repository) in
+   `internal/core/port/<entity>_repository.go`. Include `FindByIds` if any
+   other entity's read model references this one.
+4. Define the **service** in `internal/core/service/<entity>.go` —
+   implements the inbound port; consumes outbound ports. Methods accept
+   `port.*Input` types.
+5. If the entity has a nested response shape, define the **read model** in
    `internal/core/service/<entity>_read.go` and the `GetDetails` /
    `ListDetails` query handler methods on the service.
-5. Define the **port** for its repository in `internal/core/port/`. Include
-   `FindByIds` if any other entity's read model references this one.
 6. Implement the **postgres row** at `internal/adapter/postgres/<entity>_row.go`
    with `toDomain` and `<entity>RowFromDomain` mappers.
 7. Implement the **repo** at `internal/adapter/postgres/<entity>_repo.go`. Use
@@ -212,7 +230,9 @@ in this repo is wrong and should be fixed.
 When unsure where something belongs, ask:
 
 - *"Would this type still make sense if there were no use cases (no Create,
-  Update, Pause, ...)?"* If yes → `domain/`. If no → `service/`.
+  Update, Pause, ...)?"* If yes → `domain/`. If no → it's part of a use-case
+  contract, so → `port/` (interface or input) or `service/` (read model /
+  implementation).
 - *"Does this type's existence depend on HTTP / GORM / validator?"* If yes,
   it belongs in the relevant adapter.
 - *"Could I read this file with no knowledge of the persistence layer and
