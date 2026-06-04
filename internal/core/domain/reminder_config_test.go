@@ -23,3 +23,8 @@ func TestParseReminderConfig_EmptyIsDefault(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, DefaultReminderConfig(), got)
 }
+
+func TestParseReminderConfig_MalformedOffsetErrors(t *testing.T) {
+	_, err := ParseReminderConfig(`{"enabled":true,"offsets":["banana"]}`)
+	require.Error(t, err)
+}

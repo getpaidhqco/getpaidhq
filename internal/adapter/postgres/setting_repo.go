@@ -36,6 +36,9 @@ func (r *SettingRepo) Create(ctx context.Context, entity domain.Setting) (domain
 }
 
 func (r *SettingRepo) Upsert(ctx context.Context, entity domain.Setting) (domain.Setting, error) {
+	// Generic setting upsert (not reminder-specific). value_type is in DoUpdates
+	// so a future caller writing a different Type on an existing key gets correct
+	// update semantics rather than a stale type.
 	err := dbFromCtx(ctx, r.db).
 		Clauses(clause.OnConflict{
 			Columns:   []clause.Column{{Name: "org_id"}, {Name: "parent_id"}, {Name: "id"}},

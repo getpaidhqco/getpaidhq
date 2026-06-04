@@ -54,6 +54,26 @@ func TestReminderConfigService_Resolve_DefaultWhenMissing(t *testing.T) {
 	require.Equal(t, domain.DefaultReminderConfig(), cfg)
 }
 
+func TestReminderConfigService_Resolve_DefaultWhenCorrupt(t *testing.T) {
+	repo := newMapSettingRepo()
+	// Seed a stored setting whose value is not valid JSON. Unlike the missing
+	// case, FindById succeeds here, so this exercises the resolver's
+	// parse-error→default branch (not the not-found branch).
+	_, err := repo.Upsert(context.Background(), domain.Setting{
+		OrgId:    "org_x",
+		ParentId: domain.ReminderConfigSettingParent,
+		Id:       domain.ReminderConfigSettingId,
+		Value:    "{not valid json",
+	})
+	require.NoError(t, err)
+
+	svc := NewReminderConfigService(repo, silentLogger{})
+
+	cfg, err := svc.ResolveReminderConfig(context.Background(), "org_x")
+	require.NoError(t, err)
+	require.Equal(t, domain.DefaultReminderConfig(), cfg)
+}
+
 func TestReminderConfigService_SetThenResolve(t *testing.T) {
 	repo := newMapSettingRepo()
 	svc := NewReminderConfigService(repo, silentLogger{})
