@@ -285,9 +285,9 @@ func TestImmediateFirstCharge(t *testing.T) {
 	sub.Cycles = 12
 	sub.CyclesProcessed = 0
 	sub.StartDate = startDate
-	sub.RenewsAt = startDate            // due now/past (no upfront payment)
-	sub.CurrentPeriodStart = startDate  // what SetActive (zero-amount) seeds
-	sub.CurrentPeriodEnd = startDate    // (NOT zero — this is the load-bearing seed)
+	sub.RenewsAt = startDate           // due now/past (no upfront payment)
+	sub.CurrentPeriodStart = startDate // what SetActive (zero-amount) seeds
+	sub.CurrentPeriodEnd = startDate   // (NOT zero — this is the load-bearing seed)
 	require.NoError(t, db.Create(&sub).Error)
 
 	// The activation gate: this is exactly the predicate the Hatchet

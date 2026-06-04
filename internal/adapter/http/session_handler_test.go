@@ -8,7 +8,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
 	"getpaidhq/internal/lib"
@@ -33,12 +32,12 @@ func TestSessionHandler_Create(t *testing.T) {
 		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
 		h.RegisterRoutes(ts.api())
 
-		rec := doJSON(t, ts, http.MethodPost, "/api/sessions", domain.CreateSessionRequest{
+		rec := doJSON(t, ts, http.MethodPost, "/api/sessions", CreateSessionRequest{
 			Currency: "USD", Country: "US",
 		})
 
 		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
-		var got domain.CreateSessionResponse
+		var got CreateSessionResponse
 		decodeJSON(t, rec, &got)
 		assert.NotEmpty(t, got.Id)
 		assert.NotEmpty(t, got.CartId)
@@ -58,7 +57,7 @@ func TestSessionHandler_Create(t *testing.T) {
 		ts := newTestServer(fixedAuthMiddleware(supportUser()))
 		h.RegisterRoutes(ts.api())
 
-		rec := doJSON(t, ts, http.MethodPost, "/api/sessions", domain.CreateSessionRequest{
+		rec := doJSON(t, ts, http.MethodPost, "/api/sessions", CreateSessionRequest{
 			Currency: "USD", Country: "US",
 		})
 
@@ -77,7 +76,7 @@ func TestSessionHandler_Create(t *testing.T) {
 		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
 		h.RegisterRoutes(ts.api())
 
-		rec := doJSON(t, ts, http.MethodPost, "/api/sessions", domain.CreateSessionRequest{
+		rec := doJSON(t, ts, http.MethodPost, "/api/sessions", CreateSessionRequest{
 			Currency: "USD", Country: "US",
 		})
 
@@ -101,7 +100,7 @@ func TestSessionHandler_AuthzDeniedExplicit(t *testing.T) {
 	ts := newTestServer(fixedAuthMiddleware(port.AuthUser{Id: "u", OrgId: "o", PrimaryRole: port.RoleAdmin}))
 	h.RegisterRoutes(ts.api())
 
-	rec := doJSON(t, ts, http.MethodPost, "/api/sessions", domain.CreateSessionRequest{Currency: "USD", Country: "US"})
+	rec := doJSON(t, ts, http.MethodPost, "/api/sessions", CreateSessionRequest{Currency: "USD", Country: "US"})
 
 	assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
 }

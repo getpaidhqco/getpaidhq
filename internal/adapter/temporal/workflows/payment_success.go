@@ -18,10 +18,10 @@ import (
 //  1. complete-order:        Mark the order paid and capture the row.
 //  2. get-subscriptions:     Load any subscriptions tied to the order.
 //  3. start-subscription-lifecycle:
-//                            Kick off the subscription's billing lifecycle: start
-//                            the per-subscription durable runner as a detached child
-//                            workflow with a deterministic id. The runner's first
-//                            iteration performs an immediate first charge when due.
+//     Kick off the subscription's billing lifecycle: start
+//     the per-subscription durable runner as a detached child
+//     workflow with a deterministic id. The runner's first
+//     iteration performs an immediate first charge when due.
 //
 // Only the first subscription is processed (matching Hatchet today).
 func PaymentSuccessWorkflow(ctx temporal.Context, input PaymentSuccessInput) (port.WorkflowResult, error) {

@@ -18,17 +18,20 @@ func NewSessionRepo(db *gorm.DB) port.SessionRepository {
 }
 
 func (r *SessionRepo) FindById(ctx context.Context, orgId string, id string) (domain.Session, error) {
-	var session domain.Session
+	var row sessionRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
-		First(&session).Error
-	return session, translateErr(err)
+		First(&row).Error
+	if err != nil {
+		return domain.Session{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *SessionRepo) Create(ctx context.Context, input domain.Session) (domain.Session, error) {
-	err := dbFromCtx(ctx, r.db).Create(&input).Error
-	if err != nil {
+	row := sessionRowFromDomain(input)
+	if err := dbFromCtx(ctx, r.db).Create(&row).Error; err != nil {
 		return domain.Session{}, err
 	}
 	return r.FindById(ctx, input.OrgId, input.Id)

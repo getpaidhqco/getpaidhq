@@ -15,12 +15,12 @@ import (
 //  1. complete-order:        Mark the order paid and capture the row.
 //  2. get-subscriptions:     Load any subscriptions tied to the order.
 //  3. start-subscription-lifecycle:
-//                            Kick off the subscription's billing lifecycle via the
-//                            engine port — same code path as the HTTP
-//                            /orders/:id/complete handler. On Hatchet this may spawn
-//                            an immediate first charge (billing-cycle-runner) when
-//                            the subscription is already due; otherwise it is a
-//                            no-op and the cron sweep drives renewals.
+//     Kick off the subscription's billing lifecycle via the
+//     engine port — same code path as the HTTP
+//     /orders/:id/complete handler. On Hatchet this may spawn
+//     an immediate first charge (billing-cycle-runner) when
+//     the subscription is already due; otherwise it is a
+//     no-op and the cron sweep drives renewals.
 //
 // Only the first subscription is processed — preserving today's behaviour
 // intentionally.
