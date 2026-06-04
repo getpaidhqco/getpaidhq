@@ -30,7 +30,6 @@ func (r *VariantRepo) FindById(ctx context.Context, orgId string, id string) (do
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
-		Preload("Prices").
 		First(&row).Error
 	if err != nil {
 		return domain.Variant{}, translateErr(err)
@@ -50,7 +49,6 @@ func (r *VariantRepo) FindByProductId(ctx context.Context, orgId string, product
 	if err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId), Paginate(p)).
 		Where("product_id = ?", productId).
-		Preload("Prices").
 		Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}

@@ -22,9 +22,6 @@ func (r *OrderRepo) FindById(ctx context.Context, orgId string, id string) (doma
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
-		Preload("Customer").
-		Preload("Items").
-		Preload("Items.Price").
 		First(&row).Error
 	if err != nil {
 		return domain.Order{}, translateErr(err)
@@ -59,9 +56,6 @@ func (r *OrderRepo) Find(ctx context.Context, orgId string, p domain.Pagination)
 	}
 	if err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId), Paginate(p)).
-		Preload("Customer").
-		Preload("Items").
-		Preload("Items.Price").
 		Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
@@ -77,7 +71,6 @@ func (r *OrderRepo) FindOrderItemById(ctx context.Context, orgId string, id stri
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
-		Preload("Price").
 		First(&row).Error
 	if err != nil {
 		return domain.OrderItem{}, translateErr(err)
@@ -107,7 +100,6 @@ func (r *OrderRepo) FindOrderItemsByOrderId(ctx context.Context, orgId string, o
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("order_id = ?", orderId).
-		Preload("Price").
 		Find(&rows).Error
 	if err != nil {
 		return nil, err

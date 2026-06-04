@@ -53,7 +53,7 @@ func TestSubscriptionService_ChargeForBillingPeriod(t *testing.T) {
 		cr := &fakeCustomerRepo{customer: cus, paymentMethod: pm}
 		gf := &subscriptionChargeGatewayFactory{}
 		er := lib.NewErrorReporter(silentLogger{})
-		svc, _ := NewSubscriptionService(nil, nil, nil, sr, cr, nil, nil, gf, &recordingPubSub{}, er, silentLogger{}, nil)
+		svc, _ := NewSubscriptionService(nil, nil, nil, sr, cr, nil, nil, nil, gf, &recordingPubSub{}, er, silentLogger{}, nil)
 		return sr, cr, gf, svc
 	}
 

@@ -158,12 +158,12 @@ func NewApp() (*App, error) {
 	// ---------------------------------------------------------------------------
 	// Narrow services (no workflow engine).
 	// ---------------------------------------------------------------------------
-	subService, err := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, gatewayFactory, pubsub, reporter, logger, txManager)
+	subService, err := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, priceRepo, gatewayFactory, pubsub, reporter, logger, txManager)
 	if err != nil {
 		return nil, err
 	}
 	paymentService := service.NewPaymentService(paymentRepo, logger)
-	orderWorkflowService := service.NewOrderWorkflowService(orderRepo, customerRepo, subRepo, paymentMethodRepo, paymentRepo, pubsub, logger)
+	orderWorkflowService := service.NewOrderWorkflowService(orderRepo, customerRepo, subRepo, paymentMethodRepo, paymentRepo, priceRepo, pubsub, logger)
 	dunningService := service.NewDunningService(dunningRepo, subRepo, customerRepo, paymentRepo, subService, gatewayFactory, pubsub, reporter, logger)
 
 	webhookSubService := service.NewWebhookSubscriptionService(logger, webhookSubRepo, idempotencyRepo, pubsub)

@@ -22,7 +22,7 @@ func newOrderWorkflowService(
 	if ps == nil {
 		ps = &recordingPubSub{}
 	}
-	return NewOrderWorkflowService(orderRepo, &fakeCustomerRepo{}, subRepo, pmRepo, payRepo, ps, silentLogger{})
+	return NewOrderWorkflowService(orderRepo, &fakeCustomerRepo{}, subRepo, pmRepo, payRepo, nil, ps, silentLogger{})
 }
 
 func completeSessionInput() port.CompleteCheckoutSessionInput {

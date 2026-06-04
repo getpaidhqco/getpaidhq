@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"github.com/go-fuego/fuego"
 	"github.com/go-fuego/fuego/option"
 
@@ -41,84 +42,83 @@ func (s *SubscriptionHandler) RegisterRoutes(srv *fuego.Server) {
 	fuego.Patch(g, "/{id}", s.Update, option.Summary("Update subscription metadata"))
 }
 
-// denied is the standard 403 envelope returned when Cedar refuses the action.
-// Pulled into a method so the handler doesn't repeat the same NewApiError
-// call five times for the five mutating operations below.
+// denied returns the standard 403 envelope.
 func (s *SubscriptionHandler) denied() ApiError {
 	return NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 }
 
-func (s *SubscriptionHandler) Get(c fuego.ContextNoBody) (SubscriptionResponse, error) {
-	authUser := AuthUserFrom(c)
-	subscription, err := s.subsService.FindById(c.Context(), authUser.OrgId, c.PathParam("id"))
+// renderDetails fetches the full SubscriptionDetails for a subscription Id.
+// State-mutating handlers reuse this to assemble the nested response shape
+// after a mutation returns just the aggregate.
+func (s *SubscriptionHandler) renderDetails(ctx context.Context, orgId, id string) (SubscriptionResponse, error) {
+	d, err := s.subsService.GetDetails(ctx, orgId, id)
 	if err != nil {
 		return SubscriptionResponse{}, NewApiErrorFromError(err)
 	}
-	return NewSubscriptionFromEntity(subscription), nil
+	return NewSubscriptionResponseFromDetails(d), nil
 }
 
-func (s *SubscriptionHandler) Update(c fuego.ContextWithBody[domain.UpdateSubscriptionRequest]) (domain.Subscription, error) {
+func (s *SubscriptionHandler) Get(c fuego.ContextNoBody) (SubscriptionResponse, error) {
+	authUser := AuthUserFrom(c)
+	return s.renderDetails(c.Context(), authUser.OrgId, c.PathParam("id"))
+}
+
+func (s *SubscriptionHandler) Update(c fuego.ContextWithBody[domain.UpdateSubscriptionRequest]) (SubscriptionResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !s.authz.Enforce(authUser, port.ActionUpdateSubscription, c.PathParam("id")) {
-		return domain.Subscription{}, s.denied()
+		return SubscriptionResponse{}, s.denied()
 	}
 	input, err := c.Body()
 	if err != nil {
-		return domain.Subscription{}, err
+		return SubscriptionResponse{}, err
 	}
-
-	subscription, err := s.subsService.Update(c.Context(), port.UpdateSubscriptionInput{
+	if _, err := s.subsService.Update(c.Context(), port.UpdateSubscriptionInput{
 		OrgId:    authUser.OrgId,
 		Id:       c.PathParam("id"),
 		Status:   input.Status,
 		Metadata: input.Metadata,
-	})
-	if err != nil {
-		return domain.Subscription{}, NewApiErrorFromError(err)
+	}); err != nil {
+		return SubscriptionResponse{}, NewApiErrorFromError(err)
 	}
-	return subscription, nil
+	return s.renderDetails(c.Context(), authUser.OrgId, c.PathParam("id"))
 }
 
-func (s *SubscriptionHandler) Pause(c fuego.ContextWithBody[PauseSubscriptionRequest]) (domain.Subscription, error) {
+func (s *SubscriptionHandler) Pause(c fuego.ContextWithBody[PauseSubscriptionRequest]) (SubscriptionResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !s.authz.Enforce(authUser, port.ActionPauseSubscription, c.PathParam("id")) {
-		return domain.Subscription{}, s.denied()
+		return SubscriptionResponse{}, s.denied()
 	}
 	input, err := c.Body()
 	if err != nil {
-		return domain.Subscription{}, err
+		return SubscriptionResponse{}, err
 	}
-
-	subscription, err := s.subsService.PauseSubscription(c.Context(), port.PauseSubscriptionInput{
+	if _, err := s.subsService.PauseSubscription(c.Context(), port.PauseSubscriptionInput{
 		OrgId:  authUser.OrgId,
 		Id:     c.PathParam("id"),
 		Reason: input.Reason,
-	})
-	if err != nil {
-		return domain.Subscription{}, NewApiErrorFromError(err)
+	}); err != nil {
+		return SubscriptionResponse{}, NewApiErrorFromError(err)
 	}
-	return subscription, nil
+	return s.renderDetails(c.Context(), authUser.OrgId, c.PathParam("id"))
 }
 
-func (s *SubscriptionHandler) Resume(c fuego.ContextWithBody[ResumeSubscriptionRequest]) (domain.Subscription, error) {
+func (s *SubscriptionHandler) Resume(c fuego.ContextWithBody[ResumeSubscriptionRequest]) (SubscriptionResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !s.authz.Enforce(authUser, port.ActionResumeSubscription, c.PathParam("id")) {
-		return domain.Subscription{}, s.denied()
+		return SubscriptionResponse{}, s.denied()
 	}
 	input, err := c.Body()
 	if err != nil {
-		return domain.Subscription{}, err
+		return SubscriptionResponse{}, err
 	}
-
-	subscription, err := s.subsService.ResumeSubscription(c.Context(), port.ResumeSubscriptionInput{
+	if _, err := s.subsService.ResumeSubscription(c.Context(), port.ResumeSubscriptionInput{
 		OrgId:          authUser.OrgId,
 		Id:             c.PathParam("id"),
 		ResumeBehavior: input.ResumeBehavior,
-	})
-	if err != nil {
-		return domain.Subscription{}, NewApiErrorFromError(err)
+	}); err != nil {
+		return SubscriptionResponse{}, NewApiErrorFromError(err)
 	}
-	return subscription, nil
+	return s.renderDetails(c.Context(), authUser.OrgId, c.PathParam("id"))
 }
 
 func (s *SubscriptionHandler) Cancel(c fuego.ContextWithBody[PauseSubscriptionRequest]) (SubscriptionResponse, error) {
@@ -130,16 +130,14 @@ func (s *SubscriptionHandler) Cancel(c fuego.ContextWithBody[PauseSubscriptionRe
 	if err != nil {
 		return SubscriptionResponse{}, err
 	}
-
-	subscription, err := s.subsService.CancelSubscription(c.Context(), port.CancelSubscriptionInput{
+	if _, err := s.subsService.CancelSubscription(c.Context(), port.CancelSubscriptionInput{
 		OrgId:  authUser.OrgId,
 		Id:     c.PathParam("id"),
 		Reason: input.Reason,
-	})
-	if err != nil {
+	}); err != nil {
 		return SubscriptionResponse{}, NewApiErrorFromError(err)
 	}
-	return NewSubscriptionFromEntity(subscription), nil
+	return s.renderDetails(c.Context(), authUser.OrgId, c.PathParam("id"))
 }
 
 func (s *SubscriptionHandler) UpdateBillingAnchor(c fuego.ContextWithBody[UpdateBillingAnchorRequest]) (ProrationDetailsResponse, error) {
@@ -168,16 +166,16 @@ func (s *SubscriptionHandler) List(c fuego.ContextNoBody) (ListResponse, error) 
 	authUser := AuthUserFrom(c)
 	pagination := GetPagination(c)
 
-	subs, total, err := s.subsService.List(c.Context(), authUser.OrgId, pagination)
+	details, total, err := s.subsService.ListDetails(c.Context(), authUser.OrgId, pagination)
 	if err != nil {
 		return ListResponse{}, NewApiErrorFromError(err)
 	}
-	subscriptionResponses := make([]SubscriptionResponse, 0, len(subs))
-	for _, sub := range subs {
-		subscriptionResponses = append(subscriptionResponses, NewSubscriptionFromEntity(sub))
+	rsp := make([]SubscriptionResponse, 0, len(details))
+	for _, d := range details {
+		rsp = append(rsp, NewSubscriptionResponseFromDetails(d))
 	}
 	return ListResponse{
-		Data: subscriptionResponses,
+		Data: rsp,
 		Meta: Meta{Total: total, Page: pagination.Page, Limit: pagination.Limit},
 	}, nil
 }

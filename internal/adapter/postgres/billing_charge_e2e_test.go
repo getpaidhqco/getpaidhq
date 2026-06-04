@@ -93,6 +93,7 @@ func buildSubscriptionService(t *testing.T, db *gorm.DB) *service.SubscriptionSe
 		NewCustomerRepo(db),
 		NewOrderRepo(db),
 		NewPaymentRepo(db),
+		NewPriceRepo(db),
 		gatewayFactory,
 		pubsub,
 		reporter,

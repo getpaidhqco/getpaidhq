@@ -28,6 +28,7 @@ type SubscriptionService struct {
 	customerRepository     port.CustomerRepository
 	subscriptionRepository port.SubscriptionRepository
 	paymentRepository      port.PaymentRepository
+	priceRepository        port.PriceRepository
 	gatewayFactory         port.GatewayFactory
 	pubsub                 port.PubSub
 	errorReporter          lib.ErrorReporter
@@ -52,6 +53,7 @@ func NewSubscriptionService(
 	customerRepository port.CustomerRepository,
 	orderRepository port.OrderRepository,
 	paymentRepository port.PaymentRepository,
+	priceRepository port.PriceRepository,
 	gatewayFactory port.GatewayFactory,
 	pubsub port.PubSub,
 	errorReporter lib.ErrorReporter,
@@ -71,6 +73,7 @@ func NewSubscriptionService(
 		customerRepository:     customerRepository,
 		sessionRepository:      sessionRepository,
 		paymentRepository:      paymentRepository,
+		priceRepository:        priceRepository,
 		cartRepository:         cartRepository,
 		orderRepository:        orderRepository,
 		subscriptionRepository: subscriptionRepository,
@@ -110,12 +113,17 @@ func (s *SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, o
 	}
 
 	for _, item := range orderItems {
-		subscription := domain.NewSubscriptionFromOrderItem(item)
+		price, err := s.priceRepository.FindById(ctx, orgId, item.PriceId)
+		if err != nil {
+			s.logger.Error("Failed to find price for order item", "item", item.Id, "price_id", item.PriceId, "err", err.Error())
+			return subs, err
+		}
+		subscription := domain.NewSubscriptionFromOrderItem(item, price)
 		if order.Status == domain.OrderStatusCompleted {
 			subscription.Status = domain.SubscriptionStatusActive
 		}
 
-		_, err := s.subscriptionRepository.Create(ctx, subscription)
+		_, err = s.subscriptionRepository.Create(ctx, subscription)
 		if err != nil {
 			s.logger.Error("Failed to create subscription", "item", item, err.Error())
 			return subs, err
@@ -372,7 +380,7 @@ func (s *SubscriptionService) UpdateBillingAnchor(ctx context.Context, input por
 		return domain.ProrationDetails{}, lib.NewCustomError(lib.InternalError, "", err)
 	}
 
-	prorationDetails := subscription.UpdateBillingAnchor(input.BillingAnchor, string(input.ProrationMode))
+	prorationDetails := subscription.UpdateBillingAnchor(input.BillingAnchor, string(input.ProrationMode), subscription.Amount)
 
 	_, err = s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {
@@ -789,4 +797,52 @@ func (s *SubscriptionService) GetRetryPolicy(ctx context.Context, orgId string) 
 		return defaultPolicy
 	}
 	return retryPolicy
+}
+
+// GetDetails composes a SubscriptionDetails read model from the subscription
+// aggregate + its Customer. Single-aggregate-per-repo composition; no
+// embedded relations on domain.Subscription.
+func (s *SubscriptionService) GetDetails(ctx context.Context, orgId, id string) (SubscriptionDetails, error) {
+	sub, err := s.subscriptionRepository.FindById(ctx, orgId, id)
+	if err != nil {
+		return SubscriptionDetails{}, err
+	}
+	customer, err := s.customerRepository.FindById(ctx, orgId, sub.CustomerId)
+	if err != nil {
+		return SubscriptionDetails{}, err
+	}
+	return SubscriptionDetails{Subscription: sub, Customer: customer}, nil
+}
+
+// ListDetails returns subscriptions composed with their customers, using
+// CustomerRepository.FindByIds to batch-load customers and prevent N+1.
+func (s *SubscriptionService) ListDetails(ctx context.Context, orgId string, pagination domain.Pagination) ([]SubscriptionDetails, int, error) {
+	subs, total, err := s.subscriptionRepository.Find(ctx, orgId, pagination)
+	if err != nil {
+		return nil, 0, err
+	}
+	if len(subs) == 0 {
+		return []SubscriptionDetails{}, total, nil
+	}
+	customerIds := make([]string, 0, len(subs))
+	seen := make(map[string]bool)
+	for _, sub := range subs {
+		if !seen[sub.CustomerId] {
+			seen[sub.CustomerId] = true
+			customerIds = append(customerIds, sub.CustomerId)
+		}
+	}
+	customers, err := s.customerRepository.FindByIds(ctx, orgId, customerIds)
+	if err != nil {
+		return nil, 0, err
+	}
+	byId := make(map[string]domain.Customer, len(customers))
+	for _, c := range customers {
+		byId[c.Id] = c
+	}
+	out := make([]SubscriptionDetails, len(subs))
+	for i, sub := range subs {
+		out[i] = SubscriptionDetails{Subscription: sub, Customer: byId[sub.CustomerId]}
+	}
+	return out, total, nil
 }

@@ -2,9 +2,9 @@ package domain
 
 import "time"
 
-// OrderItem is a line on an Order. The Price field is populated by the
-// repository when a Preload-equivalent is used; for code paths that don't
-// hydrate it, only PriceId is reliable.
+// OrderItem is a line on an Order. Cross-aggregate references are by ID only:
+// Price is a separate aggregate. Use service.OrderItemDetails (or
+// service.OrderDetails) when a query needs the composed view.
 type OrderItem struct {
 	OrgId         string
 	Id            string
@@ -12,7 +12,6 @@ type OrderItem struct {
 	ProductId     string
 	VariantId     string
 	PriceId       string
-	Price         Price
 	Description   string
 	Quantity      int
 	TaxTotal      int64

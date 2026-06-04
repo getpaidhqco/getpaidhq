@@ -24,7 +24,6 @@ func (r *SubscriptionRepo) FindById(ctx context.Context, orgId string, id string
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
-		Preload("Customer").
 		First(&row).Error
 	if err != nil {
 		return domain.Subscription{}, translateErr(err)
@@ -42,7 +41,6 @@ func (r *SubscriptionRepo) FindByIdForUpdate(ctx context.Context, orgId string, 
 		Clauses(clause.Locking{Strength: "UPDATE"}).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
-		Preload("Customer").
 		First(&row).Error
 	if err != nil {
 		return domain.Subscription{}, translateErr(err)
@@ -89,7 +87,6 @@ func (r *SubscriptionRepo) Find(ctx context.Context, orgId string, p domain.Pagi
 	}
 	if err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId), Paginate(p)).
-		Preload("Customer").
 		Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}

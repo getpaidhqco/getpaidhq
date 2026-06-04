@@ -81,8 +81,12 @@ func (o *OrderHandler) CreateOrder(c fuego.ContextWithBody[CreateOrderRequest]) 
 		return CreateOrderResponse{}, NewApiErrorFromError(err)
 	}
 
+	details, err := o.service.GetDetails(c.Context(), authUser.OrgId, rsp.Order.Id)
+	if err != nil {
+		return CreateOrderResponse{}, NewApiErrorFromError(err)
+	}
 	return CreateOrderResponse{
-		Order: NewOrderFromEntity(rsp.Order),
+		Order: NewOrderResponseFromDetails(details),
 		Psp:   rsp.Psp.PspResponse,
 	}, nil
 }
@@ -147,8 +151,11 @@ func (o *OrderHandler) CompleteOrder(c fuego.ContextWithBody[CompleteOrderReques
 	if err != nil {
 		return OrderResponse{}, NewApiErrorFromError(err)
 	}
-
-	return NewOrderFromEntity(order), nil
+	details, err := o.service.GetDetails(c.Context(), authUser.OrgId, order.Id)
+	if err != nil {
+		return OrderResponse{}, NewApiErrorFromError(err)
+	}
+	return NewOrderResponseFromDetails(details), nil
 }
 
 type OrderSubscriptionsResponse struct {
@@ -175,13 +182,13 @@ func (o *OrderHandler) List(c fuego.ContextNoBody) (ListResponse, error) {
 	authUser := AuthUserFrom(c)
 	pagination := GetPagination(c)
 
-	ords, total, err := o.service.List(c.Context(), authUser.OrgId, pagination)
+	details, total, err := o.service.ListDetails(c.Context(), authUser.OrgId, pagination)
 	if err != nil {
 		return ListResponse{}, NewApiErrorFromError(err)
 	}
-	orderRsp := make([]OrderResponse, 0, len(ords))
-	for _, order := range ords {
-		orderRsp = append(orderRsp, NewOrderFromEntity(order))
+	orderRsp := make([]OrderResponse, 0, len(details))
+	for _, d := range details {
+		orderRsp = append(orderRsp, NewOrderResponseFromDetails(d))
 	}
 
 	return ListResponse{
@@ -198,10 +205,10 @@ func (o *OrderHandler) Get(c fuego.ContextNoBody) (OrderResponse, error) {
 	authUser := AuthUserFrom(c)
 	id := c.PathParam("id")
 
-	order, err := o.service.FindById(c.Context(), authUser.OrgId, id)
+	details, err := o.service.GetDetails(c.Context(), authUser.OrgId, id)
 	if err != nil {
 		return OrderResponse{}, NewApiErrorFromError(err)
 	}
 
-	return NewOrderFromEntity(order), nil
+	return NewOrderResponseFromDetails(details), nil
 }

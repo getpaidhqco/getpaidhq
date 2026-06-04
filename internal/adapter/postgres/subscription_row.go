@@ -6,19 +6,16 @@ import (
 	"getpaidhq/internal/core/domain"
 )
 
-// subscriptionRow is the postgres on-the-wire shape of a Subscription.
-// Customer is preloaded for handler-rendered subscription responses;
-// OrderItem is not preloaded by default (only Subscription→Customer is
-// needed for top-level subscription responses today).
+// subscriptionRow is the postgres on-the-wire shape of a Subscription. Customer
+// and OrderItem are NOT embedded — composition is a service-layer concern; see
+// service.SubscriptionDetails and the Customer / OrderItem repos.
 type subscriptionRow struct {
 	OrgId           string                    `gorm:"column:org_id;primaryKey"`
 	Id              string                    `gorm:"column:id;primaryKey"`
 	PspId           domain.Gateway            `gorm:"column:psp_id"`
 	OrderId         string                    `gorm:"column:order_id"`
 	OrderItemId     string                    `gorm:"column:order_item_id"`
-	OrderItem       orderItemRow              `gorm:"foreignKey:OrderItemId,OrgId;references:Id,OrgId"`
 	CustomerId      string                    `gorm:"column:customer_id"`
-	Customer        customerRow               `gorm:"foreignKey:CustomerId,OrgId;references:Id,OrgId"`
 	Status          domain.SubscriptionStatus `gorm:"column:status"`
 	PaymentMethodId string                    `gorm:"column:payment_method_id"`
 
@@ -60,9 +57,7 @@ func (r subscriptionRow) toDomain() domain.Subscription {
 		PspId:              r.PspId,
 		OrderId:            r.OrderId,
 		OrderItemId:        r.OrderItemId,
-		OrderItem:          r.OrderItem.toDomain(),
 		CustomerId:         r.CustomerId,
-		Customer:           r.Customer.toDomain(),
 		Status:             r.Status,
 		PaymentMethodId:    r.PaymentMethodId,
 		StartDate:          r.StartDate,
@@ -98,9 +93,7 @@ func subscriptionRowFromDomain(s domain.Subscription) subscriptionRow {
 		PspId:              s.PspId,
 		OrderId:            s.OrderId,
 		OrderItemId:        s.OrderItemId,
-		OrderItem:          orderItemRowFromDomain(s.OrderItem),
 		CustomerId:         s.CustomerId,
-		Customer:           customerRowFromDomain(s.Customer),
 		Status:             s.Status,
 		PaymentMethodId:    s.PaymentMethodId,
 		StartDate:          s.StartDate,

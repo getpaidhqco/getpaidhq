@@ -22,6 +22,7 @@ type OrderWorkflowService struct {
 	subscriptionRepository  port.SubscriptionRepository
 	paymentMethodRepository port.PaymentMethodRepository
 	paymentRepository       port.PaymentRepository
+	priceRepository         port.PriceRepository
 	pubsub                  port.PubSub
 	logger                  port.Logger
 }
@@ -32,6 +33,7 @@ func NewOrderWorkflowService(
 	subscriptionRepository port.SubscriptionRepository,
 	paymentMethodRepository port.PaymentMethodRepository,
 	paymentRepository port.PaymentRepository,
+	priceRepository port.PriceRepository,
 	pubsub port.PubSub,
 	logger port.Logger,
 ) *OrderWorkflowService {
@@ -41,6 +43,7 @@ func NewOrderWorkflowService(
 		subscriptionRepository:  subscriptionRepository,
 		paymentMethodRepository: paymentMethodRepository,
 		paymentRepository:       paymentRepository,
+		priceRepository:         priceRepository,
 		pubsub:                  pubsub,
 		logger:                  logger,
 	}
@@ -68,6 +71,12 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 
 	paymentCtx := input.PaymentContext
 
+	customer, err := s.customerRepository.FindById(ctx, orgId, order.CustomerId)
+	if err != nil {
+		s.logger.Error("Failed to find customer for order", "customer_id", order.CustomerId, "err", err.Error())
+		return domain.Order{}, err
+	}
+
 	paymentMethod, err := s.paymentMethodRepository.Create(ctx, domain.PaymentMethod{
 		OrgId:          orgId,
 		Id:             lib.GenerateId("payment_method"),
@@ -75,7 +84,7 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 		Token:          paymentCtx.PaymentMethod.Token,
 		Name:           "Default",
 		CustomerId:     order.CustomerId,
-		BillingAddress: order.Customer.BillingAddress,
+		BillingAddress: customer.BillingAddress,
 		Type:           domain.PaymentMethodType(paymentCtx.PaymentMethod.Type),
 		Details:        paymentCtx.PaymentMethod,
 		CreatedAt:      time.Now().UTC(),
@@ -95,21 +104,35 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 
 	recurringPayment := len(subscriptions) > 0 && paymentCtx.Payment.Amount > 0
 	for _, subscription := range subscriptions {
+		// Fetch the OrderItem + Price so SetActivationDates has the billing rule.
+		// Domain aggregates reference others by ID only; composition lives at
+		// the service layer.
+		oi, err := s.orderRepository.FindOrderItemById(ctx, orgId, subscription.OrderItemId)
+		if err != nil {
+			s.logger.Error("Failed to find order item for subscription activation", "subscription_id", subscription.Id, "err", err.Error())
+			return domain.Order{}, err
+		}
+		price, err := s.priceRepository.FindById(ctx, orgId, oi.PriceId)
+		if err != nil {
+			s.logger.Error("Failed to find price for subscription activation", "price_id", oi.PriceId, "err", err.Error())
+			return domain.Order{}, err
+		}
+
 		charged := paymentCtx.Payment.Amount > 0 && subscription.StartDate.Sub(time.Now().UTC()) < 0
 		if charged {
 			subscriptionId = subscription.Id
-			subscription.SetActivationDates()
+			subscription.SetActivationDates(price)
 			subscription.Status = domain.SubscriptionStatusActive
 			subscription.LastCharge = subscription.StartDate
 			subscription.TotalRevenue = subscription.Amount
 			subscription.CyclesProcessed = 1
 		} else {
-			subscription.SetActivationDates()
+			subscription.SetActivationDates(price)
 			subscription.Status = domain.SubscriptionStatusTrial
 		}
 		subscription.PaymentMethodId = paymentMethod.Id
 
-		_, err := s.subscriptionRepository.Update(ctx, subscription)
+		_, err = s.subscriptionRepository.Update(ctx, subscription)
 		if err != nil {
 			s.logger.Error("Failed to update subscription status", err.Error())
 			return domain.Order{}, err

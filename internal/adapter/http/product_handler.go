@@ -60,11 +60,11 @@ func (s *ProductHandler) Get(c fuego.ContextNoBody) (ProductResponse, error) {
 		return ProductResponse{}, err
 	}
 	authUser := AuthUserFrom(c)
-	product, err := s.productService.FindById(c.Context(), authUser.OrgId, c.PathParam("id"))
+	details, err := s.productService.GetDetails(c.Context(), authUser.OrgId, c.PathParam("id"))
 	if err != nil {
 		return ProductResponse{}, NewApiErrorFromError(err)
 	}
-	return NewProductFromEntity(product), nil
+	return NewProductResponseFromDetails(details), nil
 }
 
 func (s *ProductHandler) Create(c fuego.ContextWithBody[CreateProductRequest]) (ProductResponse, error) {
@@ -114,7 +114,11 @@ func (s *ProductHandler) Create(c fuego.ContextWithBody[CreateProductRequest]) (
 	if err != nil {
 		return ProductResponse{}, NewApiErrorFromError(err)
 	}
-	return NewProductFromEntity(product), nil
+	details, err := s.productService.GetDetails(c.Context(), authUser.OrgId, product.Id)
+	if err != nil {
+		return ProductResponse{}, NewApiErrorFromError(err)
+	}
+	return NewProductResponseFromDetails(details), nil
 }
 
 func (s *ProductHandler) List(c fuego.ContextNoBody) (ListResponse, error) {
@@ -123,13 +127,13 @@ func (s *ProductHandler) List(c fuego.ContextNoBody) (ListResponse, error) {
 	}
 	authUser := AuthUserFrom(c)
 	pagination := GetPagination(c)
-	prods, total, err := s.productService.List(c.Context(), authUser.OrgId, pagination)
+	details, total, err := s.productService.ListDetails(c.Context(), authUser.OrgId, pagination)
 	if err != nil {
 		return ListResponse{}, NewApiErrorFromError(err)
 	}
-	products := make([]ProductResponse, len(prods))
-	for i, prod := range prods {
-		products[i] = NewProductFromEntity(prod)
+	products := make([]ProductResponse, len(details))
+	for i, d := range details {
+		products[i] = NewProductResponseFromDetails(d)
 	}
 	return ListResponse{
 		Data: products,
@@ -151,11 +155,14 @@ func (s *ProductHandler) Update(c fuego.ContextWithBody[UpdateProductRequest]) (
 		Description: req.Description,
 		Metadata:    req.Metadata,
 	}
-	product, err := s.productService.UpdateProduct(c.Context(), authUser.OrgId, c.PathParam("id"), input)
+	if _, err := s.productService.UpdateProduct(c.Context(), authUser.OrgId, c.PathParam("id"), input); err != nil {
+		return ProductResponse{}, NewApiErrorFromError(err)
+	}
+	details, err := s.productService.GetDetails(c.Context(), authUser.OrgId, c.PathParam("id"))
 	if err != nil {
 		return ProductResponse{}, NewApiErrorFromError(err)
 	}
-	return NewProductFromEntity(product), nil
+	return NewProductResponseFromDetails(details), nil
 }
 
 func (s *ProductHandler) Delete(c fuego.ContextNoBody) (EmptyResponse, error) {
