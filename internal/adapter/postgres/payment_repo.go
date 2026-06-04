@@ -77,13 +77,16 @@ func (r *PaymentRepo) Update(ctx context.Context, entity domain.Payment) (domain
 }
 
 func (r *PaymentRepo) CreateRefund(ctx context.Context, refund domain.Refund) (domain.Refund, error) {
-	err := dbFromCtx(ctx, r.db).Create(&refund).Error
-	if err != nil {
+	row := refundRowFromDomain(refund)
+	if err := dbFromCtx(ctx, r.db).Create(&row).Error; err != nil {
 		return domain.Refund{}, err
 	}
-	var created domain.Refund
-	err = dbFromCtx(ctx, r.db).
+	var created refundRow
+	err := dbFromCtx(ctx, r.db).
 		Where("id = ?", refund.Id).
 		First(&created).Error
-	return created, translateErr(err)
+	if err != nil {
+		return domain.Refund{}, translateErr(err)
+	}
+	return created.toDomain(), nil
 }

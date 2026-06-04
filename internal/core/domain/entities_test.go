@@ -205,7 +205,7 @@ func TestTableNames(t *testing.T) {
 		{"order_item", OrderItem{}.TableName(), "order_items"},
 		{"payment", Payment{}.TableName(), "payments"},
 		{"payment_method", PaymentMethod{}.TableName(), "payment_methods"},
-		{"refund", Refund{}.TableName(), "refunds"},
+		// refund: TableName lives on postgres row (split per hexagonal refactor)
 		{"price", Price{}.TableName(), "prices"},
 		{"cart", Cart{}.TableName(), "carts"},
 		{"customer", Customer{}.TableName(), "customers"},
