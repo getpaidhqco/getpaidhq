@@ -12,6 +12,7 @@ import (
 // MeterRepository manages BillableMetric (meter) definitions — operational DB.
 type MeterRepository interface {
 	FindByCode(ctx context.Context, orgId, code string) (domain.BillableMetric, error)
+	FindById(ctx context.Context, orgId, id string) (domain.BillableMetric, error)
 	Create(ctx context.Context, m domain.BillableMetric) (domain.BillableMetric, error)
 	Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.BillableMetric, int, error)
 }

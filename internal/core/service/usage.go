@@ -123,6 +123,25 @@ func (s *UsageService) AggregateForPeriod(ctx context.Context, metric domain.Bil
 	return applyRounding(metric, units), nil
 }
 
+// UsageForSubscription aggregates a metered subscription's usage for [from, to),
+// resolving the meter from the price. v1 includes unattributed events (the
+// earliest-subscription disambiguation for multiple metered subs is deferred).
+func (s *UsageService) UsageForSubscription(ctx context.Context, sub domain.Subscription, price domain.Price, from, to time.Time) (decimal.Decimal, error) {
+	metric, err := s.meterRepository.FindById(ctx, sub.OrgId, price.BillableMetricId)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	q := port.UsageQuery{
+		OrgId:               sub.OrgId,
+		CustomerId:          sub.CustomerId,
+		From:                from,
+		To:                  to,
+		SubscriptionId:      sub.Id,
+		IncludeUnattributed: true,
+	}
+	return s.AggregateForPeriod(ctx, metric, q)
+}
+
 func applyRounding(metric domain.BillableMetric, units decimal.Decimal) decimal.Decimal {
 	scale := int32(metric.RoundingScale)
 	switch metric.RoundingMode {

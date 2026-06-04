@@ -35,11 +35,18 @@ func BaseLineFromPrice(orgId, invoiceId string, p Price, quantity decimal.Decima
 // single base line from the linked Price, and totals it. Spec B appends usage lines
 // before persistence via AddLine.
 func BuildInvoiceForPeriod(sub Subscription, p Price, quantity decimal.Decimal, periodStart, periodEnd time.Time) Invoice {
-	id := lib.GenerateId("inv")
+	inv := NewInvoice(sub, periodStart, periodEnd)
+	inv.AddLine(BaseLineFromPrice(sub.OrgId, inv.Id, p, quantity))
+	return inv
+}
+
+// NewInvoice returns an empty draft invoice skeleton for a subscription's period.
+// Callers append base/usage lines via AddLine.
+func NewInvoice(sub Subscription, periodStart, periodEnd time.Time) Invoice {
 	now := time.Now().UTC()
-	inv := Invoice{
+	return Invoice{
 		OrgId:          sub.OrgId,
-		Id:             id,
+		Id:             lib.GenerateId("inv"),
 		SubscriptionId: sub.Id,
 		CustomerId:     sub.CustomerId,
 		OrderId:        sub.OrderId,
@@ -51,8 +58,25 @@ func BuildInvoiceForPeriod(sub Subscription, p Price, quantity decimal.Decimal, 
 		CreatedAt:      now,
 		UpdatedAt:      now,
 	}
-	inv.AddLine(BaseLineFromPrice(sub.OrgId, id, p, quantity))
-	return inv
+}
+
+// UsageLineFromPrice builds a usage line for a metered Price from aggregated units.
+func UsageLineFromPrice(orgId, invoiceId string, p Price, units decimal.Decimal) InvoiceLineItem {
+	amt, unit := PriceUsage(p, units)
+	now := time.Now().UTC()
+	return InvoiceLineItem{
+		OrgId:       orgId,
+		Id:          lib.GenerateId("ili"),
+		InvoiceId:   invoiceId,
+		PriceId:     p.Id,
+		Kind:        InvoiceLineKindUsage,
+		Description: p.Label,
+		Quantity:    units,
+		UnitAmount:  unit,
+		Total:       amt,
+		CreatedAt:   now,
+		UpdatedAt:   now,
+	}
 }
 
 // AddLine appends a line item and recomputes the invoice totals.

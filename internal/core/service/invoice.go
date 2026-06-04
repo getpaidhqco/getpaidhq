@@ -19,6 +19,7 @@ type InvoiceService struct {
 	invoiceRepository port.InvoiceRepository
 	orderRepository   port.OrderRepository
 	priceRepository   port.PriceRepository
+	usageService      *UsageService
 	tx                port.TxManager
 	logger            port.Logger
 }
@@ -27,6 +28,7 @@ func NewInvoiceService(
 	invoiceRepository port.InvoiceRepository,
 	orderRepository port.OrderRepository,
 	priceRepository port.PriceRepository,
+	usageService *UsageService,
 	tx port.TxManager,
 	logger port.Logger,
 ) *InvoiceService {
@@ -34,6 +36,7 @@ func NewInvoiceService(
 		invoiceRepository: invoiceRepository,
 		orderRepository:   orderRepository,
 		priceRepository:   priceRepository,
+		usageService:      usageService,
 		tx:                tx,
 		logger:            logger,
 	}
@@ -60,12 +63,24 @@ func (s *InvoiceService) BuildForBillingPeriod(ctx context.Context, sub domain.S
 	if err != nil {
 		return domain.Invoice{}, err
 	}
-	qty := int64(item.Quantity)
-	if qty <= 0 {
-		qty = 1
-	}
 
-	inv := domain.BuildInvoiceForPeriod(sub, price, decimal.NewFromInt(qty), sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
+	var inv domain.Invoice
+	if price.Category == domain.PriceCategoryMetered {
+		// Metered price: aggregate the cycle's usage into a single usage line.
+		// No base line — the charge is the measured units priced by the scheme.
+		units, uerr := s.usageService.UsageForSubscription(ctx, sub, price, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
+		if uerr != nil {
+			return domain.Invoice{}, uerr
+		}
+		inv = domain.NewInvoice(sub, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
+		inv.AddLine(domain.UsageLineFromPrice(sub.OrgId, inv.Id, price, units))
+	} else {
+		qty := int64(item.Quantity)
+		if qty <= 0 {
+			qty = 1
+		}
+		inv = domain.BuildInvoiceForPeriod(sub, price, decimal.NewFromInt(qty), sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
+	}
 
 	var created domain.Invoice
 	run := func(ctx context.Context) error {

@@ -41,7 +41,7 @@ func newSubscriptionService(subRepo port.SubscriptionRepository, setting port.Se
 	// the charge-handler tests assert against.
 	invOrderRepo := &fakeOrderRepo{items: []domain.OrderItem{{Id: "oi_1", PriceId: "price_1", Quantity: 1}}}
 	invPriceRepo := &fakePriceRepo{byId: domain.Price{Id: "price_1", UnitPrice: 1000}}
-	invoiceSvc := NewInvoiceService(newFakeInvoiceRepo(), invOrderRepo, invPriceRepo, nil, silentLogger{})
+	invoiceSvc := NewInvoiceService(newFakeInvoiceRepo(), invOrderRepo, invPriceRepo, nil, nil, silentLogger{})
 	svc, err := NewSubscriptionService(nil, setting, nil, subRepo, customer, order, payment, &fakePriceRepo{}, nil, invoiceSvc, ps, lib.ErrorReporter{}, silentLogger{}, nil)
 	if err != nil {
 		panic(err)

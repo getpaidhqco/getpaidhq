@@ -29,6 +29,18 @@ func (r *MeterRepo) FindByCode(ctx context.Context, orgId, code string) (domain.
 	return row.toDomain(), nil
 }
 
+func (r *MeterRepo) FindById(ctx context.Context, orgId, id string) (domain.BillableMetric, error) {
+	var row billableMetricRow
+	err := dbFromCtx(ctx, r.db).
+		Scopes(OrgScope(orgId)).
+		Where("id = ?", id).
+		First(&row).Error
+	if err != nil {
+		return domain.BillableMetric{}, translateErr(err)
+	}
+	return row.toDomain(), nil
+}
+
 func (r *MeterRepo) Create(ctx context.Context, m domain.BillableMetric) (domain.BillableMetric, error) {
 	m.Metadata = emptyIfNil(m.Metadata)
 	row := billableMetricRowFromDomain(m)
