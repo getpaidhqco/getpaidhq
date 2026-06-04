@@ -298,15 +298,8 @@ type CreatePriceRequest struct {
 }
 
 // ---------------------------------------------------------------------------
-// Org requests
+// Org requests: see org_request.go (CreateOrgRequest)
 // ---------------------------------------------------------------------------
-
-type CreateOrgInput struct {
-	Name     string            `json:"name" validate:"required"`
-	Country  string            `json:"country" validate:"required"`
-	Timezone string            `json:"timezone" validate:"required"`
-	Metadata map[string]string `json:"metadata"`
-}
 
 // ---------------------------------------------------------------------------
 // PSP requests

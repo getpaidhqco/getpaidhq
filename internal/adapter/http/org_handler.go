@@ -22,21 +22,15 @@ func (u *OrgHandler) RegisterRoutes(s *fuego.Server) {
 	fuego.Post(g, "", u.Create, option.Summary("Create an organization"))
 }
 
-func (u *OrgHandler) Create(c fuego.ContextWithBody[CreateOrgInput]) (any, error) {
+func (u *OrgHandler) Create(c fuego.ContextWithBody[CreateOrgRequest]) (OrgResponse, error) {
 	authUser := AuthUserFrom(c)
-	input, err := c.Body()
+	req, err := c.Body()
 	if err != nil {
-		return nil, err
+		return OrgResponse{}, err
 	}
-	t, err := u.service.Create(c.Context(), port.CreateOrgInput{
-		Owner:    authUser,
-		Name:     input.Name,
-		Country:  input.Country,
-		Timezone: input.Timezone,
-		Metadata: input.Metadata,
-	})
+	org, err := u.service.Create(c.Context(), req.ToInput(authUser))
 	if err != nil {
-		return nil, NewApiErrorFromError(err)
+		return OrgResponse{}, NewApiErrorFromError(err)
 	}
-	return t, nil
+	return NewOrgResponse(org), nil
 }

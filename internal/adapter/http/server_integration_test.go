@@ -78,7 +78,7 @@ func TestOnboardingBypass(t *testing.T) {
 	ts := newTestServer(wrap)
 	h.RegisterRoutes(ts.api())
 
-	raw, err := json.Marshal(CreateOrgInput{Name: "Acme", Country: "US", Timezone: "UTC"})
+	raw, err := json.Marshal(CreateOrgRequest{Name: "Acme", Country: "US", Timezone: "UTC"})
 	require.NoError(t, err)
 	req := httptest.NewRequest(http.MethodPost, "/api/organizations", bytes.NewReader(raw))
 	req.Header.Set("Authorization", "Bearer onboarding-token")

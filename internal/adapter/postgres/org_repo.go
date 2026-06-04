@@ -18,15 +18,15 @@ func NewOrgRepo(db *gorm.DB) port.OrgRepository {
 }
 
 func (r *OrgRepo) Create(ctx context.Context, entity domain.Org) (domain.Org, error) {
-	err := dbFromCtx(ctx, r.db).Create(&entity).Error
-	if err != nil {
+	row := orgRowFromDomain(entity)
+	if err := dbFromCtx(ctx, r.db).Create(&row).Error; err != nil {
 		return domain.Org{}, err
 	}
-	var created domain.Org
-	err = dbFromCtx(ctx, r.db).
-		Where("id = ?", entity.Id).
-		First(&created).Error
-	return created, translateErr(err)
+	var created orgRow
+	if err := dbFromCtx(ctx, r.db).Where("id = ?", entity.Id).First(&created).Error; err != nil {
+		return domain.Org{}, translateErr(err)
+	}
+	return created.toDomain(), nil
 }
 
 // ListIds returns all org ids. The billing sweep fans out to every tenant and
@@ -37,7 +37,7 @@ func (r *OrgRepo) Create(ctx context.Context, entity domain.Org) (domain.Org, er
 func (r *OrgRepo) ListIds(ctx context.Context) ([]string, error) {
 	var ids []string
 	err := dbFromCtx(ctx, r.db).
-		Model(&domain.Org{}).
+		Model(&orgRow{}).
 		Pluck("id", &ids).Error
 	return ids, err
 }

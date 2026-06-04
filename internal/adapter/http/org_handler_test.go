@@ -34,7 +34,7 @@ func TestOrgHandler_Create(t *testing.T) {
 		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
 		h.RegisterRoutes(ts.api())
 
-		rec := doJSON(t, ts, http.MethodPost, "/api/organizations", CreateOrgInput{
+		rec := doJSON(t, ts, http.MethodPost, "/api/organizations", CreateOrgRequest{
 			Name: "Acme", Country: "US", Timezone: "America/New_York",
 		})
 
@@ -51,7 +51,7 @@ func TestOrgHandler_Create(t *testing.T) {
 		ts := newTestServer(fixedAuthMiddleware(ownerUser()))
 		h.RegisterRoutes(ts.api())
 
-		rec := doJSON(t, ts, http.MethodPost, "/api/organizations", CreateOrgInput{
+		rec := doJSON(t, ts, http.MethodPost, "/api/organizations", CreateOrgRequest{
 			Name: "Acme", Country: "US", Timezone: "UTC",
 		})
 

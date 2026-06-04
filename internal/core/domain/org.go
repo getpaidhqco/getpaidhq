@@ -12,19 +12,21 @@ const (
 	OrgStatusDeleted  OrgStatus = "deleted"
 )
 
+// Org is the multi-tenant root entity. Every other persisted entity is
+// scoped to an Org via its OrgId. Single primary key (Id only).
 type Org struct {
-	Id        string            `gorm:"column:id;primaryKey" json:"id"`
-	Name      string            `gorm:"column:name" json:"name" validate:"required"`
-	Country   string            `gorm:"column:country" json:"country" validate:"required"`
-	Timezone  string            `gorm:"column:timezone" json:"timezone"`
-	Status    OrgStatus         `gorm:"column:status" json:"status" validate:"required"`
-	Metadata  map[string]string `gorm:"column:metadata;serializer:json" json:"metadata"`
-	CreatedAt time.Time         `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt time.Time         `gorm:"column:updated_at" json:"updated_at"`
+	Id        string
+	Name      string
+	Country   string
+	Timezone  string
+	Status    OrgStatus
+	Metadata  map[string]string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
 
-func (Org) TableName() string { return "orgs" }
-
+// GetPaymentGatewayInput is a service-layer query parameter. Lives in domain
+// historically; could move to port/ when its usage is audited.
 type GetPaymentGatewayInput struct {
 	OrgId string
 	PspId string
