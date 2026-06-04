@@ -913,8 +913,11 @@ import (
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
-// ReminderInput carries the subscription whose renewal reminder should be sent.
-type ReminderInput struct {
+// RenewalReminderInput carries the subscription whose renewal reminder should
+// be sent. (Named distinctly from the old runner's `ReminderInput`, which still
+// exists in subscription_charge_reminder.go until Task 7 — avoids a duplicate
+// declaration so every task builds green.)
+type RenewalReminderInput struct {
 	Subscription domain.Subscription `json:"subscription"`
 }
 
@@ -923,7 +926,7 @@ type ReminderInput struct {
 // each stage fire once per cycle, so this task itself just performs the send.
 func NewSendRenewalReminderWorkflow(client *hatchet.Client, subscriptionService port.SubscriptionService) *hatchet.StandaloneTask {
 	return client.NewStandaloneTask("send-renewal-reminder",
-		func(ctx hatchet.Context, in ReminderInput) (struct{}, error) {
+		func(ctx hatchet.Context, in RenewalReminderInput) (struct{}, error) {
 			err := subscriptionService.SendRenewalReminder(ctx, in.Subscription.OrgId, in.Subscription.Id)
 			return struct{}{}, err
 		},
@@ -931,12 +934,12 @@ func NewSendRenewalReminderWorkflow(client *hatchet.Client, subscriptionService 
 }
 ```
 
-> `ReminderInput` is defined here now. The old `subscription_charge_reminder.go` also defines it; until Task 7 deletes that file the build reports a duplicate — expected, resolved by Task 7.
+> `RenewalReminderInput` has a distinct name from the old runner's `ReminderInput` (in `subscription_charge_reminder.go`, deleted in Task 7), so there is no duplicate-declaration collision in the window before Task 7 — the build stays green at every step.
 
 - [ ] **Step 2: Build**
 
 Run: `go build ./...`
-Expected: success once the old reminder file is removed (Task 7); a duplicate-`ReminderInput` error before then is expected.
+Expected: success. `RenewalReminderInput` is distinctly named, so there is no collision with the old `ReminderInput` (which still exists until Task 7).
 
 - [ ] **Step 3: Commit**
 
@@ -1157,7 +1160,7 @@ func NewOrgBillingWorkflow(client *hatchet.Client, subRepo port.SubscriptionRepo
 							if now.Before(sub.RenewsAt.Add(-offset)) {
 								continue
 							}
-							if _, err := client.RunNoWait(ctx, "send-renewal-reminder", ReminderInput{Subscription: sub},
+							if _, err := client.RunNoWait(ctx, "send-renewal-reminder", RenewalReminderInput{Subscription: sub},
 								hatchet.WithRunKey(ReminderStageRunKey(sub.OrgId, sub.Id, sub.CyclesProcessed, offset)),
 								hatchet.WithRunMetadata(map[string]string{
 									"orgId": sub.OrgId, "subscriptionId": sub.Id, "reminderOffset": offset.String(),
@@ -1274,7 +1277,7 @@ Run: `grep -rn "func waitedKeys\|func unmarshalWaited\|func containsKey\|func is
 
 If any are defined in `subscription_runner.go`, cut them into a new `internal/adapter/hatchet/workflows/wait_helpers.go` (package `workflows`) before deleting.
 
-> **`ReminderInput` note:** it is now defined in `send_renewal_reminder.go` (Task 4B). The old `subscription_charge_reminder.go` *also* defines it, so until that file is deleted (Step 2) the build reports a duplicate. That duplicate disappears with the delete — expected.
+> **`ReminderInput` note:** the new reminder workflow uses `RenewalReminderInput` (Task 4D) — a distinct type — so deleting `subscription_charge_reminder.go` (which owns the old Hatchet `ReminderInput`) causes no collision and leaves no dangling references. After deletion, `grep -rn "\bReminderInput\b\|SubscriptionChargeReminder\|NewSubscriptionChargeReminderWorkflow" internal/adapter/hatchet/` should return nothing (only `RenewalReminderInput` remains).
 
 - [ ] **Step 2: Delete the two files**
 
@@ -1426,6 +1429,7 @@ git commit -m "feat(temporal): per-tenant reminder config parity (resolve per cy
 
 ## Out-of-scope follow-ups (track separately)
 
+0. **Cedar authz on `PUT /api/billing/reminder-config`** — the endpoint ships authenticated + org-scoped but with **no fine-grained authz** (any authenticated org member can change the reminder config), matching the `OrgHandler` precedent, because `policy.cedar` has no reminder/billing-config action. Hardening follow-up: add a `BillingConfig`/`Reminder` action to `port.Action` + `policy.cedar` and gate the handler (ideally owner/admin), for parity with the dunning/psp config handlers.
 1. **Per-plan / per-segment reminder scoping** — this pass resolves reminder config per **org** (from the `settings` table via `ReminderConfigService`). If merchants need different reminder schedules per plan, tier, or customer segment, extend the resolver with a scope/priority lookup like `DunningConfigScope` (the resolver in `org-billing` is the single extension point). Per-org config + disable is already done.
 2. **`dunning-runner` eviction** — bounded so retention-safe, but still needs `WithEvictionPolicy` + execution-timeout > TTL so its multi-day progressive waits aren't 5-min-reaped (see timeout doc Fix option 3).
 3. **Lago-grade calendar/anniversary date math + multi-currency grouping** — current `GetNextChargeDate` is simpler; revisit if proration/timezone correctness is needed.
