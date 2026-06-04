@@ -2,16 +2,17 @@ package domain
 
 import "time"
 
+// Variant is a sellable form of a Product. Prices is populated by the repo
+// when a Preload-equivalent is used; for code paths that don't hydrate it,
+// only the entity's own fields are reliable.
 type Variant struct {
-	OrgId       string            `gorm:"column:org_id;primaryKey" json:"org_id"`
-	Id          string            `gorm:"column:id;primaryKey" json:"id"`
-	ProductId   string            `gorm:"column:product_id" json:"product_id"`
-	Name        string            `gorm:"column:name" json:"name"`
-	Description string            `gorm:"column:description" json:"description"`
-	Metadata    map[string]string `gorm:"column:metadata;serializer:json" json:"metadata"`
-	Prices      []Price           `gorm:"foreignKey:VariantId,OrgId;references:Id,OrgId" json:"prices"`
-	CreatedAt   time.Time         `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt   time.Time         `gorm:"column:updated_at" json:"updated_at"`
+	OrgId       string
+	Id          string
+	ProductId   string
+	Name        string
+	Description string
+	Metadata    map[string]string
+	Prices      []Price
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
-
-func (Variant) TableName() string { return "variants" }

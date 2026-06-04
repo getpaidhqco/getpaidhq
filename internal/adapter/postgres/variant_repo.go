@@ -18,44 +18,48 @@ func NewVariantRepo(db *gorm.DB) port.VariantRepository {
 }
 
 func (r *VariantRepo) Create(ctx context.Context, entity domain.Variant) (domain.Variant, error) {
-	err := dbFromCtx(ctx, r.db).Create(&entity).Error
-	if err != nil {
+	row := variantRowFromDomain(entity)
+	if err := dbFromCtx(ctx, r.db).Create(&row).Error; err != nil {
 		return domain.Variant{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
 func (r *VariantRepo) FindById(ctx context.Context, orgId string, id string) (domain.Variant, error) {
-	var variant domain.Variant
+	var row variantRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		Preload("Prices").
-		First(&variant).Error
-	return variant, translateErr(err)
+		First(&row).Error
+	if err != nil {
+		return domain.Variant{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *VariantRepo) FindByProductId(ctx context.Context, orgId string, productId string, p domain.Pagination) ([]domain.Variant, int, error) {
-	var variants []domain.Variant
+	var rows []variantRow
 	var count int64
-	err := dbFromCtx(ctx, r.db).Model(&domain.Variant{}).
+	if err := dbFromCtx(ctx, r.db).Model(&variantRow{}).
 		Scopes(OrgScope(orgId)).
 		Where("product_id = ?", productId).
-		Count(&count).Error
-	if err != nil {
+		Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
-	err = dbFromCtx(ctx, r.db).
+	if err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId), Paginate(p)).
 		Where("product_id = ?", productId).
 		Preload("Prices").
-		Find(&variants).Error
-	return variants, int(count), err
+		Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	return variantRowsToDomain(rows), int(count), nil
 }
 
 func (r *VariantRepo) Update(ctx context.Context, entity domain.Variant) (domain.Variant, error) {
-	err := dbFromCtx(ctx, r.db).Save(&entity).Error
-	if err != nil {
+	row := variantRowFromDomain(entity)
+	if err := dbFromCtx(ctx, r.db).Save(&row).Error; err != nil {
 		return domain.Variant{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
@@ -65,5 +69,5 @@ func (r *VariantRepo) Delete(ctx context.Context, orgId string, id string) error
 	return dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
-		Delete(&domain.Variant{}).Error
+		Delete(&variantRow{}).Error
 }

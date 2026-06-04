@@ -22,48 +22,49 @@ const (
 	SubscriptionStatusError       SubscriptionStatus = "error"
 )
 
+// Subscription is the recurring-billing aggregate root. Customer and OrderItem
+// are populated by the repo when a Preload-equivalent is used; for code paths
+// that don't hydrate them, only CustomerId / OrderItemId are reliable.
 type Subscription struct {
-	OrgId           string             `gorm:"column:org_id;primaryKey" json:"org_id"`
-	Id              string             `gorm:"column:id;primaryKey" json:"id"`
-	PspId           Gateway            `gorm:"column:psp_id" json:"psp_id"`
-	OrderId         string             `gorm:"column:order_id" json:"order_id"`
-	OrderItemId     string             `gorm:"column:order_item_id" json:"order_item_id"`
-	OrderItem       OrderItem          `gorm:"foreignKey:OrderItemId,OrgId;references:Id,OrgId" json:"-"`
-	CustomerId      string             `gorm:"column:customer_id" json:"customer_id"`
-	Customer        Customer           `gorm:"foreignKey:CustomerId,OrgId;references:Id,OrgId" json:"-"`
-	Status          SubscriptionStatus `gorm:"column:status" json:"status"`
-	PaymentMethodId string             `gorm:"column:payment_method_id" json:"payment_method_id,omitempty"`
+	OrgId           string
+	Id              string
+	PspId           Gateway
+	OrderId         string
+	OrderItemId     string
+	OrderItem       OrderItem
+	CustomerId      string
+	Customer        Customer
+	Status          SubscriptionStatus
+	PaymentMethodId string
 
-	StartDate          time.Time       `gorm:"column:start_date;serializer:nulltime" json:"start_date"`
-	EndDate            time.Time       `gorm:"column:end_date;serializer:nulltime" json:"end_date,omitzero"`
-	BillingInterval    BillingInterval `gorm:"column:billing_interval" json:"billing_interval"`
-	BillingIntervalQty int             `gorm:"column:billing_interval_qty" json:"billing_interval_qty"`
-	Cycles             int             `gorm:"column:cycles" json:"cycles"`
-	BillingAnchor      int             `gorm:"column:billing_anchor" json:"billing_anchor"`
+	StartDate          time.Time
+	EndDate            time.Time
+	BillingInterval    BillingInterval
+	BillingIntervalQty int
+	Cycles             int
+	BillingAnchor      int
 
-	TrialEndsAt time.Time `gorm:"column:trial_ends_at;serializer:nulltime" json:"trial_ends_at,omitzero"`
-	CancelAt    time.Time `gorm:"column:cancel_at;serializer:nulltime" json:"cancel_at,omitzero"`
-	EndsAt      time.Time `gorm:"column:ends_at;serializer:nulltime" json:"ends_at,omitzero"`
-	LastCharge  time.Time `gorm:"column:last_charge;serializer:nulltime" json:"last_charge"`
-	RenewsAt    time.Time `gorm:"column:renews_at;serializer:nulltime" json:"renews_at"`
+	TrialEndsAt time.Time
+	CancelAt    time.Time
+	EndsAt      time.Time
+	LastCharge  time.Time
+	RenewsAt    time.Time
 
-	CurrentPeriodStart time.Time `gorm:"column:current_period_start;serializer:nulltime" json:"current_period_start"`
-	CurrentPeriodEnd   time.Time `gorm:"column:current_period_end;serializer:nulltime" json:"current_period_end"`
+	CurrentPeriodStart time.Time
+	CurrentPeriodEnd   time.Time
 
-	Retries     int       `gorm:"column:retries" json:"retries"`
-	NextRetryAt time.Time `gorm:"column:next_retry;serializer:nulltime" json:"next_retry,omitzero"`
+	Retries     int
+	NextRetryAt time.Time
 
-	Currency        string            `gorm:"column:currency" json:"currency"`
-	Amount          int64             `gorm:"column:amount" json:"amount"`
-	Metadata        map[string]string `gorm:"column:metadata;serializer:json" json:"metadata"`
-	CyclesProcessed int               `gorm:"column:cycles_processed" json:"cycles_processed"`
-	TotalRevenue    int64             `gorm:"column:total_revenue" json:"total_revenue"`
-	CancelledAt     time.Time         `gorm:"column:cancelled_at;serializer:nulltime" json:"cancelled_at,omitzero"`
-	CreatedAt       time.Time         `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt       time.Time         `gorm:"column:updated_at" json:"updated_at"`
+	Currency        string
+	Amount          int64
+	Metadata        map[string]string
+	CyclesProcessed int
+	TotalRevenue    int64
+	CancelledAt     time.Time
+	CreatedAt       time.Time
+	UpdatedAt       time.Time
 }
-
-func (Subscription) TableName() string { return "subscriptions" }
 
 type ProrationDetails struct {
 	CreditAmount       int       `json:"credit_amount"`

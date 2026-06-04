@@ -122,7 +122,8 @@ func TestCustomerRepo(t *testing.T) {
 			CreatedAt:  time.Now().UTC().Truncate(time.Microsecond),
 			UpdatedAt:  time.Now().UTC().Truncate(time.Microsecond),
 		}
-		require.NoError(t, db.Create(&pm).Error)
+		pmRow := paymentMethodRowFromDomain(pm)
+		require.NoError(t, db.Create(&pmRow).Error)
 
 		got, err := repo.FindPaymentMethodById(ctx, orgA, pm.Id)
 		require.NoError(t, err)

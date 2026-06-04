@@ -18,83 +18,99 @@ func NewOrderRepo(db *gorm.DB) port.OrderRepository {
 }
 
 func (r *OrderRepo) FindById(ctx context.Context, orgId string, id string) (domain.Order, error) {
-	var order domain.Order
+	var row orderRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		Preload("Customer").
 		Preload("Items").
-		First(&order).Error
-	return order, translateErr(err)
+		Preload("Items.Price").
+		First(&row).Error
+	if err != nil {
+		return domain.Order{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *OrderRepo) Create(ctx context.Context, entity domain.Order) (domain.Order, error) {
 	entity.Metadata = emptyIfNil(entity.Metadata)
-	err := dbFromCtx(ctx, r.db).Create(&entity).Error
-	if err != nil {
+	row := orderRowFromDomain(entity)
+	if err := dbFromCtx(ctx, r.db).Create(&row).Error; err != nil {
 		return domain.Order{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
 func (r *OrderRepo) Update(ctx context.Context, entity domain.Order) (domain.Order, error) {
-	err := dbFromCtx(ctx, r.db).Save(&entity).Error
-	if err != nil {
+	row := orderRowFromDomain(entity)
+	if err := dbFromCtx(ctx, r.db).Save(&row).Error; err != nil {
 		return domain.Order{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
 func (r *OrderRepo) Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Order, int, error) {
-	var orders []domain.Order
+	var rows []orderRow
 	var count int64
-	err := dbFromCtx(ctx, r.db).Model(&domain.Order{}).
+	if err := dbFromCtx(ctx, r.db).Model(&orderRow{}).
 		Scopes(OrgScope(orgId)).
-		Count(&count).Error
-	if err != nil {
+		Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
-	err = dbFromCtx(ctx, r.db).
+	if err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId), Paginate(p)).
 		Preload("Customer").
 		Preload("Items").
-		Find(&orders).Error
-	return orders, int(count), err
+		Preload("Items.Price").
+		Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]domain.Order, len(rows))
+	for i, row := range rows {
+		out[i] = row.toDomain()
+	}
+	return out, int(count), nil
 }
 
 func (r *OrderRepo) FindOrderItemById(ctx context.Context, orgId string, id string) (domain.OrderItem, error) {
-	var item domain.OrderItem
+	var row orderItemRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		Preload("Price").
-		First(&item).Error
-	return item, translateErr(err)
+		First(&row).Error
+	if err != nil {
+		return domain.OrderItem{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *OrderRepo) CreateOrderItem(ctx context.Context, entity domain.OrderItem) (domain.OrderItem, error) {
 	entity.Metadata = emptyIfNil(entity.Metadata)
-	err := dbFromCtx(ctx, r.db).Create(&entity).Error
-	if err != nil {
+	row := orderItemRowFromDomain(entity)
+	if err := dbFromCtx(ctx, r.db).Omit("Price").Create(&row).Error; err != nil {
 		return domain.OrderItem{}, err
 	}
 	return r.FindOrderItemById(ctx, entity.OrgId, entity.Id)
 }
 
 func (r *OrderRepo) UpdateOrderItem(ctx context.Context, entity domain.OrderItem) (domain.OrderItem, error) {
-	err := dbFromCtx(ctx, r.db).Save(&entity).Error
-	if err != nil {
+	row := orderItemRowFromDomain(entity)
+	if err := dbFromCtx(ctx, r.db).Omit("Price").Save(&row).Error; err != nil {
 		return domain.OrderItem{}, err
 	}
 	return r.FindOrderItemById(ctx, entity.OrgId, entity.Id)
 }
 
 func (r *OrderRepo) FindOrderItemsByOrderId(ctx context.Context, orgId string, orderId string) ([]domain.OrderItem, error) {
-	var items []domain.OrderItem
+	var rows []orderItemRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("order_id = ?", orderId).
 		Preload("Price").
-		Find(&items).Error
-	return items, err
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return orderItemRowsToDomain(rows), nil
 }

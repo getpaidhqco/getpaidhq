@@ -20,13 +20,16 @@ func NewSubscriptionRepo(db *gorm.DB) port.SubscriptionRepository {
 }
 
 func (r *SubscriptionRepo) FindById(ctx context.Context, orgId string, id string) (domain.Subscription, error) {
-	var sub domain.Subscription
+	var row subscriptionRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		Preload("Customer").
-		First(&sub).Error
-	return sub, translateErr(err)
+		First(&row).Error
+	if err != nil {
+		return domain.Subscription{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 // FindByIdForUpdate is the row-locking variant of FindById. MUST be
@@ -34,56 +37,63 @@ func (r *SubscriptionRepo) FindById(ctx context.Context, orgId string, id string
 // lock is acquired and immediately released, which defeats the
 // purpose. The Postgres dialect emits SELECT ... FOR UPDATE.
 func (r *SubscriptionRepo) FindByIdForUpdate(ctx context.Context, orgId string, id string) (domain.Subscription, error) {
-	var sub domain.Subscription
+	var row subscriptionRow
 	err := dbFromCtx(ctx, r.db).
 		Clauses(clause.Locking{Strength: "UPDATE"}).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		Preload("Customer").
-		First(&sub).Error
-	return sub, translateErr(err)
+		First(&row).Error
+	if err != nil {
+		return domain.Subscription{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *SubscriptionRepo) Create(ctx context.Context, entity domain.Subscription) (domain.Subscription, error) {
 	entity.Metadata = emptyIfNil(entity.Metadata)
-	err := dbFromCtx(ctx, r.db).Create(&entity).Error
-	if err != nil {
+	row := subscriptionRowFromDomain(entity)
+	if err := dbFromCtx(ctx, r.db).Omit("Customer", "OrderItem").Create(&row).Error; err != nil {
 		return domain.Subscription{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
 func (r *SubscriptionRepo) Update(ctx context.Context, entity domain.Subscription) (domain.Subscription, error) {
-	err := dbFromCtx(ctx, r.db).Save(&entity).Error
-	if err != nil {
+	row := subscriptionRowFromDomain(entity)
+	if err := dbFromCtx(ctx, r.db).Omit("Customer", "OrderItem").Save(&row).Error; err != nil {
 		return domain.Subscription{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
 func (r *SubscriptionRepo) FindByOrderId(ctx context.Context, orgId string, orderId string) ([]domain.Subscription, error) {
-	var subs []domain.Subscription
+	var rows []subscriptionRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("order_id = ?", orderId).
-		Find(&subs).Error
-	return subs, err
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return subscriptionRowsToDomain(rows), nil
 }
 
 func (r *SubscriptionRepo) Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Subscription, int, error) {
-	var subs []domain.Subscription
+	var rows []subscriptionRow
 	var count int64
-	err := dbFromCtx(ctx, r.db).Model(&domain.Subscription{}).
+	if err := dbFromCtx(ctx, r.db).Model(&subscriptionRow{}).
 		Scopes(OrgScope(orgId)).
-		Count(&count).Error
-	if err != nil {
+		Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
-	err = dbFromCtx(ctx, r.db).
+	if err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId), Paginate(p)).
 		Preload("Customer").
-		Find(&subs).Error
-	return subs, int(count), err
+		Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	return subscriptionRowsToDomain(rows), int(count), nil
 }
 
 // FindDueForBilling selects subscriptions due for a charge now. Keep the status/
@@ -91,7 +101,7 @@ func (r *SubscriptionRepo) Find(ctx context.Context, orgId string, p domain.Pagi
 // is the per-subscription mirror of this SQL (used by the Hatchet activation spawn),
 // and the two must agree on what "due" means.
 func (r *SubscriptionRepo) FindDueForBilling(ctx context.Context, orgId string, now time.Time) ([]domain.Subscription, error) {
-	var subs []domain.Subscription
+	var rows []subscriptionRow
 	// Unset date columns are NULL (serializer:nulltime maps zero time → NULL),
 	// and `col <= now` is already false for NULL, so unset rows are auto-excluded.
 	err := dbFromCtx(ctx, r.db).
@@ -101,16 +111,22 @@ func (r *SubscriptionRepo) FindDueForBilling(ctx context.Context, orgId string, 
 				Or("status = ? AND next_retry <= ?", domain.SubscriptionStatusPastDue, now).
 				Or("status = ? AND trial_ends_at <= ?", domain.SubscriptionStatusTrial, now),
 		).
-		Find(&subs).Error
-	return subs, err
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return subscriptionRowsToDomain(rows), nil
 }
 
 func (r *SubscriptionRepo) FindUpcomingRenewals(ctx context.Context, orgId string, now time.Time, within time.Duration) ([]domain.Subscription, error) {
-	var subs []domain.Subscription
+	var rows []subscriptionRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("status = ? AND renews_at > ? AND renews_at <= ?",
 			domain.SubscriptionStatusActive, now, now.Add(within)).
-		Find(&subs).Error
-	return subs, err
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return subscriptionRowsToDomain(rows), nil
 }

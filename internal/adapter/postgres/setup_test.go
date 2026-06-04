@@ -12,7 +12,7 @@
 //   - Cleanup is handled automatically by the container lifecycle.
 //
 // Schema: the Prisma schema is the source of truth, but Prisma can't be run
-// from a Go test. Instead we GORM-AutoMigrate the domain structs each repo
+// from a Go test. Instead we GORM-AutoMigrate the *Row types each repo
 // persists. AutoMigrate is driven off the same gorm tags + TableName() the
 // production code uses, so the table/column shapes match what the repos query.
 // Caveat: AutoMigrate does NOT reproduce Prisma-specific constraints,
@@ -51,26 +51,26 @@ var (
 
 func allModels() []any {
 	return []any{
-		&domain.Org{},
-		&domain.Customer{},
-		&domain.Cohort{},
-		&domain.CustomerCohort{},
-		&domain.Price{},
-		&domain.Order{},
-		&domain.OrderItem{},
-		&domain.Subscription{},
+		&orgRow{},
+		&customerRow{},
+		&cohortRow{},
+		&customerCohortRow{},
+		&priceRow{},
+		&orderRow{},
+		&orderItemRow{},
+		&subscriptionRow{},
 		&domain.Payment{},
-		&domain.Refund{},
-		&domain.PaymentMethod{},
-		&domain.PspConfig{},
-		&domain.Setting{},
+		&refundRow{},
+		&paymentMethodRow{},
+		&pspConfigRow{},
+		&settingRow{},
 		&domain.DunningCampaign{},
 		&domain.DunningAttempt{},
 		&domain.DunningCommunication{},
 		&domain.PaymentUpdateToken{},
 		&domain.DunningConfiguration{},
 		&domain.CustomerDunningHistory{},
-		&domain.ApiKey{},
+		&apiKeyRow{},
 	}
 }
 
@@ -142,25 +142,25 @@ func cleanupOrg(t *testing.T, db *gorm.DB, orgId string) {
 			&domain.DunningCampaign{},
 			&domain.DunningConfiguration{},
 			&domain.CustomerDunningHistory{},
-			&domain.Refund{},
+			&refundRow{},
 			&domain.Payment{},
-			&domain.Subscription{},
-			&domain.OrderItem{},
-			&domain.Order{},
-			&domain.Price{},
-			&domain.PaymentMethod{},
-			&domain.CustomerCohort{},
-			&domain.Cohort{},
-			&domain.Customer{},
-			&domain.Setting{},
-			&domain.PspConfig{},
-			&domain.ApiKey{},
+			&subscriptionRow{},
+			&orderItemRow{},
+			&orderRow{},
+			&priceRow{},
+			&paymentMethodRow{},
+			&customerCohortRow{},
+			&cohortRow{},
+			&customerRow{},
+			&settingRow{},
+			&pspConfigRow{},
+			&apiKeyRow{},
 		}
 		for _, m := range ordered {
 			db.Unscoped().Where("org_id = ?", orgId).Delete(m)
 		}
 		// The orgs table is keyed by `id`, not `org_id`.
-		db.Unscoped().Where("id = ?", orgId).Delete(&domain.Org{})
+		db.Unscoped().Where("id = ?", orgId).Delete(&orgRow{})
 	})
 }
 
@@ -182,7 +182,8 @@ func seedCustomer(t *testing.T, db *gorm.DB, orgId string) domain.Customer {
 		CreatedAt: time.Now().UTC().Truncate(time.Microsecond),
 		UpdatedAt: time.Now().UTC().Truncate(time.Microsecond),
 	}
-	require.NoError(t, db.Create(&c).Error)
+	row := customerRowFromDomain(c)
+	require.NoError(t, db.Create(&row).Error)
 	return c
 }
 
@@ -200,7 +201,8 @@ func seedPrice(t *testing.T, db *gorm.DB, orgId string) domain.Price {
 		CreatedAt:          time.Now().UTC().Truncate(time.Microsecond),
 		UpdatedAt:          time.Now().UTC().Truncate(time.Microsecond),
 	}
-	require.NoError(t, db.Create(&p).Error)
+	row := priceRowFromDomain(p)
+	require.NoError(t, db.Create(&row).Error)
 	return p
 }
 
@@ -218,7 +220,8 @@ func seedOrderItem(t *testing.T, db *gorm.DB, orgId, orderId, priceId string) do
 		CreatedAt:   time.Now().UTC().Truncate(time.Microsecond),
 		UpdatedAt:   time.Now().UTC().Truncate(time.Microsecond),
 	}
-	require.NoError(t, db.Create(&item).Error)
+	row := orderItemRowFromDomain(item)
+	require.NoError(t, db.Omit("Price").Create(&row).Error)
 	return item
 }
 
@@ -235,6 +238,7 @@ func seedOrder(t *testing.T, db *gorm.DB, orgId, customerId string) domain.Order
 		CreatedAt:  time.Now().UTC().Truncate(time.Microsecond),
 		UpdatedAt:  time.Now().UTC().Truncate(time.Microsecond),
 	}
-	require.NoError(t, db.Create(&o).Error)
+	row := orderRowFromDomain(o)
+	require.NoError(t, db.Omit("Customer", "Items").Create(&row).Error)
 	return o
 }

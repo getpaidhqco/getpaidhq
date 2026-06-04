@@ -115,7 +115,7 @@ func seedMemoryPsp(t *testing.T, db *gorm.DB, orgId string) string {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
 	pspConfigId := lib.GenerateId("gw")
-	require.NoError(t, db.Create(&domain.PspConfig{
+	require.NoError(t, db.Create(pspConfigRowFromDomain(domain.PspConfig{
 		OrgId:     orgId,
 		Id:        pspConfigId,
 		PspId:     domain.Memory,
@@ -123,9 +123,9 @@ func seedMemoryPsp(t *testing.T, db *gorm.DB, orgId string) string {
 		Active:    true,
 		CreatedAt: now,
 		UpdatedAt: now,
-	}).Error)
+	})).Error)
 
-	require.NoError(t, db.Create(&domain.Setting{
+	require.NoError(t, db.Create(settingRowFromDomain(domain.Setting{
 		OrgId:     orgId,
 		ParentId:  pspConfigId,
 		Id:        "settings",
@@ -133,7 +133,7 @@ func seedMemoryPsp(t *testing.T, db *gorm.DB, orgId string) string {
 		Value:     "{}",
 		CreatedAt: now,
 		UpdatedAt: now,
-	}).Error)
+	})).Error)
 
 	return pspConfigId
 }
@@ -156,7 +156,8 @@ func seedPaymentMethod(t *testing.T, db *gorm.DB, orgId, customerId string) doma
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}
-	require.NoError(t, db.Create(&pm).Error)
+	row := paymentMethodRowFromDomain(pm)
+	require.NoError(t, db.Create(&row).Error)
 	return pm
 }
 
@@ -186,7 +187,7 @@ func TestBillingChargeAdvancesState(t *testing.T) {
 	sub.Cycles = 12
 	sub.CyclesProcessed = 0
 	sub.RenewsAt = time.Now().UTC().Add(-24 * time.Hour) // due
-	require.NoError(t, db.Create(&sub).Error)
+	subRow := subscriptionRowFromDomain(sub); require.NoError(t, db.Omit("Customer", "OrderItem").Create(&subRow).Error)
 
 	svc := buildSubscriptionService(t, db)
 	subRepo := NewSubscriptionRepo(db)
@@ -288,7 +289,7 @@ func TestImmediateFirstCharge(t *testing.T) {
 	sub.RenewsAt = startDate           // due now/past (no upfront payment)
 	sub.CurrentPeriodStart = startDate // what SetActive (zero-amount) seeds
 	sub.CurrentPeriodEnd = startDate   // (NOT zero — this is the load-bearing seed)
-	require.NoError(t, db.Create(&sub).Error)
+	subRow := subscriptionRowFromDomain(sub); require.NoError(t, db.Omit("Customer", "OrderItem").Create(&subRow).Error)
 
 	// The activation gate: this is exactly the predicate the Hatchet
 	// StartSubscriptionWorkflow checks before spawning billing-cycle-runner.
@@ -304,7 +305,7 @@ func TestImmediateFirstCharge(t *testing.T) {
 
 	// (b) Apply the success -> cycle 1, still active, payment row written, and —
 	// critically — correct period boundaries without any handler fix.
-	updated, err := svc.HandleSubscriptionChargeSuccess(ctx, domain.SubscriptionChargeInput{
+	updated, err := svc.HandleSubscriptionChargeSuccess(ctx, port.SubscriptionChargeInput{
 		Subscription: sub,
 		ChargeResult: result,
 	})

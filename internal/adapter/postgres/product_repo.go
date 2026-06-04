@@ -18,44 +18,52 @@ func NewProductRepo(db *gorm.DB) port.ProductRepository {
 }
 
 func (r *ProductRepo) FindById(ctx context.Context, orgId string, id string) (domain.Product, error) {
-	var product domain.Product
+	var row productRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		Preload("Variants").
 		Preload("Variants.Prices").
-		First(&product).Error
-	return product, translateErr(err)
+		First(&row).Error
+	if err != nil {
+		return domain.Product{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *ProductRepo) Create(ctx context.Context, product domain.Product) (domain.Product, error) {
-	err := dbFromCtx(ctx, r.db).Create(&product).Error
-	if err != nil {
+	row := productRowFromDomain(product)
+	if err := dbFromCtx(ctx, r.db).Create(&row).Error; err != nil {
 		return domain.Product{}, err
 	}
 	return r.FindById(ctx, product.OrgId, product.Id)
 }
 
 func (r *ProductRepo) Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Product, int, error) {
-	var products []domain.Product
+	var rows []productRow
 	var count int64
-	err := dbFromCtx(ctx, r.db).Model(&domain.Product{}).
+	if err := dbFromCtx(ctx, r.db).Model(&productRow{}).
 		Scopes(OrgScope(orgId)).
-		Count(&count).Error
-	if err != nil {
+		Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
-	err = dbFromCtx(ctx, r.db).
+	if err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId), Paginate(p)).
 		Preload("Variants").
 		Preload("Variants.Prices").
-		Find(&products).Error
-	return products, int(count), err
+		Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	out := make([]domain.Product, len(rows))
+	for i, row := range rows {
+		out[i] = row.toDomain()
+	}
+	return out, int(count), nil
 }
 
 func (r *ProductRepo) Update(ctx context.Context, product domain.Product) (domain.Product, error) {
-	err := dbFromCtx(ctx, r.db).Save(&product).Error
-	if err != nil {
+	row := productRowFromDomain(product)
+	if err := dbFromCtx(ctx, r.db).Save(&row).Error; err != nil {
 		return domain.Product{}, err
 	}
 	return r.FindById(ctx, product.OrgId, product.Id)
@@ -65,5 +73,5 @@ func (r *ProductRepo) Delete(ctx context.Context, orgId string, id string) error
 	return dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
-		Delete(&domain.Product{}).Error
+		Delete(&productRow{}).Error
 }

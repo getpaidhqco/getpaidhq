@@ -2,15 +2,16 @@ package domain
 
 import "time"
 
+// Product is the merchandise aggregate root. Variants is populated by the
+// repo when a Preload-equivalent is used; for code paths that don't hydrate
+// it, only the entity's own fields are reliable.
 type Product struct {
-	OrgId       string            `gorm:"column:org_id;primaryKey" json:"org_id"`
-	Id          string            `gorm:"column:id;primaryKey" json:"id"`
-	Name        string            `gorm:"column:name" json:"name"`
-	Description string            `gorm:"column:description" json:"description"`
-	Variants    []Variant         `gorm:"foreignKey:ProductId,OrgId;references:Id,OrgId" json:"variants"`
-	Metadata    map[string]string `gorm:"column:metadata;serializer:json" json:"metadata"`
-	CreatedAt   time.Time         `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt   time.Time         `gorm:"column:updated_at" json:"updated_at"`
+	OrgId       string
+	Id          string
+	Name        string
+	Description string
+	Variants    []Variant
+	Metadata    map[string]string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
-
-func (Product) TableName() string { return "products" }

@@ -5,24 +5,25 @@ import (
 	"time"
 )
 
+// Order is the purchase aggregate. Customer and Items are populated by the
+// repository when a Preload-equivalent is used; for code paths that don't
+// hydrate them, only the IDs are reliable.
 type Order struct {
-	OrgId      string            `gorm:"column:org_id;primaryKey" json:"org_id"`
-	Id         string            `gorm:"column:id;primaryKey" json:"id"`
-	CustomerId string            `gorm:"column:customer_id" json:"customer_id"`
-	Customer   Customer          `gorm:"foreignKey:CustomerId,OrgId;references:Id,OrgId" json:"customer"`
-	Reference  string            `gorm:"column:reference" json:"reference"`
-	Status     OrderStatus       `gorm:"column:status" json:"status"`
-	SessionId  string            `gorm:"column:session_id" json:"session_id,omitempty"`
-	CartId     string            `gorm:"column:cart_id" json:"cart_id,omitempty"`
-	Items      []OrderItem       `gorm:"foreignKey:OrderId,OrgId;references:Id,OrgId" json:"items,omitempty"`
-	Currency   string            `gorm:"column:currency" json:"currency"`
-	Total      int64             `gorm:"column:total" json:"total"`
-	Metadata   map[string]string `gorm:"column:metadata;serializer:json" json:"metadata,omitempty"`
-	CreatedAt  time.Time         `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt  time.Time         `gorm:"column:updated_at" json:"updated_at"`
+	OrgId      string
+	Id         string
+	CustomerId string
+	Customer   Customer
+	Reference  string
+	Status     OrderStatus
+	SessionId  string
+	CartId     string
+	Items      []OrderItem
+	Currency   string
+	Total      int64
+	Metadata   map[string]string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
-
-func (Order) TableName() string { return "orders" }
 
 // SetMetadata merges the existing metadata with the specified values.
 func (o *Order) SetMetadata(meta map[string]string) *Order {
