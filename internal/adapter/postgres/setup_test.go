@@ -62,6 +62,8 @@ func allModels() []any {
 		&domain.Payment{},
 		&domain.Refund{},
 		&domain.PaymentMethod{},
+		&domain.PspConfig{},
+		&domain.Setting{},
 		&domain.DunningCampaign{},
 		&domain.DunningAttempt{},
 		&domain.DunningCommunication{},
@@ -150,6 +152,8 @@ func cleanupOrg(t *testing.T, db *gorm.DB, orgId string) {
 			&domain.CustomerCohort{},
 			&domain.Cohort{},
 			&domain.Customer{},
+			&domain.Setting{},
+			&domain.PspConfig{},
 			&domain.ApiKey{},
 		}
 		for _, m := range ordered {
