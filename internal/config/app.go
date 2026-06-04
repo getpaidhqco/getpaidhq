@@ -165,6 +165,11 @@ func NewApp() (*App, error) {
 
 	webhookSubService := service.NewWebhookSubscriptionService(logger, webhookSubRepo, idempotencyRepo, pubsub)
 
+	// Built before the engine wiring because the Hatchet engine takes this as the
+	// per-tenant reminder-config resolver (port.ReminderConfigResolver) for the
+	// billing-sweep fan-out. Also consumed by the reminder-config HTTP handler below.
+	reminderConfigService := service.NewReminderConfigService(settingRepo, logger)
+
 	// ---------------------------------------------------------------------------
 	// Workflow engine selection — WORKFLOW_ENGINE env var picks the adapter.
 	// Defaults to hatchet (see lib.NewEnv()).
@@ -186,7 +191,7 @@ func NewApp() (*App, error) {
 	case "hatchet", "":
 		webhookSteps := hatchetsteps.NewOutgoingWebhookSteps(logger, webhookSubRepo, settingRepo, webhookSubService, pubsub)
 		dunningSteps := hatchetsteps.NewDunningSteps(logger, dunningService)
-		h := hatchet.NewHatchetEngine(logger, env, orderWorkflowService, subService, paymentService, subRepo, reporter, webhookSteps, dunningSteps)
+		h := hatchet.NewHatchetEngine(logger, env, orderWorkflowService, subService, paymentService, subRepo, orgRepo, reminderConfigService, reporter, webhookSteps, dunningSteps)
 		engine = h
 		dunningEngine = h
 	default:
@@ -226,9 +231,6 @@ func NewApp() (*App, error) {
 	pspService := service.NewPspService(pspRepo, settingRepo, logger, pubsub)
 	webhookService := service.NewWebhookService(logger, gatewayFactory, engine, idempotencyRepo, subRepo)
 	metadataService := service.NewMetadataService(metadataRepo, logger)
-	// Named (not inlined) because Task 6 also passes this into the Hatchet engine
-	// as the per-tenant reminder-config resolver for the billing sweep.
-	reminderConfigService := service.NewReminderConfigService(settingRepo, logger)
 
 	_ = metadataService
 	_ = userService

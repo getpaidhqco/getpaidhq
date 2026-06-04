@@ -39,6 +39,8 @@ func NewHatchetEngine(
 	subscriptionService port.SubscriptionService,
 	paymentService port.PaymentService,
 	subscriptionRepo port.SubscriptionRepository,
+	orgRepo port.OrgRepository,
+	reminderResolver port.ReminderConfigResolver,
 	errorReporter lib.ErrorReporter,
 	webhookSteps *steps.OutgoingWebhookSteps,
 	dunningSteps *steps.DunningSteps,
@@ -68,8 +70,10 @@ func NewHatchetEngine(
 	paymentRefundedWF := hatchetwf.NewPaymentRefundedWorkflow(c, paymentService)
 	outgoingWebhookWF := hatchetwf.NewOutgoingWebhookWorkflow(c, webhookSteps)
 	billingCycleWF := hatchetwf.NewBillingCycleWorkflow(c, subscriptionService)
-	reminderWF := hatchetwf.NewSubscriptionChargeReminderWorkflow(c, subscriptionService)
-	subscriptionRunnerWF := hatchetwf.NewSubscriptionRunnerWorkflow(c, subscriptionService)
+	billingCycleRunnerWF := hatchetwf.NewBillingCycleRunnerWorkflow(c, subscriptionService)
+	orgBillingWF := hatchetwf.NewOrgBillingWorkflow(c, subscriptionRepo, reminderResolver, logger)
+	billingSweepWF := hatchetwf.NewBillingSweepWorkflow(c, orgRepo, logger)
+	sendReminderWF := hatchetwf.NewSendRenewalReminderWorkflow(c, subscriptionService)
 	dunningAttemptWF := hatchetwf.NewDunningAttemptWorkflow(c, dunningSteps)
 	dunningRunnerWF := hatchetwf.NewDunningRunnerWorkflow(c, dunningSteps)
 
@@ -79,8 +83,10 @@ func NewHatchetEngine(
 			paymentRefundedWF,
 			outgoingWebhookWF,
 			billingCycleWF,
-			reminderWF,
-			subscriptionRunnerWF,
+			billingCycleRunnerWF,
+			orgBillingWF,
+			billingSweepWF,
+			sendReminderWF,
 			dunningAttemptWF,
 			dunningRunnerWF,
 		),
@@ -196,48 +202,28 @@ func (h Hatchet) StartWorkflow(ctx context.Context, id port.WorkflowType, payloa
 }
 
 func (h Hatchet) StartSubscriptionWorkflow(ctx context.Context, sub domain.Subscription) error {
-	ref, err := h.client.RunNoWait(ctx, "subscription-runner", sub,
-		hatchet.WithRunKey(hatchetwf.SubscriptionRunKey(sub.OrgId, sub.Id)),
-		hatchet.WithRunMetadata(map[string]string{
-			"orgId":          sub.OrgId,
-			"subscriptionId": sub.Id,
-			"customerId":     sub.CustomerId,
-		}),
-	)
-	if err != nil {
-		h.logger.Error("Unable to run subscription-runner", "err", err.Error())
-		return err
-	}
-	h.logger.Info("Started subscription-runner", "RunID", ref.RunId, "OrgId", sub.OrgId, "SubscriptionId", sub.Id)
+	// No-op under the cron + fan-out billing model: a newly active/trialing
+	// subscription is picked up by the next hourly billing-sweep when its
+	// RenewsAt/NextRetryAt/TrialEndsAt falls due. The immortal per-subscription
+	// runner has been retired (see docs/internal/subscriptions-on-hatchet.md).
+	h.logger.Debugf("StartSubscriptionWorkflow no-op (cron drives billing) org=%s sub=%s", sub.OrgId, sub.Id)
 	return nil
 }
 
 func (h Hatchet) UpdateSubscriptionWorkflow(ctx context.Context, updateName string, sub domain.Subscription) error {
-	key := hatchetwf.UpdateEventKey(updateName, sub.OrgId, sub.Id)
-	h.logger.Debugf("Pushing update event [%s]", key)
-	if err := h.client.Events().Push(ctx, key, sub); err != nil {
-		h.logger.Error("Failed to push update event", "error", err.Error(), "key", key)
-		h.errorReporter.ReportError(ctx, err, map[string]any{
-			"org_id":          sub.OrgId,
-			"subscription_id": sub.Id,
-			"update_name":     updateName,
-		})
-		return err
-	}
+	// No-op: the UpdateEventKey was consumed only by the retired per-subscription
+	// runner. Under cron + fan-out billing the runner is gone, so there is no
+	// durable workflow to feed. Subscription state is persisted by the calling
+	// service and observed directly by the next billing-sweep; nothing to push.
+	h.logger.Debugf("UpdateSubscriptionWorkflow no-op (runner retired) update=%s org=%s sub=%s", updateName, sub.OrgId, sub.Id)
 	return nil
 }
 
 func (h Hatchet) CancelSubscriptionWorkflow(ctx context.Context, sub domain.Subscription) error {
-	key := hatchetwf.CancelEventKey(sub.OrgId, sub.Id)
-	h.logger.Debugf("Pushing cancel event [%s]", key)
-	if err := h.client.Events().Push(ctx, key, sub); err != nil {
-		h.logger.Error("Failed to push cancel event", "error", err.Error(), "key", key)
-		h.errorReporter.ReportError(ctx, err, map[string]any{
-			"org_id":          sub.OrgId,
-			"subscription_id": sub.Id,
-		})
-		return err
-	}
+	// No-op: the CancelEventKey was consumed only by the retired per-subscription
+	// runner. A cancelled subscription is simply skipped by the billing-sweep's
+	// due query, so there is no durable workflow left to signal.
+	h.logger.Debugf("CancelSubscriptionWorkflow no-op (runner retired) org=%s sub=%s", sub.OrgId, sub.Id)
 	return nil
 }
 
