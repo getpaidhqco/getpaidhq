@@ -24,12 +24,11 @@ import (
 // Pubsub fan-in to engine signals is handled by SubscriptionEventBridge in
 // the service layer, not by this adapter.
 type Hatchet struct {
-	logger        port.Logger
-	client        *hatchet.Client
-	worker        *hatchet.Worker
-	errorReporter lib.ErrorReporter
-	cancel        context.CancelFunc
-	done          chan struct{}
+	logger port.Logger
+	client *hatchet.Client
+	worker *hatchet.Worker
+	cancel context.CancelFunc
+	done   chan struct{}
 }
 
 func NewHatchetEngine(
@@ -41,7 +40,6 @@ func NewHatchetEngine(
 	subscriptionRepo port.SubscriptionRepository,
 	orgRepo port.OrgRepository,
 	reminderResolver port.ReminderConfigResolver,
-	errorReporter lib.ErrorReporter,
 	webhookSteps *steps.OutgoingWebhookSteps,
 	dunningSteps *steps.DunningSteps,
 ) *Hatchet {
@@ -61,9 +59,8 @@ func NewHatchetEngine(
 	// through the port (e.g. payment-success spawning the subscription runner)
 	// can be wired with the engine reference.
 	h := &Hatchet{
-		logger:        logger,
-		client:        c,
-		errorReporter: errorReporter,
+		logger: logger,
+		client: c,
 	}
 
 	paymentSuccessWF := hatchetwf.NewPaymentSuccessWorkflow(c, orderService, subscriptionRepo, h)

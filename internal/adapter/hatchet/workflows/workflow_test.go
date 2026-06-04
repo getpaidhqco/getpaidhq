@@ -63,39 +63,8 @@ func TestIsDunningTerminal(t *testing.T) {
 }
 
 // ============================================================
-// Subscription runner pure helpers
+// Wait-key helpers
 // ============================================================
-
-func TestIsTerminalStatus(t *testing.T) {
-	t.Run("cancelled is terminal", func(t *testing.T) {
-		assert.True(t, isTerminalStatus(domain.SubscriptionStatusCancelled))
-	})
-	t.Run("expired is terminal", func(t *testing.T) {
-		assert.True(t, isTerminalStatus(domain.SubscriptionStatusExpired))
-	})
-	t.Run("completed is terminal", func(t *testing.T) {
-		assert.True(t, isTerminalStatus(domain.SubscriptionStatusCompleted))
-	})
-
-	t.Run("active is NOT terminal", func(t *testing.T) {
-		assert.False(t, isTerminalStatus(domain.SubscriptionStatusActive))
-	})
-	t.Run("trial is NOT terminal", func(t *testing.T) {
-		assert.False(t, isTerminalStatus(domain.SubscriptionStatusTrial))
-	})
-	t.Run("past_due is NOT terminal", func(t *testing.T) {
-		assert.False(t, isTerminalStatus(domain.SubscriptionStatusPastDue))
-	})
-	t.Run("paused is NOT terminal", func(t *testing.T) {
-		assert.False(t, isTerminalStatus(domain.SubscriptionStatusPaused))
-	})
-	t.Run("unpaid is NOT terminal", func(t *testing.T) {
-		assert.False(t, isTerminalStatus(domain.SubscriptionStatusUnpaid))
-	})
-	t.Run("error is NOT terminal", func(t *testing.T) {
-		assert.False(t, isTerminalStatus(domain.SubscriptionStatusError))
-	})
-}
 
 func TestContainsKey(t *testing.T) {
 	t.Run("detects present key", func(t *testing.T) {

@@ -8,9 +8,7 @@ import (
 )
 
 // RenewalReminderInput carries the subscription whose renewal reminder should
-// be sent. (Named distinctly from the old runner's `ReminderInput`, which still
-// exists in subscription_charge_reminder.go until Task 7 — avoids a duplicate
-// declaration so every task builds green.)
+// be sent. Spawned by the billing sweep's per-org fan-out (send-renewal-reminder).
 type RenewalReminderInput struct {
 	Subscription domain.Subscription `json:"subscription"`
 }

@@ -191,7 +191,7 @@ func NewApp() (*App, error) {
 	case "hatchet", "":
 		webhookSteps := hatchetsteps.NewOutgoingWebhookSteps(logger, webhookSubRepo, settingRepo, webhookSubService, pubsub)
 		dunningSteps := hatchetsteps.NewDunningSteps(logger, dunningService)
-		h := hatchet.NewHatchetEngine(logger, env, orderWorkflowService, subService, paymentService, subRepo, orgRepo, reminderConfigService, reporter, webhookSteps, dunningSteps)
+		h := hatchet.NewHatchetEngine(logger, env, orderWorkflowService, subService, paymentService, subRepo, orgRepo, reminderConfigService, webhookSteps, dunningSteps)
 		engine = h
 		dunningEngine = h
 	default:
