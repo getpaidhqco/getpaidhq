@@ -2,15 +2,16 @@ package domain
 
 import "time"
 
+// MetadataStore is a generic key/value sidetable scoped to an Org and a parent
+// of arbitrary type (orders, customers, etc.). Used for ad-hoc tagging and
+// external-id lookups that don't belong on the parent's own row.
 type MetadataStore struct {
-	OrgId      string    `gorm:"column:org_id;primaryKey" json:"org_id"`
-	ParentId   string    `gorm:"column:parent_id;primaryKey" json:"parent_id"`
-	ParentType string    `gorm:"column:parent_type" json:"parent_type"`
-	Key        string    `gorm:"column:key;primaryKey" json:"key"`
-	Value      string    `gorm:"column:value" json:"value"`
-	Namespace  string    `gorm:"column:namespace" json:"namespace"`
-	CreatedAt  time.Time `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt  time.Time `gorm:"column:updated_at" json:"updated_at"`
+	OrgId      string
+	ParentId   string
+	ParentType string
+	Key        string
+	Value      string
+	Namespace  string
+	CreatedAt  time.Time
+	UpdatedAt  time.Time
 }
-
-func (MetadataStore) TableName() string { return "metadata_store" }

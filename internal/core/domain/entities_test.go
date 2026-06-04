@@ -211,7 +211,7 @@ func TestTableNames(t *testing.T) {
 		{"customer", Customer{}.TableName(), "customers"},
 		{"customer_cohort", CustomerCohort{}.TableName(), "customer_cohorts"},
 		{"cohort", Cohort{}.TableName(), "cohorts"},
-		{"metadata_store", MetadataStore{}.TableName(), "metadata_store"},
+		// metadata_store: TableName lives on postgres row (split per hexagonal refactor)
 	}
 
 	for _, tt := range tests {
