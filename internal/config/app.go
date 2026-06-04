@@ -182,7 +182,7 @@ func NewApp() (*App, error) {
 	var dunningEngine port.DunningEngine
 	switch env.WorkflowEngine {
 	case "temporal":
-		orderActivities := temporalact.NewOrderActivities(orderWorkflowService, subService, paymentService, subRepo)
+		orderActivities := temporalact.NewOrderActivities(orderWorkflowService, subService, paymentService, subRepo, reminderConfigService)
 		webhookActivities := temporalact.NewOutgoingWebhookActivities(webhookSubService)
 		dunningActivities := temporalact.NewDunningActivities(dunningService)
 		t := temporal.NewTemporalEngine(logger, env, orderActivities, webhookActivities, dunningActivities, reporter)

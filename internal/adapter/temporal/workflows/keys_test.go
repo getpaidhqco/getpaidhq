@@ -20,8 +20,7 @@ func TestSubscriptionWorkflowID(t *testing.T) {
 }
 
 func TestReminderWorkflowID(t *testing.T) {
-	at := time.Date(2026, time.May, 11, 12, 0, 0, 0, time.UTC)
-	if got := ReminderWorkflowID("org_1", "sub_2", at); got != "reminder_org_1_sub_2_20260511" {
+	if got := ReminderWorkflowID("org_1", "sub_2", 7, 24*time.Hour); got != "reminder_org_1_sub_2_7_24h0m0s" {
 		t.Errorf("ReminderWorkflowID: got %q", got)
 	}
 }

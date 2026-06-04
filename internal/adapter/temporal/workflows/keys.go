@@ -20,9 +20,11 @@ func SubscriptionWorkflowID(orgId, subscriptionId string) string {
 	return fmt.Sprintf("sub_%s_%s", orgId, subscriptionId)
 }
 
-// ReminderWorkflowID de-duplicates reminder spawns within a billing cycle.
-func ReminderWorkflowID(orgId, subscriptionId string, reminderAt time.Time) string {
-	return fmt.Sprintf("reminder_%s_%s_%s", orgId, subscriptionId, reminderAt.Format("20060102"))
+// ReminderWorkflowID de-duplicates a reminder to once per (sub, cycle, offset
+// stage). Mirrors Hatchet's ReminderStageRunKey so both engines address the
+// same reminder identically.
+func ReminderWorkflowID(orgId, subscriptionId string, cycle int, offset time.Duration) string {
+	return fmt.Sprintf("reminder_%s_%s_%d_%s", orgId, subscriptionId, cycle, offset.String())
 }
 
 // BillingCycleWorkflowID de-duplicates billing-cycle spawns within an

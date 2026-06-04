@@ -59,7 +59,12 @@ func TestSubscriptionWorkflow_CancelSignalBreaksTheLoop(t *testing.T) {
 
 	// Reminder and billing children are registered as stubs so the workflow
 	// can spawn them without running their real bodies. The cancel signal
-	// fires while the main loop is awaiting the next charge time.
+	// fires while the main loop is awaiting the next charge time. The runner
+	// also resolves the reminder config once per cycle via an activity.
+	oa := &activities.OrderActivities{}
+	env.RegisterActivity(oa)
+	env.OnActivity(oa.ResolveReminderConfig, mock.Anything, mock.Anything).
+		Return(domain.ReminderConfig{}, nil).Maybe()
 	env.RegisterWorkflow(SubscriptionChargeReminder)
 	env.RegisterWorkflow(BillingCycleWorkflow)
 	env.OnWorkflow(SubscriptionChargeReminder, mock.Anything, mock.Anything).Return(nil, nil).Maybe()
@@ -94,6 +99,8 @@ func TestSubscriptionWorkflow_FullCycleCompletesOnLastBill(t *testing.T) {
 	// One reminder child fires (we don't care about its return), then the
 	// billing child returns a successful ChargeResult, then HandleChargeResult
 	// returns a subscription marked Completed so the runner breaks out.
+	env.OnActivity(oa.ResolveReminderConfig, mock.Anything, mock.Anything).
+		Return(domain.ReminderConfig{Enabled: true, Offsets: []time.Duration{30 * time.Minute}}, nil).Maybe()
 	env.OnWorkflow(SubscriptionChargeReminder, mock.Anything, mock.Anything).Return(nil, nil).Maybe()
 	env.OnWorkflow(BillingCycleWorkflow, mock.Anything, mock.Anything).
 		Return(domain.ChargeResult{Status: domain.PaymentStatusSucceeded, Amount: 1000}, nil)

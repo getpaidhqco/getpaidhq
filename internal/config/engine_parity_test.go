@@ -57,11 +57,26 @@ func TestEngineParity_BillingCycleIdentityMatches(t *testing.T) {
 }
 
 func TestEngineParity_ReminderIdentityMatches(t *testing.T) {
-	at := time.Date(2026, 5, 28, 12, 0, 0, 0, time.UTC)
-	assert.Equal(t,
-		hatchetwf.ReminderRunKey("org_1", "sub_1", at),
-		temporalwf.ReminderWorkflowID("org_1", "sub_1", at),
-		"reminder ids must match across engines")
+	// Per-tenant reminders are keyed per (org, sub, cycle, offset-stage) on both
+	// engines: Hatchet via ReminderStageRunKey (sweep), Temporal via
+	// ReminderWorkflowID (durable runner). They must address each stage identically.
+	cases := []struct {
+		org, sub string
+		cycle    int
+		offset   time.Duration
+	}{
+		{"org_1", "sub_1", 0, 168 * time.Hour},
+		{"org_1", "sub_1", 7, 24 * time.Hour},
+		{"acme", "sub_abc123", 42, time.Hour},
+	}
+	for _, c := range cases {
+		t.Run("", func(t *testing.T) {
+			assert.Equal(t,
+				hatchetwf.ReminderStageRunKey(c.org, c.sub, c.cycle, c.offset),
+				temporalwf.ReminderWorkflowID(c.org, c.sub, c.cycle, c.offset),
+				"reminder stage ids must match across engines")
+		})
+	}
 }
 
 func TestEngineParity_DunningIdentityMatches(t *testing.T) {

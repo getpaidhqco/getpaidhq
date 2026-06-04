@@ -22,6 +22,7 @@ type OrderActivities struct {
 	subscriptionService port.SubscriptionService
 	paymentService      port.PaymentService
 	subscriptionRepo    port.SubscriptionRepository
+	reminderResolver    port.ReminderConfigResolver
 }
 
 func NewOrderActivities(
@@ -29,12 +30,14 @@ func NewOrderActivities(
 	subscriptionService port.SubscriptionService,
 	paymentService port.PaymentService,
 	subscriptionRepo port.SubscriptionRepository,
+	reminderResolver port.ReminderConfigResolver,
 ) OrderActivities {
 	return OrderActivities{
 		orderService:        orderService,
 		subscriptionService: subscriptionService,
 		paymentService:      paymentService,
 		subscriptionRepo:    subscriptionRepo,
+		reminderResolver:    reminderResolver,
 	}
 }
 
@@ -108,6 +111,13 @@ func (a *OrderActivities) ErrorState(ctx context.Context, subscription domain.Su
 
 func (a *OrderActivities) GetSubscription(ctx context.Context, orgId string, id string) (domain.Subscription, error) {
 	return a.subscriptionRepo.FindById(ctx, orgId, id)
+}
+
+// ResolveReminderConfig exposes the per-tenant reminder policy to the durable
+// SubscriptionWorkflow. Workflows can't do I/O directly, so this activity wraps
+// the shared resolver — the same one the Hatchet sweep uses.
+func (a *OrderActivities) ResolveReminderConfig(ctx context.Context, orgId string) (domain.ReminderConfig, error) {
+	return a.reminderResolver.ResolveReminderConfig(ctx, orgId)
 }
 
 func (a *OrderActivities) ProcessReminderEvent(ctx context.Context, subscription domain.Subscription) error {

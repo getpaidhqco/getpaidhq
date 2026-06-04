@@ -102,17 +102,38 @@ func SubscriptionWorkflow(ctx temporal.Context, input domain.Subscription) (doma
 			break
 		}
 
-		// Reminder — fire-and-forget detached child.
-		reminderAt := next.Add(-1 * time.Minute)
-		reminderCtx := temporal.WithChildOptions(ctx, temporal.ChildWorkflowOptions{
-			WorkflowID:        ReminderWorkflowID(sub.OrgId, sub.Id, reminderAt),
-			ParentClosePolicy: enums.PARENT_CLOSE_POLICY_ABANDON,
-			WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
+		// Activity-options context for this iteration's activity calls (the
+		// reminder-config resolve below and the HandleChargeResult activity later).
+		var act *activities.OrderActivities
+		actCtx := temporal.WithActivityOptions(ctx, temporal.ActivityOptions{
+			StartToCloseTimeout: 5 * time.Minute,
+			RetryPolicy: &temporalio.RetryPolicy{
+				InitialInterval:    time.Minute,
+				BackoffCoefficient: 1.2,
+			},
 		})
-		_ = temporal.ExecuteChildWorkflow(reminderCtx, SubscriptionChargeReminder, ReminderInput{
-			Subscription: sub,
-			ReminderAt:   reminderAt,
-		}).GetChildWorkflowExecution().Get(ctx, nil)
+
+		// Reminders — resolve the per-tenant config ONCE per cycle (changes apply
+		// next cycle), then schedule one detached child per offset stage.
+		var reminderCfg domain.ReminderConfig
+		_ = temporal.ExecuteActivity(actCtx, act.ResolveReminderConfig, sub.OrgId).Get(ctx, &reminderCfg)
+		if reminderCfg.Enabled {
+			for _, offset := range reminderCfg.Offsets {
+				reminderAt := next.Add(-offset)
+				if reminderAt.Before(temporal.Now(ctx)) {
+					continue // this stage's lead time already passed for this cycle
+				}
+				reminderCtx := temporal.WithChildOptions(ctx, temporal.ChildWorkflowOptions{
+					WorkflowID:            ReminderWorkflowID(sub.OrgId, sub.Id, sub.CyclesProcessed, offset),
+					ParentClosePolicy:     enums.PARENT_CLOSE_POLICY_ABANDON,
+					WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
+				})
+				_ = temporal.ExecuteChildWorkflow(reminderCtx, SubscriptionChargeReminder, ReminderInput{
+					Subscription: sub,
+					ReminderAt:   reminderAt,
+				}).GetChildWorkflowExecution().Get(ctx, nil)
+			}
+		}
 
 		// Wait until the next charge time OR a control signal fires.
 		wait := next.Sub(temporal.Now(ctx))
@@ -180,15 +201,8 @@ func SubscriptionWorkflow(ctx temporal.Context, input domain.Subscription) (doma
 		}
 
 		// Hand back to the service. Retry liberally — this only fails for DB
-		// errors that should not crash the long-running workflow.
-		var act *activities.OrderActivities
-		actCtx := temporal.WithActivityOptions(ctx, temporal.ActivityOptions{
-			StartToCloseTimeout: 5 * time.Minute,
-			RetryPolicy: &temporalio.RetryPolicy{
-				InitialInterval:    time.Minute,
-				BackoffCoefficient: 1.2,
-			},
-		})
+		// errors that should not crash the long-running workflow. Reuses the
+		// iteration's actCtx/act declared above (the reminder-config resolve).
 		var updated domain.Subscription
 		if err := temporal.ExecuteActivity(actCtx, act.HandleChargeResult, sub, chargeResult).
 			Get(actCtx, &updated); err != nil {

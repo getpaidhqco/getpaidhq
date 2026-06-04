@@ -171,6 +171,15 @@ func (f *fakeSubscriptionService) SendRenewalReminder(_ context.Context, orgId, 
 	return f.sendReminderErr
 }
 
+type fakeReminderConfigResolver struct {
+	cfg domain.ReminderConfig
+	err error
+}
+
+func (f *fakeReminderConfigResolver) ResolveReminderConfig(_ context.Context, _ string) (domain.ReminderConfig, error) {
+	return f.cfg, f.err
+}
+
 type fakeWebhookSubService struct {
 	port.WebhookSubscriptionService
 	calls []port.OutgoingWebhookPayload
@@ -244,7 +253,8 @@ func TestOrderActivities(t *testing.T) {
 	pSvc := &fakePaymentService{}
 	sRepo := &fakeSubscriptionRepository{}
 	sSvc := &fakeSubscriptionService{}
-	a := NewOrderActivities(oSvc, sSvc, pSvc, sRepo)
+	rResolver := &fakeReminderConfigResolver{cfg: domain.DefaultReminderConfig()}
+	a := NewOrderActivities(oSvc, sSvc, pSvc, sRepo, rResolver)
 	ctx := context.Background()
 
 	t.Run("CompleteOrder", func(t *testing.T) {
@@ -326,6 +336,12 @@ func TestOrderActivities(t *testing.T) {
 		err := a.ProcessReminderEvent(ctx, sub)
 		require.NoError(t, err)
 		assert.Equal(t, "sub_1", sSvc.sendReminderCalls[0].id)
+	})
+
+	t.Run("ResolveReminderConfig", func(t *testing.T) {
+		cfg, err := a.ResolveReminderConfig(ctx, "org_1")
+		require.NoError(t, err)
+		assert.Equal(t, domain.DefaultReminderConfig(), cfg)
 	})
 }
 
