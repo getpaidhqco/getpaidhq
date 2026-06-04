@@ -7,7 +7,8 @@ import (
 
 var ErrItemNotFound = errors.New("item not found")
 
-// CartData holds the computed cart totals and line items.
+// CartData holds the computed cart totals and line items. Persisted as a
+// JSON blob; json tags are intentional (it IS its on-disk shape).
 type CartData struct {
 	Currency      string         `json:"currency"`
 	Total         int64          `json:"total"`
@@ -97,19 +98,19 @@ func PriceToCartItemPrice(p Price) CartItemPrice {
 	}
 }
 
-// Cart is the persisted cart entity.
+// Cart is the persisted cart entity. Status and Total are derived (populated
+// by Calculate()) and not persisted; the postgres row carries only the
+// persistent fields.
 type Cart struct {
-	OrgId     string            `gorm:"column:org_id;primaryKey" json:"org_id"`
-	Id        string            `gorm:"column:id;primaryKey" json:"id"`
-	Data      CartData          `gorm:"column:data;serializer:json" json:"data"`
-	Status    string            `gorm:"-" json:"status"`
-	Total     int64             `gorm:"-" json:"total"`
-	Metadata  map[string]string `gorm:"column:metadata;serializer:json" json:"metadata"`
-	CreatedAt time.Time         `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt time.Time         `gorm:"column:updated_at" json:"updated_at"`
+	OrgId     string
+	Id        string
+	Data      CartData
+	Status    string
+	Total     int64
+	Metadata  map[string]string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
-
-func (Cart) TableName() string { return "carts" }
 
 // Calculate recalculates the cart totals from its items.
 func (c *Cart) Calculate() {
