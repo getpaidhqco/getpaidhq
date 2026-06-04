@@ -17,6 +17,21 @@ type Env struct {
 	DBUrl           string `mapstructure:"DATABASE_URL"`
 	CedarPolicyFile string `mapstructure:"CEDAR_POLICY"`
 
+	// UsageEventStore selects the backend for usage events: "postgres"
+	// (default), "clickhouse", or "compare" (write both, serve postgres,
+	// check clickhouse in the background). See docs/internal/clickhouse-primer.md.
+	UsageEventStore string `mapstructure:"USAGE_EVENT_STORE"`
+
+	// UsageDatabaseURL is the DSN for the Postgres usage-event store. When
+	// empty the operational DBUrl is reused (the v1 fallback) so meter_events
+	// live in the operational DB until the usage store is split out.
+	UsageDatabaseURL string `mapstructure:"USAGE_DATABASE_URL"`
+
+	// ClickhouseDSN is the clickhouse-go connection string for the ClickHouse
+	// usage-event store. Only opened when UsageEventStore is "clickhouse" or
+	// "compare". Example: clickhouse://user:pass@localhost:9000/getpaidhq_usage
+	ClickhouseDSN string `mapstructure:"CLICKHOUSE_DSN"`
+
 	JWTSecret      string `mapstructure:"JWT_SECRET"`
 	PaystackSecret string `mapstructure:"PAYSTACK_SECRET"`
 
@@ -96,6 +111,7 @@ func NewEnv() Env {
 	viper.SetDefault("TEMPORAL_NAMESPACE", "getpaidhq")
 	viper.SetDefault("TEMPORAL_TASK_QUEUE", "getpaidhq-events")
 	viper.SetDefault("NATS_URL", "nats://localhost:4222")
+	viper.SetDefault("USAGE_EVENT_STORE", "postgres")
 	// Per-IP API rate limiting is ON by default with conservative values.
 	// Override per environment; set RATE_LIMIT_RPS=0 to disable entirely.
 	viper.SetDefault("RATE_LIMIT_RPS", 20)
@@ -125,6 +141,9 @@ func NewEnv() Env {
 	viper.BindEnv("TEMPORAL_NAMESPACE")
 	viper.BindEnv("TEMPORAL_TASK_QUEUE")
 	viper.BindEnv("NATS_URL")
+	viper.BindEnv("USAGE_EVENT_STORE")
+	viper.BindEnv("USAGE_DATABASE_URL")
+	viper.BindEnv("CLICKHOUSE_DSN")
 	viper.BindEnv("ALLOWED_ORIGINS")
 	viper.BindEnv("TRUSTED_PROXIES")
 	viper.BindEnv("RATE_LIMIT_RPS")
@@ -147,6 +166,9 @@ func NewEnv() Env {
 		env.TemporalNamespace = viper.GetString("TEMPORAL_NAMESPACE")
 		env.TemporalTaskQueue = viper.GetString("TEMPORAL_TASK_QUEUE")
 		env.NatsURL = viper.GetString("NATS_URL")
+		env.UsageEventStore = viper.GetString("USAGE_EVENT_STORE")
+		env.UsageDatabaseURL = viper.GetString("USAGE_DATABASE_URL")
+		env.ClickhouseDSN = viper.GetString("CLICKHOUSE_DSN")
 
 		return env
 	}

@@ -16,6 +16,8 @@ import (
 	"getpaidhq/internal/adapter/cedar"
 	"getpaidhq/internal/adapter/checkout_com"
 	"getpaidhq/internal/adapter/clerk"
+	"getpaidhq/internal/adapter/clickhouse"
+	"getpaidhq/internal/adapter/compare"
 	"getpaidhq/internal/adapter/cron"
 	"getpaidhq/internal/adapter/hatchet"
 	hatchetsteps "getpaidhq/internal/adapter/hatchet/steps"
@@ -39,6 +41,37 @@ import (
 // startup config error cleanly.
 func errUnsupportedEngine(name string) error {
 	return fmt.Errorf("unsupported WORKFLOW_ENGINE %q (want 'hatchet' or 'temporal')", name)
+}
+
+// buildEventStore selects the usage-event backend from USAGE_EVENT_STORE:
+//   - "postgres" (default): events in the operational DB (v1 fallback; a separate
+//     usage DB is opened here once USAGE_DATABASE_URL is split out).
+//   - "clickhouse": the ClickHouse adapter (CLICKHOUSE_DSN).
+//   - "compare": write both, serve Postgres, check ClickHouse in the background.
+//
+// The two backends must produce identical aggregation results — see
+// docs/internal/clickhouse-primer.md §7 and the parity harness in
+// internal/adapter/compare.
+func buildEventStore(env lib.Env, db *gorm.DB, logger lib.Logger) (port.EventStore, error) {
+	pg := postgres.NewEventStore(db)
+	switch env.UsageEventStore {
+	case "", "postgres":
+		return pg, nil
+	case "clickhouse":
+		ch, err := clickhouse.NewEventStore(env.ClickhouseDSN)
+		if err != nil {
+			return nil, err
+		}
+		return ch, nil
+	case "compare":
+		ch, err := clickhouse.NewEventStore(env.ClickhouseDSN)
+		if err != nil {
+			return nil, err
+		}
+		return compare.NewEventStore(pg, ch, logger), nil
+	default:
+		return nil, fmt.Errorf("unsupported USAGE_EVENT_STORE %q (want 'postgres', 'clickhouse', or 'compare')", env.UsageEventStore)
+	}
 }
 
 // App holds all wired dependencies for the application.
@@ -109,7 +142,10 @@ func NewApp() (*App, error) {
 	dunningRepo := postgres.NewDunningRepo(db)
 	invoiceRepo := postgres.NewInvoiceRepo(db)
 	meterRepo := postgres.NewMeterRepo(db)
-	eventStore := postgres.NewEventStore(db)
+	eventStore, err := buildEventStore(env, db, logger)
+	if err != nil {
+		return nil, err
+	}
 
 	// ---------------------------------------------------------------------------
 	// Infrastructure adapters
