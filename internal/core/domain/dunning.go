@@ -76,197 +76,185 @@ const (
 // charge. One campaign per failed charge; created by the orchestrator when a
 // charge fails and torn down when recovered/cancelled/exhausted.
 type DunningCampaign struct {
-	OrgId string `gorm:"column:org_id;primaryKey" json:"org_id"`
-	Id    string `gorm:"column:id;primaryKey" json:"id"`
+	OrgId string
+	Id    string
 
-	SubscriptionId string `gorm:"column:subscription_id" json:"subscription_id"`
-	CustomerId     string `gorm:"column:customer_id" json:"customer_id"`
+	SubscriptionId string
+	CustomerId     string
 
 	// WorkflowId / WorkflowRunId identify the running engine workflow handle.
-	WorkflowId       string `gorm:"column:workflow_id" json:"workflow_id"`
-	WorkflowRunId    string `gorm:"column:workflow_run_id" json:"workflow_run_id"`
-	ParentWorkflowId string `gorm:"column:parent_workflow_id" json:"parent_workflow_id,omitempty"`
+	WorkflowId       string
+	WorkflowRunId    string
+	ParentWorkflowId string
 
-	Status               DunningStatus `gorm:"column:status" json:"status"`
-	FailedAmount         int64         `gorm:"column:failed_amount" json:"failed_amount"`
-	Currency             string        `gorm:"column:currency" json:"currency"`
-	InitialFailureReason string        `gorm:"column:initial_failure_reason" json:"initial_failure_reason,omitempty"`
+	Status               DunningStatus
+	FailedAmount         int64
+	Currency             string
+	InitialFailureReason string
 
-	TotalAttempts       int `gorm:"column:total_attempts" json:"total_attempts"`
-	ImmediateAttempts   int `gorm:"column:immediate_attempts" json:"immediate_attempts"`
-	ProgressiveAttempts int `gorm:"column:progressive_attempts" json:"progressive_attempts"`
+	TotalAttempts       int
+	ImmediateAttempts   int
+	ProgressiveAttempts int
 
-	StartedAt     time.Time `gorm:"column:started_at" json:"started_at"`
-	LastAttemptAt time.Time `gorm:"column:last_attempt_at" json:"last_attempt_at,omitzero"`
-	NextAttemptAt time.Time `gorm:"column:next_attempt_at" json:"next_attempt_at,omitzero"`
-	CompletedAt   time.Time `gorm:"column:completed_at" json:"completed_at,omitzero"`
+	StartedAt     time.Time
+	LastAttemptAt time.Time
+	NextAttemptAt time.Time
+	CompletedAt   time.Time
 
-	RecoveryMethod     string    `gorm:"column:recovery_method" json:"recovery_method,omitempty"`
-	RecoveredAmount    int64     `gorm:"column:recovered_amount" json:"recovered_amount,omitempty"`
-	RecoveredAt        time.Time `gorm:"column:recovered_at" json:"recovered_at,omitzero"`
-	FinalFailureReason string    `gorm:"column:final_failure_reason" json:"final_failure_reason,omitempty"`
+	RecoveryMethod     string
+	RecoveredAmount    int64
+	RecoveredAt        time.Time
+	FinalFailureReason string
 
-	ConfigSnapshot map[string]any    `gorm:"column:config_snapshot;serializer:json" json:"config_snapshot,omitempty"`
-	Metadata       map[string]string `gorm:"column:metadata;serializer:json" json:"metadata,omitempty"`
+	ConfigSnapshot map[string]any
+	Metadata       map[string]string
 
-	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
-
-func (DunningCampaign) TableName() string { return "dunning_campaigns" }
 
 // DunningAttempt records a single charge attempt within a campaign.
 type DunningAttempt struct {
-	OrgId string `gorm:"column:org_id;primaryKey" json:"org_id"`
-	Id    string `gorm:"column:id;primaryKey" json:"id"`
+	OrgId string
+	Id    string
 
-	DunningCampaignId string `gorm:"column:dunning_campaign_id" json:"dunning_campaign_id"`
-	SubscriptionId    string `gorm:"column:subscription_id" json:"subscription_id"`
+	DunningCampaignId string
+	SubscriptionId    string
 
-	AttemptNumber int                `gorm:"column:attempt_number" json:"attempt_number"`
-	AttemptType   DunningAttemptType `gorm:"column:attempt_type" json:"attempt_type"`
+	AttemptNumber int
+	AttemptType   DunningAttemptType
 
-	Amount          int64  `gorm:"column:amount" json:"amount"`
-	Currency        string `gorm:"column:currency" json:"currency"`
-	PaymentMethodId string `gorm:"column:payment_method_id" json:"payment_method_id,omitempty"`
+	Amount          int64
+	Currency        string
+	PaymentMethodId string
 
-	Status            PaymentStatus  `gorm:"column:status" json:"status"`
-	FailureReason     string         `gorm:"column:failure_reason" json:"failure_reason,omitempty"`
-	FailureCode       string         `gorm:"column:failure_code" json:"failure_code,omitempty"`
-	ProcessorResponse map[string]any `gorm:"column:processor_response;serializer:json" json:"processor_response,omitempty"`
+	Status            PaymentStatus
+	FailureReason     string
+	FailureCode       string
+	ProcessorResponse map[string]any
 
-	ProcessingTimeMs int       `gorm:"column:processing_time_ms" json:"processing_time_ms,omitempty"`
-	AttemptedAt      time.Time `gorm:"column:attempted_at" json:"attempted_at"`
-	CompletedAt      time.Time `gorm:"column:completed_at" json:"completed_at,omitzero"`
+	ProcessingTimeMs int
+	AttemptedAt      time.Time
+	CompletedAt      time.Time
 
-	TriggeredBy string            `gorm:"column:triggered_by" json:"triggered_by,omitempty"`
-	Metadata    map[string]string `gorm:"column:metadata;serializer:json" json:"metadata,omitempty"`
+	TriggeredBy string
+	Metadata    map[string]string
 
-	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
+	CreatedAt time.Time
 }
-
-func (DunningAttempt) TableName() string { return "dunning_attempts" }
 
 // DunningCommunication records an outbound message sent to a customer as part
 // of a dunning campaign.
 type DunningCommunication struct {
-	OrgId string `gorm:"column:org_id;primaryKey" json:"org_id"`
-	Id    string `gorm:"column:id;primaryKey" json:"id"`
+	OrgId string
+	Id    string
 
-	DunningCampaignId string `gorm:"column:dunning_campaign_id" json:"dunning_campaign_id"`
-	CustomerId        string `gorm:"column:customer_id" json:"customer_id"`
+	DunningCampaignId string
+	CustomerId        string
 
-	Channel       CommunicationChannel `gorm:"column:channel" json:"channel"`
-	TemplateId    string               `gorm:"column:template_id" json:"template_id"`
-	AttemptNumber int                  `gorm:"column:attempt_number" json:"attempt_number"`
+	Channel       CommunicationChannel
+	TemplateId    string
+	AttemptNumber int
 
-	Subject             string         `gorm:"column:subject" json:"subject,omitempty"`
-	ContentPreview      string         `gorm:"column:content_preview" json:"content_preview,omitempty"`
-	PersonalizationData map[string]any `gorm:"column:personalization_data;serializer:json" json:"personalization_data,omitempty"`
+	Subject             string
+	ContentPreview      string
+	PersonalizationData map[string]any
 
-	SentAt      time.Time `gorm:"column:sent_at" json:"sent_at,omitzero"`
-	DeliveredAt time.Time `gorm:"column:delivered_at" json:"delivered_at,omitzero"`
-	OpenedAt    time.Time `gorm:"column:opened_at" json:"opened_at,omitzero"`
-	ClickedAt   time.Time `gorm:"column:clicked_at" json:"clicked_at,omitzero"`
-	BouncedAt   time.Time `gorm:"column:bounced_at" json:"bounced_at,omitzero"`
+	SentAt      time.Time
+	DeliveredAt time.Time
+	OpenedAt    time.Time
+	ClickedAt   time.Time
+	BouncedAt   time.Time
 
-	Provider          string         `gorm:"column:provider" json:"provider"`
-	ProviderMessageId string         `gorm:"column:provider_message_id" json:"provider_message_id,omitempty"`
-	ProviderResponse  map[string]any `gorm:"column:provider_response;serializer:json" json:"provider_response,omitempty"`
+	Provider          string
+	ProviderMessageId string
+	ProviderResponse  map[string]any
 
-	Status        CommunicationStatus `gorm:"column:status" json:"status"`
-	FailureReason string              `gorm:"column:failure_reason" json:"failure_reason,omitempty"`
+	Status        CommunicationStatus
+	FailureReason string
 
-	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
-
-func (DunningCommunication) TableName() string { return "dunning_communications" }
 
 // PaymentUpdateToken is a one-or-few-use signed link delivered to customers
 // during dunning so they can update their payment method without logging in.
 type PaymentUpdateToken struct {
-	OrgId   string `gorm:"column:org_id;primaryKey" json:"org_id"`
-	TokenId string `gorm:"column:token_id;primaryKey" json:"token_id"`
+	OrgId   string
+	TokenId string
 
-	SubscriptionId    string `gorm:"column:subscription_id" json:"subscription_id"`
-	CustomerId        string `gorm:"column:customer_id" json:"customer_id"`
-	DunningCampaignId string `gorm:"column:dunning_campaign_id" json:"dunning_campaign_id,omitempty"`
+	SubscriptionId    string
+	CustomerId        string
+	DunningCampaignId string
 
-	TokenData map[string]any `gorm:"column:token_data;serializer:json" json:"token_data,omitempty"`
-	Signature string         `gorm:"column:signature" json:"signature"`
+	TokenData map[string]any
+	Signature string
 
-	ExpiresAt time.Time `gorm:"column:expires_at" json:"expires_at"`
-	MaxUses   int       `gorm:"column:max_uses" json:"max_uses"`
-	UsedCount int       `gorm:"column:used_count" json:"used_count"`
+	ExpiresAt time.Time
+	MaxUses   int
+	UsedCount int
 
-	Status         TokenStatus     `gorm:"column:status" json:"status"`
-	AllowedActions map[string]bool `gorm:"column:allowed_actions;serializer:json" json:"allowed_actions,omitempty"`
+	Status         TokenStatus
+	AllowedActions map[string]bool
 
-	AdminGenerated bool   `gorm:"column:admin_generated" json:"admin_generated"`
-	AdminUserId    string `gorm:"column:admin_user_id" json:"admin_user_id,omitempty"`
-	AdminReason    string `gorm:"column:admin_reason" json:"admin_reason,omitempty"`
-	AdminNotes     string `gorm:"column:admin_notes" json:"admin_notes,omitempty"`
+	AdminGenerated bool
+	AdminUserId    string
+	AdminReason    string
+	AdminNotes     string
 
-	CreatedBy  string    `gorm:"column:created_by" json:"created_by,omitempty"`
-	CreatedAt  time.Time `gorm:"column:created_at" json:"created_at"`
-	LastUsedAt time.Time `gorm:"column:last_used_at" json:"last_used_at,omitzero"`
-	LastUsedIp string    `gorm:"column:last_used_ip" json:"last_used_ip,omitempty"`
+	CreatedBy  string
+	CreatedAt  time.Time
+	LastUsedAt time.Time
+	LastUsedIp string
 }
-
-func (PaymentUpdateToken) TableName() string { return "payment_update_tokens" }
 
 // DunningConfiguration is a named, scoped retry-policy + communication-policy
 // bundle. Multiple configs can be defined; the orchestrator picks the
 // highest-priority match for a given subscription.
 type DunningConfiguration struct {
-	OrgId string `gorm:"column:org_id;primaryKey" json:"org_id"`
-	Id    string `gorm:"column:id;primaryKey" json:"id"`
+	OrgId string
+	Id    string
 
-	Name        string `gorm:"column:name" json:"name"`
-	Description string `gorm:"column:description" json:"description,omitempty"`
-	Priority    int    `gorm:"column:priority" json:"priority"`
+	Name        string
+	Description string
+	Priority    int
 
-	AppliesTo   DunningConfigScope `gorm:"column:applies_to" json:"applies_to"`
-	TargetRules map[string]any     `gorm:"column:target_rules;serializer:json" json:"target_rules,omitempty"`
-	Config      map[string]any     `gorm:"column:config;serializer:json" json:"config"`
+	AppliesTo   DunningConfigScope
+	TargetRules map[string]any
+	Config      map[string]any
 
-	Status           ConfigStatus `gorm:"column:status" json:"status"`
-	IsAbTest         bool         `gorm:"column:is_ab_test" json:"is_ab_test"`
-	AbTestPercentage float64      `gorm:"column:ab_test_percentage" json:"ab_test_percentage,omitempty"`
+	Status           ConfigStatus
+	IsAbTest         bool
+	AbTestPercentage float64
 
-	CreatedBy string    `gorm:"column:created_by" json:"created_by,omitempty"`
-	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
+	CreatedBy string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
-
-func (DunningConfiguration) TableName() string { return "dunning_configurations" }
 
 // CustomerDunningHistory is the per-customer rolled-up dunning record (filled
 // in over time by the orchestrator as campaigns close out).
 type CustomerDunningHistory struct {
-	OrgId      string `gorm:"column:org_id;primaryKey" json:"org_id"`
-	CustomerId string `gorm:"column:customer_id;primaryKey" json:"customer_id"`
+	OrgId      string
+	CustomerId string
 
-	TotalDunningCampaigns int `gorm:"column:total_dunning_campaigns" json:"total_dunning_campaigns"`
-	SuccessfulRecoveries  int `gorm:"column:successful_recoveries" json:"successful_recoveries"`
-	FailedCampaigns       int `gorm:"column:failed_campaigns" json:"failed_campaigns"`
+	TotalDunningCampaigns int
+	SuccessfulRecoveries  int
+	FailedCampaigns       int
 
-	TotalAmountAtRisk    int64 `gorm:"column:total_amount_at_risk" json:"total_amount_at_risk"`
-	TotalAmountRecovered int64 `gorm:"column:total_amount_recovered" json:"total_amount_recovered"`
-	TotalAmountLost      int64 `gorm:"column:total_amount_lost" json:"total_amount_lost"`
+	TotalAmountAtRisk    int64
+	TotalAmountRecovered int64
+	TotalAmountLost      int64
 
-	AvgRecoveryTimeHours    float64              `gorm:"column:avg_recovery_time_hours" json:"avg_recovery_time_hours,omitempty"`
-	PreferredRecoveryMethod string               `gorm:"column:preferred_recovery_method" json:"preferred_recovery_method,omitempty"`
-	MostResponsiveChannel   CommunicationChannel `gorm:"column:most_responsive_channel" json:"most_responsive_channel,omitempty"`
-	PaymentReliabilityScore float64              `gorm:"column:payment_reliability_score" json:"payment_reliability_score,omitempty"`
-	DunningRiskTier         string               `gorm:"column:dunning_risk_tier" json:"dunning_risk_tier,omitempty"`
+	AvgRecoveryTimeHours    float64
+	PreferredRecoveryMethod string
+	MostResponsiveChannel   CommunicationChannel
+	PaymentReliabilityScore float64
+	DunningRiskTier         string
 
-	FirstDunningAt time.Time `gorm:"column:first_dunning_at" json:"first_dunning_at,omitzero"`
-	LastDunningAt  time.Time `gorm:"column:last_dunning_at" json:"last_dunning_at,omitzero"`
-	LastRecoveryAt time.Time `gorm:"column:last_recovery_at" json:"last_recovery_at,omitzero"`
+	FirstDunningAt time.Time
+	LastDunningAt  time.Time
+	LastRecoveryAt time.Time
 
-	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
+	UpdatedAt time.Time
 }
-
-func (CustomerDunningHistory) TableName() string { return "customer_dunning_history" }

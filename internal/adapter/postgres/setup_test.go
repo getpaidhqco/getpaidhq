@@ -64,12 +64,12 @@ func allModels() []any {
 		&paymentMethodRow{},
 		&pspConfigRow{},
 		&settingRow{},
-		&domain.DunningCampaign{},
-		&domain.DunningAttempt{},
-		&domain.DunningCommunication{},
-		&domain.PaymentUpdateToken{},
-		&domain.DunningConfiguration{},
-		&domain.CustomerDunningHistory{},
+		&dunningCampaignRow{},
+		&dunningAttemptRow{},
+		&dunningCommunicationRow{},
+		&paymentUpdateTokenRow{},
+		&dunningConfigurationRow{},
+		&customerDunningHistoryRow{},
 		&apiKeyRow{},
 	}
 }
@@ -136,12 +136,12 @@ func cleanupOrg(t *testing.T, db *gorm.DB, orgId string) {
 	t.Helper()
 	t.Cleanup(func() {
 		ordered := []any{
-			&domain.DunningCommunication{},
-			&domain.PaymentUpdateToken{},
-			&domain.DunningAttempt{},
-			&domain.DunningCampaign{},
-			&domain.DunningConfiguration{},
-			&domain.CustomerDunningHistory{},
+			&dunningCommunicationRow{},
+			&paymentUpdateTokenRow{},
+			&dunningAttemptRow{},
+			&dunningCampaignRow{},
+			&dunningConfigurationRow{},
+			&customerDunningHistoryRow{},
 			&refundRow{},
 			&paymentRow{},
 			&subscriptionRow{},

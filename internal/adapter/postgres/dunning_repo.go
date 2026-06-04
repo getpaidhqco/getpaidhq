@@ -21,71 +21,79 @@ func NewDunningRepo(db *gorm.DB) port.DunningRepository {
 // ---- Campaigns ----
 
 func (r *DunningRepo) CreateCampaign(ctx context.Context, c domain.DunningCampaign) (domain.DunningCampaign, error) {
-	if err := dbFromCtx(ctx, r.db).Create(&c).Error; err != nil {
+	row := dunningCampaignRowFromDomain(c)
+	if err := dbFromCtx(ctx, r.db).Create(&row).Error; err != nil {
 		return domain.DunningCampaign{}, err
 	}
 	return r.FindCampaignById(ctx, c.OrgId, c.Id)
 }
 
 func (r *DunningRepo) FindCampaignById(ctx context.Context, orgId, id string) (domain.DunningCampaign, error) {
-	var c domain.DunningCampaign
+	var row dunningCampaignRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
-		First(&c).Error
-	return c, translateErr(err)
+		First(&row).Error
+	if err != nil {
+		return domain.DunningCampaign{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *DunningRepo) FindCampaigns(ctx context.Context, orgId string, p domain.Pagination) ([]domain.DunningCampaign, int, error) {
-	var cs []domain.DunningCampaign
+	var rows []dunningCampaignRow
 	var count int64
-	if err := dbFromCtx(ctx, r.db).Model(&domain.DunningCampaign{}).Scopes(OrgScope(orgId)).Count(&count).Error; err != nil {
+	if err := dbFromCtx(ctx, r.db).Model(&dunningCampaignRow{}).Scopes(OrgScope(orgId)).Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId), Paginate(p)).Find(&cs).Error; err != nil {
+	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId), Paginate(p)).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
-	return cs, int(count), nil
+	return dunningCampaignRowsToDomain(rows), int(count), nil
 }
 
 func (r *DunningRepo) FindCampaignsBySubscriptionId(ctx context.Context, orgId, subscriptionId string, p domain.Pagination) ([]domain.DunningCampaign, int, error) {
-	var cs []domain.DunningCampaign
+	var rows []dunningCampaignRow
 	var count int64
-	q := dbFromCtx(ctx, r.db).Model(&domain.DunningCampaign{}).Scopes(OrgScope(orgId)).Where("subscription_id = ?", subscriptionId)
+	q := dbFromCtx(ctx, r.db).Model(&dunningCampaignRow{}).Scopes(OrgScope(orgId)).Where("subscription_id = ?", subscriptionId)
 	if err := q.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId), Paginate(p)).Where("subscription_id = ?", subscriptionId).Find(&cs).Error; err != nil {
+	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId), Paginate(p)).Where("subscription_id = ?", subscriptionId).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
-	return cs, int(count), nil
+	return dunningCampaignRowsToDomain(rows), int(count), nil
 }
 
 func (r *DunningRepo) FindCampaignsByCustomerId(ctx context.Context, orgId, customerId string, p domain.Pagination) ([]domain.DunningCampaign, int, error) {
-	var cs []domain.DunningCampaign
+	var rows []dunningCampaignRow
 	var count int64
-	q := dbFromCtx(ctx, r.db).Model(&domain.DunningCampaign{}).Scopes(OrgScope(orgId)).Where("customer_id = ?", customerId)
+	q := dbFromCtx(ctx, r.db).Model(&dunningCampaignRow{}).Scopes(OrgScope(orgId)).Where("customer_id = ?", customerId)
 	if err := q.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId), Paginate(p)).Where("customer_id = ?", customerId).Find(&cs).Error; err != nil {
+	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId), Paginate(p)).Where("customer_id = ?", customerId).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
-	return cs, int(count), nil
+	return dunningCampaignRowsToDomain(rows), int(count), nil
 }
 
 func (r *DunningRepo) FindActiveCampaignForSubscription(ctx context.Context, orgId, subscriptionId string) (domain.DunningCampaign, error) {
-	var c domain.DunningCampaign
+	var row dunningCampaignRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("subscription_id = ? AND status IN ?", subscriptionId, []domain.DunningStatus{domain.DunningStatusActive, domain.DunningStatusPaused}).
 		Order("created_at DESC").
-		First(&c).Error
-	return c, translateErr(err)
+		First(&row).Error
+	if err != nil {
+		return domain.DunningCampaign{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *DunningRepo) UpdateCampaign(ctx context.Context, c domain.DunningCampaign) (domain.DunningCampaign, error) {
-	if err := dbFromCtx(ctx, r.db).Save(&c).Error; err != nil {
+	row := dunningCampaignRowFromDomain(c)
+	if err := dbFromCtx(ctx, r.db).Save(&row).Error; err != nil {
 		return domain.DunningCampaign{}, err
 	}
 	return r.FindCampaignById(ctx, c.OrgId, c.Id)
@@ -94,61 +102,70 @@ func (r *DunningRepo) UpdateCampaign(ctx context.Context, c domain.DunningCampai
 // ---- Attempts ----
 
 func (r *DunningRepo) CreateAttempt(ctx context.Context, a domain.DunningAttempt) (domain.DunningAttempt, error) {
-	if err := dbFromCtx(ctx, r.db).Create(&a).Error; err != nil {
+	row := dunningAttemptRowFromDomain(a)
+	if err := dbFromCtx(ctx, r.db).Create(&row).Error; err != nil {
 		return domain.DunningAttempt{}, err
 	}
 	return r.FindAttemptById(ctx, a.OrgId, a.Id)
 }
 
 func (r *DunningRepo) FindAttemptById(ctx context.Context, orgId, id string) (domain.DunningAttempt, error) {
-	var a domain.DunningAttempt
-	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("id = ?", id).First(&a).Error
-	return a, translateErr(err)
+	var row dunningAttemptRow
+	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("id = ?", id).First(&row).Error
+	if err != nil {
+		return domain.DunningAttempt{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *DunningRepo) FindAttemptsByCampaignId(ctx context.Context, orgId, campaignId string, p domain.Pagination) ([]domain.DunningAttempt, int, error) {
-	var as []domain.DunningAttempt
+	var rows []dunningAttemptRow
 	var count int64
-	q := dbFromCtx(ctx, r.db).Model(&domain.DunningAttempt{}).Scopes(OrgScope(orgId)).Where("dunning_campaign_id = ?", campaignId)
+	q := dbFromCtx(ctx, r.db).Model(&dunningAttemptRow{}).Scopes(OrgScope(orgId)).Where("dunning_campaign_id = ?", campaignId)
 	if err := q.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId), Paginate(p)).Where("dunning_campaign_id = ?", campaignId).Find(&as).Error; err != nil {
+	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId), Paginate(p)).Where("dunning_campaign_id = ?", campaignId).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
-	return as, int(count), nil
+	return dunningAttemptRowsToDomain(rows), int(count), nil
 }
 
 // ---- Communications ----
 
 func (r *DunningRepo) CreateCommunication(ctx context.Context, c domain.DunningCommunication) (domain.DunningCommunication, error) {
-	if err := dbFromCtx(ctx, r.db).Create(&c).Error; err != nil {
+	row := dunningCommunicationRowFromDomain(c)
+	if err := dbFromCtx(ctx, r.db).Create(&row).Error; err != nil {
 		return domain.DunningCommunication{}, err
 	}
 	return r.FindCommunicationById(ctx, c.OrgId, c.Id)
 }
 
 func (r *DunningRepo) FindCommunicationById(ctx context.Context, orgId, id string) (domain.DunningCommunication, error) {
-	var c domain.DunningCommunication
-	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("id = ?", id).First(&c).Error
-	return c, translateErr(err)
+	var row dunningCommunicationRow
+	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("id = ?", id).First(&row).Error
+	if err != nil {
+		return domain.DunningCommunication{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *DunningRepo) FindCommunicationsByCampaignId(ctx context.Context, orgId, campaignId string, p domain.Pagination) ([]domain.DunningCommunication, int, error) {
-	var cs []domain.DunningCommunication
+	var rows []dunningCommunicationRow
 	var count int64
-	q := dbFromCtx(ctx, r.db).Model(&domain.DunningCommunication{}).Scopes(OrgScope(orgId)).Where("dunning_campaign_id = ?", campaignId)
+	q := dbFromCtx(ctx, r.db).Model(&dunningCommunicationRow{}).Scopes(OrgScope(orgId)).Where("dunning_campaign_id = ?", campaignId)
 	if err := q.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId), Paginate(p)).Where("dunning_campaign_id = ?", campaignId).Find(&cs).Error; err != nil {
+	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId), Paginate(p)).Where("dunning_campaign_id = ?", campaignId).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
-	return cs, int(count), nil
+	return dunningCommunicationRowsToDomain(rows), int(count), nil
 }
 
 func (r *DunningRepo) UpdateCommunication(ctx context.Context, c domain.DunningCommunication) (domain.DunningCommunication, error) {
-	if err := dbFromCtx(ctx, r.db).Save(&c).Error; err != nil {
+	row := dunningCommunicationRowFromDomain(c)
+	if err := dbFromCtx(ctx, r.db).Save(&row).Error; err != nil {
 		return domain.DunningCommunication{}, err
 	}
 	return r.FindCommunicationById(ctx, c.OrgId, c.Id)
@@ -157,46 +174,51 @@ func (r *DunningRepo) UpdateCommunication(ctx context.Context, c domain.DunningC
 // ---- Tokens ----
 
 func (r *DunningRepo) CreateToken(ctx context.Context, t domain.PaymentUpdateToken) (domain.PaymentUpdateToken, error) {
-	if err := dbFromCtx(ctx, r.db).Create(&t).Error; err != nil {
+	row := paymentUpdateTokenRowFromDomain(t)
+	if err := dbFromCtx(ctx, r.db).Create(&row).Error; err != nil {
 		return domain.PaymentUpdateToken{}, err
 	}
 	return r.FindTokenById(ctx, t.OrgId, t.TokenId)
 }
 
 func (r *DunningRepo) FindTokenById(ctx context.Context, orgId, tokenId string) (domain.PaymentUpdateToken, error) {
-	var t domain.PaymentUpdateToken
-	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("token_id = ?", tokenId).First(&t).Error
-	return t, translateErr(err)
+	var row paymentUpdateTokenRow
+	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("token_id = ?", tokenId).First(&row).Error
+	if err != nil {
+		return domain.PaymentUpdateToken{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *DunningRepo) FindTokensBySubscriptionId(ctx context.Context, orgId, subscriptionId string, p domain.Pagination) ([]domain.PaymentUpdateToken, int, error) {
-	var ts []domain.PaymentUpdateToken
+	var rows []paymentUpdateTokenRow
 	var count int64
-	q := dbFromCtx(ctx, r.db).Model(&domain.PaymentUpdateToken{}).Scopes(OrgScope(orgId)).Where("subscription_id = ?", subscriptionId)
+	q := dbFromCtx(ctx, r.db).Model(&paymentUpdateTokenRow{}).Scopes(OrgScope(orgId)).Where("subscription_id = ?", subscriptionId)
 	if err := q.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId), Paginate(p)).Where("subscription_id = ?", subscriptionId).Find(&ts).Error; err != nil {
+	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId), Paginate(p)).Where("subscription_id = ?", subscriptionId).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
-	return ts, int(count), nil
+	return paymentUpdateTokenRowsToDomain(rows), int(count), nil
 }
 
 func (r *DunningRepo) FindTokensByCampaignId(ctx context.Context, orgId, campaignId string, p domain.Pagination) ([]domain.PaymentUpdateToken, int, error) {
-	var ts []domain.PaymentUpdateToken
+	var rows []paymentUpdateTokenRow
 	var count int64
-	q := dbFromCtx(ctx, r.db).Model(&domain.PaymentUpdateToken{}).Scopes(OrgScope(orgId)).Where("dunning_campaign_id = ?", campaignId)
+	q := dbFromCtx(ctx, r.db).Model(&paymentUpdateTokenRow{}).Scopes(OrgScope(orgId)).Where("dunning_campaign_id = ?", campaignId)
 	if err := q.Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId), Paginate(p)).Where("dunning_campaign_id = ?", campaignId).Find(&ts).Error; err != nil {
+	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId), Paginate(p)).Where("dunning_campaign_id = ?", campaignId).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
-	return ts, int(count), nil
+	return paymentUpdateTokenRowsToDomain(rows), int(count), nil
 }
 
 func (r *DunningRepo) UpdateToken(ctx context.Context, t domain.PaymentUpdateToken) (domain.PaymentUpdateToken, error) {
-	if err := dbFromCtx(ctx, r.db).Save(&t).Error; err != nil {
+	row := paymentUpdateTokenRowFromDomain(t)
+	if err := dbFromCtx(ctx, r.db).Save(&row).Error; err != nil {
 		return domain.PaymentUpdateToken{}, err
 	}
 	return r.FindTokenById(ctx, t.OrgId, t.TokenId)
@@ -205,42 +227,50 @@ func (r *DunningRepo) UpdateToken(ctx context.Context, t domain.PaymentUpdateTok
 // ---- Configurations ----
 
 func (r *DunningRepo) CreateConfiguration(ctx context.Context, c domain.DunningConfiguration) (domain.DunningConfiguration, error) {
-	if err := dbFromCtx(ctx, r.db).Create(&c).Error; err != nil {
+	row := dunningConfigurationRowFromDomain(c)
+	if err := dbFromCtx(ctx, r.db).Create(&row).Error; err != nil {
 		return domain.DunningConfiguration{}, err
 	}
 	return r.FindConfigurationById(ctx, c.OrgId, c.Id)
 }
 
 func (r *DunningRepo) FindConfigurationById(ctx context.Context, orgId, id string) (domain.DunningConfiguration, error) {
-	var c domain.DunningConfiguration
-	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("id = ?", id).First(&c).Error
-	return c, translateErr(err)
+	var row dunningConfigurationRow
+	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("id = ?", id).First(&row).Error
+	if err != nil {
+		return domain.DunningConfiguration{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *DunningRepo) FindConfigurations(ctx context.Context, orgId string, p domain.Pagination) ([]domain.DunningConfiguration, int, error) {
-	var cs []domain.DunningConfiguration
+	var rows []dunningConfigurationRow
 	var count int64
-	if err := dbFromCtx(ctx, r.db).Model(&domain.DunningConfiguration{}).Scopes(OrgScope(orgId)).Count(&count).Error; err != nil {
+	if err := dbFromCtx(ctx, r.db).Model(&dunningConfigurationRow{}).Scopes(OrgScope(orgId)).Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
-	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId), Paginate(p)).Find(&cs).Error; err != nil {
+	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId), Paginate(p)).Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
-	return cs, int(count), nil
+	return dunningConfigurationRowsToDomain(rows), int(count), nil
 }
 
 func (r *DunningRepo) FindConfigurationsByPriority(ctx context.Context, orgId string) ([]domain.DunningConfiguration, error) {
-	var cs []domain.DunningConfiguration
+	var rows []dunningConfigurationRow
 	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("status = ?", domain.ConfigStatusActive).
 		Order("priority DESC").
-		Find(&cs).Error
-	return cs, err
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return dunningConfigurationRowsToDomain(rows), nil
 }
 
 func (r *DunningRepo) UpdateConfiguration(ctx context.Context, c domain.DunningConfiguration) (domain.DunningConfiguration, error) {
-	if err := dbFromCtx(ctx, r.db).Save(&c).Error; err != nil {
+	row := dunningConfigurationRowFromDomain(c)
+	if err := dbFromCtx(ctx, r.db).Save(&row).Error; err != nil {
 		return domain.DunningConfiguration{}, err
 	}
 	return r.FindConfigurationById(ctx, c.OrgId, c.Id)
@@ -249,8 +279,8 @@ func (r *DunningRepo) UpdateConfiguration(ctx context.Context, c domain.DunningC
 // ---- Customer history ----
 
 func (r *DunningRepo) GetCustomerDunningHistory(ctx context.Context, orgId, customerId string) (domain.CustomerDunningHistory, error) {
-	var h domain.CustomerDunningHistory
-	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("customer_id = ?", customerId).First(&h).Error
+	var row customerDunningHistoryRow
+	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("customer_id = ?", customerId).First(&row).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		// Synthesize a zero history rather than propagate "not found" —
 		// callers treat the absence of any dunning row as "clean".
@@ -259,11 +289,15 @@ func (r *DunningRepo) GetCustomerDunningHistory(ctx context.Context, orgId, cust
 			CustomerId: customerId,
 		}, nil
 	}
-	return h, translateErr(err)
+	if err != nil {
+		return domain.CustomerDunningHistory{}, translateErr(err)
+	}
+	return row.toDomain(), nil
 }
 
 func (r *DunningRepo) UpsertCustomerDunningHistory(ctx context.Context, h domain.CustomerDunningHistory) (domain.CustomerDunningHistory, error) {
-	if err := dbFromCtx(ctx, r.db).Save(&h).Error; err != nil {
+	row := customerDunningHistoryRowFromDomain(h)
+	if err := dbFromCtx(ctx, r.db).Save(&row).Error; err != nil {
 		return domain.CustomerDunningHistory{}, err
 	}
 	return r.GetCustomerDunningHistory(ctx, h.OrgId, h.CustomerId)
