@@ -2,14 +2,15 @@ package domain
 
 import "time"
 
+// WebhookSubscription represents a tenant-configured outbound webhook
+// endpoint. Note the field is OrgID (not OrgId) — preserved for historical
+// reasons; references throughout the codebase use this casing.
 type WebhookSubscription struct {
-	OrgID     string    `gorm:"column:org_id" json:"org_id"`
-	Id        string    `gorm:"column:id;primaryKey" json:"id"`
-	Events    []string  `gorm:"column:events;serializer:json" json:"events"`
-	URL       string    `gorm:"column:url" json:"url"`
-	Secret    string    `gorm:"column:secret" json:"secret,omitempty"`
-	CreatedAt time.Time `gorm:"column:created_at" json:"created_at"`
-	UpdatedAt time.Time `gorm:"column:updated_at" json:"updated_at"`
+	OrgID     string
+	Id        string
+	Events    []string
+	URL       string
+	Secret    string
+	CreatedAt time.Time
+	UpdatedAt time.Time
 }
-
-func (WebhookSubscription) TableName() string { return "webhook_subscriptions" }
