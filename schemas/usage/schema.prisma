@@ -1,0 +1,43 @@
+// Usage-event store schema — a SEPARATE database (getpaidhq_usage / USAGE_DATABASE_URL)
+// so the high-volume meter_events firehose scales and is retained independently of the
+// operational DB. Only meter_events lives here; meters (billable_metrics), customers,
+// and prices stay in schemas/app. There is no cross-DB relation to Org — org_id is a
+// plain scoping column.
+//
+// Push with: pnpm prisma:usage:push  (falls back to operational DB only if you point
+// USAGE_DATABASE_URL there; otherwise set it to the getpaidhq_usage DSN).
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model MeterEvent {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  // String columns default to "" (not null) so the Go EventStore can match on
+  // customer_id / external_customer_id and dedup on external_id without NULL handling.
+  customerId         String @default("") @map("customer_id")
+  externalCustomerId String @default("") @map("external_customer_id")
+  metricCode         String @map("metric_code")
+  subscriptionId     String @default("") @map("subscription_id")
+  externalId         String @default("") @map("external_id")
+
+  metadata  Json?
+  value     Decimal  @default(0) @db.Decimal(38, 9)
+  timestamp DateTime
+  createdAt DateTime @default(now()) @map("created_at")
+
+  // Dedup uses a partial unique index Prisma can't express; it is created at boot by
+  // postgres.EnsureUsageSchema (mirror DDL: schemas/app/raw/0001_meter_events_dedup_index.sql):
+  //   CREATE UNIQUE INDEX meter_events_external_id_uq ON meter_events (org_id, external_id) WHERE external_id <> '';
+
+  @@id([orgId, id])
+  @@index([orgId, customerId, metricCode, timestamp])
+  @@index([orgId, externalCustomerId, metricCode, timestamp])
+  @@map("meter_events")
+}
