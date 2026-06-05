@@ -168,7 +168,7 @@ func TestSubscriptionService_HandleSubscriptionChargeSuccess(t *testing.T) {
 		svc := newSubscriptionService(subRepo, nil, nil, nil, payRepo, ps)
 
 		sub := domain.Subscription{
-			OrgId: "org_1", Id: "sub_1", Amount: 1000, Cycles: 0, CyclesProcessed: 0, TotalRevenue: 0,
+			OrgId: "org_1", Id: "sub_1", OrderItemId: "oi_1", Amount: 1000, Cycles: 0, CyclesProcessed: 0, TotalRevenue: 0,
 			BillingInterval: domain.BillingInterval("month"), BillingIntervalQty: 1,
 		}
 		got, err := svc.HandleSubscriptionChargeSuccess(context.Background(), port.SubscriptionChargeInput{Subscription: sub, ChargeResult: charge()})
@@ -188,7 +188,7 @@ func TestSubscriptionService_HandleSubscriptionChargeSuccess(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newSubscriptionService(subRepo, nil, nil, nil, payRepo, ps)
 
-		sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", Amount: 1000, Cycles: 2, CyclesProcessed: 1}
+		sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", OrderItemId: "oi_1", Amount: 1000, Cycles: 2, CyclesProcessed: 1}
 		got, err := svc.HandleSubscriptionChargeSuccess(context.Background(), port.SubscriptionChargeInput{Subscription: sub, ChargeResult: charge()})
 
 		require.NoError(t, err)
@@ -209,7 +209,7 @@ func TestSubscriptionService_HandleSubscriptionChargeFailure(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newSubscriptionService(subRepo, settingRepo, nil, nil, payRepo, ps)
 
-		sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", Amount: 1000, Retries: 0, RenewsAt: time.Now().UTC()}
+		sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", OrderItemId: "oi_1", Amount: 1000, Retries: 0, RenewsAt: time.Now().UTC()}
 		got, err := svc.HandleSubscriptionChargeFailure(context.Background(), port.SubscriptionChargeInput{Subscription: sub, ChargeResult: failCharge})
 
 		require.NoError(t, err)
