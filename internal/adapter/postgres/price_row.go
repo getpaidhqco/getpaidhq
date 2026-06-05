@@ -24,6 +24,8 @@ type priceRow struct {
 	TrialInterval      domain.BillingInterval `gorm:"column:trial_interval"`
 	TrialIntervalQty   int                    `gorm:"column:trial_interval_qty"`
 	TaxCode            string                 `gorm:"column:tax_code"`
+	BillableMetricId   string                 `gorm:"column:billable_metric_id"`
+	Tiers              []domain.PriceTier     `gorm:"column:tiers;serializer:json"`
 	Metadata           map[string]string      `gorm:"column:metadata;serializer:json"`
 	CreatedAt          time.Time              `gorm:"column:created_at"`
 	UpdatedAt          time.Time              `gorm:"column:updated_at"`
@@ -49,6 +51,8 @@ func (r priceRow) toDomain() domain.Price {
 		TrialInterval:      r.TrialInterval,
 		TrialIntervalQty:   r.TrialIntervalQty,
 		TaxCode:            r.TaxCode,
+		BillableMetricId:   r.BillableMetricId,
+		Tiers:              r.Tiers,
 		Metadata:           r.Metadata,
 		CreatedAt:          r.CreatedAt,
 		UpdatedAt:          r.UpdatedAt,
@@ -73,6 +77,8 @@ func priceRowFromDomain(p domain.Price) priceRow {
 		TrialInterval:      p.TrialInterval,
 		TrialIntervalQty:   p.TrialIntervalQty,
 		TaxCode:            p.TaxCode,
+		BillableMetricId:   p.BillableMetricId,
+		Tiers:              p.Tiers,
 		Metadata:           p.Metadata,
 		CreatedAt:          p.CreatedAt,
 		UpdatedAt:          p.UpdatedAt,

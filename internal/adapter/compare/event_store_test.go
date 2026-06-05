@@ -134,13 +134,13 @@ func dec(s string) decimal.Decimal {
 func parityEvents(from time.Time) []domain.MeterEvent {
 	org := "org_1"
 	return []domain.MeterEvent{
-		{OrgId: org, Id: "e1", CustomerId: "cus_1", MetricCode: "api_calls", SubscriptionId: "sub_1", ExternalId: "x1", Value: dec("10"), Metadata: map[string]string{"region": "eu"}, Timestamp: from},                          // on [from] boundary -> in
-		{OrgId: org, Id: "e2", CustomerId: "cus_1", MetricCode: "api_calls", SubscriptionId: "sub_1", ExternalId: "x1", Value: dec("10"), Metadata: map[string]string{"region": "eu"}, Timestamp: from.Add(time.Minute)},          // resend of x1 -> collapses
-		{OrgId: org, Id: "e3", CustomerId: "cus_1", MetricCode: "api_calls", SubscriptionId: "sub_1", ExternalId: "x2", Value: dec("25"), Metadata: map[string]string{"region": "us"}, Timestamp: from.Add(2 * time.Hour)},        // distinct
-		{OrgId: org, Id: "e4", CustomerId: "cus_1", MetricCode: "api_calls", SubscriptionId: "", ExternalId: "x3", Value: dec("5"), Metadata: map[string]string{"region": "eu"}, Timestamp: from.Add(3 * time.Hour)},              // unattributed
-		{OrgId: org, Id: "e5", CustomerId: "cus_1", MetricCode: "api_calls", SubscriptionId: "sub_1", ExternalId: "x4", Value: dec("100"), Metadata: map[string]string{"region": "ap"}, Timestamp: from.Add(24 * time.Hour)},      // out of window (to is +12h below)
-		{OrgId: org, Id: "e6", CustomerId: "cus_2", MetricCode: "api_calls", SubscriptionId: "sub_9", ExternalId: "y1", Value: dec("999"), Metadata: map[string]string{"region": "eu"}, Timestamp: from.Add(time.Hour)},           // other customer
-		{OrgId: org, Id: "e7", CustomerId: "cus_1", MetricCode: "storage_gb", SubscriptionId: "sub_1", ExternalId: "z1", Value: dec("7"), Metadata: map[string]string{"region": "eu"}, Timestamp: from.Add(time.Hour)},            // other metric
+		{OrgId: org, Id: "e1", CustomerId: "cus_1", MetricCode: "api_calls", SubscriptionId: "sub_1", ExternalId: "x1", Value: dec("10"), Metadata: map[string]string{"region": "eu"}, Timestamp: from},                      // on [from] boundary -> in
+		{OrgId: org, Id: "e2", CustomerId: "cus_1", MetricCode: "api_calls", SubscriptionId: "sub_1", ExternalId: "x1", Value: dec("10"), Metadata: map[string]string{"region": "eu"}, Timestamp: from.Add(time.Minute)},     // resend of x1 -> collapses
+		{OrgId: org, Id: "e3", CustomerId: "cus_1", MetricCode: "api_calls", SubscriptionId: "sub_1", ExternalId: "x2", Value: dec("25"), Metadata: map[string]string{"region": "us"}, Timestamp: from.Add(2 * time.Hour)},   // distinct
+		{OrgId: org, Id: "e4", CustomerId: "cus_1", MetricCode: "api_calls", SubscriptionId: "", ExternalId: "x3", Value: dec("5"), Metadata: map[string]string{"region": "eu"}, Timestamp: from.Add(3 * time.Hour)},         // unattributed
+		{OrgId: org, Id: "e5", CustomerId: "cus_1", MetricCode: "api_calls", SubscriptionId: "sub_1", ExternalId: "x4", Value: dec("100"), Metadata: map[string]string{"region": "ap"}, Timestamp: from.Add(24 * time.Hour)}, // out of window (to is +12h below)
+		{OrgId: org, Id: "e6", CustomerId: "cus_2", MetricCode: "api_calls", SubscriptionId: "sub_9", ExternalId: "y1", Value: dec("999"), Metadata: map[string]string{"region": "eu"}, Timestamp: from.Add(time.Hour)},      // other customer
+		{OrgId: org, Id: "e7", CustomerId: "cus_1", MetricCode: "storage_gb", SubscriptionId: "sub_1", ExternalId: "z1", Value: dec("7"), Metadata: map[string]string{"region": "eu"}, Timestamp: from.Add(time.Hour)},       // other metric
 	}
 }
 
@@ -259,18 +259,18 @@ func (l *capLogger) bump(warn bool) {
 }
 func (l *capLogger) count() (int, int) { l.mu.Lock(); defer l.mu.Unlock(); return l.warns, l.errs }
 
-func (l *capLogger) Debug(string, ...any)          {}
-func (l *capLogger) Info(string, ...any)           {}
-func (l *capLogger) Warn(string, ...any)           { l.bump(true) }
-func (l *capLogger) Error(string, ...any)          { l.bump(false) }
-func (l *capLogger) Fatal(string, ...any)          {}
-func (l *capLogger) Debugf(string, ...any)         {}
-func (l *capLogger) Infof(string, ...any)          {}
-func (l *capLogger) Warnf(string, ...any)          {}
-func (l *capLogger) Errorf(string, ...any)         {}
-func (l *capLogger) Panicf(string, ...any)         {}
-func (l *capLogger) Fatalf(string, ...any)         {}
-func (l *capLogger) Sync() error                   { return nil }
+func (l *capLogger) Debug(string, ...any)  {}
+func (l *capLogger) Info(string, ...any)   {}
+func (l *capLogger) Warn(string, ...any)   { l.bump(true) }
+func (l *capLogger) Error(string, ...any)  { l.bump(false) }
+func (l *capLogger) Fatal(string, ...any)  {}
+func (l *capLogger) Debugf(string, ...any) {}
+func (l *capLogger) Infof(string, ...any)  {}
+func (l *capLogger) Warnf(string, ...any)  {}
+func (l *capLogger) Errorf(string, ...any) {}
+func (l *capLogger) Panicf(string, ...any) {}
+func (l *capLogger) Fatalf(string, ...any) {}
+func (l *capLogger) Sync() error           { return nil }
 
 // skewStore is a memStore whose Sum is deliberately wrong, to prove the compare
 // wrapper (a) still serves the primary's correct value and (b) logs the mismatch.

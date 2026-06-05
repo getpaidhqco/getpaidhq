@@ -79,6 +79,10 @@ func (s *ProductHandler) Create(c fuego.ContextWithBody[CreateProductRequest]) (
 	for i, v := range req.Variants {
 		prices := make([]port.CreateProductPriceInput, len(v.Prices))
 		for j, p := range v.Prices {
+			tiers, terr := toDomainTiers(p.Tiers)
+			if terr != nil {
+				return ProductResponse{}, NewApiError(lib.BadRequestError, "invalid tier value", terr)
+			}
 			prices[j] = port.CreateProductPriceInput{
 				Label:              p.Label,
 				Category:           p.Category,
@@ -93,6 +97,8 @@ func (s *ProductHandler) Create(c fuego.ContextWithBody[CreateProductRequest]) (
 				TrialInterval:      p.TrialInterval,
 				TrialIntervalQty:   p.TrialIntervalQty,
 				TaxCode:            p.TaxCode,
+				BillableMetricId:   p.BillableMetricId,
+				Tiers:              tiers,
 				Metadata:           p.Metadata,
 			}
 		}
@@ -185,6 +191,10 @@ func (s *ProductHandler) CreatePrice(c fuego.ContextWithBody[CreatePriceRequest]
 	if err != nil {
 		return PriceResponse{}, err
 	}
+	tiers, err := toDomainTiers(input.Tiers)
+	if err != nil {
+		return PriceResponse{}, NewApiError(lib.BadRequestError, "invalid tier value", err)
+	}
 	price, err := s.productService.CreateProductPrice(c.Context(), port.CreatePriceInput{
 		OrgId:              authUser.OrgId,
 		VariantId:          input.VariantId,
@@ -201,6 +211,8 @@ func (s *ProductHandler) CreatePrice(c fuego.ContextWithBody[CreatePriceRequest]
 		TrialInterval:      input.TrialInterval,
 		TrialIntervalQty:   input.TrialIntervalQty,
 		TaxCode:            input.TaxCode,
+		BillableMetricId:   input.BillableMetricId,
+		Tiers:              tiers,
 		Metadata:           input.Metadata,
 	})
 	if err != nil {
@@ -249,6 +261,10 @@ func (s *ProductHandler) UpdatePrice(c fuego.ContextWithBody[CreatePriceRequest]
 	if err != nil {
 		return PriceResponse{}, err
 	}
+	tiers, err := toDomainTiers(input.Tiers)
+	if err != nil {
+		return PriceResponse{}, NewApiError(lib.BadRequestError, "invalid tier value", err)
+	}
 	price, err := s.productService.UpdatePrice(c.Context(), authUser.OrgId, c.PathParam("priceId"), port.CreatePriceInput{
 		OrgId:              authUser.OrgId,
 		VariantId:          input.VariantId,
@@ -265,6 +281,8 @@ func (s *ProductHandler) UpdatePrice(c fuego.ContextWithBody[CreatePriceRequest]
 		TrialInterval:      input.TrialInterval,
 		TrialIntervalQty:   input.TrialIntervalQty,
 		TaxCode:            input.TaxCode,
+		BillableMetricId:   input.BillableMetricId,
+		Tiers:              tiers,
 		Metadata:           input.Metadata,
 	})
 	if err != nil {

@@ -85,6 +85,8 @@ func (s *ProductService) CreateProduct(ctx context.Context, orgId string, input 
 					TrialInterval:      p.TrialInterval,
 					TrialIntervalQty:   p.TrialIntervalQty,
 					TaxCode:            p.TaxCode,
+					BillableMetricId:   p.BillableMetricId,
+					Tiers:              p.Tiers,
 					Metadata:           p.Metadata,
 				}.ToPrice(orgId, variant.Id))
 			if err != nil {
@@ -125,6 +127,9 @@ func (s *ProductService) FindById(ctx context.Context, orgId string, id string) 
 }
 
 func (s *ProductService) CreateProductPrice(ctx context.Context, input port.CreatePriceInput) (domain.Price, error) {
+	if err := validatePriceConfig(input.Category, input.Scheme, input.BillableMetricId, input.Tiers); err != nil {
+		return domain.Price{}, err
+	}
 
 	if input.BillingInterval == "" {
 		input.BillingInterval = domain.BillingIntervalNone
@@ -150,6 +155,8 @@ func (s *ProductService) CreateProductPrice(ctx context.Context, input port.Crea
 		TrialInterval:      input.TrialInterval,
 		TrialIntervalQty:   input.TrialIntervalQty,
 		TaxCode:            input.TaxCode,
+		BillableMetricId:   input.BillableMetricId,
+		Tiers:              input.Tiers,
 		Metadata:           input.Metadata,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
@@ -303,6 +310,9 @@ func (s *ProductService) ListPrices(ctx context.Context, orgId string, variantId
 }
 
 func (s *ProductService) UpdatePrice(ctx context.Context, orgId string, id string, input port.CreatePriceInput) (domain.Price, error) {
+	if err := validatePriceConfig(input.Category, input.Scheme, input.BillableMetricId, input.Tiers); err != nil {
+		return domain.Price{}, err
+	}
 	price, err := s.priceRepository.FindById(ctx, orgId, id)
 	if err != nil {
 		s.logger.Error("Failed to find price", err.Error())
@@ -329,6 +339,8 @@ func (s *ProductService) UpdatePrice(ctx context.Context, orgId string, id strin
 	price.TrialInterval = input.TrialInterval
 	price.TrialIntervalQty = input.TrialIntervalQty
 	price.TaxCode = input.TaxCode
+	price.BillableMetricId = input.BillableMetricId
+	price.Tiers = input.Tiers
 	price.Metadata = input.Metadata
 	price.UpdatedAt = time.Now().UTC()
 
@@ -437,4 +449,20 @@ func (s *ProductService) GetVariantDetails(ctx context.Context, orgId, id string
 		return VariantDetails{}, err
 	}
 	return VariantDetails{Variant: variant, Prices: prices}, nil
+}
+
+// validatePriceConfig checks the metered/tiered fields are coherent:
+// a metered price must name a meter (billable_metric_id), and a graduated/
+// volume/tiered scheme must carry at least one rate tier.
+func validatePriceConfig(category domain.PriceCategory, scheme domain.PriceScheme, billableMetricId string, tiers []domain.PriceTier) error {
+	if category == domain.PriceCategoryMetered && billableMetricId == "" {
+		return lib.NewCustomError(lib.BadRequestError, "billable_metric_id is required for a metered price", nil)
+	}
+	switch scheme {
+	case domain.Graduated, domain.Volume, domain.Tiered:
+		if len(tiers) == 0 {
+			return lib.NewCustomError(lib.BadRequestError, "tiers are required for graduated, volume, or tiered schemes", nil)
+		}
+	}
+	return nil
 }

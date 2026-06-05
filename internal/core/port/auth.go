@@ -110,6 +110,10 @@ const (
 	ActionUpdatePrice Action = "UpdatePrice"
 	ActionDeletePrice Action = "DeletePrice"
 
+	ActionCreateMeter Action = "CreateMeter"
+	ActionGetMeter    Action = "GetMeter"
+	ActionListMeters  Action = "ListMeters"
+
 	ActionCreatePaymentServiceProvider Action = "CreatePaymentServiceProvider"
 	ActionGetPaymentServiceProvider    Action = "GetPaymentServiceProvider"
 	ActionUpdatePaymentServiceProvider Action = "UpdatePaymentServiceProvider"
