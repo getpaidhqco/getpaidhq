@@ -77,6 +77,28 @@ func (r *SubscriptionRepo) FindByOrderId(ctx context.Context, orgId string, orde
 	return subscriptionRowsToDomain(rows), nil
 }
 
+func (r *SubscriptionRepo) FindActiveMeteredForMeter(ctx context.Context, orgId, customerId, billableMetricId string) ([]domain.Subscription, error) {
+	var rows []subscriptionRow
+	err := dbFromCtx(ctx, r.db).
+		Model(&subscriptionRow{}).
+		Select("subscriptions.*").
+		Joins("JOIN order_items oi ON oi.org_id = subscriptions.org_id AND oi.id = subscriptions.order_item_id").
+		Joins("JOIN prices p ON p.org_id = oi.org_id AND p.id = oi.price_id").
+		Where("subscriptions.org_id = ? AND subscriptions.customer_id = ?", orgId, customerId).
+		Where("p.category = ? AND p.billable_metric_id = ?", domain.PriceCategoryMetered, billableMetricId).
+		Where("subscriptions.status IN ?", []string{
+			string(domain.SubscriptionStatusActive),
+			string(domain.SubscriptionStatusTrial),
+			string(domain.SubscriptionStatusPastDue),
+		}).
+		Order("subscriptions.start_date ASC, subscriptions.created_at ASC").
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return subscriptionRowsToDomain(rows), nil
+}
+
 func (r *SubscriptionRepo) Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Subscription, int, error) {
 	var rows []subscriptionRow
 	var count int64

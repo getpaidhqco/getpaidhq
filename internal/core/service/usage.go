@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -14,23 +15,29 @@ import (
 
 // UsageService records usage events and aggregates them. Narrow — no workflow engine.
 type UsageService struct {
-	meterRepository port.MeterRepository
-	eventStore      port.EventStore
-	pubsub          port.PubSub
-	logger          port.Logger
+	meterRepository        port.MeterRepository
+	customerRepository     port.CustomerRepository
+	subscriptionRepository port.SubscriptionRepository
+	eventStore             port.EventStore
+	pubsub                 port.PubSub
+	logger                 port.Logger
 }
 
 func NewUsageService(
 	meterRepository port.MeterRepository,
+	customerRepository port.CustomerRepository,
+	subscriptionRepository port.SubscriptionRepository,
 	eventStore port.EventStore,
 	pubsub port.PubSub,
 	logger port.Logger,
 ) *UsageService {
 	return &UsageService{
-		meterRepository: meterRepository,
-		eventStore:      eventStore,
-		pubsub:          pubsub,
-		logger:          logger,
+		meterRepository:        meterRepository,
+		customerRepository:     customerRepository,
+		subscriptionRepository: subscriptionRepository,
+		eventStore:             eventStore,
+		pubsub:                 pubsub,
+		logger:                 logger,
 	}
 }
 
@@ -41,8 +48,40 @@ func (s *UsageService) RecordEvent(ctx context.Context, in port.RecordEventInput
 	if err != nil {
 		return port.IngestResult{}, lib.NewCustomError(lib.BadRequestError, "unknown metric code", err)
 	}
+
+	// Identify the customer (§6 step 2). Exactly one id is required. A customer_id
+	// must exist; an unknown external_customer_id is accepted as-is (orphan event,
+	// attached later if a customer with that external id is created). When the
+	// external id resolves now, we also store the internal customer_id.
 	if in.CustomerId == "" && in.ExternalCustomerId == "" {
 		return port.IngestResult{}, lib.NewCustomError(lib.BadRequestError, "customer_id or external_customer_id is required", nil)
+	}
+	if in.CustomerId != "" {
+		if _, cerr := s.customerRepository.FindById(ctx, in.OrgId, in.CustomerId); cerr != nil {
+			if errors.Is(cerr, port.ErrNotFound) {
+				return port.IngestResult{}, lib.NewCustomError(lib.NotFoundError, "customer not found", cerr)
+			}
+			return port.IngestResult{}, cerr
+		}
+	} else if cust, cerr := s.customerRepository.FindByExternalId(ctx, in.OrgId, in.ExternalCustomerId); cerr == nil {
+		in.CustomerId = cust.Id
+	} else if !errors.Is(cerr, port.ErrNotFound) {
+		return port.IngestResult{}, cerr
+	}
+
+	// Attribution (§6 step 3). If a subscription is named it must belong to the
+	// customer and carry a metered price for this metric.
+	if in.SubscriptionId != "" {
+		if in.CustomerId == "" {
+			return port.IngestResult{}, lib.NewCustomError(lib.BadRequestError, "subscription_id requires a known customer", nil)
+		}
+		metered, merr := s.subscriptionRepository.FindActiveMeteredForMeter(ctx, in.OrgId, in.CustomerId, metric.Id)
+		if merr != nil {
+			return port.IngestResult{}, merr
+		}
+		if !containsSubscription(metered, in.SubscriptionId) {
+			return port.IngestResult{}, lib.NewCustomError(lib.BadRequestError, "subscription does not carry a metered price for this metric", nil)
+		}
 	}
 
 	value := decimal.Zero
@@ -79,11 +118,21 @@ func (s *UsageService) RecordEvent(ctx context.Context, in port.RecordEventInput
 
 	res, err := s.eventStore.Ingest(ctx, event)
 	if err != nil {
-		s.logger.Error("Failed to ingest usage event", "err", err.Error())
-		return port.IngestResult{}, err
+		// Single-handling rule: wrap and return; the HTTP boundary logs it.
+		return port.IngestResult{}, fmt.Errorf("ingest usage event: %w", err)
 	}
 	_ = s.pubsub.Publish(in.OrgId, "usage.recorded", event)
 	return res, nil
+}
+
+// containsSubscription reports whether subId is one of subs.
+func containsSubscription(subs []domain.Subscription, subId string) bool {
+	for _, s := range subs {
+		if s.Id == subId {
+			return true
+		}
+	}
+	return false
 }
 
 // AggregateForPeriod adds up usage for the given query using the metric's aggregation,
@@ -124,21 +173,40 @@ func (s *UsageService) AggregateForPeriod(ctx context.Context, metric domain.Bil
 }
 
 // UsageForSubscription aggregates a metered subscription's usage for [from, to),
-// resolving the meter from the price. v1 includes unattributed events (the
-// earliest-subscription disambiguation for multiple metered subs is deferred).
+// resolving the meter from the price. It sums events attributed to this subscription
+// and — only when this is the customer's earliest active metered subscription for the
+// meter — the unattributed events too (§10), so a catch-all is billed exactly once
+// across multiple metered subs. It also fills the customer's external id so usage
+// recorded against external_customer_id before the customer existed is still matched (§8).
 func (s *UsageService) UsageForSubscription(ctx context.Context, sub domain.Subscription, price domain.Price, from, to time.Time) (decimal.Decimal, error) {
 	metric, err := s.meterRepository.FindById(ctx, sub.OrgId, price.BillableMetricId)
 	if err != nil {
 		return decimal.Zero, err
 	}
+
 	q := port.UsageQuery{
-		OrgId:               sub.OrgId,
-		CustomerId:          sub.CustomerId,
-		From:                from,
-		To:                  to,
-		SubscriptionId:      sub.Id,
-		IncludeUnattributed: true,
+		OrgId:          sub.OrgId,
+		CustomerId:     sub.CustomerId,
+		From:           from,
+		To:             to,
+		SubscriptionId: sub.Id,
 	}
+
+	// Match events sent against the merchant's own customer id, not just ours.
+	if cust, cerr := s.customerRepository.FindById(ctx, sub.OrgId, sub.CustomerId); cerr == nil {
+		q.ExternalCustomerId = cust.ExternalId
+	} else if !errors.Is(cerr, port.ErrNotFound) {
+		return decimal.Zero, cerr
+	}
+
+	// The earliest metered sub for (customer, meter) is the catch-all for
+	// unattributed usage.
+	metered, err := s.subscriptionRepository.FindActiveMeteredForMeter(ctx, sub.OrgId, sub.CustomerId, metric.Id)
+	if err != nil {
+		return decimal.Zero, err
+	}
+	q.IncludeUnattributed = len(metered) > 0 && metered[0].Id == sub.Id
+
 	return s.AggregateForPeriod(ctx, metric, q)
 }
 

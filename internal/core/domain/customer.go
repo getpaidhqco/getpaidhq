@@ -6,6 +6,7 @@ import "time"
 type Customer struct {
 	OrgId                  string
 	Id                     string
+	ExternalId             string // the merchant's own id for this customer; matches usage events' external_customer_id
 	FirstName              string
 	LastName               string
 	Email                  string

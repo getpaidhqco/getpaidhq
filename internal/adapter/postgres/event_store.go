@@ -23,6 +23,18 @@ func NewEventStore(db *gorm.DB) port.EventStore {
 	return &EventStore{db: db}
 }
 
+// EnsureUsageSchema creates the partial unique index that backs write-time dedup on
+// meter_events. Prisma can't express a `WHERE` on a unique index, so `db push` never
+// creates it; without it a resend with a seen external_id would NOT raise a duplicate
+// error and Ingest would double-count. Run at boot against whichever DB holds
+// meter_events. Idempotent (IF NOT EXISTS); a no-op once present. The mirror DDL is in
+// schemas/app/raw/0001_meter_events_dedup_index.sql for deploy pipelines.
+func EnsureUsageSchema(db *gorm.DB) error {
+	const stmt = `CREATE UNIQUE INDEX IF NOT EXISTS meter_events_external_id_uq ` +
+		`ON meter_events (org_id, external_id) WHERE external_id <> ''`
+	return db.Exec(stmt).Error
+}
+
 func (s *EventStore) Ingest(ctx context.Context, e domain.MeterEvent) (port.IngestResult, error) {
 	e.Metadata = emptyIfNil(e.Metadata)
 	row := meterEventRowFromDomain(e)

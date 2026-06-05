@@ -19,6 +19,12 @@ import (
 	"getpaidhq/internal/core/port"
 )
 
+// maxConcurrentChecks bounds in-flight background comparisons. Each read spawns one
+// goroutine; under sustained read load an unbounded spawn would pile up secondary
+// queries. When the bound is reached, further checks are skipped (and counted) rather
+// than queued — compare is a diagnostic mode, not a hot path.
+const maxConcurrentChecks = 8
+
 // EventStore is the comparing wrapper.
 type EventStore struct {
 	primary   port.EventStore
@@ -27,11 +33,33 @@ type EventStore struct {
 	// timeout bounds each background secondary read so a slow/hung secondary never
 	// leaks goroutines. The check is detached from the caller's context.
 	timeout time.Duration
+	// sem caps concurrent background checks (non-blocking acquire; skip when full).
+	sem chan struct{}
 }
 
 func NewEventStore(primary, secondary port.EventStore, logger port.Logger) *EventStore {
-	return &EventStore{primary: primary, secondary: secondary, logger: logger, timeout: 30 * time.Second}
+	return &EventStore{
+		primary:   primary,
+		secondary: secondary,
+		logger:    logger,
+		timeout:   30 * time.Second,
+		sem:       make(chan struct{}, maxConcurrentChecks),
+	}
 }
+
+// acquire takes a slot without blocking; false means the check should be skipped
+// because too many comparisons are already in flight.
+func (s *EventStore) acquire() bool {
+	select {
+	case s.sem <- struct{}{}:
+		return true
+	default:
+		s.logger.Debug("compare: check skipped (max concurrent checks reached)")
+		return false
+	}
+}
+
+func (s *EventStore) release() { <-s.sem }
 
 var _ port.EventStore = (*EventStore)(nil)
 
@@ -109,8 +137,14 @@ func timeDec(f func() (decimal.Decimal, error)) (decResult, time.Duration) {
 }
 
 func (s *EventStore) checkInt(q port.UsageQuery, op string, primV int64, primErr error, primDur time.Duration, sec func(context.Context) (int64, error)) {
+	if !s.acquire() {
+		return
+	}
 	go func() {
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(context.Background()), s.timeout)
+		defer s.release()
+		// Detached from the caller's context (the request may finish first) and
+		// bounded by timeout so the goroutine always exits.
+		ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 		defer cancel()
 		start := time.Now()
 		secV, secErr := sec(ctx)
@@ -132,8 +166,14 @@ func (s *EventStore) checkInt(q port.UsageQuery, op string, primV int64, primErr
 }
 
 func (s *EventStore) checkDec(q port.UsageQuery, op string, primV decimal.Decimal, primErr error, primDur time.Duration, sec func(context.Context) (decimal.Decimal, error)) {
+	if !s.acquire() {
+		return
+	}
 	go func() {
-		ctx, cancel := context.WithTimeout(context.WithoutCancel(context.Background()), s.timeout)
+		defer s.release()
+		// Detached from the caller's context (the request may finish first) and
+		// bounded by timeout so the goroutine always exits.
+		ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
 		defer cancel()
 		start := time.Now()
 		secV, secErr := sec(ctx)

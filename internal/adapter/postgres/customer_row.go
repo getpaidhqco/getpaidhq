@@ -10,6 +10,7 @@ import (
 type customerRow struct {
 	OrgId                  string            `gorm:"column:org_id;primaryKey"`
 	Id                     string            `gorm:"column:id;primaryKey"`
+	ExternalId             string            `gorm:"column:external_id"`
 	FirstName              string            `gorm:"column:first_name"`
 	LastName               string            `gorm:"column:last_name"`
 	Email                  string            `gorm:"column:email"`
@@ -27,6 +28,7 @@ func (r customerRow) toDomain() domain.Customer {
 	return domain.Customer{
 		OrgId:                  r.OrgId,
 		Id:                     r.Id,
+		ExternalId:             r.ExternalId,
 		FirstName:              r.FirstName,
 		LastName:               r.LastName,
 		Email:                  r.Email,
@@ -43,6 +45,7 @@ func customerRowFromDomain(c domain.Customer) customerRow {
 	return customerRow{
 		OrgId:                  c.OrgId,
 		Id:                     c.Id,
+		ExternalId:             c.ExternalId,
 		FirstName:              c.FirstName,
 		LastName:               c.LastName,
 		Email:                  c.Email,

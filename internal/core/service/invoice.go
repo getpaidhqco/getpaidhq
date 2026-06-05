@@ -65,16 +65,23 @@ func (s *InvoiceService) BuildForBillingPeriod(ctx context.Context, sub domain.S
 	}
 
 	var inv domain.Invoice
-	if price.Category == domain.PriceCategoryMetered {
+	switch {
+	case price.Category == domain.PriceCategoryMetered:
 		// Metered price: aggregate the cycle's usage into a single usage line.
 		// No base line — the charge is the measured units priced by the scheme.
+		// Usage is billed during a trial too (ADR 0003).
 		units, uerr := s.usageService.UsageForSubscription(ctx, sub, price, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
 		if uerr != nil {
 			return domain.Invoice{}, uerr
 		}
 		inv = domain.NewInvoice(sub, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
 		inv.AddLine(domain.UsageLineFromPrice(sub.OrgId, inv.Id, price, units))
-	} else {
+	case sub.Status == domain.SubscriptionStatusTrial:
+		// ADR 0003: a trial waives the base fee. A fixed/base price contributes
+		// nothing during the trial period, so the invoice carries no base line
+		// (usage, billed via the metered branch above, is unaffected).
+		inv = domain.NewInvoice(sub, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
+	default:
 		qty := int64(item.Quantity)
 		if qty <= 0 {
 			qty = 1
