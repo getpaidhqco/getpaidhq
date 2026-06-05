@@ -13,6 +13,8 @@
     "prisma:seed": "node schemas/app/seed.js",
     "prisma:reporting:format": "pnpm exec prisma format --config schemas/reporting/prisma.config.ts",
     "prisma:reporting:push": "pnpm exec prisma db push --config schemas/reporting/prisma.config.ts",
+    "prisma:usage:format": "pnpm exec prisma format --config schemas/usage/prisma.config.ts",
+    "prisma:usage:push": "pnpm exec prisma db push --config schemas/usage/prisma.config.ts",
     "tunnel:test": "ssh -o StrictHostKeyChecking=no -N -L 7777:database-1.cr2ahlxr8roi.eu-west-1.rds.amazonaws.com:5432 -L 6379:clustercfg.checkoutjoy.grdrrt.euw1.cache.amazonaws.com:6379 ec2-user@ec2-34-244-193-216.eu-west-1.compute.amazonaws.com -i ../cj-bastion-test.pem -v",
     "deploy:test": "aws codebuild start-build --project-name getpaidhq --source-version main --profile=cj-test --environment-variables-override name=STAGE,value=test,type=PLAINTEXT"
   },
