@@ -39,7 +39,7 @@ func TestPaymentHandler_AuthzGuards(t *testing.T) {
 	h := newPaymentHandlerForTest(t, &fakePaymentRepoHTTP{})
 	ts := newTestServer(fixedAuthMiddleware(supportUser()))
 	h.RegisterRoutes(ts.api())
-	for _, path := range []string{"/api/payments", "/api/payments/pay_1", "/api/subscriptions/sub_1/payments"} {
+	for _, path := range []string{"/api/payments", "/api/payments/pay_1"} {
 		rec := doJSON(t, ts, http.MethodGet, path, nil)
 		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
 	}

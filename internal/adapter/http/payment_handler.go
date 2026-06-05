@@ -25,9 +25,8 @@ func (h *PaymentHandler) RegisterRoutes(srv *fuego.Server) {
 	g := fuego.Group(srv, "/payments", option.Tags("Payments"))
 	fuego.Get(g, "", h.List, option.Summary("List payments"))
 	fuego.Get(g, "/{id}", h.Get, option.Summary("Get a payment"))
-
-	subs := fuego.Group(srv, "/subscriptions", option.Tags("Payments"))
-	fuego.Get(subs, "/{id}/payments", h.ListBySubscription, option.Summary("List a subscription's payments"))
+	// Per-subscription payments are served by SubscriptionHandler
+	// (GET /subscriptions/{id}/payments) — not duplicated here.
 }
 
 func (h *PaymentHandler) List(c fuego.ContextNoBody) (ListResponse, error) {
@@ -53,19 +52,6 @@ func (h *PaymentHandler) Get(c fuego.ContextNoBody) (PaymentResponse, error) {
 		return PaymentResponse{}, NewApiErrorFromError(err)
 	}
 	return NewPaymentFromEntity(payment), nil
-}
-
-func (h *PaymentHandler) ListBySubscription(c fuego.ContextNoBody) (ListResponse, error) {
-	if err := enforce(c, h.authz, port.ActionListPayments); err != nil {
-		return ListResponse{}, err
-	}
-	authUser := AuthUserFrom(c)
-	p := GetPagination(c)
-	payments, total, err := h.paymentService.ListBySubscription(c.Context(), authUser.OrgId, c.PathParam("id"), p)
-	if err != nil {
-		return ListResponse{}, NewApiErrorFromError(err)
-	}
-	return paymentListResponse(payments, total, p), nil
 }
 
 func paymentListResponse(payments []domain.Payment, total int, p domain.Pagination) ListResponse {
