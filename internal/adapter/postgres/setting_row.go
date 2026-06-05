@@ -35,6 +35,14 @@ func (r settingRow) toDomain() domain.Setting {
 	}
 }
 
+func settingRowsToDomain(rows []settingRow) []domain.Setting {
+	out := make([]domain.Setting, len(rows))
+	for i, r := range rows {
+		out[i] = r.toDomain()
+	}
+	return out
+}
+
 func settingRowFromDomain(s domain.Setting) settingRow {
 	return settingRow{
 		OrgId:     s.OrgId,

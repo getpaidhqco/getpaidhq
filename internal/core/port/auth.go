@@ -114,6 +114,18 @@ const (
 	ActionGetMeter    Action = "GetMeter"
 	ActionListMeters  Action = "ListMeters"
 
+	ActionGetInvoice   Action = "GetInvoice"
+	ActionListInvoices Action = "ListInvoices"
+
+	ActionGetPayment   Action = "GetPayment"
+	ActionListPayments Action = "ListPayments"
+
+	ActionCreateSetting Action = "CreateSetting"
+	ActionGetSetting    Action = "GetSetting"
+	ActionListSettings  Action = "ListSettings"
+	ActionUpdateSetting Action = "UpdateSetting"
+	ActionDeleteSetting Action = "DeleteSetting"
+
 	ActionCreatePaymentServiceProvider Action = "CreatePaymentServiceProvider"
 	ActionGetPaymentServiceProvider    Action = "GetPaymentServiceProvider"
 	ActionUpdatePaymentServiceProvider Action = "UpdatePaymentServiceProvider"

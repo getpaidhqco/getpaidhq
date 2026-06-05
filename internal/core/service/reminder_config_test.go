@@ -45,6 +45,21 @@ func (r *mapSettingRepo) Upsert(_ context.Context, entity domain.Setting) (domai
 	return entity, nil
 }
 
+func (r *mapSettingRepo) List(_ context.Context, orgId, parentId string, _ domain.Pagination) ([]domain.Setting, int, error) {
+	var out []domain.Setting
+	for _, s := range r.items {
+		if s.OrgId == orgId && (parentId == "" || s.ParentId == parentId) {
+			out = append(out, s)
+		}
+	}
+	return out, len(out), nil
+}
+
+func (r *mapSettingRepo) Delete(_ context.Context, orgId, parentId, id string) error {
+	delete(r.items, r.key(orgId, parentId, id))
+	return nil
+}
+
 func TestReminderConfigService_Resolve_DefaultWhenMissing(t *testing.T) {
 	repo := newMapSettingRepo()
 	svc := NewReminderConfigService(repo, silentLogger{})
