@@ -308,12 +308,31 @@ type PriceResponse struct {
 	TrialInterval      domain.BillingInterval `json:"trial_interval"`
 	TrialIntervalQty   int                    `json:"trial_interval_qty"`
 	TaxCode            string                 `json:"tax_code"`
+	BillableMetricId   string                 `json:"billable_metric_id"`
+	Tiers              []PriceTierResponse    `json:"tiers"`
 	Metadata           map[string]string      `json:"metadata"`
 	CreatedAt          time.Time              `json:"created_at"`
 	UpdatedAt          time.Time              `json:"updated_at"`
 }
 
+// PriceTierResponse mirrors a domain.PriceTier; decimal fields are strings.
+type PriceTierResponse struct {
+	FromValue     string `json:"from_value"`
+	ToValue       string `json:"to_value"`
+	PerUnitAmount string `json:"per_unit_amount"`
+	FlatAmount    int64  `json:"flat_amount"`
+}
+
 func NewPriceFromEntity(entity domain.Price) PriceResponse {
+	tiers := make([]PriceTierResponse, len(entity.Tiers))
+	for i, t := range entity.Tiers {
+		tiers[i] = PriceTierResponse{
+			FromValue:     t.FromValue.String(),
+			ToValue:       t.ToValue.String(),
+			PerUnitAmount: t.PerUnitAmount.String(),
+			FlatAmount:    t.FlatAmount,
+		}
+	}
 	return PriceResponse{
 		Id:                 entity.Id,
 		VariantId:          entity.VariantId,
@@ -330,6 +349,8 @@ func NewPriceFromEntity(entity domain.Price) PriceResponse {
 		TrialInterval:      entity.TrialInterval,
 		TrialIntervalQty:   entity.TrialIntervalQty,
 		TaxCode:            entity.TaxCode,
+		BillableMetricId:   entity.BillableMetricId,
+		Tiers:              tiers,
 		Metadata:           entity.Metadata,
 		CreatedAt:          entity.CreatedAt,
 		UpdatedAt:          entity.UpdatedAt,

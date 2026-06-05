@@ -3,6 +3,8 @@ package handler
 import (
 	"time"
 
+	"github.com/shopspring/decimal"
+
 	"getpaidhq/internal/core/domain"
 )
 
@@ -264,11 +266,11 @@ type CreateProductVariantRequest struct {
 
 type CreateProductPriceRequest struct {
 	Label              string                 `json:"label" validate:"omitempty,min=1,max=255"`
-	Category           domain.PriceCategory   `json:"category" validate:"required,oneof=one_time subscription free variable"`
+	Category           domain.PriceCategory   `json:"category" validate:"required,oneof=one_time subscription free variable metered"`
 	Scheme             domain.PriceScheme     `json:"scheme" validate:"required,oneof=fixed tiered volume graduated"`
 	Cycles             int                    `json:"cycles" validate:"omitempty,gt=0"`
 	Currency           string                 `json:"currency" validate:"required,iso4217"`
-	UnitPrice          int64                  `json:"unit_price" validate:"required,gte=0"`
+	UnitPrice          int64                  `json:"unit_price" validate:"gte=0"`
 	MinPrice           int64                  `json:"min_price" validate:"omitempty,gte=0"`
 	SuggestedPrice     int64                  `json:"suggested_price" validate:"omitempty,gte=0"`
 	BillingInterval    domain.BillingInterval `json:"billing_interval" validate:"omitempty,oneof=none minute hour day week month year"`
@@ -276,17 +278,19 @@ type CreateProductPriceRequest struct {
 	TrialInterval      domain.BillingInterval `json:"trial_interval" validate:"omitempty,oneof=none minute hour day week month year"`
 	TrialIntervalQty   int                    `json:"trial_interval_qty" validate:"omitempty,gt=0,lte=999"`
 	TaxCode            string                 `json:"tax_code" validate:"omitempty,alphanum"`
+	BillableMetricId   string                 `json:"billable_metric_id" validate:"omitempty"`
+	Tiers              []PriceTierRequest     `json:"tiers" validate:"omitempty,dive"`
 	Metadata           map[string]string      `json:"metadata"`
 }
 
 type CreatePriceRequest struct {
 	VariantId          string                 `json:"variant_id" validate:"required"`
-	Category           domain.PriceCategory   `json:"category" validate:"required,oneof=one_time subscription free variable"`
+	Category           domain.PriceCategory   `json:"category" validate:"required,oneof=one_time subscription free variable metered"`
 	Scheme             domain.PriceScheme     `json:"scheme" validate:"required,oneof=fixed tiered volume graduated"`
 	Cycles             int                    `json:"cycles" validate:"omitempty,gt=0"`
 	Label              string                 `json:"label"`
 	Currency           string                 `json:"currency" validate:"required,iso4217"`
-	UnitPrice          int64                  `json:"unit_price" validate:"required,gte=0"`
+	UnitPrice          int64                  `json:"unit_price" validate:"gte=0"`
 	MinPrice           int64                  `json:"min_price" validate:"omitempty,gte=0"`
 	SuggestedPrice     int64                  `json:"suggested_price" validate:"omitempty,gte=0"`
 	BillingInterval    domain.BillingInterval `json:"billing_interval" validate:"omitempty,oneof=none minute hour day week month year"`
@@ -294,7 +298,50 @@ type CreatePriceRequest struct {
 	TrialInterval      domain.BillingInterval `json:"trial_interval" validate:"omitempty,oneof=none minute hour day week month year"`
 	TrialIntervalQty   int                    `json:"trial_interval_qty" validate:"omitempty,gt=0,lte=999"`
 	TaxCode            string                 `json:"tax_code" validate:"omitempty,alphanum"`
+	BillableMetricId   string                 `json:"billable_metric_id" validate:"omitempty"`
+	Tiers              []PriceTierRequest     `json:"tiers" validate:"omitempty,dive"`
 	Metadata           map[string]string      `json:"metadata"`
+}
+
+// PriceTierRequest is one rate band for graduated/volume/tiered schemes. Decimal
+// amounts are sent as strings to preserve precision (e.g. sub-cent per-unit rates).
+// to_value empty/"0" means the last, unbounded tier.
+type PriceTierRequest struct {
+	FromValue     string `json:"from_value" validate:"omitempty,numeric"`
+	ToValue       string `json:"to_value" validate:"omitempty,numeric"`
+	PerUnitAmount string `json:"per_unit_amount" validate:"omitempty,numeric"`
+	FlatAmount    int64  `json:"flat_amount" validate:"omitempty,gte=0"`
+}
+
+// toDomainTiers parses the string decimal fields into domain.PriceTier.
+func toDomainTiers(in []PriceTierRequest) ([]domain.PriceTier, error) {
+	if len(in) == 0 {
+		return nil, nil
+	}
+	out := make([]domain.PriceTier, len(in))
+	for i, t := range in {
+		from, err := decimalOrZero(t.FromValue)
+		if err != nil {
+			return nil, err
+		}
+		to, err := decimalOrZero(t.ToValue)
+		if err != nil {
+			return nil, err
+		}
+		per, err := decimalOrZero(t.PerUnitAmount)
+		if err != nil {
+			return nil, err
+		}
+		out[i] = domain.PriceTier{FromValue: from, ToValue: to, PerUnitAmount: per, FlatAmount: t.FlatAmount}
+	}
+	return out, nil
+}
+
+func decimalOrZero(s string) (decimal.Decimal, error) {
+	if s == "" {
+		return decimal.Zero, nil
+	}
+	return decimal.NewFromString(s)
 }
 
 // ---------------------------------------------------------------------------

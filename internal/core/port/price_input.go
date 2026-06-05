@@ -23,6 +23,8 @@ type CreatePriceInput struct {
 	TrialInterval      domain.BillingInterval
 	TrialIntervalQty   int
 	TaxCode            string
+	BillableMetricId   string             // set when Category == metered
+	Tiers              []domain.PriceTier // rate bands for graduated / volume schemes
 	Metadata           map[string]string
 }
 
@@ -54,6 +56,8 @@ func (input CreatePriceInput) ToPrice(orgId, variantId string) domain.Price {
 		TrialInterval:      trialInterval,
 		TrialIntervalQty:   input.TrialIntervalQty,
 		TaxCode:            input.TaxCode,
+		BillableMetricId:   input.BillableMetricId,
+		Tiers:              input.Tiers,
 		Metadata:           input.Metadata,
 		CreatedAt:          time.Now().UTC(),
 		UpdatedAt:          time.Now().UTC(),
@@ -75,5 +79,7 @@ type CreateProductPriceInput struct {
 	TrialInterval      domain.BillingInterval
 	TrialIntervalQty   int
 	TaxCode            string
+	BillableMetricId   string
+	Tiers              []domain.PriceTier
 	Metadata           map[string]string
 }

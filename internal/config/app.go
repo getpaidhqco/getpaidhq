@@ -198,6 +198,7 @@ func NewApp() (*App, error) {
 	// Narrow services (no workflow engine).
 	// ---------------------------------------------------------------------------
 	usageService := service.NewUsageService(meterRepo, eventStore, pubsub, logger)
+	meterService := service.NewMeterService(meterRepo, pubsub, logger)
 	invoiceService := service.NewInvoiceService(invoiceRepo, orderRepo, priceRepo, usageService, txManager, logger)
 	subService, err := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, priceRepo, gatewayFactory, invoiceService, pubsub, reporter, logger, txManager)
 	if err != nil {
@@ -300,6 +301,7 @@ func NewApp() (*App, error) {
 		ApiKey:         handler.NewApiKeyHandler(apiKeyService, logger, authzEngine),
 		ReminderConfig: handler.NewReminderConfigHandler(reminderConfigService, logger),
 		Usage:          handler.NewUsageHandler(usageService, logger),
+		Meter:          handler.NewMeterHandler(meterService, logger, authzEngine),
 	}
 
 	port := env.ServerPort
