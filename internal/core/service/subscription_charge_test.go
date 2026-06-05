@@ -77,7 +77,7 @@ func TestSubscriptionService_ChargeForBillingPeriod(t *testing.T) {
 	)
 
 	sub := domain.Subscription{
-		OrgId: orgId, Id: subId, CustomerId: cusId, PaymentMethodId: pmId,
+		OrgId: orgId, Id: subId, OrderItemId: "oi_1", CustomerId: cusId, PaymentMethodId: pmId,
 		Amount: 1000, Currency: "USD", PspId: domain.Paystack,
 	}
 

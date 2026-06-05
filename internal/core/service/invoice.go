@@ -54,39 +54,67 @@ func (s *InvoiceService) BuildForBillingPeriod(ctx context.Context, sub domain.S
 		return domain.Invoice{}, err
 	}
 
-	// Resolve the linked Price via the order item (domain is ID-only).
-	item, err := s.orderRepository.FindOrderItemById(ctx, sub.OrgId, sub.OrderItemId)
-	if err != nil {
-		return domain.Invoice{}, err
-	}
-	price, err := s.priceRepository.FindById(ctx, sub.OrgId, item.PriceId)
+	// Build one invoice for the period from the subscription's whole order:
+	// the flat/base line for this subscription's plan item, plus a usage line for
+	// every metered item in the order — all summed. (ADR 0002.)
+	items, err := s.orderRepository.FindOrderItemsByOrderId(ctx, sub.OrgId, sub.OrderId)
 	if err != nil {
 		return domain.Invoice{}, err
 	}
 
-	var inv domain.Invoice
-	switch {
-	case price.Category == domain.PriceCategoryMetered:
-		// Metered price: aggregate the cycle's usage into a single usage line.
-		// No base line — the charge is the measured units priced by the scheme.
-		// Usage is billed during a trial too (ADR 0003).
-		units, uerr := s.usageService.UsageForSubscription(ctx, sub, price, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
-		if uerr != nil {
-			return domain.Invoice{}, uerr
+	type resolvedItem struct {
+		item  domain.OrderItem
+		price domain.Price
+	}
+	resolved := make([]resolvedItem, 0, len(items))
+	for _, it := range items {
+		p, perr := s.priceRepository.FindById(ctx, sub.OrgId, it.PriceId)
+		if perr != nil {
+			return domain.Invoice{}, perr
 		}
-		inv = domain.NewInvoice(sub, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
-		inv.AddLine(domain.UsageLineFromPrice(sub.OrgId, inv.Id, price, units))
-	case sub.Status == domain.SubscriptionStatusTrial:
-		// ADR 0003: a trial waives the base fee. A fixed/base price contributes
-		// nothing during the trial period, so the invoice carries no base line
-		// (usage, billed via the metered branch above, is unaffected).
-		inv = domain.NewInvoice(sub, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
-	default:
-		qty := int64(item.Quantity)
-		if qty <= 0 {
-			qty = 1
+		resolved = append(resolved, resolvedItem{item: it, price: p})
+	}
+
+	// The order's metered usage is billed once, by the "primary" subscription —
+	// the earliest (lowest order-item id) subscription-category item. This keeps a
+	// shared meter from being billed by every plan subscription in the order.
+	primaryItemId := ""
+	for _, r := range resolved {
+		if r.price.Category == domain.PriceCategorySubscription {
+			if primaryItemId == "" || r.item.Id < primaryItemId {
+				primaryItemId = r.item.Id
+			}
 		}
-		inv = domain.BuildInvoiceForPeriod(sub, price, decimal.NewFromInt(qty), sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
+	}
+	// Defensive: an order with no plan item (only metered) — the calling sub bills it.
+	isPrimary := primaryItemId == "" || sub.OrderItemId == primaryItemId
+
+	inv := domain.NewInvoice(sub, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
+	for _, r := range resolved {
+		isOwn := r.item.Id == sub.OrderItemId
+		switch {
+		case r.price.Category == domain.PriceCategoryMetered:
+			// Metered usage is billed once — by the order's primary subscription, or
+			// when it's this subscription's own item. Billed during a trial too (ADR 0003).
+			if isOwn || isPrimary {
+				units, uerr := s.usageService.UsageForSubscription(ctx, sub, r.price, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
+				if uerr != nil {
+					return domain.Invoice{}, uerr
+				}
+				inv.AddLine(domain.UsageLineFromPrice(sub.OrgId, inv.Id, r.price, units))
+			}
+		case isOwn:
+			// This subscription's own (flat/plan) item — the base line. A trial
+			// waives the flat fee (ADR 0003).
+			if sub.Status != domain.SubscriptionStatusTrial {
+				qty := int64(r.item.Quantity)
+				if qty <= 0 {
+					qty = 1
+				}
+				inv.AddLine(domain.BaseLineFromPrice(sub.OrgId, inv.Id, r.price, decimal.NewFromInt(qty)))
+			}
+		}
+		// Sibling non-metered items belong to other subscriptions — skipped.
 	}
 
 	var created domain.Invoice
