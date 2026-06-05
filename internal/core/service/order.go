@@ -593,13 +593,14 @@ func subscriptionAnchors(lines []orderLine) []orderLine {
 	var anchors []orderLine
 	firstMetered := -1
 	for i, l := range lines {
-		switch l.price.Category {
-		case domain.PriceCategorySubscription:
-			anchors = append(anchors, l)
-		case domain.PriceCategoryMetered:
+		if l.price.IsMetered() {
 			if firstMetered == -1 {
 				firstMetered = i
 			}
+			continue // metered usage rides the order's fixed plan, if any
+		}
+		if l.price.Category == domain.PriceCategorySubscription {
+			anchors = append(anchors, l)
 		}
 	}
 	if len(anchors) == 0 && firstMetered >= 0 {

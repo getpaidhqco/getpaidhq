@@ -6,11 +6,19 @@ import (
 	"getpaidhq/internal/core/domain"
 )
 
-func line(id string, cat domain.PriceCategory) orderLine {
-	return orderLine{
-		item:  domain.OrderItem{Id: id},
-		price: domain.Price{Id: "p_" + id, Category: cat},
-	}
+// fixed builds a fixed (non-metered) recurring subscription item.
+func fixed(id string) orderLine {
+	return orderLine{item: domain.OrderItem{Id: id}, price: domain.Price{Id: "p_" + id, Category: domain.PriceCategorySubscription}}
+}
+
+// metered builds a usage-priced subscription item (metered = has a meter attached).
+func metered(id string) orderLine {
+	return orderLine{item: domain.OrderItem{Id: id}, price: domain.Price{Id: "p_" + id, Category: domain.PriceCategorySubscription, BillableMetricId: "met_" + id}}
+}
+
+// oneTime builds a non-recurring item (never anchors a subscription).
+func oneTime(id string) orderLine {
+	return orderLine{item: domain.OrderItem{Id: id}, price: domain.Price{Id: "p_" + id, Category: domain.OneTime}}
 }
 
 func ids(lines []orderLine) []string {
@@ -22,21 +30,17 @@ func ids(lines []orderLine) []string {
 }
 
 func TestSubscriptionAnchors(t *testing.T) {
-	const sub = domain.PriceCategorySubscription
-	const met = domain.PriceCategoryMetered
-	const once = domain.OneTime
-
 	tests := []struct {
 		name  string
 		lines []orderLine
 		want  []string
 	}{
-		{"fixed only", []orderLine{line("a", sub)}, []string{"a"}},
-		{"metered only is its own subscription", []orderLine{line("a", met)}, []string{"a"}},
-		{"fixed + metered: only the fixed anchors (metered billed on it)", []orderLine{line("plan", sub), line("usage", met)}, []string{"plan"}},
-		{"two fixed + metered: both fixed anchor, metered does not", []orderLine{line("p1", sub), line("p2", sub), line("u", met)}, []string{"p1", "p2"}},
-		{"two metered, no plan: first metered anchors once", []orderLine{line("in", met), line("out", met)}, []string{"in"}},
-		{"one-time only: no subscription", []orderLine{line("a", once)}, nil},
+		{"fixed only", []orderLine{fixed("a")}, []string{"a"}},
+		{"metered only is its own subscription", []orderLine{metered("a")}, []string{"a"}},
+		{"fixed + metered: only the fixed anchors (metered billed on it)", []orderLine{fixed("plan"), metered("usage")}, []string{"plan"}},
+		{"two fixed + metered: both fixed anchor, metered does not", []orderLine{fixed("p1"), fixed("p2"), metered("u")}, []string{"p1", "p2"}},
+		{"two metered, no plan: first metered anchors once", []orderLine{metered("in"), metered("out")}, []string{"in"}},
+		{"one-time only: no subscription", []orderLine{oneTime("a")}, nil},
 		{"empty", nil, nil},
 	}
 

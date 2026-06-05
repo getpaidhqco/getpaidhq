@@ -127,7 +127,7 @@ func (s *ProductService) FindById(ctx context.Context, orgId string, id string) 
 }
 
 func (s *ProductService) CreateProductPrice(ctx context.Context, input port.CreatePriceInput) (domain.Price, error) {
-	if err := validatePriceConfig(input.Category, input.Scheme, input.BillableMetricId, input.Tiers); err != nil {
+	if err := validatePriceConfig(input.Scheme, input.Tiers); err != nil {
 		return domain.Price{}, err
 	}
 
@@ -310,7 +310,7 @@ func (s *ProductService) ListPrices(ctx context.Context, orgId string, variantId
 }
 
 func (s *ProductService) UpdatePrice(ctx context.Context, orgId string, id string, input port.CreatePriceInput) (domain.Price, error) {
-	if err := validatePriceConfig(input.Category, input.Scheme, input.BillableMetricId, input.Tiers); err != nil {
+	if err := validatePriceConfig(input.Scheme, input.Tiers); err != nil {
 		return domain.Price{}, err
 	}
 	price, err := s.priceRepository.FindById(ctx, orgId, id)
@@ -451,13 +451,10 @@ func (s *ProductService) GetVariantDetails(ctx context.Context, orgId, id string
 	return VariantDetails{Variant: variant, Prices: prices}, nil
 }
 
-// validatePriceConfig checks the metered/tiered fields are coherent:
-// a metered price must name a meter (billable_metric_id), and a graduated/
-// volume/tiered scheme must carry at least one rate tier.
-func validatePriceConfig(category domain.PriceCategory, scheme domain.PriceScheme, billableMetricId string, tiers []domain.PriceTier) error {
-	if category == domain.PriceCategoryMetered && billableMetricId == "" {
-		return lib.NewCustomError(lib.BadRequestError, "billable_metric_id is required for a metered price", nil)
-	}
+// validatePriceConfig checks a graduated/volume/tiered scheme carries at least one
+// rate tier. (Metering needs no category check — a price is metered iff it has a
+// meter attached; see Price.IsMetered.)
+func validatePriceConfig(scheme domain.PriceScheme, tiers []domain.PriceTier) error {
 	switch scheme {
 	case domain.Graduated, domain.Volume, domain.Tiered:
 		if len(tiers) == 0 {
