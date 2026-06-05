@@ -27,6 +27,12 @@ type SubscriptionRepository interface {
 	Create(ctx context.Context, entity domain.Subscription) (domain.Subscription, error)
 	Update(ctx context.Context, entity domain.Subscription) (domain.Subscription, error)
 	FindByOrderId(ctx context.Context, orgId string, orderId string) ([]domain.Subscription, error)
+	// FindActiveMeteredForMeter returns the customer's active (active/trial/past_due)
+	// subscriptions whose linked Price is metered against the given meter, ordered
+	// earliest-first (StartDate, then CreatedAt). Used to attribute unattributed
+	// usage to the customer's earliest metered subscription for a meter (so a
+	// catch-all is billed exactly once across multiple metered subs).
+	FindActiveMeteredForMeter(ctx context.Context, orgId, customerId, billableMetricId string) ([]domain.Subscription, error)
 	Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Subscription, int, error)
 	// FindDueForBilling returns subscriptions in org that are due to be charged
 	// at or before `now`, per their status: active subs whose renews_at <= now,
@@ -62,6 +68,10 @@ type CustomerRepository interface {
 	// prevent N+1 when an application service composes a read model.
 	FindByIds(ctx context.Context, orgId string, ids []string) ([]domain.Customer, error)
 	FindByEmail(ctx context.Context, orgId string, email string) (domain.Customer, error)
+	// FindByExternalId resolves a customer by the merchant's own id (external_id).
+	// Used to attach usage events sent against an external_customer_id. Returns
+	// ErrNotFound when no customer carries that external id.
+	FindByExternalId(ctx context.Context, orgId string, externalId string) (domain.Customer, error)
 	Create(ctx context.Context, entity domain.Customer) (domain.Customer, error)
 	Update(ctx context.Context, entity domain.Customer) (domain.Customer, error)
 	List(ctx context.Context, orgId string, pagination domain.Pagination) ([]domain.Customer, int, error)

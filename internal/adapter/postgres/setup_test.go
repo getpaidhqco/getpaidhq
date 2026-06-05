@@ -71,6 +71,8 @@ func allModels() []any {
 		&dunningConfigurationRow{},
 		&customerDunningHistoryRow{},
 		&apiKeyRow{},
+		&billableMetricRow{},
+		&meterEventRow{},
 	}
 }
 

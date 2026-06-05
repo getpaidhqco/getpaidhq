@@ -16,6 +16,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/ClickHouse/clickhouse-go/v2"
 	"github.com/ClickHouse/clickhouse-go/v2/lib/driver"
@@ -24,6 +25,10 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 )
+
+// zeroDecimal is a Decimal(38,9) literal used to coalesce empty-set aggregates, so
+// the result type always matches the value column (avoids a Decimal-vs-int mismatch).
+const zeroDecimal = "toDecimal128(0, 9)"
 
 // dedupKey is the read-time dedup expression: the external_id when set, else the
 // (unique) event id. Resends share an external_id and collapse; events without one
@@ -46,7 +51,10 @@ func NewEventStore(dsn string) (*EventStore, error) {
 	if err != nil {
 		return nil, fmt.Errorf("clickhouse: open: %w", err)
 	}
-	if err := conn.Ping(context.Background()); err != nil {
+	// Bound the initial connectivity check so a dead/slow host can't hang boot.
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := conn.Ping(ctx); err != nil {
 		return nil, fmt.Errorf("clickhouse: ping: %w", err)
 	}
 	return &EventStore{conn: conn}, nil
@@ -121,7 +129,7 @@ func (s *EventStore) UniqueCount(ctx context.Context, q port.UsageQuery) (int64,
 func (s *EventStore) Sum(ctx context.Context, q port.UsageQuery) (decimal.Decimal, error) {
 	w, args := where(q)
 	// Collapse resends to one value per dedup_key (latest by ingested_at), then sum.
-	sql := "SELECT COALESCE(SUM(v), 0) FROM (" +
+	sql := "SELECT COALESCE(SUM(v), " + zeroDecimal + ") FROM (" +
 		"SELECT argMax(value, ingested_at) AS v FROM meter_events WHERE " + w +
 		" GROUP BY " + dedupKey + ")"
 	var out decimal.Decimal
@@ -132,7 +140,7 @@ func (s *EventStore) Sum(ctx context.Context, q port.UsageQuery) (decimal.Decima
 func (s *EventStore) Max(ctx context.Context, q port.UsageQuery) (decimal.Decimal, error) {
 	w, args := where(q)
 	var out decimal.Decimal
-	err := s.conn.QueryRow(ctx, "SELECT COALESCE(MAX(value), 0) FROM meter_events WHERE "+w, args...).Scan(&out)
+	err := s.conn.QueryRow(ctx, "SELECT COALESCE(MAX(value), "+zeroDecimal+") FROM meter_events WHERE "+w, args...).Scan(&out)
 	return out, err
 }
 

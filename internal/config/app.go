@@ -43,9 +43,29 @@ func errUnsupportedEngine(name string) error {
 	return fmt.Errorf("unsupported WORKFLOW_ENGINE %q (want 'hatchet' or 'temporal')", name)
 }
 
+// usageDB returns the database handle backing the Postgres usage-event store. When
+// USAGE_DATABASE_URL is set it opens a SEPARATE connection so usage events can scale
+// (and be retained/expired) independently of the operational DB; otherwise it reuses
+// the operational handle (the v1 default — events live alongside the rest). Either
+// way it ensures the dedup index exists (postgres.EnsureUsageSchema).
+func usageDB(env lib.Env, operational *gorm.DB, logger lib.Logger) (*gorm.DB, error) {
+	db := operational
+	if env.UsageDatabaseURL != "" {
+		separate, err := postgres.NewDatabase(env.UsageDatabaseURL, logger)
+		if err != nil {
+			return nil, fmt.Errorf("open usage database: %w", err)
+		}
+		db = separate
+	}
+	if err := postgres.EnsureUsageSchema(db); err != nil {
+		return nil, fmt.Errorf("ensure usage schema: %w", err)
+	}
+	return db, nil
+}
+
 // buildEventStore selects the usage-event backend from USAGE_EVENT_STORE:
-//   - "postgres" (default): events in the operational DB (v1 fallback; a separate
-//     usage DB is opened here once USAGE_DATABASE_URL is split out).
+//   - "postgres" (default): events in the Postgres usage store (separate DB when
+//     USAGE_DATABASE_URL is set, else the operational DB).
 //   - "clickhouse": the ClickHouse adapter (CLICKHOUSE_DSN).
 //   - "compare": write both, serve Postgres, check ClickHouse in the background.
 //
@@ -53,7 +73,11 @@ func errUnsupportedEngine(name string) error {
 // docs/internal/clickhouse-primer.md §7 and the parity harness in
 // internal/adapter/compare.
 func buildEventStore(env lib.Env, db *gorm.DB, logger lib.Logger) (port.EventStore, error) {
-	pg := postgres.NewEventStore(db)
+	udb, err := usageDB(env, db, logger)
+	if err != nil {
+		return nil, err
+	}
+	pg := postgres.NewEventStore(udb)
 	switch env.UsageEventStore {
 	case "", "postgres":
 		return pg, nil
@@ -197,7 +221,7 @@ func NewApp() (*App, error) {
 	// ---------------------------------------------------------------------------
 	// Narrow services (no workflow engine).
 	// ---------------------------------------------------------------------------
-	usageService := service.NewUsageService(meterRepo, eventStore, pubsub, logger)
+	usageService := service.NewUsageService(meterRepo, customerRepo, subRepo, eventStore, pubsub, logger)
 	meterService := service.NewMeterService(meterRepo, pubsub, logger)
 	invoiceService := service.NewInvoiceService(invoiceRepo, orderRepo, priceRepo, usageService, txManager, logger)
 	subService, err := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, priceRepo, gatewayFactory, invoiceService, pubsub, reporter, logger, txManager)

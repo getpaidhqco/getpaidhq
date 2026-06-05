@@ -62,6 +62,18 @@ func (r *CustomerRepo) FindByEmail(ctx context.Context, orgId string, email stri
 	return row.toDomain(), nil
 }
 
+func (r *CustomerRepo) FindByExternalId(ctx context.Context, orgId string, externalId string) (domain.Customer, error) {
+	var row customerRow
+	err := dbFromCtx(ctx, r.db).
+		Scopes(OrgScope(orgId)).
+		Where("external_id = ?", externalId).
+		First(&row).Error
+	if err != nil {
+		return domain.Customer{}, translateErr(err)
+	}
+	return row.toDomain(), nil
+}
+
 func (r *CustomerRepo) Create(ctx context.Context, entity domain.Customer) (domain.Customer, error) {
 	row := customerRowFromDomain(entity)
 	if err := r.writeRow(ctx, &row, false).Error; err != nil {
