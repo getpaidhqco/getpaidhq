@@ -297,6 +297,7 @@ func NewApp() (*App, error) {
 	userService := service.NewUserService(userRepo)
 	orgService := service.NewOrgService(orgRepo, pubsub, clerkProvider, customerRepo, settingRepo, metadataRepo, apiKeyRepo, logger, env.ApiKeyPepper)
 	apiKeyService := service.NewApiKeyService(apiKeyRepo, env.ApiKeyPepper, logger)
+	settingService := service.NewSettingService(settingRepo, logger)
 	pspService := service.NewPspService(pspRepo, settingRepo, logger, pubsub)
 	webhookService := service.NewWebhookService(logger, gatewayFactory, engine, idempotencyRepo, subRepo)
 	metadataService := service.NewMetadataService(metadataRepo, logger)
@@ -320,12 +321,15 @@ func NewApp() (*App, error) {
 		WebhookSub:     handler.NewWebhookSubscriptionHandler(webhookSubService, logger, authzEngine),
 		Org:            handler.NewOrgHandler(orgService, logger),
 		Psp:            handler.NewPspHandler(pspService, logger, authzEngine),
-		PaymentMethod:  handler.NewPaymentMethodHandler(customerHandler),
+		PaymentMethod:  handler.NewPaymentMethodHandler(customerService),
 		Dunning:        handler.NewDunningHandler(dunningOrchestrationService, subService, logger, authzEngine, trustedProxies),
 		ApiKey:         handler.NewApiKeyHandler(apiKeyService, logger, authzEngine),
 		ReminderConfig: handler.NewReminderConfigHandler(reminderConfigService, logger),
 		Usage:          handler.NewUsageHandler(usageService, logger),
 		Meter:          handler.NewMeterHandler(meterService, logger, authzEngine),
+		Invoice:        handler.NewInvoiceHandler(invoiceService, logger, authzEngine),
+		Payment:        handler.NewPaymentHandler(paymentService, logger, authzEngine),
+		Setting:        handler.NewSettingHandler(settingService, logger, authzEngine),
 	}
 
 	port := env.ServerPort

@@ -367,6 +367,7 @@ type PaymentResponse struct {
 	Reference      string               `json:"reference"`
 	OrderId        string               `json:"order_id"`
 	SubscriptionId string               `json:"subscription_id"`
+	InvoiceId      string               `json:"invoice_id"`
 	Status         domain.PaymentStatus `json:"status"`
 	Currency       string               `json:"currency"`
 	Amount         int64                `json:"amount"`
@@ -385,6 +386,7 @@ func NewPaymentFromEntity(entity domain.Payment) PaymentResponse {
 		Reference:      entity.Reference,
 		OrderId:        entity.OrderId,
 		SubscriptionId: entity.SubscriptionId,
+		InvoiceId:      entity.InvoiceId,
 		Status:         entity.Status,
 		Currency:       entity.Currency,
 		Amount:         entity.Amount,

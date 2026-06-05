@@ -10,18 +10,20 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/core/service"
 	"getpaidhq/internal/lib"
 )
 
-// newPaymentMethodHandlerForTest builds the standalone PaymentMethodHandler,
-// which delegates to CustomerHandler.GetCustomerPaymentMethod. The handler
-// shares the real CustomerService (against repo fakes) and the real Cedar
-// authz, so these tests exercise the production path end-to-end through the
-// /api/payment-methods/{id} route.
+// newPaymentMethodHandlerForTest builds the standalone PaymentMethodHandler on
+// the real CustomerService (against repo fakes), so these tests exercise the
+// production path end-to-end through the /api/payment-methods/{id} route.
 func newPaymentMethodHandlerForTest(t *testing.T, pmRepo *fakePaymentMethodRepo) *PaymentMethodHandler {
 	t.Helper()
-	ch := newCustomerHandlerForTest(t, &fakeCustomerRepo{}, pmRepo, newPubSub())
-	return NewPaymentMethodHandler(ch)
+	svc, err := service.NewCustomerService(&fakeCustomerRepo{}, pmRepo, newPubSub(), silentLogger{}, noopScheduler{})
+	if err != nil {
+		t.Fatalf("NewCustomerService: %v", err)
+	}
+	return NewPaymentMethodHandler(svc)
 }
 
 func TestPaymentMethodHandler_Get_HappyPath(t *testing.T) {
@@ -74,7 +76,7 @@ func TestPaymentMethodHandler_Get_NotFound(t *testing.T) {
 }
 
 // TestPaymentMethodHandler_Get_AuthnGatedNotAuthzGated documents and pins an
-// important security property: GetCustomerPaymentMethod does NOT call the Cedar
+// important security property: the payment-method read does NOT call the Cedar
 // authorizer — it only requires a valid authenticated user. So every role
 // (including support, which has no permit rule in policy.cedar and is therefore
 // denied on most actions) can read a payment method within its own org. Reads

@@ -88,15 +88,6 @@ func (cc *CustomerHandler) UpdateCustomerPaymentMethod(c fuego.ContextWithBody[p
 	return NewPaymentMethodResponse(pm), nil
 }
 
-func (cc *CustomerHandler) GetCustomerPaymentMethod(c fuego.ContextNoBody) (PaymentMethodResponse, error) {
-	authUser := AuthUserFrom(c)
-	pm, err := cc.customerService.GetPaymentMethod(c.Context(), authUser.OrgId, c.PathParam("id"))
-	if err != nil {
-		return PaymentMethodResponse{}, NewApiErrorFromError(err)
-	}
-	return NewPaymentMethodResponse(pm), nil
-}
-
 func (cc *CustomerHandler) Get(c fuego.ContextNoBody) (CustomerResponse, error) {
 	authUser := AuthUserFrom(c)
 	customer, err := cc.customerService.Get(c.Context(), authUser.OrgId, c.PathParam("id"))

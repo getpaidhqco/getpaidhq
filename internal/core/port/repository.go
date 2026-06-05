@@ -123,6 +123,8 @@ type PaymentRepository interface {
 	FindByPspId(ctx context.Context, orgId string, id string) (domain.Payment, error)
 	ListByPspId(ctx context.Context, psp domain.Gateway, pspId string) ([]domain.Payment, error)
 	FindBySubscriptionId(ctx context.Context, orgId string, id string, p domain.Pagination) ([]domain.Payment, int, error)
+	// List returns the org's payments, newest first, paginated.
+	List(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Payment, int, error)
 	Create(ctx context.Context, entity domain.Payment) (domain.Payment, error)
 	Update(ctx context.Context, entity domain.Payment) (domain.Payment, error)
 	CreateRefund(ctx context.Context, refund domain.Refund) (domain.Refund, error)
@@ -137,6 +139,8 @@ type InvoiceRepository interface {
 	// (subscription, cycle) pair, or port.ErrNotFound — the build idempotency guard.
 	FindBySubscriptionCycle(ctx context.Context, orgId, subscriptionId string, cycle int) (domain.Invoice, error)
 	FindBySubscriptionId(ctx context.Context, orgId, subscriptionId string, p domain.Pagination) ([]domain.Invoice, int, error)
+	// List returns the org's invoices, newest first, paginated.
+	List(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Invoice, int, error)
 	Update(ctx context.Context, entity domain.Invoice) (domain.Invoice, error)
 }
 
@@ -185,6 +189,10 @@ type SettingRepository interface {
 	Create(ctx context.Context, entity domain.Setting) (domain.Setting, error)
 	// Upsert creates or replaces a setting by its (OrgId, ParentId, Id) key.
 	Upsert(ctx context.Context, entity domain.Setting) (domain.Setting, error)
+	// List returns the org's settings; when parentId is non-empty it filters to that parent.
+	List(ctx context.Context, orgId string, parentId string, p domain.Pagination) ([]domain.Setting, int, error)
+	// Delete removes a setting by its (OrgId, ParentId, Id) key.
+	Delete(ctx context.Context, orgId string, parentId string, id string) error
 }
 
 // ApiKeyRepository manages API key persistence.

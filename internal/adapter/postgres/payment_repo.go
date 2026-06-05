@@ -17,6 +17,23 @@ func NewPaymentRepo(db *gorm.DB) port.PaymentRepository {
 	return &PaymentRepo{db: db}
 }
 
+func (r *PaymentRepo) List(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Payment, int, error) {
+	var rows []paymentRow
+	var count int64
+	if err := dbFromCtx(ctx, r.db).Model(&paymentRow{}).
+		Scopes(OrgScope(orgId)).
+		Count(&count).Error; err != nil {
+		return nil, 0, err
+	}
+	if err := dbFromCtx(ctx, r.db).
+		Scopes(OrgScope(orgId), Paginate(p)).
+		Order("created_at DESC").
+		Find(&rows).Error; err != nil {
+		return nil, 0, err
+	}
+	return paymentRowsToDomain(rows), int(count), nil
+}
+
 func (r *PaymentRepo) FindById(ctx context.Context, orgId string, id string) (domain.Payment, error) {
 	var row paymentRow
 	err := dbFromCtx(ctx, r.db).

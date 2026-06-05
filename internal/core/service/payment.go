@@ -24,6 +24,21 @@ func NewPaymentService(paymentRepository port.PaymentRepository, logger port.Log
 	}
 }
 
+// GetById returns one payment.
+func (s *PaymentService) GetById(ctx context.Context, orgId, id string) (domain.Payment, error) {
+	return s.paymentRepository.FindById(ctx, orgId, id)
+}
+
+// List returns the org's payments, newest first.
+func (s *PaymentService) List(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Payment, int, error) {
+	return s.paymentRepository.List(ctx, orgId, p)
+}
+
+// ListBySubscription returns a subscription's payments.
+func (s *PaymentService) ListBySubscription(ctx context.Context, orgId, subscriptionId string, p domain.Pagination) ([]domain.Payment, int, error) {
+	return s.paymentRepository.FindBySubscriptionId(ctx, orgId, subscriptionId, p)
+}
+
 // ProcessRefund flips the matching payment to refunded and records a refund row.
 func (s *PaymentService) ProcessRefund(ctx context.Context, paymentContext domain.PaymentWebhookContext) (domain.Payment, error) {
 	s.logger.Info("ProcessRefund", "orgId", paymentContext.OrgId, "orderId", paymentContext.OrderId)

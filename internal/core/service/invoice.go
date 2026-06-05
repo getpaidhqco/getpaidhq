@@ -107,6 +107,21 @@ func (s *InvoiceService) BuildForBillingPeriod(ctx context.Context, sub domain.S
 	return created, nil
 }
 
+// GetById returns one invoice (with line items).
+func (s *InvoiceService) GetById(ctx context.Context, orgId, id string) (domain.Invoice, error) {
+	return s.invoiceRepository.FindById(ctx, orgId, id)
+}
+
+// List returns the org's invoices, newest first.
+func (s *InvoiceService) List(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Invoice, int, error) {
+	return s.invoiceRepository.List(ctx, orgId, p)
+}
+
+// ListBySubscription returns a subscription's invoices.
+func (s *InvoiceService) ListBySubscription(ctx context.Context, orgId, subscriptionId string, p domain.Pagination) ([]domain.Invoice, int, error) {
+	return s.invoiceRepository.FindBySubscriptionId(ctx, orgId, subscriptionId, p)
+}
+
 // MarkSettled flips an invoice to paid after a succeeded Payment.
 func (s *InvoiceService) MarkSettled(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
 	return s.setStatus(ctx, orgId, invoiceId, domain.InvoiceStatusPaid)
