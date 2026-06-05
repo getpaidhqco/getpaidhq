@@ -6,7 +6,7 @@
 //
 // Parity model: Postgres dedups resends at WRITE time (partial unique index on
 // (org_id, external_id) + ON CONFLICT DO NOTHING). ClickHouse keeps every insert and
-// dedups at READ time via dedup_key = coalesce(nullif(external_id,''), id):
+// dedups at READ time via dedup_key = coalesce(nullif(external_id,”), id):
 // dedup-immune aggregations (count→uniqExact, unique_count→uniqExact, max, latest→
 // argMax) read straight through; sum first collapses to one value per dedup_key with
 // argMax(value, ingested_at) before summing.
