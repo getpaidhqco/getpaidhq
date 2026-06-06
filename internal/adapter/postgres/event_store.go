@@ -32,7 +32,7 @@ func NewEventStore(db *gorm.DB) port.EventStore {
 // schemas/app/raw/0001_meter_events_dedup_index.sql for deploy pipelines.
 func EnsureUsageSchema(db *gorm.DB) error {
 	const stmt = `CREATE UNIQUE INDEX IF NOT EXISTS meter_events_external_id_uq ` +
-		`ON meter_events (org_id, external_id) WHERE external_id <> ''`
+		`ON meter_events (org_id, external_id) WHERE external_id IS NOT NULL`
 	return db.Exec(stmt).Error
 }
 
@@ -97,7 +97,8 @@ func (s *EventStore) scope(ctx context.Context, q port.UsageQuery) *gorm.DB {
 	}
 	if q.SubscriptionId != "" {
 		if q.IncludeUnattributed {
-			tx = tx.Where("(subscription_id = ? OR subscription_id = '')", q.SubscriptionId)
+			// Unattributed events have a NULL subscription_id (absent → NULL).
+			tx = tx.Where("(subscription_id = ? OR subscription_id IS NULL)", q.SubscriptionId)
 		} else {
 			tx = tx.Where("subscription_id = ?", q.SubscriptionId)
 		}

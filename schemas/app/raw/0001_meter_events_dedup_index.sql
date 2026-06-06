@@ -10,8 +10,9 @@
 -- review. Apply against whichever database holds meter_events (the operational DB by
 -- default, or USAGE_DATABASE_URL when the usage store is split out).
 --
--- external_id defaults to '' (events without a client id are never deduped — each is a
--- distinct event), so the index only covers rows that actually carry one.
+-- Optional ids are stored as NULL when absent (never ''), so events without a client
+-- id are never deduped (each is a distinct event) — the partial index only covers
+-- rows that actually carry an external_id.
 CREATE UNIQUE INDEX IF NOT EXISTS meter_events_external_id_uq
     ON meter_events (org_id, external_id)
-    WHERE external_id <> '';
+    WHERE external_id IS NOT NULL;
