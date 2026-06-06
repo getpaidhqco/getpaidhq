@@ -301,7 +301,6 @@ model Price {
 enum PriceCategory {
   one_time
   subscription
-  metered
   free
   variable
 }

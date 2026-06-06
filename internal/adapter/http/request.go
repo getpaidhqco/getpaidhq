@@ -266,7 +266,7 @@ type CreateProductVariantRequest struct {
 
 type CreateProductPriceRequest struct {
 	Label              string                 `json:"label" validate:"omitempty,min=1,max=255"`
-	Category           domain.PriceCategory   `json:"category" validate:"required,oneof=one_time subscription free variable metered"`
+	Category           domain.PriceCategory   `json:"category" validate:"required,oneof=one_time subscription free variable"`
 	Scheme             domain.PriceScheme     `json:"scheme" validate:"required,oneof=fixed tiered volume graduated"`
 	Cycles             int                    `json:"cycles" validate:"omitempty,gt=0"`
 	Currency           string                 `json:"currency" validate:"required,iso4217"`
@@ -285,7 +285,7 @@ type CreateProductPriceRequest struct {
 
 type CreatePriceRequest struct {
 	VariantId          string                 `json:"variant_id" validate:"required"`
-	Category           domain.PriceCategory   `json:"category" validate:"required,oneof=one_time subscription free variable metered"`
+	Category           domain.PriceCategory   `json:"category" validate:"required,oneof=one_time subscription free variable"`
 	Scheme             domain.PriceScheme     `json:"scheme" validate:"required,oneof=fixed tiered volume graduated"`
 	Cycles             int                    `json:"cycles" validate:"omitempty,gt=0"`
 	Label              string                 `json:"label"`

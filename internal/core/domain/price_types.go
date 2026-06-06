@@ -18,9 +18,10 @@ type PriceCategory string
 const (
 	OneTime                   PriceCategory = "one_time"
 	PriceCategorySubscription PriceCategory = "subscription"
-	PriceCategoryMetered      PriceCategory = "metered"
 	Free                      PriceCategory = "free"
 	Variable                  PriceCategory = "variable"
+	// Note: there is no "metered" category. Metering is a pricing method, orthogonal
+	// to cadence — a metered price is a subscription with a meter (see Price.IsMetered).
 )
 
 type PriceScheme string

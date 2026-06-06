@@ -22,9 +22,14 @@ type Price struct {
 	TrialInterval      BillingInterval
 	TrialIntervalQty   int
 	TaxCode            string
-	BillableMetricId   string      // set when Category == metered: the meter usage is measured against
+	BillableMetricId   string      // set when the price is metered: the meter usage is measured against
 	Tiers              []PriceTier // rate bands for Graduated / Volume schemes
 	Metadata           map[string]string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
 }
+
+// IsMetered reports whether the price is usage-based — i.e. it has a meter attached.
+// Metering is a pricing method, orthogonal to the price Category (cadence): a metered
+// price is typically a recurring subscription billed by usage.
+func (p Price) IsMetered() bool { return p.BillableMetricId != "" }

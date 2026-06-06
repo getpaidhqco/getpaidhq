@@ -80,7 +80,7 @@ func (s *InvoiceService) BuildForBillingPeriod(ctx context.Context, sub domain.S
 	// shared meter from being billed by every plan subscription in the order.
 	primaryItemId := ""
 	for _, r := range resolved {
-		if r.price.Category == domain.PriceCategorySubscription {
+		if r.price.Category == domain.PriceCategorySubscription && !r.price.IsMetered() {
 			if primaryItemId == "" || r.item.Id < primaryItemId {
 				primaryItemId = r.item.Id
 			}
@@ -93,7 +93,7 @@ func (s *InvoiceService) BuildForBillingPeriod(ctx context.Context, sub domain.S
 	for _, r := range resolved {
 		isOwn := r.item.Id == sub.OrderItemId
 		switch {
-		case r.price.Category == domain.PriceCategoryMetered:
+		case r.price.IsMetered():
 			// Metered usage is billed once — by the order's primary subscription, or
 			// when it's this subscription's own item. Billed during a trial too (ADR 0003).
 			if isOwn || isPrimary {

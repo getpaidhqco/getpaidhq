@@ -84,23 +84,20 @@ func TestMeterService_Create(t *testing.T) {
 func TestValidatePriceConfig(t *testing.T) {
 	tier := []domain.PriceTier{{}}
 	tests := []struct {
-		name     string
-		category domain.PriceCategory
-		scheme   domain.PriceScheme
-		metricId string
-		tiers    []domain.PriceTier
-		wantErr  bool
+		name    string
+		scheme  domain.PriceScheme
+		tiers   []domain.PriceTier
+		wantErr bool
 	}{
-		{name: "fixed subscription ok", category: domain.PriceCategorySubscription, scheme: domain.Fixed},
-		{name: "metered needs metric", category: domain.PriceCategoryMetered, scheme: domain.Fixed, wantErr: true},
-		{name: "metered with metric ok", category: domain.PriceCategoryMetered, scheme: domain.Fixed, metricId: "met_1"},
-		{name: "graduated needs tiers", category: domain.PriceCategorySubscription, scheme: domain.Graduated, wantErr: true},
-		{name: "graduated with tiers ok", category: domain.PriceCategorySubscription, scheme: domain.Graduated, tiers: tier},
-		{name: "volume needs tiers", category: domain.PriceCategorySubscription, scheme: domain.Volume, wantErr: true},
+		{name: "fixed needs no tiers", scheme: domain.Fixed},
+		{name: "graduated needs tiers", scheme: domain.Graduated, wantErr: true},
+		{name: "graduated with tiers ok", scheme: domain.Graduated, tiers: tier},
+		{name: "volume needs tiers", scheme: domain.Volume, wantErr: true},
+		{name: "tiered with tiers ok", scheme: domain.Tiered, tiers: tier},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validatePriceConfig(tt.category, tt.scheme, tt.metricId, tt.tiers)
+			err := validatePriceConfig(tt.scheme, tt.tiers)
 			if tt.wantErr && err == nil {
 				t.Fatalf("expected error, got nil")
 			}

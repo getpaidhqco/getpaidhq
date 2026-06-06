@@ -25,8 +25,8 @@ func (r *mapPriceRepo) FindById(_ context.Context, _, id string) (domain.Price, 
 func TestInvoiceService_BuildForBillingPeriod_Multiline(t *testing.T) {
 	// One order = flat plan ($50) + input tokens (3c/unit) + output tokens (15c/unit).
 	plan := domain.Price{OrgId: "org_1", Id: "price_plan", Category: domain.PriceCategorySubscription, Scheme: domain.Fixed, UnitPrice: 5000}
-	inPrice := domain.Price{OrgId: "org_1", Id: "price_in", Category: domain.PriceCategoryMetered, Scheme: domain.Fixed, UnitPrice: 3, BillableMetricId: "met_in"}
-	outPrice := domain.Price{OrgId: "org_1", Id: "price_out", Category: domain.PriceCategoryMetered, Scheme: domain.Fixed, UnitPrice: 15, BillableMetricId: "met_out"}
+	inPrice := domain.Price{OrgId: "org_1", Id: "price_in", Category: domain.PriceCategorySubscription, Scheme: domain.Fixed, UnitPrice: 3, BillableMetricId: "met_in"}
+	outPrice := domain.Price{OrgId: "org_1", Id: "price_out", Category: domain.PriceCategorySubscription, Scheme: domain.Fixed, UnitPrice: 15, BillableMetricId: "met_out"}
 
 	orderRepo := &fakeOrderRepo{items: []domain.OrderItem{
 		{OrgId: "org_1", Id: "oi_plan", OrderId: "ord_1", PriceId: "price_plan", Quantity: 1},
@@ -113,7 +113,7 @@ func TestInvoiceService_BuildForBillingPeriod_NonTrialBaseLine(t *testing.T) {
 
 func TestInvoiceService_BuildForBillingPeriod_Metered(t *testing.T) {
 	// Metered Fixed price @ 10 cents/unit, count meter measuring 3 events → 30 cents.
-	price := domain.Price{OrgId: "org_1", Id: "price_1", Category: domain.PriceCategoryMetered, Scheme: domain.Fixed, UnitPrice: 10, BillableMetricId: "met_1"}
+	price := domain.Price{OrgId: "org_1", Id: "price_1", Category: domain.PriceCategorySubscription, Scheme: domain.Fixed, UnitPrice: 10, BillableMetricId: "met_1"}
 
 	meters := &usageMeterRepo{byId: map[string]domain.BillableMetric{"met_1": countMeter()}}
 	customers := &usageCustomerRepo{byId: map[string]domain.Customer{"cus_1": {OrgId: "org_1", Id: "cus_1"}}}

@@ -197,7 +197,27 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		return domain.CreateOrderResponse{}, err
 	}
 
-	// Go through the list of items in the cart and create the order items for each item
+	// Create a subscription for the order. A subscription is a recurring agreement;
+	// its pricing method (fixed or metered) is orthogonal to its cadence — a metered
+	// price is a recurring subscription billed by usage, not a rider on a fixed plan.
+	//
+	// Each fixed (subscription-category) item creates its own subscription, which bills
+	// its flat fee plus the order's metered usage (multiline). If the order has NO fixed
+	// plan, the metered usage stands on its own: one subscription anchored on the first
+	// metered item bills the order's usage each cycle.
+	startSubscription := func(orderItem domain.OrderItem, price domain.Price) error {
+		subscription := domain.NewSubscriptionFromOrderItem(orderItem, price)
+		subscription.CustomerId = customerEntity.Id
+		subscription.PspId = input.PspId
+		subscription.PaymentMethodId = input.PaymentMethodId
+		if _, err := s.subscriptionRepository.Create(ctx, subscription); err != nil {
+			return err
+		}
+		_ = s.pubsub.Publish(orgId, port.TopicSubscriptionCreated, subscription)
+		return nil
+	}
+
+	var lines []orderLine
 	for _, item := range orderCart.Data.Items {
 		orderItem, err := s.orderRepository.CreateOrderItem(ctx, domain.OrderItem{
 			OrgId:         orgId,
@@ -226,18 +246,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 			s.logger.Error("Failed to find price for order item", "price_id", item.Price.Id, "err", err.Error())
 			return domain.CreateOrderResponse{}, err
 		}
-		if price.Category == domain.PriceCategorySubscription {
-			subscription := domain.NewSubscriptionFromOrderItem(orderItem, price)
-			subscription.CustomerId = customerEntity.Id
-			subscription.PspId = input.PspId
-			subscription.PaymentMethodId = input.PaymentMethodId
+		lines = append(lines, orderLine{item: orderItem, price: price})
+	}
 
-			_, err := s.subscriptionRepository.Create(ctx, subscription)
-			if err != nil {
-				s.logger.Error("Failed to create subscription", "item", item, err.Error())
-				return domain.CreateOrderResponse{}, err
-			}
-			_ = s.pubsub.Publish(orgId, port.TopicSubscriptionCreated, subscription)
+	for _, anchor := range subscriptionAnchors(lines) {
+		if err := startSubscription(anchor.item, anchor.price); err != nil {
+			s.logger.Error("Failed to create subscription", "order_item", anchor.item.Id, "err", err.Error())
+			return domain.CreateOrderResponse{}, err
 		}
 	}
 
@@ -560,4 +575,36 @@ func (s *OrderService) ListDetails(ctx context.Context, orgId string, pagination
 		out[i] = OrderDetails{Order: o, Customer: customerById[o.CustomerId], Items: itemDetails}
 	}
 	return out, total, nil
+}
+
+// orderLine pairs a persisted order item with its resolved price.
+type orderLine struct {
+	item  domain.OrderItem
+	price domain.Price
+}
+
+// subscriptionAnchors decides which order items start a subscription. A subscription
+// is a recurring agreement; its pricing method (fixed or metered) is orthogonal to
+// cadence. Every fixed (subscription-category) item anchors its own subscription —
+// which bills its flat fee plus the order's metered usage. If the order has no fixed
+// plan, the first metered item anchors one subscription so pure-usage orders still
+// bill each cycle. One-time / free / variable items never start a subscription.
+func subscriptionAnchors(lines []orderLine) []orderLine {
+	var anchors []orderLine
+	firstMetered := -1
+	for i, l := range lines {
+		if l.price.IsMetered() {
+			if firstMetered == -1 {
+				firstMetered = i
+			}
+			continue // metered usage rides the order's fixed plan, if any
+		}
+		if l.price.Category == domain.PriceCategorySubscription {
+			anchors = append(anchors, l)
+		}
+	}
+	if len(anchors) == 0 && firstMetered >= 0 {
+		anchors = append(anchors, lines[firstMetered])
+	}
+	return anchors
 }

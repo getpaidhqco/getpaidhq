@@ -226,7 +226,7 @@ func TestUsageService_UsageForSubscription_Attribution(t *testing.T) {
 	customers := &usageCustomerRepo{byId: map[string]domain.Customer{
 		"cus_1": {OrgId: "org_1", Id: "cus_1", ExternalId: "ext-1"},
 	}}
-	price := domain.Price{OrgId: "org_1", Id: "price_1", Category: domain.PriceCategoryMetered, BillableMetricId: "met_1"}
+	price := domain.Price{OrgId: "org_1", Id: "price_1", Category: domain.PriceCategorySubscription, BillableMetricId: "met_1"}
 	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	to := from.AddDate(0, 1, 0)
 

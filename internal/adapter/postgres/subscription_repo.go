@@ -89,7 +89,7 @@ func (r *SubscriptionRepo) FindActiveMeteredForMeter(ctx context.Context, orgId,
 		Joins("JOIN order_items oi ON oi.org_id = subscriptions.org_id AND oi.order_id = subscriptions.order_id").
 		Joins("JOIN prices p ON p.org_id = oi.org_id AND p.id = oi.price_id").
 		Where("subscriptions.org_id = ? AND subscriptions.customer_id = ?", orgId, customerId).
-		Where("p.category = ? AND p.billable_metric_id = ?", domain.PriceCategoryMetered, billableMetricId).
+		Where("p.billable_metric_id = ?", billableMetricId).
 		Where("subscriptions.status IN ?", []string{
 			string(domain.SubscriptionStatusActive),
 			string(domain.SubscriptionStatusTrial),
