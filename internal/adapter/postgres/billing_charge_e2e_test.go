@@ -87,7 +87,8 @@ func buildSubscriptionService(t *testing.T, db *gorm.DB) *service.SubscriptionSe
 
 	// Invoice-centric billing (Spec A): the charge amount comes from a per-cycle
 	// invoice. Mirror app.go's narrow-service wiring.
-	usageService := service.NewUsageService(NewMeterRepo(db), NewCustomerRepo(db), NewSubscriptionRepo(db), NewEventStore(db), pubsub, logger)
+	usageEventStore := NewEventStore(db)
+	usageService := service.NewUsageService(NewMeterRepo(db), NewCustomerRepo(db), NewSubscriptionRepo(db), usageEventStore, usageEventStore, pubsub, logger)
 	invoiceService := service.NewInvoiceService(NewInvoiceRepo(db), NewOrderRepo(db), NewPriceRepo(db), usageService, NewTxManager(db), logger)
 
 	svc, err := service.NewSubscriptionService(

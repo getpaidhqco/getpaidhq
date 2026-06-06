@@ -69,8 +69,8 @@ func NewEventStoreWithConn(conn driver.Conn) *EventStore {
 var _ port.EventStore = (*EventStore)(nil)
 
 // Ingest inserts one event. Dedup is deferred to read time, so a resend is simply
-// inserted again (and collapsed by dedup_key on read); IngestResult.Duplicate is
-// always false here. async_insert lets the server batch single-event calls.
+// inserted again (and collapsed by dedup_key on read) — the status is always
+// "recorded" here. async_insert lets the server batch single-event calls.
 func (s *EventStore) Ingest(ctx context.Context, e domain.MeterEvent) (port.IngestResult, error) {
 	meta := e.Metadata
 	if meta == nil {
@@ -91,7 +91,40 @@ func (s *EventStore) Ingest(ctx context.Context, e domain.MeterEvent) (port.Inge
 	if err != nil {
 		return port.IngestResult{}, err
 	}
-	return port.IngestResult{Id: e.Id}, nil
+	return port.IngestResult{Id: e.Id, Status: port.IngestRecorded}, nil
+}
+
+// IngestBatch inserts events with one native ClickHouse batch (the efficient path).
+// Read-time dedup_key handles resends, so all are reported recorded.
+func (s *EventStore) IngestBatch(ctx context.Context, events []domain.MeterEvent) ([]port.IngestResult, error) {
+	results := make([]port.IngestResult, len(events))
+	if len(events) == 0 {
+		return results, nil
+	}
+	batch, err := s.conn.PrepareBatch(ctx, `
+		INSERT INTO meter_events
+			(org_id, customer_id, external_customer_id, metric_code, subscription_id,
+			 external_id, timestamp, value, metadata, id)`)
+	if err != nil {
+		return nil, err
+	}
+	for _, e := range events {
+		meta := e.Metadata
+		if meta == nil {
+			meta = map[string]string{}
+		}
+		if err := batch.Append(e.OrgId, e.CustomerId, e.ExternalCustomerId, e.MetricCode,
+			e.SubscriptionId, e.ExternalId, e.Timestamp, e.Value, meta, e.Id); err != nil {
+			return nil, err
+		}
+	}
+	if err := batch.Send(); err != nil {
+		return nil, err
+	}
+	for i, e := range events {
+		results[i] = port.IngestResult{Id: e.Id, Status: port.IngestRecorded}
+	}
+	return results, nil
 }
 
 // where builds the shared filter: org + metric + half-open [from,to) window + match

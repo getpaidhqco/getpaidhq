@@ -18,7 +18,8 @@ type UsageService struct {
 	meterRepository        port.MeterRepository
 	customerRepository     port.CustomerRepository
 	subscriptionRepository port.SubscriptionRepository
-	eventStore             port.EventStore
+	ingestor               port.EventIngestor // durable write path (sync = the EventStore; or JetStream)
+	eventStore             port.EventStore    // reads / aggregation
 	pubsub                 port.PubSub
 	logger                 port.Logger
 }
@@ -27,6 +28,7 @@ func NewUsageService(
 	meterRepository port.MeterRepository,
 	customerRepository port.CustomerRepository,
 	subscriptionRepository port.SubscriptionRepository,
+	ingestor port.EventIngestor,
 	eventStore port.EventStore,
 	pubsub port.PubSub,
 	logger port.Logger,
@@ -35,6 +37,7 @@ func NewUsageService(
 		meterRepository:        meterRepository,
 		customerRepository:     customerRepository,
 		subscriptionRepository: subscriptionRepository,
+		ingestor:               ingestor,
 		eventStore:             eventStore,
 		pubsub:                 pubsub,
 		logger:                 logger,
@@ -116,7 +119,7 @@ func (s *UsageService) RecordEvent(ctx context.Context, in port.RecordEventInput
 		CreatedAt:          time.Now().UTC(),
 	}
 
-	res, err := s.eventStore.Ingest(ctx, event)
+	res, err := s.ingestor.Ingest(ctx, event)
 	if err != nil {
 		// Single-handling rule: wrap and return; the HTTP boundary logs it.
 		return port.IngestResult{}, fmt.Errorf("ingest usage event: %w", err)

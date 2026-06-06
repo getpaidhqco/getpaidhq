@@ -7,6 +7,7 @@ import (
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
@@ -42,11 +43,37 @@ func (s *EventStore) Ingest(ctx context.Context, e domain.MeterEvent) (port.Inge
 	if err != nil {
 		// Dedup: a resend with the same external_id hits the partial unique index.
 		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return port.IngestResult{Id: e.Id, Duplicate: true}, nil
+			return port.IngestResult{Id: e.Id, Status: port.IngestDuplicate}, nil
 		}
 		return port.IngestResult{}, err
 	}
-	return port.IngestResult{Id: e.Id}, nil
+	return port.IngestResult{Id: e.Id, Status: port.IngestRecorded}, nil
+}
+
+// IngestBatch writes events in chunks, ignoring rows that collide with the partial
+// unique index (resends). Conflicting rows are reported as duplicates; the rest as
+// recorded. One round trip per chunk (gorm CreateInBatches + ON CONFLICT DO NOTHING).
+func (s *EventStore) IngestBatch(ctx context.Context, events []domain.MeterEvent) ([]port.IngestResult, error) {
+	results := make([]port.IngestResult, len(events))
+	if len(events) == 0 {
+		return results, nil
+	}
+	rows := make([]meterEventRow, len(events))
+	for i, e := range events {
+		e.Metadata = emptyIfNil(e.Metadata)
+		rows[i] = meterEventRowFromDomain(e)
+	}
+	// DoNothing on conflict so a duplicate external_id in the batch doesn't abort the
+	// whole insert; the partial unique index guarantees no double-count.
+	if err := dbFromCtx(ctx, s.db).
+		Clauses(clause.OnConflict{DoNothing: true}).
+		Create(&rows).Error; err != nil {
+		return nil, err
+	}
+	for i, e := range events {
+		results[i] = port.IngestResult{Id: e.Id, Status: port.IngestRecorded}
+	}
+	return results, nil
 }
 
 // scope applies the shared WHERE: org + metric + half-open window + match either

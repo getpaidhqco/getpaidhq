@@ -32,6 +32,16 @@ type Env struct {
 	// "compare". Example: clickhouse://user:pass@localhost:9000/getpaidhq_usage
 	ClickhouseDSN string `mapstructure:"CLICKHOUSE_DSN"`
 
+	// UsageIngestMode selects the durable write path for usage events: "sync"
+	// (default — write inline on the request) or "jetstream" (publish durably to
+	// NATS JetStream; a background consumer drains into the event store). jetstream
+	// requires JetStream enabled on the NATS server.
+	UsageIngestMode string `mapstructure:"USAGE_INGEST_MODE"`
+
+	// UsageIngestBatchSize is how many events the jetstream consumer writes per
+	// IngestBatch. Min 1 (1 = effectively single-row). Ignored in sync mode.
+	UsageIngestBatchSize int `mapstructure:"USAGE_INGEST_BATCH_SIZE"`
+
 	JWTSecret      string `mapstructure:"JWT_SECRET"`
 	PaystackSecret string `mapstructure:"PAYSTACK_SECRET"`
 
@@ -112,6 +122,8 @@ func NewEnv() Env {
 	viper.SetDefault("TEMPORAL_TASK_QUEUE", "getpaidhq-events")
 	viper.SetDefault("NATS_URL", "nats://localhost:4222")
 	viper.SetDefault("USAGE_EVENT_STORE", "postgres")
+	viper.SetDefault("USAGE_INGEST_MODE", "sync")
+	viper.SetDefault("USAGE_INGEST_BATCH_SIZE", 100)
 	// Per-IP API rate limiting is ON by default with conservative values.
 	// Override per environment; set RATE_LIMIT_RPS=0 to disable entirely.
 	viper.SetDefault("RATE_LIMIT_RPS", 20)
@@ -144,6 +156,8 @@ func NewEnv() Env {
 	viper.BindEnv("USAGE_EVENT_STORE")
 	viper.BindEnv("USAGE_DATABASE_URL")
 	viper.BindEnv("CLICKHOUSE_DSN")
+	viper.BindEnv("USAGE_INGEST_MODE")
+	viper.BindEnv("USAGE_INGEST_BATCH_SIZE")
 	viper.BindEnv("ALLOWED_ORIGINS")
 	viper.BindEnv("TRUSTED_PROXIES")
 	viper.BindEnv("RATE_LIMIT_RPS")
@@ -169,6 +183,8 @@ func NewEnv() Env {
 		env.UsageEventStore = viper.GetString("USAGE_EVENT_STORE")
 		env.UsageDatabaseURL = viper.GetString("USAGE_DATABASE_URL")
 		env.ClickhouseDSN = viper.GetString("CLICKHOUSE_DSN")
+		env.UsageIngestMode = viper.GetString("USAGE_INGEST_MODE")
+		env.UsageIngestBatchSize = viper.GetInt("USAGE_INGEST_BATCH_SIZE")
 
 		return env
 	}
