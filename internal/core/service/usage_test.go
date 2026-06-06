@@ -71,7 +71,19 @@ type usageEventStore struct {
 
 func (s *usageEventStore) Ingest(_ context.Context, e domain.MeterEvent) (port.IngestResult, error) {
 	s.ingested = append(s.ingested, e)
-	return port.IngestResult{Id: e.Id, Duplicate: s.dup}, nil
+	st := port.IngestRecorded
+	if s.dup {
+		st = port.IngestDuplicate
+	}
+	return port.IngestResult{Id: e.Id, Status: st}, nil
+}
+func (s *usageEventStore) IngestBatch(_ context.Context, events []domain.MeterEvent) ([]port.IngestResult, error) {
+	out := make([]port.IngestResult, len(events))
+	for i, e := range events {
+		s.ingested = append(s.ingested, e)
+		out[i] = port.IngestResult{Id: e.Id, Status: port.IngestRecorded}
+	}
+	return out, nil
 }
 func (s *usageEventStore) Count(_ context.Context, q port.UsageQuery) (int64, error) {
 	s.lastQuery = q
@@ -106,7 +118,50 @@ func sumMeter() domain.BillableMetric {
 }
 
 func newUsageSvc(m *usageMeterRepo, c *usageCustomerRepo, sub *usageSubRepo, es *usageEventStore) *UsageService {
-	return NewUsageService(m, c, sub, es, &recordingPubSub{}, silentLogger{})
+	// sync mode: the event store is also the ingestor.
+	return NewUsageService(m, c, sub, es, es, &recordingPubSub{}, silentLogger{})
+}
+
+// fakeIngestor records writes and returns a fixed result (e.g. async "accepted").
+type fakeIngestor struct {
+	result port.IngestResult
+	calls  int
+}
+
+func (f *fakeIngestor) Ingest(_ context.Context, _ domain.MeterEvent) (port.IngestResult, error) {
+	f.calls++
+	return f.result, nil
+}
+
+func TestUsageService_RecordEvent_WritesViaIngestor(t *testing.T) {
+	meters := &usageMeterRepo{byCode: map[string]domain.BillableMetric{"api_calls": countMeter()}}
+	customers := &usageCustomerRepo{byId: map[string]domain.Customer{"cus_1": {OrgId: "org_1", Id: "cus_1"}}}
+	es := &usageEventStore{} // separate read store — must NOT receive the write
+	ing := &fakeIngestor{result: port.IngestResult{Id: "mev_x", Status: port.IngestAccepted}}
+	svc := NewUsageService(meters, customers, &usageSubRepo{}, ing, es, &recordingPubSub{}, silentLogger{})
+
+	res, err := svc.RecordEvent(context.Background(), port.RecordEventInput{OrgId: "org_1", MetricCode: "api_calls", CustomerId: "cus_1"})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if res.Status != port.IngestAccepted {
+		t.Errorf("status = %q, want accepted (propagated from ingestor)", res.Status)
+	}
+	if ing.calls != 1 {
+		t.Errorf("ingestor called %d times, want 1", ing.calls)
+	}
+	if len(es.ingested) != 0 {
+		t.Errorf("write must go through the ingestor, not the event store directly")
+	}
+
+	// A validation failure must never reach the ingestor.
+	_, err = svc.RecordEvent(context.Background(), port.RecordEventInput{OrgId: "org_1", MetricCode: "unknown", CustomerId: "cus_1"})
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if ing.calls != 1 {
+		t.Errorf("validation failure reached the ingestor (calls=%d)", ing.calls)
+	}
 }
 
 func TestUsageService_RecordEvent(t *testing.T) {

@@ -17,10 +17,27 @@ type MeterRepository interface {
 	Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.BillableMetric, int, error)
 }
 
+// IngestStatus is the outcome of accepting/writing one usage event.
+type IngestStatus string
+
+const (
+	IngestRecorded  IngestStatus = "recorded"  // written, new
+	IngestDuplicate IngestStatus = "duplicate" // resend with a seen external_id, ignored at write
+	IngestAccepted  IngestStatus = "accepted"  // durably queued; the write happens asynchronously
+)
+
 // IngestResult reports the outcome of ingesting one usage event.
 type IngestResult struct {
-	Id        string
-	Duplicate bool // true if a resend with the same external_id was ignored
+	Id     string
+	Status IngestStatus
+}
+
+// EventIngestor accepts a fully-validated usage event for durable storage. The
+// synchronous adapter is the EventStore itself (direct write); the JetStream adapter
+// publishes durably and a background consumer drains into the EventStore. Validation
+// has already happened in the service — an ingestor MUST NOT re-validate.
+type EventIngestor interface {
+	Ingest(ctx context.Context, e domain.MeterEvent) (IngestResult, error)
 }
 
 // UsageQuery scopes an aggregation. A row matches if customer_id = CustomerId OR
@@ -46,6 +63,9 @@ type UsageQuery struct {
 // today; ClickHouse later) in a separate usage datastore.
 type EventStore interface {
 	Ingest(ctx context.Context, e domain.MeterEvent) (IngestResult, error)
+	// IngestBatch writes many events in one round trip; results align by index with
+	// events. Used by the async consumer for throughput.
+	IngestBatch(ctx context.Context, events []domain.MeterEvent) ([]IngestResult, error)
 	Count(ctx context.Context, q UsageQuery) (int64, error)
 	UniqueCount(ctx context.Context, q UsageQuery) (int64, error)
 	Sum(ctx context.Context, q UsageQuery) (decimal.Decimal, error)

@@ -33,7 +33,18 @@ func (m *memStore) Ingest(_ context.Context, e domain.MeterEvent) (port.IngestRe
 	m.mu.Lock()
 	defer m.mu.Unlock()
 	m.events = append(m.events, e)
-	return port.IngestResult{Id: e.Id}, nil
+	return port.IngestResult{Id: e.Id, Status: port.IngestRecorded}, nil
+}
+
+func (m *memStore) IngestBatch(_ context.Context, events []domain.MeterEvent) ([]port.IngestResult, error) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	out := make([]port.IngestResult, len(events))
+	for i, e := range events {
+		m.events = append(m.events, e)
+		out[i] = port.IngestResult{Id: e.Id, Status: port.IngestRecorded}
+	}
+	return out, nil
 }
 
 func dedupKeyOf(e domain.MeterEvent) string {

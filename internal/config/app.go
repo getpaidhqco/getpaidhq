@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/go-fuego/fuego"
+	"github.com/nats-io/nats.go/jetstream"
 	"gorm.io/gorm"
 
 	"getpaidhq/internal/adapter/apikey"
@@ -22,6 +23,7 @@ import (
 	"getpaidhq/internal/adapter/hatchet"
 	hatchetsteps "getpaidhq/internal/adapter/hatchet/steps"
 	handler "getpaidhq/internal/adapter/http"
+	gphqjetstream "getpaidhq/internal/adapter/jetstream"
 	"getpaidhq/internal/adapter/memory"
 	"getpaidhq/internal/adapter/nats"
 	"getpaidhq/internal/adapter/paystack"
@@ -95,6 +97,35 @@ func buildEventStore(env lib.Env, db *gorm.DB, logger lib.Logger) (port.EventSto
 		return compare.NewEventStore(pg, ch, logger), nil
 	default:
 		return nil, fmt.Errorf("unsupported USAGE_EVENT_STORE %q (want 'postgres', 'clickhouse', or 'compare')", env.UsageEventStore)
+	}
+}
+
+// buildIngestor selects the durable write path from USAGE_INGEST_MODE:
+//   - "sync" (default): the EventStore itself — a direct write on the request path.
+//   - "jetstream": publish events durably to NATS JetStream; a background consumer
+//     drains into the EventStore. Returns the ingestor and, for jetstream, the
+//     consumer worker as an io.Closer the caller must register (so it stops before
+//     the shared NATS connection drains).
+func buildIngestor(env lib.Env, store port.EventStore, pubsub port.PubSub, logger lib.Logger) (port.EventIngestor, io.Closer, error) {
+	switch env.UsageIngestMode {
+	case "", "sync":
+		return store, nil, nil
+	case "jetstream":
+		np, ok := pubsub.(*nats.NatsPubSub)
+		if !ok || np.Conn() == nil {
+			return nil, nil, fmt.Errorf("USAGE_INGEST_MODE=jetstream requires the NATS pubsub adapter with a live connection")
+		}
+		js, err := jetstream.New(np.Conn())
+		if err != nil {
+			return nil, nil, fmt.Errorf("jetstream context: %w", err)
+		}
+		consumer, err := gphqjetstream.NewConsumer(context.Background(), store, js, env.UsageIngestBatchSize, logger)
+		if err != nil {
+			return nil, nil, fmt.Errorf("start jetstream usage consumer: %w", err)
+		}
+		return gphqjetstream.NewIngestor(js, logger), consumer, nil
+	default:
+		return nil, nil, fmt.Errorf("unsupported USAGE_INGEST_MODE %q (want 'sync' or 'jetstream')", env.UsageIngestMode)
 	}
 }
 
@@ -221,7 +252,11 @@ func NewApp() (*App, error) {
 	// ---------------------------------------------------------------------------
 	// Narrow services (no workflow engine).
 	// ---------------------------------------------------------------------------
-	usageService := service.NewUsageService(meterRepo, customerRepo, subRepo, eventStore, pubsub, logger)
+	ingestor, ingestCloser, err := buildIngestor(env, eventStore, pubsub, logger)
+	if err != nil {
+		return nil, err
+	}
+	usageService := service.NewUsageService(meterRepo, customerRepo, subRepo, ingestor, eventStore, pubsub, logger)
 	meterService := service.NewMeterService(meterRepo, pubsub, logger)
 	invoiceService := service.NewInvoiceService(invoiceRepo, orderRepo, priceRepo, usageService, txManager, logger)
 	subService, err := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, priceRepo, gatewayFactory, invoiceService, pubsub, reporter, logger, txManager)
@@ -349,6 +384,11 @@ func NewApp() (*App, error) {
 	// down on shutdown. The workflow engine (Hatchet/Temporal worker) and cron
 	// scheduler expose Close() via io.Closer; pubsub always does.
 	closers := []io.Closer{pubsub}
+	// The jetstream usage consumer shares the NATS connection; register it AFTER
+	// pubsub so LIFO shutdown stops the consume loop before the connection drains.
+	if ingestCloser != nil {
+		closers = append(closers, ingestCloser)
+	}
 	if c, ok := engine.(io.Closer); ok {
 		closers = append(closers, c)
 	}

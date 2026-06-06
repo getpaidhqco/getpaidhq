@@ -51,7 +51,7 @@ func (s *usageHTTPEventStore) Ingest(_ context.Context, e domain.MeterEvent) (po
 func newUsageHandlerForTest(meterOk, customerKnown bool, es *usageHTTPEventStore) *UsageHandler {
 	meters := &usageHTTPMeterRepo{ok: meterOk, metric: domain.BillableMetric{OrgId: "org_1", Id: "met_1", Code: "api_calls", Aggregation: domain.AggregationCount}}
 	customers := &usageHTTPCustomerRepo{known: customerKnown}
-	svc := service.NewUsageService(meters, customers, nil, es, newPubSub(), silentLogger{})
+	svc := service.NewUsageService(meters, customers, nil, es, es, newPubSub(), silentLogger{})
 	return NewUsageHandler(svc, silentLogger{})
 }
 

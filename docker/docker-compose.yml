@@ -29,12 +29,16 @@ services:
     # 4222 = client port, 8222 = HTTP monitoring (used for the healthcheck).
     container_name: getpaidhq-nats
     image: nats:2.10-alpine
-    command: ["--http_port", "8222"]
+    # -js enables JetStream (durable usage-event ingestion, USAGE_INGEST_MODE=jetstream);
+    # -sd is the JetStream storage dir, persisted on the nats-jetstream volume.
+    command: ["-js", "-sd", "/data/jetstream", "--http_port", "8222"]
     networks:
       - getpaidhq-network
     ports:
       - "127.0.0.1:10422:4222"
       - "127.0.0.1:10822:8222"
+    volumes:
+      - nats-jetstream:/data/jetstream
     healthcheck:
       test: ["CMD-SHELL", "wget -q --spider http://localhost:8222/healthz || exit 1"]
       interval: 5s
@@ -105,3 +109,4 @@ networks:
 volumes:
   getpaidhq-pgdata:
   hatchet-config:
+  nats-jetstream:

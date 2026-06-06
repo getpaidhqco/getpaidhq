@@ -56,6 +56,10 @@ func NewNatsPubSub(url string, logger port.Logger) (port.PubSub, error) {
 	return &NatsPubSub{conn: nc, closed: closed, logger: logger}, nil
 }
 
+// Conn exposes the underlying NATS connection so a JetStream adapter can share it
+// (one connection, one reconnect policy, one drain). Returns nil if unset.
+func (n *NatsPubSub) Conn() *nats.Conn { return n.conn }
+
 func (n *NatsPubSub) Publish(orgId, topic string, message any) error {
 	data, err := json.Marshal(port.PubSubPayload{
 		Id:        lib.GenerateId("evt"),

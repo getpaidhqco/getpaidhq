@@ -76,6 +76,18 @@ func (s *EventStore) Ingest(ctx context.Context, e domain.MeterEvent) (port.Inge
 	return res, nil
 }
 
+// IngestBatch writes to both; the primary's results are authoritative.
+func (s *EventStore) IngestBatch(ctx context.Context, events []domain.MeterEvent) ([]port.IngestResult, error) {
+	res, err := s.primary.IngestBatch(ctx, events)
+	if err != nil {
+		return res, err
+	}
+	if _, serr := s.secondary.IngestBatch(ctx, events); serr != nil {
+		s.logger.Error("compare: secondary batch ingest failed", "count", len(events), "err", serr.Error())
+	}
+	return res, nil
+}
+
 func (s *EventStore) Count(ctx context.Context, q port.UsageQuery) (int64, error) {
 	prim, dur := timeInt(func() (int64, error) { return s.primary.Count(ctx, q) })
 	s.checkInt(q, "count", prim.v, prim.err, dur, func(c context.Context) (int64, error) { return s.secondary.Count(c, q) })

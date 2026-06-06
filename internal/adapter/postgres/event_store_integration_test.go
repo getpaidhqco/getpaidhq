@@ -50,7 +50,7 @@ func TestEventStore_Aggregations(t *testing.T) {
 	// Resend of x1 (same external_id) must be deduped by the partial unique index.
 	res, err := store.Ingest(ctx, mk("e2", "x1", "sub_1", "eu", 10, from.Add(time.Minute)))
 	require.NoError(t, err)
-	assert.True(t, res.Duplicate, "resend with seen external_id must be reported as duplicate")
+	assert.Equal(t, port.IngestDuplicate, res.Status, "resend with seen external_id must be reported as duplicate")
 	// Foreign customer must never leak in.
 	_, err = store.Ingest(ctx, domain.MeterEvent{OrgId: orgId, Id: "e6", CustomerId: "cus_2", MetricCode: "api_calls", ExternalId: "y1", Value: decimal.NewFromInt(999), Metadata: map[string]string{"region": "eu"}, Timestamp: from.Add(time.Hour)})
 	require.NoError(t, err)
