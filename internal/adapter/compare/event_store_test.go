@@ -67,7 +67,10 @@ func (m *memStore) scoped(q port.UsageQuery) []domain.MeterEvent {
 		if e.Timestamp.Before(q.From) || !e.Timestamp.Before(q.To) {
 			continue
 		}
-		if !(e.CustomerId == q.CustomerId || e.ExternalCustomerId == q.ExternalCustomerId) {
+		// Match only on the ids actually provided (empty id must not match defaulted "").
+		matchCust := q.CustomerId != "" && e.CustomerId == q.CustomerId
+		matchExt := q.ExternalCustomerId != "" && e.ExternalCustomerId == q.ExternalCustomerId
+		if !matchCust && !matchExt {
 			continue
 		}
 		if q.SubscriptionId != "" {

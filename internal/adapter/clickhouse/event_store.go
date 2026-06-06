@@ -131,8 +131,21 @@ func (s *EventStore) IngestBatch(ctx context.Context, events []domain.MeterEvent
 // either customer id + optional subscription attribution. Returns the SQL fragment
 // (without the WHERE keyword) and its positional args.
 func where(q port.UsageQuery) (string, []any) {
-	sql := "org_id = ? AND metric_code = ? AND timestamp >= ? AND timestamp < ? AND (customer_id = ? OR external_customer_id = ?)"
-	args := []any{q.OrgId, q.MetricCode, q.From, q.To, q.CustomerId, q.ExternalCustomerId}
+	sql := "org_id = ? AND metric_code = ? AND timestamp >= ? AND timestamp < ?"
+	args := []any{q.OrgId, q.MetricCode, q.From, q.To}
+	// Match either customer id — but only on the ids actually provided, so an empty
+	// id doesn't sweep in other customers' rows (which default to "").
+	switch {
+	case q.CustomerId != "" && q.ExternalCustomerId != "":
+		sql += " AND (customer_id = ? OR external_customer_id = ?)"
+		args = append(args, q.CustomerId, q.ExternalCustomerId)
+	case q.CustomerId != "":
+		sql += " AND customer_id = ?"
+		args = append(args, q.CustomerId)
+	case q.ExternalCustomerId != "":
+		sql += " AND external_customer_id = ?"
+		args = append(args, q.ExternalCustomerId)
+	}
 	if q.SubscriptionId != "" {
 		if q.IncludeUnattributed {
 			sql += " AND (subscription_id = ? OR subscription_id = '')"

@@ -17,7 +17,7 @@ type meterEventRow struct {
 	MetricCode         string            `gorm:"column:metric_code"`
 	SubscriptionId     string            `gorm:"column:subscription_id"`
 	ExternalId         string            `gorm:"column:external_id"`
-	Metadata           map[string]string `gorm:"column:metadata;serializer:json"`
+	Metadata           map[string]string `gorm:"column:metadata;serializer:json;type:jsonb"`
 	Value              decimal.Decimal   `gorm:"column:value;type:numeric"`
 	Timestamp          time.Time         `gorm:"column:timestamp"`
 	CreatedAt          time.Time         `gorm:"column:created_at"`
