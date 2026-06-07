@@ -81,7 +81,7 @@ func NewDunningRunnerWorkflow(client *hatchet.Client, dunningSteps *steps.Dunnin
 						return campaign, err
 					}
 
-					updated, err := dunningSteps.UpdateCampaignWithAttemptResult(ctx, attempt, config, domain.DunningAttemptContext{
+					updated, err := runDunningResult(ctx, client, input.OrgId, input.CampaignId, domain.DunningAttemptTypeImmediate, i+1, attempt, config, domain.DunningAttemptContext{
 						AttemptNumber:            i + 1,
 						WasSubscriptionSuspended: false,
 					})
@@ -121,7 +121,7 @@ func NewDunningRunnerWorkflow(client *hatchet.Client, dunningSteps *steps.Dunnin
 					}
 
 					attemptNumber := i + 1
-					_ = dunningSteps.SendCommunication(ctx, input.OrgId, input.CampaignId, attemptNumber)
+					_ = runDunningCommunication(ctx, client, input.OrgId, input.CampaignId, attemptNumber)
 
 					attempt, err := runDunningAttempt(ctx, client, input.OrgId, input.CampaignId, attemptNumber, domain.DunningAttemptTypeProgressive)
 					if err != nil {
@@ -129,7 +129,7 @@ func NewDunningRunnerWorkflow(client *hatchet.Client, dunningSteps *steps.Dunnin
 					}
 
 					wasSuspended := config.EscalationRules.SuspendAfterAttempt > 0 && attemptNumber >= config.EscalationRules.SuspendAfterAttempt
-					updated, err := dunningSteps.UpdateCampaignWithAttemptResult(ctx, attempt, config, domain.DunningAttemptContext{
+					updated, err := runDunningResult(ctx, client, input.OrgId, input.CampaignId, domain.DunningAttemptTypeProgressive, attemptNumber, attempt, config, domain.DunningAttemptContext{
 						AttemptNumber:            attemptNumber,
 						WasSubscriptionSuspended: wasSuspended,
 					})
@@ -153,6 +153,13 @@ func NewDunningRunnerWorkflow(client *hatchet.Client, dunningSteps *steps.Dunnin
 			}
 			return final, nil
 		},
+		// Long progressive waits (days/weeks) would otherwise pin a durable
+		// worker slot for the whole campaign. Eviction frees the slot during the
+		// wait and replays the runner when the timer/signal fires. The two
+		// post-attempt side-effects (comms + result) run as run-key children so
+		// they stay exactly-once across replay — see runDunningCommunication /
+		// runDunningResult.
+		hatchet.WithEvictionPolicy(hatchet.DefaultDurableTaskEvictionPolicy),
 	)
 }
 
@@ -225,10 +232,11 @@ func runDunningAttempt(ctx hatchet.DurableContext, client *hatchet.Client, orgId
 		CampaignId:    campaignId,
 		AttemptNumber: attemptNumber,
 		AttemptType:   attemptType,
-	}, hatchet.WithRunKey(DunningAttemptRunKey(orgId, campaignId, attemptNumber)),
+	}, hatchet.WithRunKey(DunningAttemptRunKey(orgId, campaignId, attemptType, attemptNumber)),
 		hatchet.WithRunMetadata(map[string]string{
 			"orgId":         orgId,
 			"campaignId":    campaignId,
+			"attemptType":   string(attemptType),
 			"attemptNumber": strconv.Itoa(attemptNumber),
 		}))
 	if err != nil {
@@ -239,6 +247,49 @@ func runDunningAttempt(ctx hatchet.DurableContext, client *hatchet.Client, orgId
 		return domain.DunningAttempt{}, err
 	}
 	return attempt, nil
+}
+
+// runDunningCommunication spawns the dunning-communication child (run-key
+// deduped) so the customer comm fires exactly once across runner eviction/
+// replay. Errors are non-fatal to the campaign — the caller ignores them, same
+// as the previous inline SendCommunication call.
+func runDunningCommunication(ctx hatchet.DurableContext, client *hatchet.Client, orgId, campaignId string, attemptNumber int) error {
+	_, err := client.Run(ctx, "dunning-communication", DunningCommunicationInput{
+		OrgId:         orgId,
+		CampaignId:    campaignId,
+		AttemptNumber: attemptNumber,
+	}, hatchet.WithRunKey(DunningCommunicationRunKey(orgId, campaignId, attemptNumber)),
+		hatchet.WithRunMetadata(map[string]string{
+			"orgId":         orgId,
+			"campaignId":    campaignId,
+			"attemptNumber": strconv.Itoa(attemptNumber),
+		}))
+	return err
+}
+
+// runDunningResult spawns the dunning-result child (run-key deduped) so the
+// escalation policy + its event publishes are applied exactly once across
+// runner eviction/replay.
+func runDunningResult(ctx hatchet.DurableContext, client *hatchet.Client, orgId, campaignId string, attemptType domain.DunningAttemptType, attemptNumber int, attempt domain.DunningAttempt, config domain.DunningConfig, attemptContext domain.DunningAttemptContext) (domain.DunningCampaign, error) {
+	res, err := client.Run(ctx, "dunning-result", DunningResultInput{
+		Attempt:        attempt,
+		Config:         config,
+		AttemptContext: attemptContext,
+	}, hatchet.WithRunKey(DunningResultRunKey(orgId, campaignId, attemptType, attemptNumber)),
+		hatchet.WithRunMetadata(map[string]string{
+			"orgId":         orgId,
+			"campaignId":    campaignId,
+			"attemptType":   string(attemptType),
+			"attemptNumber": strconv.Itoa(attemptNumber),
+		}))
+	if err != nil {
+		return domain.DunningCampaign{}, err
+	}
+	var campaign domain.DunningCampaign
+	if err := res.TaskOutput("apply-result").Into(&campaign); err != nil {
+		return domain.DunningCampaign{}, err
+	}
+	return campaign, nil
 }
 
 func isDunningTerminal(s domain.DunningStatus) bool {

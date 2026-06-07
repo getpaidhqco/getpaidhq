@@ -78,6 +78,8 @@ func NewHatchetEngine(
 	sendReminderWF := hatchetwf.NewSendRenewalReminderWorkflow(c, subscriptionService)
 	dunningAttemptWF := hatchetwf.NewDunningAttemptWorkflow(c, dunningSteps)
 	dunningRunnerWF := hatchetwf.NewDunningRunnerWorkflow(c, dunningSteps)
+	dunningCommunicationWF := hatchetwf.NewDunningCommunicationWorkflow(c, dunningSteps)
+	dunningResultWF := hatchetwf.NewDunningResultWorkflow(c, dunningSteps)
 
 	w, err := c.NewWorker("getpaidhq-events",
 		hatchet.WithWorkflows(
@@ -91,6 +93,8 @@ func NewHatchetEngine(
 			sendReminderWF,
 			dunningAttemptWF,
 			dunningRunnerWF,
+			dunningCommunicationWF,
+			dunningResultWF,
 		),
 		hatchet.WithSlots(50),
 		hatchet.WithDurableSlots(500),
