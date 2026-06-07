@@ -32,11 +32,11 @@ model MeterEvent {
   timestamp DateTime
   createdAt DateTime @default(now()) @map("created_at")
 
-  // Dedup uses a partial unique index Prisma can't express; it is created at boot by
-  // postgres.EnsureUsageSchema (mirror DDL: schemas/app/raw/0001_meter_events_dedup_index.sql):
-  //   CREATE UNIQUE INDEX meter_events_external_id_uq ON meter_events (org_id, external_id) WHERE external_id IS NOT NULL;
-
   @@id([orgId, id])
+  // Write-time dedup: resends share an external_id. external_id is NULL when absent,
+  // and Postgres unique indexes treat NULLs as distinct, so a plain unique works —
+  // absent-id events are never deduped, real external_ids are.
+  @@unique([orgId, externalId])
   @@index([orgId, customerId, metricCode, timestamp])
   @@index([orgId, externalCustomerId, metricCode, timestamp])
   @@map("meter_events")

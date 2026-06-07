@@ -48,21 +48,17 @@ func errUnsupportedEngine(name string) error {
 // usageDB returns the database handle backing the Postgres usage-event store. When
 // USAGE_DATABASE_URL is set it opens a SEPARATE connection so usage events can scale
 // (and be retained/expired) independently of the operational DB; otherwise it reuses
-// the operational handle (the v1 default — events live alongside the rest). Either
-// way it ensures the dedup index exists (postgres.EnsureUsageSchema).
+// the operational handle (the v1 default — events live alongside the rest). The schema
+// (incl. the dedup unique index) is owned by Prisma; nothing is created at runtime.
 func usageDB(env lib.Env, operational *gorm.DB, logger lib.Logger) (*gorm.DB, error) {
-	db := operational
-	if env.UsageDatabaseURL != "" {
-		separate, err := postgres.NewDatabase(env.UsageDatabaseURL, logger)
-		if err != nil {
-			return nil, fmt.Errorf("open usage database: %w", err)
-		}
-		db = separate
+	if env.UsageDatabaseURL == "" {
+		return operational, nil
 	}
-	if err := postgres.EnsureUsageSchema(db); err != nil {
-		return nil, fmt.Errorf("ensure usage schema: %w", err)
+	separate, err := postgres.NewDatabase(env.UsageDatabaseURL, logger)
+	if err != nil {
+		return nil, fmt.Errorf("open usage database: %w", err)
 	}
-	return db, nil
+	return separate, nil
 }
 
 // buildEventStore selects the usage-event backend from USAGE_EVENT_STORE:
