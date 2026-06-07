@@ -32,20 +32,22 @@ func NewEventStore(db *gorm.DB) port.EventStore {
 // schemas/app/raw/0001_meter_events_dedup_index.sql for deploy pipelines.
 func EnsureUsageSchema(db *gorm.DB) error {
 	const stmt = `CREATE UNIQUE INDEX IF NOT EXISTS meter_events_external_id_uq ` +
-		`ON meter_events (org_id, external_id) WHERE external_id <> ''`
+		`ON meter_events (org_id, external_id) WHERE external_id IS NOT NULL`
 	return db.Exec(stmt).Error
 }
 
 func (s *EventStore) Ingest(ctx context.Context, e domain.MeterEvent) (port.IngestResult, error) {
 	e.Metadata = emptyIfNil(e.Metadata)
 	row := meterEventRowFromDomain(e)
-	err := dbFromCtx(ctx, s.db).Create(&row).Error
-	if err != nil {
-		// Dedup: a resend with the same external_id hits the partial unique index.
-		if errors.Is(err, gorm.ErrDuplicatedKey) {
-			return port.IngestResult{Id: e.Id, Status: port.IngestDuplicate}, nil
-		}
-		return port.IngestResult{}, err
+	// DoNothing on conflict: a resend with the same external_id hits the partial
+	// unique index and is reported as a duplicate (RowsAffected == 0). This avoids
+	// depending on gorm error translation, which isn't enabled on the connection.
+	res := dbFromCtx(ctx, s.db).Clauses(clause.OnConflict{DoNothing: true}).Create(&row)
+	if res.Error != nil {
+		return port.IngestResult{}, res.Error
+	}
+	if res.RowsAffected == 0 {
+		return port.IngestResult{Id: e.Id, Status: port.IngestDuplicate}, nil
 	}
 	return port.IngestResult{Id: e.Id, Status: port.IngestRecorded}, nil
 }
@@ -81,11 +83,22 @@ func (s *EventStore) IngestBatch(ctx context.Context, events []domain.MeterEvent
 func (s *EventStore) scope(ctx context.Context, q port.UsageQuery) *gorm.DB {
 	tx := dbFromCtx(ctx, s.db).Model(&meterEventRow{}).
 		Where("org_id = ? AND metric_code = ?", q.OrgId, q.MetricCode).
-		Where("timestamp >= ? AND timestamp < ?", q.From, q.To).
-		Where("(customer_id = ? OR external_customer_id = ?)", q.CustomerId, q.ExternalCustomerId)
+		Where("timestamp >= ? AND timestamp < ?", q.From, q.To)
+	// Match either customer id — but only on the ids actually provided. Matching on an
+	// empty id would sweep in every row whose (defaulted "") column equals it,
+	// including other customers' events.
+	switch {
+	case q.CustomerId != "" && q.ExternalCustomerId != "":
+		tx = tx.Where("(customer_id = ? OR external_customer_id = ?)", q.CustomerId, q.ExternalCustomerId)
+	case q.CustomerId != "":
+		tx = tx.Where("customer_id = ?", q.CustomerId)
+	case q.ExternalCustomerId != "":
+		tx = tx.Where("external_customer_id = ?", q.ExternalCustomerId)
+	}
 	if q.SubscriptionId != "" {
 		if q.IncludeUnattributed {
-			tx = tx.Where("(subscription_id = ? OR subscription_id = '')", q.SubscriptionId)
+			// Unattributed events have a NULL subscription_id (absent → NULL).
+			tx = tx.Where("(subscription_id = ? OR subscription_id IS NULL)", q.SubscriptionId)
 		} else {
 			tx = tx.Where("subscription_id = ?", q.SubscriptionId)
 		}

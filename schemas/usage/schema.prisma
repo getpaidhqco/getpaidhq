@@ -19,13 +19,13 @@ model MeterEvent {
   orgId String @map("org_id")
   id    String @default(cuid())
 
-  // String columns default to "" (not null) so the Go EventStore can match on
-  // customer_id / external_customer_id and dedup on external_id without NULL handling.
-  customerId         String @default("") @map("customer_id")
-  externalCustomerId String @default("") @map("external_customer_id")
-  metricCode         String @map("metric_code")
-  subscriptionId     String @default("") @map("subscription_id")
-  externalId         String @default("") @map("external_id")
+  // Optional ids are NULL when absent (never ""): "no value" stays unambiguous and the
+  // dedup index / customer match key off real values, not an empty-string sentinel.
+  customerId         String? @map("customer_id")
+  externalCustomerId String? @map("external_customer_id")
+  metricCode         String  @map("metric_code")
+  subscriptionId     String? @map("subscription_id")
+  externalId         String? @map("external_id")
 
   metadata  Json?
   value     Decimal  @default(0) @db.Decimal(38, 9)
@@ -34,7 +34,7 @@ model MeterEvent {
 
   // Dedup uses a partial unique index Prisma can't express; it is created at boot by
   // postgres.EnsureUsageSchema (mirror DDL: schemas/app/raw/0001_meter_events_dedup_index.sql):
-  //   CREATE UNIQUE INDEX meter_events_external_id_uq ON meter_events (org_id, external_id) WHERE external_id <> '';
+  //   CREATE UNIQUE INDEX meter_events_external_id_uq ON meter_events (org_id, external_id) WHERE external_id IS NOT NULL;
 
   @@id([orgId, id])
   @@index([orgId, customerId, metricCode, timestamp])

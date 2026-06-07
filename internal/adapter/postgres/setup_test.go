@@ -73,6 +73,8 @@ func allModels() []any {
 		&apiKeyRow{},
 		&billableMetricRow{},
 		&meterEventRow{},
+		&invoiceRow{},
+		&invoiceLineItemRow{},
 	}
 }
 
