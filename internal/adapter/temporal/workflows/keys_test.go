@@ -3,6 +3,8 @@ package workflows
 import (
 	"testing"
 	"time"
+
+	"getpaidhq/internal/core/domain"
 )
 
 // Pin the workflow-id and signal-name formats. The engine starts/signals
@@ -44,7 +46,7 @@ func TestDunningWorkflowID(t *testing.T) {
 }
 
 func TestDunningAttemptWorkflowID(t *testing.T) {
-	if got := DunningAttemptWorkflowID("org_1", "camp_2", 3); got != "dunning_attempt_org_1_camp_2_3" {
+	if got := DunningAttemptWorkflowID("org_1", "camp_2", domain.DunningAttemptTypeProgressive, 3); got != "dunning_attempt_org_1_camp_2_progressive_3" {
 		t.Errorf("DunningAttemptWorkflowID: got %q", got)
 	}
 }

@@ -8,6 +8,7 @@ import (
 
 	hatchetwf "getpaidhq/internal/adapter/hatchet/workflows"
 	temporalwf "getpaidhq/internal/adapter/temporal/workflows"
+	"getpaidhq/internal/core/domain"
 )
 
 // CLAUDE.md elevates engine parity to a load-bearing invariant: the Hatchet
@@ -85,8 +86,8 @@ func TestEngineParity_DunningIdentityMatches(t *testing.T) {
 		temporalwf.DunningWorkflowID("org_1", "dc_1"),
 		"dunning runner ids must match across engines")
 	assert.Equal(t,
-		hatchetwf.DunningAttemptRunKey("org_1", "dc_1", 3),
-		temporalwf.DunningAttemptWorkflowID("org_1", "dc_1", 3),
+		hatchetwf.DunningAttemptRunKey("org_1", "dc_1", domain.DunningAttemptTypeProgressive, 3),
+		temporalwf.DunningAttemptWorkflowID("org_1", "dc_1", domain.DunningAttemptTypeProgressive, 3),
 		"dunning attempt ids must match across engines")
 }
 

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strconv"
 	"time"
+
+	"getpaidhq/internal/core/domain"
 )
 
 // Workflow-ID and signal-name conventions for the Temporal adapter.
@@ -61,9 +63,11 @@ func DunningWorkflowID(orgId, campaignId string) string {
 }
 
 // DunningAttemptWorkflowID de-duplicates per-attempt child spawns within a
-// campaign.
-func DunningAttemptWorkflowID(orgId, campaignId string, attemptNumber int) string {
-	return fmt.Sprintf("dunning_attempt_%s_%s_%s", orgId, campaignId, strconv.Itoa(attemptNumber))
+// campaign. The attempt type is part of the id to mirror the Hatchet run key,
+// where it is load-bearing: the immediate and progressive phases both number
+// their attempts 1..N, and without the type the two phases' attempt #1 collide.
+func DunningAttemptWorkflowID(orgId, campaignId string, attemptType domain.DunningAttemptType, attemptNumber int) string {
+	return fmt.Sprintf("dunning_attempt_%s_%s_%s_%s", orgId, campaignId, string(attemptType), strconv.Itoa(attemptNumber))
 }
 
 // Dunning signal names — sent to the per-campaign runner.
