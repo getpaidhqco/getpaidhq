@@ -267,6 +267,118 @@ func TestProductHandler_DeletePrice(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, rec.Code, "body=%s", rec.Body.String())
 }
 
+// ---------------------------------------------------------------------------
+// Price tiers at the HTTP boundary (graduated/volume/tiered). Closes the gap
+// where no handler test ever passed Tiers to a create/update. The tier parsers
+// themselves (toDomainTiers, decimalOrZero) are unit-tested in request_test.go.
+// ---------------------------------------------------------------------------
+
+func TestProductHandler_CreatePrice_WithTiers(t *testing.T) {
+	// Valid tiers parse and reach the service via CreatePrice.
+	price := &fakePriceRepo{}
+	h := newProductHandlerForTest(t, &fakeProductRepo{}, &fakeVariantRepo{}, price, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/prices", CreatePriceRequest{
+		VariantId: "var_1", Category: "one_time", Scheme: "graduated", Currency: "USD",
+		Tiers: []PriceTierRequest{
+			{FromValue: "0", ToValue: "10", PerUnitAmount: "2.5", FlatAmount: 100},
+			{FromValue: "10", ToValue: "", PerUnitAmount: "1.25"},
+		},
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.Len(t, price.created, 1)
+	tiers := price.created[0].Tiers
+	require.Len(t, tiers, 2)
+
+	assert.Equal(t, "0", tiers[0].FromValue.String())
+	assert.Equal(t, "10", tiers[0].ToValue.String())
+	assert.Equal(t, "2.5", tiers[0].PerUnitAmount.String())
+	assert.Equal(t, int64(100), tiers[0].FlatAmount)
+
+	assert.Equal(t, "10", tiers[1].FromValue.String())
+	assert.True(t, tiers[1].ToValue.IsZero(), "empty to_value must reach the domain as the unbounded tier")
+	assert.Equal(t, "1.25", tiers[1].PerUnitAmount.String())
+}
+
+func TestProductHandler_UpdatePrice_WithTiers(t *testing.T) {
+	// Valid tiers parse via UpdatePrice and are echoed back by the serializer.
+	price := &fakePriceRepo{byId: domain.Price{Id: "price_1"}}
+	h := newProductHandlerForTest(t, &fakeProductRepo{}, &fakeVariantRepo{}, price, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPatch, "/api/prices/price_1", CreatePriceRequest{
+		VariantId: "var_1", Category: "one_time", Scheme: "volume", Currency: "USD",
+		Tiers: []PriceTierRequest{
+			{FromValue: "0", ToValue: "", PerUnitAmount: "3", FlatAmount: 50},
+		},
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	var got PriceResponse
+	decodeJSON(t, rec, &got)
+	require.Len(t, got.Tiers, 1)
+	assert.Equal(t, "0", got.Tiers[0].FromValue)
+	assert.Equal(t, "0", got.Tiers[0].ToValue, "unbounded tier serializes back as \"0\"")
+	assert.Equal(t, "3", got.Tiers[0].PerUnitAmount)
+	assert.Equal(t, int64(50), got.Tiers[0].FlatAmount)
+}
+
+func TestProductHandler_CreateProduct_WithPriceTiers(t *testing.T) {
+	// Valid tiers parse via the nested product create path (Create → variant → price).
+	price := &fakePriceRepo{}
+	h := newProductHandlerForTest(t, &fakeProductRepo{}, &fakeVariantRepo{}, price, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/products", CreateProductRequest{
+		Name: "Metered plan",
+		Variants: []CreateProductVariantRequest{
+			{Name: "Usage", Prices: []CreateProductPriceRequest{
+				{Category: "subscription", Scheme: "tiered", Currency: "USD", Tiers: []PriceTierRequest{
+					{FromValue: "0", ToValue: "1000", PerUnitAmount: "0.001"},
+					{FromValue: "1000", ToValue: "", PerUnitAmount: "0.0005"},
+				}},
+			}},
+		},
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.Len(t, price.created, 1)
+	tiers := price.created[0].Tiers
+	require.Len(t, tiers, 2)
+	assert.Equal(t, "0.001", tiers[0].PerUnitAmount.String(), "sub-cent per-unit rate must survive parsing")
+	assert.Equal(t, "0.0005", tiers[1].PerUnitAmount.String())
+	assert.True(t, tiers[1].ToValue.IsZero())
+}
+
+func TestProductHandler_PriceTiers_MalformedRejectedAtValidation(t *testing.T) {
+	// Boundary contract: a malformed tier decimal is rejected by the `numeric`
+	// validator (HTTP 400) *before* the handler calls toDomainTiers, so the
+	// service is never reached. This is why toDomainTiers' parse-error paths are
+	// covered by unit tests rather than here.
+	price := &fakePriceRepo{}
+	h := newProductHandlerForTest(t, &fakeProductRepo{}, &fakeVariantRepo{}, price, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/prices", CreatePriceRequest{
+		VariantId: "var_1", Category: "one_time", Scheme: "tiered", Currency: "USD",
+		Tiers: []PriceTierRequest{{FromValue: "abc", ToValue: "10", PerUnitAmount: "5"}},
+	})
+
+	assertErrorEnvelope(t, rec, http.StatusBadRequest, "bad_request")
+	assert.Contains(t, rec.Body.String(), "numeric", "rejection should come from the numeric validator")
+	assert.Empty(t, price.created, "no price should be created when a tier value is malformed")
+}
+
 func TestProductHandler_PriceRoutes(t *testing.T) {
 	price := &fakePriceRepo{byId: domain.Price{Id: "price_1", UnitPrice: 1500}}
 	h := newProductHandlerForTest(t, &fakeProductRepo{}, &fakeVariantRepo{}, price, &fakeCartRepo{})
