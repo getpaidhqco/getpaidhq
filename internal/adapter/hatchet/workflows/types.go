@@ -46,3 +46,27 @@ type DunningAttemptInput struct {
 	AttemptNumber int                       `json:"attempt_number"`
 	AttemptType   domain.DunningAttemptType `json:"attempt_type"`
 }
+
+// DunningCommunicationInput is the input for the dunning-communication child
+// run. The runner spawns it (run-key deduped) before each progressive attempt
+// so the customer comm fires exactly once even across eviction/replay.
+type DunningCommunicationInput struct {
+	OrgId         string `json:"org_id"`
+	CampaignId    string `json:"campaign_id"`
+	AttemptNumber int    `json:"attempt_number"`
+}
+
+// DunningCommunicationOutput is the (nominal) output of the dunning-communication child.
+type DunningCommunicationOutput struct {
+	Sent bool `json:"sent"`
+}
+
+// DunningResultInput is the input for the dunning-result child run, which
+// applies the escalation policy for one attempt. Spawned run-key deduped so the
+// status transitions + downstream event publishes fire exactly once across
+// eviction/replay.
+type DunningResultInput struct {
+	Attempt        domain.DunningAttempt        `json:"attempt"`
+	Config         domain.DunningConfig         `json:"config"`
+	AttemptContext domain.DunningAttemptContext `json:"attempt_context"`
+}

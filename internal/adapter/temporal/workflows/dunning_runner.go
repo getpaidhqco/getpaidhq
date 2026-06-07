@@ -255,7 +255,7 @@ func waitForResume(ctx temporal.Context, resumeCh, cancelCh temporal.ReceiveChan
 
 func runDunningAttempt(ctx temporal.Context, orgId, campaignId string, attemptNumber int, attemptType domain.DunningAttemptType) (domain.DunningAttempt, error) {
 	childCtx := temporal.WithChildOptions(ctx, temporal.ChildWorkflowOptions{
-		WorkflowID:            DunningAttemptWorkflowID(orgId, campaignId, attemptNumber),
+		WorkflowID:            DunningAttemptWorkflowID(orgId, campaignId, attemptType, attemptNumber),
 		WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
 	})
 	var attempt domain.DunningAttempt

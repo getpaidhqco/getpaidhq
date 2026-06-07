@@ -126,13 +126,19 @@ func TestDunningRunKey_DifferentCampaignsDiffer(t *testing.T) {
 }
 
 func TestDunningAttemptRunKey_Format(t *testing.T) {
-	assert.Equal(t, "dunning_attempt_org_1_dc_5_3", DunningAttemptRunKey("org_1", "dc_5", 3))
+	assert.Equal(t, "dunning_attempt_org_1_dc_5_progressive_3", DunningAttemptRunKey("org_1", "dc_5", domain.DunningAttemptTypeProgressive, 3))
 }
 
 func TestDunningAttemptRunKey_DifferentAttemptNumbersDiffer(t *testing.T) {
-	a := DunningAttemptRunKey("org_1", "dc_1", 1)
-	b := DunningAttemptRunKey("org_1", "dc_1", 2)
+	a := DunningAttemptRunKey("org_1", "dc_1", domain.DunningAttemptTypeProgressive, 1)
+	b := DunningAttemptRunKey("org_1", "dc_1", domain.DunningAttemptTypeProgressive, 2)
 	assert.NotEqual(t, a, b)
+}
+
+func TestDunningAttemptRunKey_ImmediateAndProgressiveDoNotCollide(t *testing.T) {
+	immediate := DunningAttemptRunKey("org_1", "dc_1", domain.DunningAttemptTypeImmediate, 1)
+	progressive := DunningAttemptRunKey("org_1", "dc_1", domain.DunningAttemptTypeProgressive, 1)
+	assert.NotEqual(t, immediate, progressive)
 }
 
 func TestDunningSignalKey_Format(t *testing.T) {
