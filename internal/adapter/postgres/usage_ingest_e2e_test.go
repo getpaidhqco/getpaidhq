@@ -42,7 +42,6 @@ func embeddedJS(t *testing.T) jetstream.JetStream {
 // actually lands and is billable (the fake-store unit test can't show this).
 func TestUsageIngest_JetStreamToPostgres_E2E(t *testing.T) {
 	db := testDB(t)
-	require.NoError(t, EnsureUsageSchema(db), "dedup index")
 	orgId := uniqueOrg(t)
 	defer cleanupOrg(t, db, orgId)
 

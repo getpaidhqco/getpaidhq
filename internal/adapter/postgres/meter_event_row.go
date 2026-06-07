@@ -10,20 +10,23 @@ import (
 
 // meterEventRow is the postgres on-the-wire shape of a MeterEvent. The optional id
 // columns are nullable pointers: an absent id is stored as NULL, never "". This keeps
-// "no value" unambiguous and lets the dedup index (external_id IS NOT NULL) and the
-// customer match key cleanly off real values instead of an empty-string sentinel.
+// "no value" unambiguous and lets the dedup unique index and the customer match key
+// cleanly off real values instead of an empty-string sentinel.
 type meterEventRow struct {
-	OrgId              string            `gorm:"column:org_id;primaryKey"`
-	Id                 string            `gorm:"column:id;primaryKey"`
-	CustomerId         *string           `gorm:"column:customer_id"`
-	ExternalCustomerId *string           `gorm:"column:external_customer_id"`
-	MetricCode         string            `gorm:"column:metric_code"`
-	SubscriptionId     *string           `gorm:"column:subscription_id"`
-	ExternalId         *string           `gorm:"column:external_id"`
-	Metadata           map[string]string `gorm:"column:metadata;serializer:json;type:jsonb"`
-	Value              decimal.Decimal   `gorm:"column:value;type:numeric"`
-	Timestamp          time.Time         `gorm:"column:timestamp"`
-	CreatedAt          time.Time         `gorm:"column:created_at"`
+	OrgId              string  `gorm:"column:org_id;primaryKey;uniqueIndex:meter_events_org_external_id,priority:1"`
+	Id                 string  `gorm:"column:id;primaryKey"`
+	CustomerId         *string `gorm:"column:customer_id"`
+	ExternalCustomerId *string `gorm:"column:external_customer_id"`
+	MetricCode         string  `gorm:"column:metric_code"`
+	SubscriptionId     *string `gorm:"column:subscription_id"`
+	// external_id is the dedup key; NULL when absent (never ""). The composite unique
+	// index (matches the Prisma @@unique) dedups real ids; NULLs are distinct in
+	// Postgres, so absent-id events are never deduped.
+	ExternalId *string           `gorm:"column:external_id;uniqueIndex:meter_events_org_external_id,priority:2"`
+	Metadata   map[string]string `gorm:"column:metadata;serializer:json;type:jsonb"`
+	Value      decimal.Decimal   `gorm:"column:value;type:numeric"`
+	Timestamp  time.Time         `gorm:"column:timestamp"`
+	CreatedAt  time.Time         `gorm:"column:created_at"`
 }
 
 func (meterEventRow) TableName() string { return "meter_events" }
