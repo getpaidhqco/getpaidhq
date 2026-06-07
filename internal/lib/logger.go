@@ -1,11 +1,14 @@
 package lib
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"log/slog"
 	"os"
+	"runtime"
 	"sync"
+	"time"
 )
 
 var (
@@ -37,20 +40,44 @@ type MyLogger struct {
 	logger *slog.Logger
 }
 
+// emit writes a record at the given level, attributing the source to the
+// real caller instead of this wrapper.
+//
+// slog's AddSource walks a fixed number of stack frames from wherever the
+// slog.Logger.Info/Warn/... call happens. Because every call here funnels
+// through a MyLogger method, that frame is always this file — which is why
+// every log line used to report `internal/lib/logger.go`. We capture the
+// caller's PC ourselves and hand slog a Record built with it, so the source
+// points at the code that actually logged. `skip` is measured from emit's
+// caller (the exported MyLogger method): see the per-method callers below.
+func (l MyLogger) emit(skip int, level slog.Level, msg string, attrs ...any) {
+	ctx := context.Background()
+	if !l.logger.Enabled(ctx, level) {
+		return
+	}
+	var pcs [1]uintptr
+	// skip frames: runtime.Callers, this emit, then `skip` more to reach the
+	// original caller (1 for a direct method, 2 when a *f helper calls emit).
+	runtime.Callers(2+skip, pcs[:])
+	r := slog.NewRecord(time.Now(), level, msg, pcs[0])
+	r.Add(attrs...)
+	_ = l.logger.Handler().Handle(ctx, r)
+}
+
 func (l MyLogger) Debug(msg string, keysAndValues ...any) {
-	l.logger.Debug(msg, keysAndValues...)
+	l.emit(1, slog.LevelDebug, msg, keysAndValues...)
 }
 
 func (l MyLogger) Info(msg string, keysAndValues ...any) {
-	l.logger.Info(msg, keysAndValues...)
+	l.emit(1, slog.LevelInfo, msg, keysAndValues...)
 }
 
 func (l MyLogger) Warn(msg string, keysAndValues ...any) {
-	l.logger.Warn(msg, keysAndValues...)
+	l.emit(1, slog.LevelWarn, msg, keysAndValues...)
 }
 
 func (l MyLogger) Error(msg string, keysAndValues ...any) {
-	l.logger.Error(msg, keysAndValues...)
+	l.emit(1, slog.LevelError, msg, keysAndValues...)
 }
 
 func (l MyLogger) Sync() error {
@@ -66,24 +93,24 @@ func (l MyLogger) Fatal(msg string, keysAndValues ...any) {
 }
 
 func (l MyLogger) Infof(template string, args ...any) {
-	l.logger.Info(fmt.Sprintf(template, args...))
+	l.emit(1, slog.LevelInfo, fmt.Sprintf(template, args...))
 }
 func (l MyLogger) Debugf(template string, args ...any) {
-	l.logger.Debug(fmt.Sprintf(template, args...))
+	l.emit(1, slog.LevelDebug, fmt.Sprintf(template, args...))
 }
 func (l MyLogger) Errorf(template string, args ...any) {
-	l.logger.Error(fmt.Sprintf(template, args...))
+	l.emit(1, slog.LevelError, fmt.Sprintf(template, args...))
 }
 func (l MyLogger) Panicf(template string, args ...any) {
 	// Previously this only logged at error level, contradicting the method
 	// name and silently passing through paths that meant to halt. Callers
 	// must be able to rely on Panicf actually panicking.
 	msg := fmt.Sprintf(template, args...)
-	l.logger.Error(msg)
+	l.emit(1, slog.LevelError, msg)
 	panic(msg)
 }
 func (l MyLogger) Warnf(template string, args ...any) {
-	l.logger.Warn(fmt.Sprintf(template, args...))
+	l.emit(1, slog.LevelWarn, fmt.Sprintf(template, args...))
 }
 
 // newLogger sets up the structured logger backed by log/slog.
@@ -104,6 +131,11 @@ func newLogger(env Env) Logger {
 	}
 
 	slogLogger = slog.New(handler)
+	// Make this the process-wide default so libraries that log through the
+	// default slog logger (Fuego's "JSON spec:" / "OpenAPI UI:" startup
+	// messages, and anything else using slog.Info directly) share our format
+	// and level instead of falling back to the stdlib log-style default.
+	slog.SetDefault(slogLogger)
 	return MyLogger{logger: slogLogger}
 }
 

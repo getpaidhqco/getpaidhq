@@ -33,7 +33,7 @@ CI also enforces this implicitly: the default `go test -race ./...` job excludes
 Local stack:
 - `docker compose -f docker/docker-compose.yml up -d` — required services (Postgres, Redis, Hatchet, NATS).
 - **Postgres integration tests** no longer depend on the local stack; they spawn an isolated `postgres:17-alpine` container via Testcontainers.
-- The shared Postgres exposes three databases (auto-created by `docker/init/01-create-databases.sql`): `getpaidhq` (app), `getpaidhq_reports` (reporting), `hatchet` (Hatchet's own internal store).
+- The shared Postgres exposes four databases (auto-created by `docker/init/01-create-databases.sql`): `getpaidhq` (app), `getpaidhq_reports` (reporting), `getpaidhq_usage` (usage-event store), `hatchet` (Hatchet's own internal store).
 
 Workflow engine bootstrap:
 - `WORKFLOW_ENGINE=hatchet` (default) or `WORKFLOW_ENGINE=temporal`. Both adapters provide parity over the same workflow surface (per-subscription runner, billing cycle, per-campaign dunning runner + attempt, payment success/refunded, outgoing webhooks, charge reminder). Only one engine runs at a time; `internal/config/app.go` switches on `WORKFLOW_ENGINE` and constructs adapter-specific shim layers (Hatchet "steps" or Temporal "activities") around the same engine-agnostic services.
@@ -44,9 +44,10 @@ Workflow engine bootstrap:
   3. Set in `.env`: `HATCHET_CLIENT_TOKEN=<token>`. The other client vars (`HATCHET_CLIENT_HOST_PORT=localhost:7077`, `HATCHET_CLIENT_NAMESPACE=getpaidhq`, `HATCHET_CLIENT_TLS_STRATEGY=none`) are already there.
 
 Database schema (Prisma is the source of truth, no migrations — clean-slate `db push` only):
-- `pnpm prisma:push` — push operational schema (`schemas/getpaidhq/schema.prisma`) to `DATABASE_URL`.
+- `pnpm prisma:push` — push operational schema (`schemas/app/schema.prisma`) to `DATABASE_URL`.
 - `pnpm prisma:reporting:push` — push reporting schema (`schemas/reporting/schema.prisma`) to `REPORTING_DATABASE_URL`.
-- `pnpm prisma:format` / `pnpm prisma:reporting:format` — format the schemas.
+- `pnpm prisma:usage:push` — push the usage-event-store schema (`schemas/usage/schema.prisma`) to `USAGE_DATABASE_URL`.
+- `pnpm prisma:format` / `pnpm prisma:reporting:format` / `pnpm prisma:usage:format` — format the schemas.
 - There are no Prisma migrations checked in. `db push` syncs the schema directly. The previous migrations were thrown away as part of the local-only reset; once we deploy again, migrations will be regenerated from this base.
 
 Tunnels & deploy (require AWS profiles + bastion PEM):
@@ -60,7 +61,7 @@ Ports-and-adapters (hexagonal), not the four-layer DDD split the README describe
 - `internal/core/domain/` — entities, value objects, domain logic. Pure Go, no infra imports.
 - `internal/core/port/` — interfaces the core depends on (`Repository`, `PubSub`, `Cache`, `Engine`, `GatewayAdapter`, `Authenticator`, `Scheduler`, etc.). Adapters implement these.
 - `internal/core/service/` — application services. Take ports in their constructors. This is where business orchestration lives.
-- `internal/adapter/{postgres,redis,nats,sqs,hatchet,cedar,clerk,cognito,apikey,checkout_com,paystack,cron,http,memory}/` — concrete implementations of ports.
+- `internal/adapter/{postgres,redis,nats,jetstream,clickhouse,compare,hatchet,temporal,cedar,clerk,cognito,apikey,checkout_com,paystack,cron,http,memory}/` — concrete implementations of ports.
 - `internal/lib/` — cross-cutting helpers (`Env`, `Logger`, `ErrorReporter`, `RequestHandler`, validator).
 - `internal/config/app.go` — wiring.
 
@@ -120,16 +121,27 @@ Adapter registry in `app.go`: `map[domain.Gateway]port.GatewayAdapter` with `dom
 
 ### Authentication & authorization
 
-- Authentication: `port.Authenticator` implementations are pluggable. Currently only Clerk is constructed in `app.go`; the `authenticators` slice is the FX-tag substitute referenced in the README. (Cognito and apikey adapters exist but are not wired.)
+- Authentication: `port.Authenticator` implementations are pluggable and tried in order. `app.go` wires `authenticators := []port.Authenticator{clerkAuth, apiKeyAuth}` — Clerk first, falling through to API-key auth (an `x-api-key` value that fails the Clerk check). API keys are HMAC'd with `API_KEY_PEPPER` before storage. The Cognito adapter exists but is not wired.
 - Authorization: Cedar via `internal/adapter/cedar/`. Policies live in `policy.cedar` at repo root (copied into the Docker image). Handler signatures take `authzEngine` and call it before mutating actions — see `OrderHandler`, `CustomerHandler`, etc.
 
 ### Reporting layer (torn down)
 
 The HTTP `/reports/*` surface, the `ReportService`, the `ReportEventBridge`, and the daily-metrics cron have been removed. The previous SQL was incoherent with `schemas/reporting/schema.prisma` — it upserted into `report_subscriptions` / `report_payments` / `report_customers` / `report_refunds` / `report_customer_cohorts` (the real tables are `subscriptions` / `payments` / `customers` / `refunds` / `customer_cohorts`) and read `daily_metrics` as polymorphic `(period, total, count, growth_mom, type)` rows when the real table is keyed `(org_id, date)` with one column per metric. `REPORTING_DATABASE_URL` is therefore not opened at boot, and `internal/adapter/postgres/report_repo.go` is a deliberate tombstone: methods log "report repo not implemented" once and return zero. Revive by: rewriting each method against the Prisma schema, restoring a service + handler, wiring them in `app.go`, and re-registering the routes in `internal/config/server.go`.
 
-### Operational database
+### Usage metering & event ingestion
 
-- `DATABASE_URL` → `getpaidhq` (operational) is the only DB the app currently opens.
+Metered/usage billing records `meter_events` into a dedicated event store, designed to scale and retain independently of the operational DB. Wiring is in `internal/config/app.go`.
+
+- **Event store** — `USAGE_EVENT_STORE`: `postgres` (default, `internal/adapter/postgres/event_store.go`), `clickhouse` (`internal/adapter/clickhouse/`, opens `CLICKHOUSE_DSN`), or `compare` (`internal/adapter/compare/` — dual-writes to both and diffs them, for migration validation).
+- **Ingestion path** — `USAGE_INGEST_MODE`: `sync` (default, inline write) or `jetstream` (publish to NATS JetStream; a background consumer drains batches of `USAGE_INGEST_BATCH_SIZE` into the event store). Both sit behind a swappable `EventIngestor` port; the JetStream adapter is `internal/adapter/jetstream/` and requires JetStream enabled on NATS (docker compose runs `nats -js`).
+- **Endpoints** — `POST /api/usage/events` records an event (`internal/adapter/http/usage_handler.go`); meters are managed under `/api/meters`.
+- Meter-event ids are stored as `NULL` when absent (never empty string); the dedup index is Prisma-owned (no runtime DDL).
+
+### Databases the app opens
+
+- `DATABASE_URL` → `getpaidhq` (operational) — always opened.
+- `USAGE_DATABASE_URL` → `getpaidhq_usage` (usage/meter events) — opened as a separate pool when set; falls back to `DATABASE_URL` when empty (single-Postgres local dev).
+- `REPORTING_DATABASE_URL` is **not** opened at boot (reporting layer is torn down — see above).
 
 ## Conventions and gotchas
 
@@ -140,7 +152,7 @@ The HTTP `/reports/*` surface, the `ReportService`, the `ReportEventBridge`, and
 - Request validation runs against a single `*validator.Validate` built by `lib.NewValidator(logger)`; the `iso4217` rule is registered there. DTOs use `validate:"..."` struct tags (renamed from gin's `binding:"..."`).
 - Error envelope: handlers return `ApiError` (`{code,message,details}`); Fuego is wired with `fuego.WithErrorSerializer(handler.ApiErrorSerializer)` so its own `BadRequestError`/`UnauthorizedError`/etc. also marshal in the same shape.
 - Raw-body endpoints (PSP webhooks signed against the unparsed body) opt out via `fuego.PostStd` — see `internal/adapter/http/webhook_handler.go`.
-- Logger is `port.Logger` (a thin facade); zap is the backing impl via `internal/lib/logger.go`. Use the injected logger, not `log` or `fmt.Println`.
+- Logger is `port.Logger` (a thin facade); the backing impl is `log/slog` via `internal/lib/logger.go` (`MyLogger`). GORM's SQL logs and the Hatchet client's zerolog output are both bridged into the same slog handler (`internal/adapter/postgres/gorm_logger.go`, `internal/adapter/hatchet/zerolog_bridge.go`), and `newLogger` calls `slog.SetDefault` so library logs share the format/level. Use the injected logger, not `log` or `fmt.Println`.
 - Env loading: `lib.NewEnv()` loads `.env` via godotenv then binds known keys via viper. Add new env vars by extending the `Env` struct **and** calling `viper.BindEnv` in `NewEnv()`. Local-only setup uses `WORKFLOW_ENGINE=hatchet`. Hatchet vars (`HATCHET_CLIENT_TOKEN`, `HATCHET_CLIENT_HOST_PORT`, `HATCHET_CLIENT_NAMESPACE`, `HATCHET_CLIENT_TLS_STRATEGY`) are the canonical names the Hatchet SDK auto-reads.
 - `.env.example` lists every var the app reads. The active `.env` is gitignored; previous environment-specific copies (`.env.local`, `.env.prod`, `.env.test`, `docker/.env`) live under `.temp/` while we run local-only, and will be restored once we redo the deployment.
-- Tests are sparse and live next to the code under test (`*_test.go`). The richest test surface today is `internal/core/domain/subscription*_test.go` — model new domain-logic tests on those.
+- Tests live next to the code under test (`*_test.go`). Coverage is strongest in the core and HTTP layers: `internal/core/domain` (~87%) and `internal/adapter/http` (~84%, middleware 100%). HTTP handler tests run through a real httptest harness (`internal/adapter/http/testhelpers_test.go`) that loads the production `policy.cedar` (real Cedar authz) and the real authn middleware, so they exercise 401/403/validation/error-envelope paths, not just happy paths. `internal/core/service` is lighter (~57%). DB-backed behaviour is covered by `//go:build integration` Postgres/Testcontainers e2e tests (usage ingestion, simple billing). Known thin spots: price-tier request parsing (`toDomainTiers`) and a few read endpoints that have only authz-denied tests.

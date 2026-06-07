@@ -25,8 +25,18 @@ import (
 // connections accumulate; without ConnMaxIdleTime, the pool stays warm
 // to MaxIdleConns long after demand drops.
 func NewDatabase(dsn string, log port.Logger) (*gorm.DB, error) {
+	// Route GORM's SQL logs through the app logger so they share our slog
+	// format/level. Tests construct the DB with a nil logger; fall back to a
+	// silent GORM logger there rather than spamming test output.
+	var gormLog logger.Interface
+	if log != nil {
+		gormLog = newGormLogger(log, logger.Info)
+	} else {
+		gormLog = logger.Default.LogMode(logger.Silent)
+	}
+
 	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{
-		Logger: logger.Default.LogMode(logger.Info),
+		Logger: gormLog,
 	})
 	if err != nil {
 		return nil, err

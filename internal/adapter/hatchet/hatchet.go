@@ -11,6 +11,7 @@ import (
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
 
+	hatchetclient "github.com/hatchet-dev/hatchet/pkg/client"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -49,7 +50,11 @@ func NewHatchetEngine(
 	// HATCHET_CLIENT_NAMESPACE, HATCHET_CLIENT_TLS_STRATEGY from the environment
 	// — the lib.Env values above are loaded from the same vars and are kept here
 	// for visibility / future programmatic overrides.
-	c, err := hatchet.NewClient()
+	// Bridge Hatchet's zerolog output into the app logger so the client's
+	// heartbeat/connection chatter shares our slog format and level instead of
+	// writing its own JSON to stderr.
+	hatchetLog := newZerologToSlog(logger)
+	c, err := hatchet.NewClient(hatchetclient.WithLogger(&hatchetLog))
 	if err != nil {
 		logger.Error("Unable to create Hatchet client", "err", err.Error())
 		panic(err)
@@ -89,6 +94,7 @@ func NewHatchetEngine(
 		),
 		hatchet.WithSlots(50),
 		hatchet.WithDurableSlots(500),
+		hatchet.WithLogger(&hatchetLog),
 	)
 	if err != nil {
 		logger.Error("Unable to create Hatchet worker", "err", err.Error())
