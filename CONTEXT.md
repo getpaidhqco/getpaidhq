@@ -1,4 +1,4 @@
-# Payloop (gphq-server)
+# GetPaidHQ (gphq-server)
 
 Subscription-billing backend. This glossary covers the domain language; usage-based
 metering terms are being added as the design is grilled.

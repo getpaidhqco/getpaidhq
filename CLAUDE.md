@@ -1,158 +1,92 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code when working in this repo. For the user-facing overview see `README.md`; for deep mechanics see `docs/` (index: `docs/README.md`). This file is only the load-bearing rules and gotchas — read the linked doc before changing the thing it describes.
 
 ## Project
 
-Payloop is a Go subscription-billing backend. HTTP API on Fuego, Hatchet for durable subscription/webhook workflows, PostgreSQL via GORM, NATS pub/sub, Redis cache, Cedar for authorization, Paystack + Checkout.com as payment gateways, Clerk for auth.
-
-The README's "Architecture" section is partly outdated — see "Architecture" below for what the code actually does.
+GetPaidHQ is a Go subscription-billing backend: HTTP API on Fuego, durable subscription/dunning/webhook workflows on Hatchet (default) or Temporal, PostgreSQL via GORM, NATS pub/sub, Redis cache, Cedar authz, Paystack + Checkout.com gateways, Clerk + API-key auth.
 
 ## Commands
 
-Run / build (Go 1.24):
-- `go run .` — start the API server (entrypoint `main.go` → `internal/config.NewApp().Run()`). Port from `SERVER_PORT` env, default `8080`.
-- `go build -o main .` — same build the Dockerfile produces.
-- `go test ./...` — run all tests. Unit tests run by default.
-- `go test -tags=integration ./...` — run all tests including Postgres integration tests (uses Testcontainers).
+Everything runs through the **Makefile** — `make help` lists all targets. Essentials:
 
-### Test database isolation (load-bearing — read before adding any DB-touching test)
+- `make run` — start the API server (`go run .`; port from `SERVER_PORT`, default `8080`)
+- `make build` — build the binary the Dockerfile produces
+- `make test` — unit tests; `make test-integration` — incl. Postgres/Testcontainers e2e
+- `make ci` — `go vet` + race tests (mirrors GitHub Actions)
+- `make up` / `make down` — local stack (Postgres, Redis, Hatchet, NATS)
+- `make db-push-all` — push all three Prisma schemas (`db push`, no migrations)
 
-**Tests MUST NEVER touch the developer's local docker-compose database.** That stack carries hand-seeded org/user data the developer relies on; auto-running tests cannot mutate it. The current setup enforces this:
+Local stack details and the Hatchet token bootstrap: `docs/internal/local-dev-hatchet.md`. Workflow engine selection: `WORKFLOW_ENGINE=hatchet|temporal` (see parity rule below).
 
-- Integration tests gate on `//go:build integration` and acquire their DB via `testDB(t)` in `internal/adapter/postgres/setup_test.go`, which spawns a **fresh `postgres:17-alpine` testcontainer per test run** (separate container, separate process, testcontainers-assigned host port, separate creds `postgres/postgres`). The dev DB at `localhost:10432` is never touched.
-- **No test code reads `DATABASE_URL`, calls `lib.NewEnv()`, or calls `config.NewApp()`.** These are the only paths that could resolve to the dev DSN; tests bypass all three by construction.
+### Test database isolation (load-bearing)
 
-When adding a new DB-touching test:
-1. Tag it `//go:build integration` if it needs a real DB.
-2. Acquire the handle via `testDB(t)` — never construct a `*gorm.DB` from env vars in test code.
-3. Use a fresh `uniqueOrg(t)` for row scoping and register cleanup with `cleanupOrg(t, db, orgId)`.
+**Tests MUST NEVER touch the developer's local docker-compose database** — it carries hand-seeded data. Enforced by construction:
 
-CI also enforces this implicitly: the default `go test -race ./...` job excludes integration tests entirely, so there's no env-var path that could reach a deployed DB either.
+- Integration tests gate on `//go:build integration` and acquire their DB via `testDB(t)` (`internal/adapter/postgres/setup_test.go`), which spawns a **fresh `postgres:17-alpine` testcontainer per run**. The dev DB at `localhost:10432` is never touched.
+- No test code reads `DATABASE_URL`, calls `lib.NewEnv()`, or `config.NewApp()` — the only paths to the dev DSN.
 
-Local stack:
-- `docker compose -f docker/docker-compose.yml up -d` — required services (Postgres, Redis, Hatchet, NATS).
-- **Postgres integration tests** no longer depend on the local stack; they spawn an isolated `postgres:17-alpine` container via Testcontainers.
-- The shared Postgres exposes four databases (auto-created by `docker/init/01-create-databases.sql`): `getpaidhq` (app), `getpaidhq_reports` (reporting), `getpaidhq_usage` (usage-event store), `hatchet` (Hatchet's own internal store).
-
-Workflow engine bootstrap:
-- `WORKFLOW_ENGINE=hatchet` (default) or `WORKFLOW_ENGINE=temporal`. Both adapters provide parity over the same workflow surface (per-subscription runner, billing cycle, per-campaign dunning runner + attempt, payment success/refunded, outgoing webhooks, charge reminder). Only one engine runs at a time; `internal/config/app.go` switches on `WORKFLOW_ENGINE` and constructs adapter-specific shim layers (Hatchet "steps" or Temporal "activities") around the same engine-agnostic services.
-- Temporal env vars: `TEMPORAL_HOST` (default `localhost:7233`), `TEMPORAL_NAMESPACE` (default `getpaidhq`), `TEMPORAL_TASK_QUEUE` (default `getpaidhq-events`). The local docker stack does not currently run a Temporal server; `WORKFLOW_ENGINE=temporal` expects one available at `TEMPORAL_HOST`.
-- Hatchet first-time bootstrap (after the stack is up):
-  1. The default tenant + admin user are seeded automatically. Tenant id is in the `Tenant` table of the `hatchet` DB (slug `default`).
-  2. Mint a token: `docker exec hatchet-lite /hatchet-admin --config /config token create --name local-dev --tenant-id <tenant-id>`. The `--config /config` flag is required to load the auto-generated encryption keyset.
-  3. Set in `.env`: `HATCHET_CLIENT_TOKEN=<token>`. The other client vars (`HATCHET_CLIENT_HOST_PORT=localhost:7077`, `HATCHET_CLIENT_NAMESPACE=getpaidhq`, `HATCHET_CLIENT_TLS_STRATEGY=none`) are already there.
-
-Database schema (Prisma is the source of truth, no migrations — clean-slate `db push` only):
-- `pnpm prisma:push` — push operational schema (`schemas/app/schema.prisma`) to `DATABASE_URL`.
-- `pnpm prisma:reporting:push` — push reporting schema (`schemas/reporting/schema.prisma`) to `REPORTING_DATABASE_URL`.
-- `pnpm prisma:usage:push` — push the usage-event-store schema (`schemas/usage/schema.prisma`) to `USAGE_DATABASE_URL`.
-- `pnpm prisma:format` / `pnpm prisma:reporting:format` / `pnpm prisma:usage:format` — format the schemas.
-- There are no Prisma migrations checked in. `db push` syncs the schema directly. The previous migrations were thrown away as part of the local-only reset; once we deploy again, migrations will be regenerated from this base.
-
-Tunnels & deploy (require AWS profiles + bastion PEM):
-- `pnpm tunnel:test` / `pnpm tunnel:prod` — SSH tunnel to test/prod (DB 7777, API 8888, Redis 6379 on test).
-- `pnpm deploy:test` / `pnpm deploy:prod` — kicks off the CodeBuild pipeline.
+Adding a DB-touching test: tag it `//go:build integration`, get the handle from `testDB(t)` (never build a `*gorm.DB` from env), scope rows with `uniqueOrg(t)` + `cleanupOrg(t, db, orgId)`.
 
 ## Architecture
 
-Ports-and-adapters (hexagonal), not the four-layer DDD split the README describes. The directory layout:
+Ports-and-adapters (hexagonal): `internal/core/{domain,port,service}` at the center (pure Go + interfaces + orchestration), `internal/adapter/*` implementing the ports, `internal/lib/` for cross-cutting helpers. Full map: `docs/architecture/system-hexagonal.md` and `docs/internal/hexagonal-mapping-pattern.md`.
 
-- `internal/core/domain/` — entities, value objects, domain logic. Pure Go, no infra imports.
-- `internal/core/port/` — interfaces the core depends on (`Repository`, `PubSub`, `Cache`, `Engine`, `GatewayAdapter`, `Authenticator`, `Scheduler`, etc.). Adapters implement these.
-- `internal/core/service/` — application services. Take ports in their constructors. This is where business orchestration lives.
-- `internal/adapter/{postgres,redis,nats,jetstream,clickhouse,compare,hatchet,temporal,cedar,clerk,cognito,apikey,checkout_com,paystack,cron,http,memory}/` — concrete implementations of ports.
-- `internal/lib/` — cross-cutting helpers (`Env`, `Logger`, `ErrorReporter`, `RequestHandler`, validator).
-- `internal/config/app.go` — wiring.
+**Wiring is manual DI** in `internal/config/app.go` (`NewApp()`) — every repo/service/handler constructed by hand. Add a service by editing `app.go`.
 
-### Wiring — manual DI, not FX
+### Narrow-vs-orchestration service pattern (load-bearing)
 
-The README says "Uses Uber's FX library for dependency injection." That is **no longer true.** `internal/config/app.go` wires every repo/service/handler by hand in `NewApp()`. There are no `fx.Module` definitions, no `modules.go`. When adding a new service, edit `app.go`.
+There is a deliberate construction-order cycle: workflow steps call services, but the engine dispatches those steps — so a service can't depend on the engine. The fix (documented in `internal/core/service/subscription_orchestration.go`):
 
-### The narrow-vs-orchestration service pattern (load-bearing — read before touching subscription/order code)
+1. Build "narrow" services that don't hold the engine (`SubscriptionService`, `PaymentService`, `OrderWorkflowService`); steps receive these.
+2. Build step bundles, then the engine, registering the steps.
+3. Build engine-aware wrappers last (`SubscriptionOrchestrationService` *embeds* `*SubscriptionService` and adds signaling; `OrderService` takes the engine). HTTP handlers use the engine-aware variants.
 
-There is a deliberate construction-order cycle: Hatchet **workflow steps** call into services, but the Hatchet **engine** is what dispatches those steps. If a service depended on the engine, it could not be passed into the step that is then registered with the engine.
+The cycle is broken at the type level by embedding — preserve that. Don't give a narrow service a back-pointer to the engine.
 
-The pattern in `internal/config/app.go` (and documented in `internal/core/service/subscription_orchestration.go`):
+### Workflow engine — parity rule (load-bearing)
 
-1. Build "narrow" services first that **do not** hold the engine: `SubscriptionService`, `PaymentService`, `OrderWorkflowService`. Steps receive these.
-2. Build the step bundles (`OutgoingWebhookSteps`, `DunningSteps`) holding refs to narrow services.
-3. Build the Hatchet engine, registering those steps.
-4. Build "engine-aware" wrappers / services last: `SubscriptionOrchestrationService` embeds `*SubscriptionService` and adds engine signaling; `OrderService` takes the engine directly. HTTP handlers depend on the engine-aware variants.
+Two interchangeable engines: **Hatchet** (`internal/adapter/hatchet/`) and **Temporal** (`internal/adapter/temporal/`), selected by `WORKFLOW_ENGINE` in `app.go`. Only one runs at a time.
 
-The wrapping happens at the type level (the orchestration service embeds the narrow one), so the cycle is broken statically, not papered over with setters. Preserve this — don't shortcut by giving the narrow service a back-pointer to the engine.
+**Every change to workflow / billing / dunning / reminder behavior MUST produce the same observable outcome on both engines.** Parity means same *behaviour*, not identical *code* — the two use deliberately opposite execution models (Hatchet = cron + per-org fan-out; Temporal = one long-lived `SubscriptionWorkflow` + `ContinueAsNew`). Keep shared *logic* in `core/` so both literally share it; only *orchestration* is per-adapter (Temporal reaches services through **activities** — workflow code stays deterministic). A change landing on one engine silently breaks the other.
 
-### Workflow engine
+Mental model, lifecycle, and the workflow/signal/keys inventory: `docs/internal/engine-parity-and-subscription-lifecycle.md`, `docs/workflows/workflow-engine-abstraction.md`, `docs/workflows/`. Engine ports `port.Engine` / `port.DunningEngine` are satisfied by both adapters; `Start*Workflow` is idempotent via deterministic ids + reuse policies.
 
-Two interchangeable engines: **Hatchet** (default) and **Temporal**. Selection lives in `internal/config/app.go` via `switch env.WorkflowEngine`. Each adapter wraps the engine-agnostic services in its own shim layer.
-
-**Engine-parity rule (load-bearing):** every change to workflow / billing / dunning / reminder **behavior** MUST produce the same observable outcome on **both** adapters (`internal/adapter/hatchet/` and `internal/adapter/temporal/`) — a change that lands on one engine silently breaks the other when `WORKFLOW_ENGINE` is switched. **Parity means same *behaviour*, not identical *code*.** The two adapters use deliberately opposite execution models (Hatchet = cron + per-org fan-out into bounded tasks, forced by Hatchet's creation-date-partitioned durable-log retention which reaps immortal tasks; Temporal = one long-lived durable `SubscriptionWorkflow` per sub + `ContinueAsNew`). "Implement on both" therefore means "produce the same result on each, in its engine's idiom," NOT "copy the same code." Keep new *logic* in `core/` so both literally share it; only the *orchestration* is per-adapter (Temporal reaches shared services through **activities** — workflow code must stay deterministic — not direct repo calls). The full mental model, plus the subscription first-charge→renewal lifecycle per engine, is in `docs/internal/engine-parity-and-subscription-lifecycle.md` (see also `plan-cron-fanout-billing.md`, `durable-runner-timeouts.md`).
-
-- `internal/adapter/hatchet/hatchet.go` boots a single Hatchet worker named `getpaidhq-events`. Workflows: `payment-success` (DAG), `payment-refunded`, `outgoing-webhook`, `billing-cycle` (DAG), `subscription-charge-reminder` (durable), `subscription-runner` (durable; long-running, one per subscription), `dunning-runner` (durable; long-running, one per failed charge), `dunning-attempt` (DAG; one per retry inside a dunning campaign). Hatchet-specific glue lives under `internal/adapter/hatchet/steps/` (one struct per service, thin wrappers calling the service interface).
-- `internal/adapter/temporal/temporal.go` boots a single Temporal worker on `TEMPORAL_TASK_QUEUE`. The workflow set mirrors Hatchet 1:1 (`SubscriptionWorkflow`, `BillingCycleWorkflow`, `SubscriptionChargeReminder`, `DunningRunnerWorkflow`, `DunningAttemptWorkflow`, `PaymentSuccessWorkflow`, `PaymentRefunded`, `OutgoingWebhookWorkflow`). Temporal-specific glue lives under `internal/adapter/temporal/activities/` and matches the Hatchet steps file-for-file.
-- Engine ports: `port.Engine` exposes `StartWorkflow`, `StartSubscriptionWorkflow`, `UpdateSubscriptionWorkflow`, `CancelSubscriptionWorkflow`, `SignalSubscriptionWorkflow`. `port.DunningEngine` exposes `StartDunningWorkflow`, `SignalDunningWorkflow`, `CancelDunningWorkflow`. Both Hatchet and Temporal types satisfy both interfaces.
-- Workflow ids / signal names are deterministic (`SubscriptionWorkflowID`, `DunningWorkflowID`, etc. in each adapter's `workflows/keys.go`). Combined with `WorkflowIDReusePolicy=ALLOW_DUPLICATE` + `WorkflowIDConflictPolicy=USE_EXISTING` on Temporal — and `WithRunKey` on Hatchet — `Start*Workflow` is idempotent.
-- Pubsub fan-in from `subscription.*` topics into engine signals is owned by `service.SubscriptionEventBridge`, **not** by the adapters. Add new topic→signal mappings there.
-
-**Update semantics — fire-and-forget.** `UpdateSubscriptionWorkflow` pushes a user event (`update:<updateName>:<orgId>:<subId>`) and returns immediately; the durable runner observes the event in its select loop, usually within seconds. Callers in `subscription_orchestration.go` `pubsub.Publish` after, so downstream observers are unaffected; do **not** assume synchronous acknowledgment when reading post-call state.
+Pubsub→signal fan-in (`subscription.*` topics → engine signals) is owned by `service.SubscriptionEventBridge`, not the adapters — add topic→signal mappings there. `UpdateSubscriptionWorkflow` is **fire-and-forget** (pushes an event, returns immediately); don't assume synchronous acknowledgment when reading post-call state.
 
 ### Dunning
 
-`internal/core/domain/dunning*.go`, `internal/core/service/dunning*.go`, `internal/adapter/postgres/dunning_repo.go`, `internal/adapter/hatchet/{steps,workflows}/dunning_*.go`, `internal/adapter/http/dunning_handler.go`.
-
-Failed subscription charges automatically open a `DunningCampaign` (the `DunningOrchestrationService` subscribes to `subscription.payment.charge.failed`) and a `dunning-runner` durable task is started per campaign. The runner walks two phases against a resolved `DunningConfig`:
-
-1. **Immediate retries** — short waits, only when `InitialFailureReason` matches `ImmediateRetries.FailureTypes` (transient / network / rate-limit).
-2. **Progressive retries** — long waits with customer communications dispatched before each attempt.
-
-Each retry inside the runner spawns the `dunning-attempt` DAG (one task: `execute-attempt`), reads back the resulting `DunningAttempt`, and hands it to `DunningService.UpdateCampaignWithAttemptResult` which owns the escalation policy (recover / suspend / cancel). Terminal exits: campaign status ∈ {recovered, failed, cancelled, expired}.
-
-Control signals respected at every wait:
-- `dunning_signal:dunning.pause` / `.resume` / `.cancel` — driven by the HTTP API
-- `dunning_pm_updated:<orgId>:<campaignId>` — driven by payment method update flows; triggers an immediate retry
-
-Configurations are scoped (`organization`, `customer_segment`, `subscription_tier`, `customer`, `ab_test`) and priority-ordered; the active highest-priority config wins. A snapshot is stored on the campaign at start so mid-flight policy changes don't break a running campaign.
-
-Payment-update tokens (`PaymentUpdateToken`) are magic-links delivered to customers as part of dunning communications. Lifecycle endpoints under `/api/payment-tokens/*` (verify / activate) and `/api/admin/subscriptions/:id/payment-tokens` (admin create).
+Failed subscription charges auto-open a `DunningCampaign` and a per-campaign durable runner that walks immediate then progressive retries against a resolved (and snapshotted) `DunningConfig`; escalation policy (recover/suspend/cancel) lives in `DunningService.UpdateCampaignWithAttemptResult`. Control signals: `dunning.pause/.resume/.cancel` and `dunning_pm_updated:*`. Payment-update magic-links are `PaymentUpdateToken`s under `/api/payment-tokens/*`. Full flow: `docs/workflows/dunning-recovery.md`. Code: `internal/core/{domain,service}/dunning*.go`, `internal/adapter/{postgres,hatchet}/.../dunning_*.go`, `internal/adapter/http/dunning_handler.go`.
 
 ### Payment gateways
 
-Adapter registry in `app.go`: `map[domain.Gateway]port.GatewayAdapter` with `domain.Paystack` and `domain.CheckoutDotCom`. The `GatewayFactory` (`internal/core/service/factory.go`) looks up the gateway for an org's PSP config and returns an adapter — this avoids importing adapter packages from the service layer. Add a gateway by implementing `port.GatewayAdapter` under `internal/adapter/<name>/` and registering it in `app.go`.
+Adapter registry in `app.go`: `map[domain.Gateway]port.GatewayAdapter` (`domain.Paystack`, `domain.CheckoutDotCom`). `GatewayFactory` (`internal/core/service/factory.go`) resolves the adapter for an org's PSP config without importing adapter packages. Add one by implementing `port.GatewayAdapter` under `internal/adapter/<name>/` and registering it in `app.go`.
 
 ### Authentication & authorization
 
-- Authentication: `port.Authenticator` implementations are pluggable and tried in order. `app.go` wires `authenticators := []port.Authenticator{clerkAuth, apiKeyAuth}` — Clerk first, falling through to API-key auth (an `x-api-key` value that fails the Clerk check). API keys are HMAC'd with `API_KEY_PEPPER` before storage. The Cognito adapter exists but is not wired.
-- Authorization: Cedar via `internal/adapter/cedar/`. Policies live in `policy.cedar` at repo root (copied into the Docker image). Handler signatures take `authzEngine` and call it before mutating actions — see `OrderHandler`, `CustomerHandler`, etc.
-
-### Reporting layer (torn down)
-
-The HTTP `/reports/*` surface, the `ReportService`, the `ReportEventBridge`, and the daily-metrics cron have been removed. The previous SQL was incoherent with `schemas/reporting/schema.prisma` — it upserted into `report_subscriptions` / `report_payments` / `report_customers` / `report_refunds` / `report_customer_cohorts` (the real tables are `subscriptions` / `payments` / `customers` / `refunds` / `customer_cohorts`) and read `daily_metrics` as polymorphic `(period, total, count, growth_mom, type)` rows when the real table is keyed `(org_id, date)` with one column per metric. `REPORTING_DATABASE_URL` is therefore not opened at boot, and `internal/adapter/postgres/report_repo.go` is a deliberate tombstone: methods log "report repo not implemented" once and return zero. Revive by: rewriting each method against the Prisma schema, restoring a service + handler, wiring them in `app.go`, and re-registering the routes in `internal/config/server.go`.
+- **Authn**: `port.Authenticator`s tried in order — `app.go` wires `{clerkAuth, apiKeyAuth}` (Clerk first, falling through to `x-api-key`). API keys are HMAC'd with `API_KEY_PEPPER`. Cognito exists but is unwired.
+- **Authz**: Cedar (`internal/adapter/cedar/`), policies in `policy.cedar` at repo root. Handlers take `authzEngine` and call it before mutating actions.
 
 ### Usage metering & event ingestion
 
-Metered/usage billing records `meter_events` into a dedicated event store, designed to scale and retain independently of the operational DB. Wiring is in `internal/config/app.go`.
+Metered billing records `meter_events` into a dedicated store, scaled/retained independently of the operational DB. Swappable via env:
 
-- **Event store** — `USAGE_EVENT_STORE`: `postgres` (default, `internal/adapter/postgres/event_store.go`), `clickhouse` (`internal/adapter/clickhouse/`, opens `CLICKHOUSE_DSN`), or `compare` (`internal/adapter/compare/` — dual-writes to both and diffs them, for migration validation).
-- **Ingestion path** — `USAGE_INGEST_MODE`: `sync` (default, inline write) or `jetstream` (publish to NATS JetStream; a background consumer drains batches of `USAGE_INGEST_BATCH_SIZE` into the event store). Both sit behind a swappable `EventIngestor` port; the JetStream adapter is `internal/adapter/jetstream/` and requires JetStream enabled on NATS (docker compose runs `nats -js`).
-- **Endpoints** — `POST /api/usage/events` records an event (`internal/adapter/http/usage_handler.go`); meters are managed under `/api/meters`.
-- Meter-event ids are stored as `NULL` when absent (never empty string); the dedup index is Prisma-owned (no runtime DDL).
+- **Event store** `USAGE_EVENT_STORE`: `postgres` (default) | `clickhouse` | `compare` (dual-write + diff, for migration validation).
+- **Ingestion** `USAGE_INGEST_MODE`: `sync` (default) | `jetstream` (NATS JetStream + background batch consumer). Behind the `EventIngestor` port.
+- Endpoints: `POST /api/usage/events`; meters under `/api/meters`. Meter-event ids are `NULL` when absent (never `""`); dedup index is Prisma-owned.
 
 ### Databases the app opens
 
 - `DATABASE_URL` → `getpaidhq` (operational) — always opened.
-- `USAGE_DATABASE_URL` → `getpaidhq_usage` (usage/meter events) — opened as a separate pool when set; falls back to `DATABASE_URL` when empty (single-Postgres local dev).
-- `REPORTING_DATABASE_URL` is **not** opened at boot (reporting layer is torn down — see above).
+- `USAGE_DATABASE_URL` → `getpaidhq_usage` — separate pool when set; falls back to `DATABASE_URL` when empty.
+- `REPORTING_DATABASE_URL` is **not** opened — reporting is not wired. `internal/adapter/postgres/report_repo.go` is a stub (logs once, returns zero). To enable it: rewrite each method against `schemas/reporting/schema.prisma`, add a service + handler, wire in `app.go`, register routes in `internal/config/server.go`.
 
 ## Conventions and gotchas
 
-- `internal/config/app.go` ignores some constructed services with `_ = ...` (e.g., `metadataService`, `userService`, `cache`). They are constructed for side-effects or because their dependencies are needed elsewhere; don't delete them without checking.
-- HTTP layer runs on [`go-fuego/fuego`](https://github.com/go-fuego/fuego) — Gin was removed. The OpenAPI spec is generated from typed handler signatures (`fuego.ContextWithBody[T]` / `fuego.ContextNoBody`). Fuego writes the canonical artifact to `./openapi.json` at the repo root on every `s.Run()` (configured via `WithOpenAPIConfig{JSONFilePath: "openapi.json"}` in `internal/config/server.go`); regenerate by booting the server (`go run .`). The same in-memory spec is also served at runtime from `/swagger/openapi.json`, with Swagger UI at `/swagger/` — these endpoints serve from memory, **not** from the on-disk file. `openapi.json` is the contract `getpaidhq-sdk`, `gphq-web`, and `gphq-checkout` consume.
-- Server wiring lives in `internal/config/server.go` (`BuildServer`) and is shared by `NewApp()`. Global middleware order in `BuildServer`: CORS (rs/cors, configured via `ALLOWED_ORIGINS` — comma-separated allowlist, `*` enables wildcard for dev only) then `AuthnWrapperMiddleware`, which stores the resolved `port.AuthUser` on `r.Context()` under the typed `middleware.AuthUserKey`. Handlers read it via `handler.AuthUserFrom(c)`. Onboarding bypass for `POST /api/organizations` on `ErrOnboardingRequired` is preserved inside that middleware.
-- Per-request transactions are not opened by middleware. Services that need to atomically write multiple rows depend on `port.TxManager` (interface in `internal/core/port/tx.go`, gorm impl in `internal/adapter/postgres/tx.go`) and call `s.tx.RunInTx(ctx, func(ctx) error { ... })` around the DB-only portion of the work. The tx handle is propagated to repos via the ctx — every postgres repo uses `dbFromCtx(ctx, r.db)` which returns the active tx when one is present and falls back to the bare `*gorm.DB` otherwise, so non-transactional callers are unchanged. Post-commit side effects (workflow starts, pubsub publishes) belong in the service *after* `RunInTx` returns nil — never inside the closure, otherwise a rollback orphans them. `OrderService.CompleteOrder` is the first concrete user.
-- Request validation runs against a single `*validator.Validate` built by `lib.NewValidator(logger)`; the `iso4217` rule is registered there. DTOs use `validate:"..."` struct tags (renamed from gin's `binding:"..."`).
-- Error envelope: handlers return `ApiError` (`{code,message,details}`); Fuego is wired with `fuego.WithErrorSerializer(handler.ApiErrorSerializer)` so its own `BadRequestError`/`UnauthorizedError`/etc. also marshal in the same shape.
-- Raw-body endpoints (PSP webhooks signed against the unparsed body) opt out via `fuego.PostStd` — see `internal/adapter/http/webhook_handler.go`.
-- Logger is `port.Logger` (a thin facade); the backing impl is `log/slog` via `internal/lib/logger.go` (`MyLogger`). GORM's SQL logs and the Hatchet client's zerolog output are both bridged into the same slog handler (`internal/adapter/postgres/gorm_logger.go`, `internal/adapter/hatchet/zerolog_bridge.go`), and `newLogger` calls `slog.SetDefault` so library logs share the format/level. Use the injected logger, not `log` or `fmt.Println`.
-- Env loading: `lib.NewEnv()` loads `.env` via godotenv then binds known keys via viper. Add new env vars by extending the `Env` struct **and** calling `viper.BindEnv` in `NewEnv()`. Local-only setup uses `WORKFLOW_ENGINE=hatchet`. Hatchet vars (`HATCHET_CLIENT_TOKEN`, `HATCHET_CLIENT_HOST_PORT`, `HATCHET_CLIENT_NAMESPACE`, `HATCHET_CLIENT_TLS_STRATEGY`) are the canonical names the Hatchet SDK auto-reads.
-- `.env.example` lists every var the app reads. The active `.env` is gitignored; previous environment-specific copies (`.env.local`, `.env.prod`, `.env.test`, `docker/.env`) live under `.temp/` while we run local-only, and will be restored once we redo the deployment.
-- Tests live next to the code under test (`*_test.go`). Coverage is strongest in the core and HTTP layers: `internal/core/domain` (~87%) and `internal/adapter/http` (~84%, middleware 100%). HTTP handler tests run through a real httptest harness (`internal/adapter/http/testhelpers_test.go`) that loads the production `policy.cedar` (real Cedar authz) and the real authn middleware, so they exercise 401/403/validation/error-envelope paths, not just happy paths. `internal/core/service` is lighter (~57%). DB-backed behaviour is covered by `//go:build integration` Postgres/Testcontainers e2e tests (usage ingestion, simple billing). Known thin spots: price-tier request parsing (`toDomainTiers`) and a few read endpoints that have only authz-denied tests.
+- **HTTP/OpenAPI**: Fuego. `openapi.json` is written to the repo root on every `s.Run()` and served from memory at `/swagger/openapi.json` (UI at `/swagger/`) — it's the contract the SDK / web / checkout consume; regenerate by booting the server. Raw-body PSP webhooks opt out via `fuego.PostStd` (`internal/adapter/http/webhook_handler.go`).
+- **Wiring root**: server setup is `internal/config/server.go` (`BuildServer`), shared by `NewApp()`. Middleware order: CORS (`ALLOWED_ORIGINS`) → `AuthnWrapperMiddleware` (stores `port.AuthUser` on ctx under `middleware.AuthUserKey`; handlers read via `handler.AuthUserFrom(c)`; preserves the onboarding bypass for `POST /api/organizations`). Some constructed services are kept as `_ = ...` for side-effects/deps — don't delete without checking.
+- **Transactions**: no per-request tx. Services needing multi-row atomicity use `port.TxManager` (`s.tx.RunInTx(ctx, ...)`); the tx propagates via ctx and repos use `dbFromCtx(ctx, r.db)`. Post-commit side effects (workflow starts, pubsub) go *after* `RunInTx` returns nil — never inside the closure (a rollback would orphan them). First user: `OrderService.CompleteOrder`.
+- **Validation / errors**: one `*validator.Validate` from `lib.NewValidator` (registers `iso4217`); DTOs use `validate:"..."` tags. Handlers return `ApiError` (`{code,message,details}`); Fuego's own errors marshal the same shape via `handler.ApiErrorSerializer`.
+- **Env**: `lib.NewEnv()` loads `.env` (godotenv) then binds via viper. Add a var by extending the `Env` struct **and** `viper.BindEnv` in `NewEnv()`. `.env.example` lists every var; the active `.env` is gitignored.
+- **Logging**: use the injected `port.Logger` (`log/slog` via `internal/lib/logger.go`), not `log`/`fmt`. GORM and Hatchet logs are bridged into the same handler. See `docs/internal/logging.md`.
+- **Tests** live next to code (`*_test.go`). Strongest coverage in `internal/core/domain` and `internal/adapter/http` (real httptest harness with real Cedar authz + authn middleware); `internal/core/service` is lighter; DB behaviour via `//go:build integration` tests.

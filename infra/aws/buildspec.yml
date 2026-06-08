@@ -9,9 +9,9 @@ phases:
       - aws ecr get-login-password --region eu-west-1 | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.eu-west-1.amazonaws.com
   build:
     commands:
-      - echo "Running migrations"
-      - npx prisma migrate deploy
-#      - npx prisma migrate deploy --schema=schemas/reporting/schema.prisma
+      # No DB migration step: the platform uses Prisma `db push` (clean-slate
+      # schema sync), not migrations. Schema is pushed out-of-band, not in the
+      # build pipeline.
       - echo Building the Docker image...
       - docker build --build-arg AWS_ACCOUNT_ID=$AWS_ACCOUNT_ID -t $IMAGE_REPO_NAME:$IMAGE_TAG .
       - docker tag $IMAGE_REPO_NAME:$IMAGE_TAG $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$IMAGE_REPO_NAME:$IMAGE_TAG

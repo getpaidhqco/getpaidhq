@@ -310,7 +310,7 @@ func (h *Handler) Get(c fuego.ContextNoBody) (EntityResponse, error) {
 Create `docs/internal/hexagonal-mapping-pattern.md` with this exact content:
 
 ````markdown
-# Hexagonal & DDD Rules (Payloop server)
+# Hexagonal & DDD Rules (GetPaidHQ server)
 
 This is the rulebook for where types live and what tags they may carry. It is
 the canonical reference; if anything in this repo disagrees with it, the file

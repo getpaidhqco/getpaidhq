@@ -1,11 +1,11 @@
 ---
 title: GetPaidHQ Documentation
-description: Architecture and workflow diagrams for the GetPaidHQ (payloop) subscription-billing backend, generated from the code.
+description: Architecture and workflow diagrams for the GetPaidHQ subscription-billing backend, generated from the code.
 ---
 
 # GetPaidHQ Documentation
 
-Diagrams and explanations of how the GetPaidHQ (payloop) billing backend is built and how its money-movement flows work. Every diagram is derived from the actual source and cites the files it came from.
+Diagrams and explanations of how the GetPaidHQ billing backend is built and how its money-movement flows work. Every diagram is derived from the actual source and cites the files it came from.
 
 ## Architecture
 
