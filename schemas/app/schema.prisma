@@ -243,6 +243,9 @@ model Product {
   Variant   Variant[]
 
   @@id([orgId, id])
+  // Backs the default listing: WHERE org_id = ? AND status IN (...) ORDER BY
+  // created_at. The (org_id, id) primary key index doesn't cover status.
+  @@index([orgId, status, createdAt])
   @@map("products")
 }
 
