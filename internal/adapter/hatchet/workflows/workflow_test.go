@@ -141,6 +141,44 @@ func TestDunningAttemptRunKey_ImmediateAndProgressiveDoNotCollide(t *testing.T) 
 	assert.NotEqual(t, immediate, progressive)
 }
 
+func TestDunningCommunicationRunKey_Format(t *testing.T) {
+	assert.Equal(t, "dunning_comm_org_1_dc_5_3", DunningCommunicationRunKey("org_1", "dc_5", 3))
+}
+
+func TestDunningCommunicationRunKey_DifferentAttemptNumbersDiffer(t *testing.T) {
+	a := DunningCommunicationRunKey("org_1", "dc_1", 1)
+	b := DunningCommunicationRunKey("org_1", "dc_1", 2)
+	assert.NotEqual(t, a, b)
+}
+
+func TestDunningResultRunKey_Format(t *testing.T) {
+	assert.Equal(t, "dunning_result_org_1_dc_5_progressive_3", DunningResultRunKey("org_1", "dc_5", domain.DunningAttemptTypeProgressive, 3))
+}
+
+func TestDunningResultRunKey_DifferentAttemptNumbersDiffer(t *testing.T) {
+	a := DunningResultRunKey("org_1", "dc_1", domain.DunningAttemptTypeProgressive, 1)
+	b := DunningResultRunKey("org_1", "dc_1", domain.DunningAttemptTypeProgressive, 2)
+	assert.NotEqual(t, a, b)
+}
+
+func TestDunningResultRunKey_ImmediateAndProgressiveDoNotCollide(t *testing.T) {
+	immediate := DunningResultRunKey("org_1", "dc_1", domain.DunningAttemptTypeImmediate, 1)
+	progressive := DunningResultRunKey("org_1", "dc_1", domain.DunningAttemptTypeProgressive, 1)
+	assert.NotEqual(t, immediate, progressive)
+}
+
+// DunningCommunicationRunKey and DunningResultRunKey must not collide with each
+// other or with the attempt key, since all three children are spawned for the
+// same (campaign, attempt).
+func TestDunningChildRunKeys_DistinctNamespaces(t *testing.T) {
+	attempt := DunningAttemptRunKey("org_1", "dc_1", domain.DunningAttemptTypeProgressive, 1)
+	comm := DunningCommunicationRunKey("org_1", "dc_1", 1)
+	result := DunningResultRunKey("org_1", "dc_1", domain.DunningAttemptTypeProgressive, 1)
+	assert.NotEqual(t, attempt, comm)
+	assert.NotEqual(t, attempt, result)
+	assert.NotEqual(t, comm, result)
+}
+
 func TestDunningSignalKey_Format(t *testing.T) {
 	assert.Equal(t, "dunning_signal:dunning.pause:org_1:dc_1",
 		DunningSignalKey("dunning.pause", "org_1", "dc_1"))

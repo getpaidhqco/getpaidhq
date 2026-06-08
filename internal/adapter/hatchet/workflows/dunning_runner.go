@@ -121,7 +121,14 @@ func NewDunningRunnerWorkflow(client *hatchet.Client, dunningSteps *steps.Dunnin
 					}
 
 					attemptNumber := i + 1
-					_ = runDunningCommunication(ctx, client, input.OrgId, input.CampaignId, attemptNumber)
+					// Customer communications are best-effort and progressive-phase
+					// only (the immediate phase retries silently). The child is
+					// run-key deduped — exactly-once across replay — and retries
+					// internally, so a terminal failure must not abort the campaign:
+					// log it on the run and carry on to the charge attempt.
+					if err := runDunningCommunication(ctx, client, input.OrgId, input.CampaignId, attemptNumber); err != nil {
+						ctx.Log("dunning communication failed (best-effort, continuing): " + err.Error())
+					}
 
 					attempt, err := runDunningAttempt(ctx, client, input.OrgId, input.CampaignId, attemptNumber, domain.DunningAttemptTypeProgressive)
 					if err != nil {
