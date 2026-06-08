@@ -45,6 +45,8 @@ func TestProductHandler_AuthzGuards(t *testing.T) {
 		{"create", http.MethodPost, "/api/products", CreateProductRequest{Name: "p", Variants: []CreateProductVariantRequest{{Name: "v", Prices: []CreateProductPriceRequest{{Category: "one_time", Scheme: "fixed", Currency: "USD", UnitPrice: 1}}}}}},
 		{"update", http.MethodPatch, "/api/products/prod_1", UpdateProductRequest{Name: "x"}},
 		{"delete", http.MethodDelete, "/api/products/prod_1", nil},
+		{"archive", http.MethodPost, "/api/products/prod_1/archive", nil},
+		{"unarchive", http.MethodPost, "/api/products/prod_1/unarchive", nil},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -57,8 +59,8 @@ func TestProductHandler_AuthzGuards(t *testing.T) {
 
 func TestProductHandler_List(t *testing.T) {
 	prod := &fakeProductRepo{listResult: []domain.Product{
-		{Id: "prod_1", Name: "Plan"},
-		{Id: "prod_2", Name: "Plan B"},
+		{Id: "prod_1", Name: "Plan", Status: domain.ProductStatusActive},
+		{Id: "prod_2", Name: "Plan B", Status: domain.ProductStatusActive},
 	}}
 	h := newProductHandlerForTest(t, prod, &fakeVariantRepo{}, &fakePriceRepo{}, &fakeCartRepo{})
 
@@ -159,6 +161,27 @@ func TestProductHandler_Delete(t *testing.T) {
 	require.Equal(t, []string{"prod_1"}, prod.deleted)
 }
 
+// A product still referenced by orders cannot be hard-deleted (FK
+// constraint). The repo surfaces that as a typed ConflictError; the handler
+// must render a 409 whose envelope preserves the human-readable message and
+// underlying detail — not a bare "Bad Request" with null details.
+func TestProductHandler_Delete_conflict(t *testing.T) {
+	const msg = "Cannot delete a product that has existing orders."
+	prod := &fakeProductRepo{
+		deleteErr: lib.NewCustomError(lib.ConflictError, msg, errors.New("SQLSTATE 23503")),
+	}
+	h := newProductHandlerForTest(t, prod, &fakeVariantRepo{}, &fakePriceRepo{}, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodDelete, "/api/products/prod_1", nil)
+
+	got := assertErrorEnvelope(t, rec, http.StatusConflict, "conflict")
+	require.Equal(t, msg, got.Message, "message must survive the error pipeline")
+	require.NotNil(t, got.Details, "underlying detail must survive the error pipeline")
+}
+
 func TestProductHandler_VariantRoutes(t *testing.T) {
 	variant := &fakeVariantRepo{byId: domain.Variant{Id: "var_1", Name: "Monthly"}}
 	h := newProductHandlerForTest(t, &fakeProductRepo{}, variant, &fakePriceRepo{}, &fakeCartRepo{})
@@ -192,6 +215,121 @@ func TestProductHandler_Update(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
 	require.Len(t, prod.updated, 1)
 	assert.Equal(t, "New", prod.updated[0].Name)
+}
+
+func TestProductHandler_Archive(t *testing.T) {
+	t.Run("archives an active product", func(t *testing.T) {
+		prod := &fakeProductRepo{byId: domain.Product{Id: "prod_1", Name: "Plan", Status: domain.ProductStatusActive}}
+		h := newProductHandlerForTest(t, prod, &fakeVariantRepo{}, &fakePriceRepo{}, &fakeCartRepo{})
+
+		ts := newTestServer(fixedAuthMiddleware(adminUser()))
+		h.RegisterRoutes(ts.api())
+
+		rec := doJSON(t, ts, http.MethodPost, "/api/products/prod_1/archive", nil)
+
+		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+		var got ProductResponse
+		decodeJSON(t, rec, &got)
+		assert.Equal(t, domain.ProductStatusArchived, got.Status)
+		require.NotNil(t, got.ArchivedAt, "archived_at must be set on archive")
+		require.Len(t, prod.updated, 1)
+		assert.Equal(t, domain.ProductStatusArchived, prod.updated[0].Status)
+	})
+
+	t.Run("idempotent: re-archiving an archived product is a 200 no-op", func(t *testing.T) {
+		prod := &fakeProductRepo{byId: domain.Product{Id: "prod_1", Status: domain.ProductStatusArchived}}
+		h := newProductHandlerForTest(t, prod, &fakeVariantRepo{}, &fakePriceRepo{}, &fakeCartRepo{})
+
+		ts := newTestServer(fixedAuthMiddleware(adminUser()))
+		h.RegisterRoutes(ts.api())
+
+		rec := doJSON(t, ts, http.MethodPost, "/api/products/prod_1/archive", nil)
+
+		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+		assert.Empty(t, prod.updated, "no update should be issued for an already-archived product")
+	})
+}
+
+func TestProductHandler_Unarchive(t *testing.T) {
+	prod := &fakeProductRepo{byId: domain.Product{Id: "prod_1", Status: domain.ProductStatusArchived}}
+	h := newProductHandlerForTest(t, prod, &fakeVariantRepo{}, &fakePriceRepo{}, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/products/prod_1/unarchive", nil)
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	var got ProductResponse
+	decodeJSON(t, rec, &got)
+	assert.Equal(t, domain.ProductStatusActive, got.Status)
+	assert.Nil(t, got.ArchivedAt, "archived_at must be cleared on unarchive")
+	require.Len(t, prod.updated, 1)
+	assert.Equal(t, domain.ProductStatusActive, prod.updated[0].Status)
+}
+
+// The list status filter: default hides archived; ?status= narrows; "all"
+// disables the filter; an unknown value is a 400.
+func TestProductHandler_List_StatusFilter(t *testing.T) {
+	fixtures := func() *fakeProductRepo {
+		return &fakeProductRepo{listResult: []domain.Product{
+			{Id: "prod_active", Name: "Live", Status: domain.ProductStatusActive},
+			{Id: "prod_archived", Name: "Retired", Status: domain.ProductStatusArchived},
+		}}
+	}
+
+	cases := []struct {
+		name      string
+		query     string
+		wantCode  int
+		wantTotal int
+	}{
+		{"default hides archived", "", http.StatusOK, 1},
+		{"status=active", "?status=active", http.StatusOK, 1},
+		{"status=archived", "?status=archived", http.StatusOK, 1},
+		{"status=all shows both", "?status=all", http.StatusOK, 2},
+		{"bogus status is rejected", "?status=bogus", http.StatusBadRequest, 0},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			h := newProductHandlerForTest(t, fixtures(), &fakeVariantRepo{}, &fakePriceRepo{}, &fakeCartRepo{})
+			ts := newTestServer(fixedAuthMiddleware(adminUser()))
+			h.RegisterRoutes(ts.api())
+
+			rec := doJSON(t, ts, http.MethodGet, "/api/products"+tc.query, nil)
+
+			require.Equal(t, tc.wantCode, rec.Code, "body=%s", rec.Body.String())
+			if tc.wantCode == http.StatusOK {
+				var got ListResponse
+				decodeJSON(t, rec, &got)
+				assert.Equal(t, tc.wantTotal, got.Meta.Total)
+			}
+		})
+	}
+}
+
+func TestProductHandler_Create_DefaultsToActive(t *testing.T) {
+	prod := &fakeProductRepo{}
+	h := newProductHandlerForTest(t, prod, &fakeVariantRepo{}, &fakePriceRepo{}, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/products", CreateProductRequest{
+		Name: "New Plan",
+		Variants: []CreateProductVariantRequest{
+			{Name: "Monthly", Prices: []CreateProductPriceRequest{
+				{Category: "subscription", Scheme: "fixed", Currency: "USD", UnitPrice: 1000},
+			}},
+		},
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	var got ProductResponse
+	decodeJSON(t, rec, &got)
+	assert.Equal(t, domain.ProductStatusActive, got.Status)
+	require.Len(t, prod.created, 1)
+	assert.Equal(t, domain.ProductStatusActive, prod.created[0].Status)
 }
 
 func TestProductHandler_CreateVariant(t *testing.T) {

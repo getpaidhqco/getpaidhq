@@ -50,6 +50,15 @@ func (s *CartService) AddProduct(ctx context.Context, input port.AddProductComma
 		)
 	}
 
+	// Archived products are retired and cannot be sold — block adding them to a cart.
+	if product.IsArchived() {
+		return domain.Cart{}, lib.NewCustomError(
+			lib.ConflictError,
+			fmt.Sprintf("Product %s is archived and cannot be sold", product.Id),
+			nil,
+		)
+	}
+
 	price, err := s.priceRepository.FindById(ctx, input.OrgId, input.PriceId)
 	if err != nil {
 		s.logger.Error("Price doesnt exist", "price_id", input.PriceId, err.Error())

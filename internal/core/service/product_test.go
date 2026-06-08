@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -21,8 +22,9 @@ type fakeProductRepo struct {
 	createErr error
 	created   []domain.Product
 	updated   []domain.Product
-	deleted   []string
-	listed    []domain.Product
+	deleted      []string
+	listed       []domain.Product
+	listStatuses []domain.ProductStatus
 }
 
 func (r *fakeProductRepo) Create(_ context.Context, p domain.Product) (domain.Product, error) {
@@ -38,7 +40,8 @@ func (r *fakeProductRepo) FindById(_ context.Context, _, _ string) (domain.Produ
 	}
 	return r.byId, nil
 }
-func (r *fakeProductRepo) Find(_ context.Context, _ string, _ domain.Pagination) ([]domain.Product, int, error) {
+func (r *fakeProductRepo) Find(_ context.Context, _ string, _ domain.Pagination, statuses []domain.ProductStatus) ([]domain.Product, int, error) {
+	r.listStatuses = statuses
 	return r.listed, len(r.listed), nil
 }
 func (r *fakeProductRepo) Update(_ context.Context, p domain.Product) (domain.Product, error) {
@@ -292,4 +295,84 @@ func TestProductService_Prices(t *testing.T) {
 		_, err := svc.GetPrice(context.Background(), "org_1", "price_x")
 		require.Error(t, err)
 	})
+}
+
+func TestProductService_ArchiveProduct(t *testing.T) {
+	t.Run("archives an active product, sets archived_at, and publishes", func(t *testing.T) {
+		prod := &fakeProductRepo{byId: domain.Product{OrgId: "org_1", Id: "prod_1", Status: domain.ProductStatusActive}}
+		ps := &recordingPubSub{}
+		svc := newProductService(prod, &fakeVariantRepo{}, &fakePriceRepo{}, ps)
+
+		got, err := svc.ArchiveProduct(context.Background(), "org_1", "prod_1")
+
+		require.NoError(t, err)
+		assert.Equal(t, domain.ProductStatusArchived, got.Status)
+		require.NotNil(t, got.ArchivedAt)
+		require.Len(t, prod.updated, 1)
+		assert.Equal(t, domain.ProductStatusArchived, prod.updated[0].Status)
+		assert.True(t, ps.hasTopic(port.TopicProductArchived))
+	})
+
+	t.Run("idempotent: already archived does not update or publish", func(t *testing.T) {
+		prod := &fakeProductRepo{byId: domain.Product{OrgId: "org_1", Id: "prod_1", Status: domain.ProductStatusArchived}}
+		ps := &recordingPubSub{}
+		svc := newProductService(prod, &fakeVariantRepo{}, &fakePriceRepo{}, ps)
+
+		got, err := svc.ArchiveProduct(context.Background(), "org_1", "prod_1")
+
+		require.NoError(t, err)
+		assert.Equal(t, domain.ProductStatusArchived, got.Status)
+		assert.Empty(t, prod.updated)
+		assert.False(t, ps.hasTopic(port.TopicProductArchived))
+	})
+}
+
+func TestProductService_UnarchiveProduct(t *testing.T) {
+	t.Run("returns an archived product to active and clears archived_at", func(t *testing.T) {
+		now := time.Now().UTC()
+		prod := &fakeProductRepo{byId: domain.Product{OrgId: "org_1", Id: "prod_1", Status: domain.ProductStatusArchived, ArchivedAt: &now}}
+		ps := &recordingPubSub{}
+		svc := newProductService(prod, &fakeVariantRepo{}, &fakePriceRepo{}, ps)
+
+		got, err := svc.UnarchiveProduct(context.Background(), "org_1", "prod_1")
+
+		require.NoError(t, err)
+		assert.Equal(t, domain.ProductStatusActive, got.Status)
+		assert.Nil(t, got.ArchivedAt)
+		require.Len(t, prod.updated, 1)
+		assert.True(t, ps.hasTopic(port.TopicProductUnarchived))
+	})
+
+	t.Run("idempotent: already active does not update or publish", func(t *testing.T) {
+		prod := &fakeProductRepo{byId: domain.Product{OrgId: "org_1", Id: "prod_1", Status: domain.ProductStatusActive}}
+		ps := &recordingPubSub{}
+		svc := newProductService(prod, &fakeVariantRepo{}, &fakePriceRepo{}, ps)
+
+		_, err := svc.UnarchiveProduct(context.Background(), "org_1", "prod_1")
+
+		require.NoError(t, err)
+		assert.Empty(t, prod.updated)
+		assert.False(t, ps.hasTopic(port.TopicProductUnarchived))
+	})
+}
+
+func TestProductService_CreateProduct_DefaultsActive(t *testing.T) {
+	prod := &fakeProductRepo{byId: domain.Product{OrgId: "org_1", Id: "prod_1"}}
+	svc := newProductService(prod, &fakeVariantRepo{}, &fakePriceRepo{}, nil)
+
+	_, err := svc.CreateProduct(context.Background(), "org_1", port.CreateProductInput{Name: "Plan"})
+
+	require.NoError(t, err)
+	require.Len(t, prod.created, 1)
+	assert.Equal(t, domain.ProductStatusActive, prod.created[0].Status)
+}
+
+func TestProductService_List_PassesStatusFilter(t *testing.T) {
+	prod := &fakeProductRepo{}
+	svc := newProductService(prod, &fakeVariantRepo{}, &fakePriceRepo{}, nil)
+
+	_, _, err := svc.List(context.Background(), "org_1", domain.Pagination{Page: 1, Limit: 10}, []domain.ProductStatus{domain.ProductStatusArchived})
+
+	require.NoError(t, err)
+	assert.Equal(t, []domain.ProductStatus{domain.ProductStatusArchived}, prod.listStatuses)
 }

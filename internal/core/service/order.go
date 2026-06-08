@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
@@ -153,6 +154,25 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 	// validate that the cart is not empty
 	if len(orderCart.Data.Items) == 0 {
 		return domain.CreateOrderResponse{}, errors.New("cart is empty")
+	}
+
+	// Archived products are retired and not sellable. Guard here so the rule holds
+	// for both order paths (existing session cart and direct cart-items) — and
+	// therefore for subscriptions, which are only created via the order flow. This
+	// runs only at checkout; recurring renewals never call CreateOrder.
+	for _, item := range orderCart.Data.Items {
+		product, err := s.productRepository.FindById(ctx, orgId, item.ProductId)
+		if err != nil {
+			s.logger.Error("Failed to find product", err.Error())
+			return domain.CreateOrderResponse{}, lib.NewCustomError(lib.NotFoundError, "Product not found", err)
+		}
+		if product.IsArchived() {
+			return domain.CreateOrderResponse{}, lib.NewCustomError(
+				lib.ConflictError,
+				fmt.Sprintf("Product %s is archived and cannot be sold", product.Id),
+				nil,
+			)
+		}
 	}
 
 	// Get or create the customer

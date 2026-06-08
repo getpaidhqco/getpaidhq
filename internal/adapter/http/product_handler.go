@@ -4,6 +4,7 @@ import (
 	"github.com/go-fuego/fuego"
 	"github.com/go-fuego/fuego/option"
 
+	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
 	"getpaidhq/internal/lib"
@@ -31,6 +32,8 @@ func (s *ProductHandler) RegisterRoutes(srv *fuego.Server) {
 	fuego.Post(products, "", s.Create, option.Summary("Create a product"))
 	fuego.Patch(products, "/{id}", s.Update, option.Summary("Update a product"))
 	fuego.Delete(products, "/{id}", s.Delete, option.Summary("Delete a product"))
+	fuego.Post(products, "/{id}/archive", s.Archive, option.Summary("Archive a product"))
+	fuego.Post(products, "/{id}/unarchive", s.Unarchive, option.Summary("Unarchive a product"))
 	fuego.Get(products, "/{id}/variants", s.ListVariants, option.Summary("List variants of a product"))
 	fuego.Post(products, "/{id}/variants", s.CreateVariant, option.Summary("Add a variant to a product"))
 
@@ -126,13 +129,34 @@ func (s *ProductHandler) Create(c fuego.ContextWithBody[CreateProductRequest]) (
 	return NewProductResponseFromDetails(details), nil
 }
 
+// parseProductStatusFilter maps the ?status= query param to the status filter
+// passed to the service. Default (absent or "active") lists only active
+// products — archived products are hidden from the dashboard. "all" disables the
+// filter; any other value is rejected as a 400.
+func parseProductStatusFilter[B, P any](c fuego.Context[B, P]) ([]domain.ProductStatus, error) {
+	switch c.QueryParam("status") {
+	case "", string(domain.ProductStatusActive):
+		return []domain.ProductStatus{domain.ProductStatusActive}, nil
+	case string(domain.ProductStatusArchived):
+		return []domain.ProductStatus{domain.ProductStatusArchived}, nil
+	case "all":
+		return nil, nil
+	default:
+		return nil, NewApiError(lib.BadRequestError, "status must be one of: active, archived, all", nil)
+	}
+}
+
 func (s *ProductHandler) List(c fuego.ContextNoBody) (ListResponse, error) {
 	if err := enforce(c, s.authz, port.ActionListProducts); err != nil {
 		return ListResponse{}, err
 	}
 	authUser := AuthUserFrom(c)
 	pagination := GetPagination(c)
-	details, total, err := s.productService.ListDetails(c.Context(), authUser.OrgId, pagination)
+	statuses, err := parseProductStatusFilter(c)
+	if err != nil {
+		return ListResponse{}, err
+	}
+	details, total, err := s.productService.ListDetails(c.Context(), authUser.OrgId, pagination, statuses)
 	if err != nil {
 		return ListResponse{}, NewApiErrorFromError(err)
 	}
@@ -180,6 +204,39 @@ func (s *ProductHandler) Delete(c fuego.ContextNoBody) (EmptyResponse, error) {
 	}
 	c.SetStatus(204)
 	return EmptyResponse{}, nil
+}
+
+// Archive retires a product (hidden from default listings, not sellable). Reuses
+// the UpdateProduct permission — archiving is a privileged product mutation.
+func (s *ProductHandler) Archive(c fuego.ContextNoBody) (ProductResponse, error) {
+	if err := enforce(c, s.authz, port.ActionUpdateProduct); err != nil {
+		return ProductResponse{}, err
+	}
+	authUser := AuthUserFrom(c)
+	if _, err := s.productService.ArchiveProduct(c.Context(), authUser.OrgId, c.PathParam("id")); err != nil {
+		return ProductResponse{}, NewApiErrorFromError(err)
+	}
+	details, err := s.productService.GetDetails(c.Context(), authUser.OrgId, c.PathParam("id"))
+	if err != nil {
+		return ProductResponse{}, NewApiErrorFromError(err)
+	}
+	return NewProductResponseFromDetails(details), nil
+}
+
+// Unarchive returns an archived product to active.
+func (s *ProductHandler) Unarchive(c fuego.ContextNoBody) (ProductResponse, error) {
+	if err := enforce(c, s.authz, port.ActionUpdateProduct); err != nil {
+		return ProductResponse{}, err
+	}
+	authUser := AuthUserFrom(c)
+	if _, err := s.productService.UnarchiveProduct(c.Context(), authUser.OrgId, c.PathParam("id")); err != nil {
+		return ProductResponse{}, NewApiErrorFromError(err)
+	}
+	details, err := s.productService.GetDetails(c.Context(), authUser.OrgId, c.PathParam("id"))
+	if err != nil {
+		return ProductResponse{}, NewApiErrorFromError(err)
+	}
+	return NewProductResponseFromDetails(details), nil
 }
 
 func (s *ProductHandler) CreatePrice(c fuego.ContextWithBody[CreatePriceRequest]) (PriceResponse, error) {

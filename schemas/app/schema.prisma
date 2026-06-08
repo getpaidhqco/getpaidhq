@@ -218,12 +218,23 @@ model Cart {
   @@map("carts")
 }
 
+enum ProductStatus {
+  active
+  archived
+}
+
 model Product {
   orgId String @map("org_id")
   id    String @default(cuid())
 
   name        String
   description String?
+
+  // Lifecycle. `archived` products are hidden from default listings and not
+  // sellable, but preserved in historic data. archivedAt is audit metadata,
+  // set on archive and cleared on unarchive. See ADR 0005.
+  status     ProductStatus @default(active)
+  archivedAt DateTime?     @map("archived_at")
 
   metadata Json?
 

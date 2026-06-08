@@ -29,6 +29,14 @@ Start with **Subscription Payments** for the end-to-end picture, then drill into
 - [Event-Driven Bridges (NATS Pub/Sub)](./workflows/event-bridges.md)
 - [Workflow Engine Abstraction (Hatchet ⇄ Temporal)](./workflows/workflow-engine-abstraction.md)
 
+## Decisions (ADRs)
+
+- [0001 — Invoice line items use a decimal quantity](./adr/0001-invoice-line-item-decimal-quantity.md)
+- [0002 — Invoice-centric billing; subscription carries no charge amount](./adr/0002-invoice-centric-billing.md)
+- [0003 — Trials waive the base fee, not usage](./adr/0003-trials-waive-base-fee-not-usage.md)
+- [0004 — Decimal for fractional quantities](./adr/0004-decimal-for-fractional-quantities.md)
+- [0005 — Product archiving instead of soft-delete](./adr/0005-product-archiving-instead-of-soft-delete.md)
+
 ---
 
 Diagrams are [Mermaid](https://mermaid.js.org/) and render on GitHub and most Markdown viewers.

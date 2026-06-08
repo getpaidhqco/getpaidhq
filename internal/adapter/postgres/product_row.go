@@ -9,13 +9,15 @@ import (
 // productRow is the postgres on-the-wire shape of a Product. Variants are NOT
 // embedded — composition is a service-layer concern.
 type productRow struct {
-	OrgId       string            `gorm:"column:org_id;primaryKey"`
-	Id          string            `gorm:"column:id;primaryKey"`
-	Name        string            `gorm:"column:name"`
-	Description string            `gorm:"column:description"`
-	Metadata    map[string]string `gorm:"column:metadata;serializer:json"`
-	CreatedAt   time.Time         `gorm:"column:created_at"`
-	UpdatedAt   time.Time         `gorm:"column:updated_at"`
+	OrgId       string               `gorm:"column:org_id;primaryKey"`
+	Id          string               `gorm:"column:id;primaryKey"`
+	Name        string               `gorm:"column:name"`
+	Description string               `gorm:"column:description"`
+	Status      domain.ProductStatus `gorm:"column:status"`
+	ArchivedAt  *time.Time           `gorm:"column:archived_at"`
+	Metadata    map[string]string    `gorm:"column:metadata;serializer:json"`
+	CreatedAt   time.Time            `gorm:"column:created_at"`
+	UpdatedAt   time.Time            `gorm:"column:updated_at"`
 }
 
 func (productRow) TableName() string { return "products" }
@@ -26,6 +28,8 @@ func (r productRow) toDomain() domain.Product {
 		Id:          r.Id,
 		Name:        r.Name,
 		Description: r.Description,
+		Status:      r.Status,
+		ArchivedAt:  r.ArchivedAt,
 		Metadata:    r.Metadata,
 		CreatedAt:   r.CreatedAt,
 		UpdatedAt:   r.UpdatedAt,
@@ -38,6 +42,8 @@ func productRowFromDomain(p domain.Product) productRow {
 		Id:          p.Id,
 		Name:        p.Name,
 		Description: p.Description,
+		Status:      p.Status,
+		ArchivedAt:  p.ArchivedAt,
 		Metadata:    p.Metadata,
 		CreatedAt:   p.CreatedAt,
 		UpdatedAt:   p.UpdatedAt,

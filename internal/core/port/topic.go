@@ -14,6 +14,8 @@ const (
 	TopicProductCreated       = "product.created"
 	TopicProductUpdated       = "product.updated"
 	TopicProductDeleted       = "product.deleted"
+	TopicProductArchived      = "product.archived"
+	TopicProductUnarchived    = "product.unarchived"
 
 	TopicVariantCreated = "variant.created"
 	TopicVariantUpdated = "variant.updated"

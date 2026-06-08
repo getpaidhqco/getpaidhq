@@ -233,13 +233,15 @@ func NewCustomerFromEntity(entity domain.Customer) CustomerResponse {
 // ---------------------------------------------------------------------------
 
 type ProductResponse struct {
-	Id          string            `json:"id"`
-	Name        string            `json:"name"`
-	Description string            `json:"description,omitempty"`
-	Variants    []VariantResponse `json:"variants,omitempty"`
-	Metadata    map[string]string `json:"metadata,omitempty"`
-	CreatedAt   time.Time         `json:"created_at"`
-	UpdatedAt   time.Time         `json:"updated_at"`
+	Id          string               `json:"id"`
+	Name        string               `json:"name"`
+	Description string               `json:"description,omitempty"`
+	Status      domain.ProductStatus `json:"status"`
+	ArchivedAt  *time.Time           `json:"archived_at,omitempty"`
+	Variants    []VariantResponse    `json:"variants,omitempty"`
+	Metadata    map[string]string    `json:"metadata,omitempty"`
+	CreatedAt   time.Time            `json:"created_at"`
+	UpdatedAt   time.Time            `json:"updated_at"`
 }
 
 // NewProductResponseFromDetails composes the product response DTO from the
@@ -253,6 +255,8 @@ func NewProductResponseFromDetails(d service.ProductDetails) ProductResponse {
 		Id:          d.Product.Id,
 		Name:        d.Product.Name,
 		Description: d.Product.Description,
+		Status:      d.Product.Status,
+		ArchivedAt:  d.Product.ArchivedAt,
 		Variants:    variants,
 		Metadata:    d.Product.Metadata,
 		CreatedAt:   d.Product.CreatedAt,

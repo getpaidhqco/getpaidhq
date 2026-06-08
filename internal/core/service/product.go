@@ -43,6 +43,7 @@ func (s *ProductService) CreateProduct(ctx context.Context, orgId string, input 
 			Id:          lib.GenerateId("prod"),
 			Name:        input.Name,
 			Description: input.Description,
+			Status:      domain.ProductStatusActive,
 			Metadata:    input.Metadata,
 			CreatedAt:   time.Now().UTC(),
 			UpdatedAt:   time.Now().UTC(),
@@ -106,8 +107,8 @@ func (s *ProductService) CreateProduct(ctx context.Context, orgId string, input 
 	return product, err
 }
 
-func (s *ProductService) List(ctx context.Context, orgId string, pagination domain.Pagination) ([]domain.Product, int, error) {
-	subs, total, err := s.productRepository.Find(ctx, orgId, pagination)
+func (s *ProductService) List(ctx context.Context, orgId string, pagination domain.Pagination, statuses []domain.ProductStatus) ([]domain.Product, int, error) {
+	subs, total, err := s.productRepository.Find(ctx, orgId, pagination, statuses)
 	if err != nil {
 		s.logger.Error("Failed to list products", err.Error())
 		return nil, 0, err
@@ -190,6 +191,60 @@ func (s *ProductService) UpdateProduct(ctx context.Context, orgId string, id str
 	}
 
 	_ = s.pubsub.Publish(orgId, port.TopicProductUpdated, product)
+	return product, nil
+}
+
+// ArchiveProduct retires a product: it is hidden from default listings and no
+// longer sellable, but preserved in historic data. Idempotent — archiving an
+// already-archived product returns it unchanged.
+func (s *ProductService) ArchiveProduct(ctx context.Context, orgId string, id string) (domain.Product, error) {
+	product, err := s.productRepository.FindById(ctx, orgId, id)
+	if err != nil {
+		s.logger.Error("Failed to find product", err.Error())
+		return domain.Product{}, err
+	}
+	if product.IsArchived() {
+		return product, nil
+	}
+
+	now := time.Now().UTC()
+	product.Status = domain.ProductStatusArchived
+	product.ArchivedAt = &now
+	product.UpdatedAt = now
+
+	product, err = s.productRepository.Update(ctx, product)
+	if err != nil {
+		s.logger.Error("Failed to archive product", err.Error())
+		return domain.Product{}, err
+	}
+
+	_ = s.pubsub.Publish(orgId, port.TopicProductArchived, product)
+	return product, nil
+}
+
+// UnarchiveProduct returns an archived product to active. Idempotent — an
+// already-active product is returned unchanged.
+func (s *ProductService) UnarchiveProduct(ctx context.Context, orgId string, id string) (domain.Product, error) {
+	product, err := s.productRepository.FindById(ctx, orgId, id)
+	if err != nil {
+		s.logger.Error("Failed to find product", err.Error())
+		return domain.Product{}, err
+	}
+	if !product.IsArchived() {
+		return product, nil
+	}
+
+	product.Status = domain.ProductStatusActive
+	product.ArchivedAt = nil
+	product.UpdatedAt = time.Now().UTC()
+
+	product, err = s.productRepository.Update(ctx, product)
+	if err != nil {
+		s.logger.Error("Failed to unarchive product", err.Error())
+		return domain.Product{}, err
+	}
+
+	_ = s.pubsub.Publish(orgId, port.TopicProductUnarchived, product)
 	return product, nil
 }
 
@@ -403,8 +458,8 @@ func (s *ProductService) GetDetails(ctx context.Context, orgId, id string) (Prod
 
 // ListDetails returns products with their composed details. Variants and
 // prices are batch-loaded.
-func (s *ProductService) ListDetails(ctx context.Context, orgId string, pagination domain.Pagination) ([]ProductDetails, int, error) {
-	products, total, err := s.productRepository.Find(ctx, orgId, pagination)
+func (s *ProductService) ListDetails(ctx context.Context, orgId string, pagination domain.Pagination, statuses []domain.ProductStatus) ([]ProductDetails, int, error) {
+	products, total, err := s.productRepository.Find(ctx, orgId, pagination, statuses)
 	if err != nil {
 		return nil, 0, err
 	}
