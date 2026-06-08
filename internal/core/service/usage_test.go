@@ -495,3 +495,31 @@ func TestUsageService_CurrentPeriodUsage(t *testing.T) {
 		}
 	})
 }
+
+func TestUsageService_RecordEvents_Batch(t *testing.T) {
+	meters := &usageMeterRepo{byCode: map[string]domain.BillableMetric{"api_calls": countMeter()}}
+	customers := &usageCustomerRepo{byId: map[string]domain.Customer{"cus_1": {OrgId: "org_1", Id: "cus_1"}}}
+	es := &usageEventStore{}
+	svc := newUsageSvc(meters, customers, &usageSubRepo{}, es)
+
+	results, err := svc.RecordEvents(context.Background(), []port.RecordEventInput{
+		{OrgId: "org_1", MetricCode: "api_calls", CustomerId: "cus_1"},
+		{OrgId: "org_1", MetricCode: "nope", CustomerId: "cus_1"}, // unknown metric → rejected
+		{OrgId: "org_1", MetricCode: "api_calls", CustomerId: "cus_1"},
+	})
+	if err != nil {
+		t.Fatalf("batch should not error on per-event rejection: %v", err)
+	}
+	if len(results) != 3 {
+		t.Fatalf("results must align 1:1 with inputs, got %d", len(results))
+	}
+	if results[0].Status != port.IngestRecorded || results[2].Status != port.IngestRecorded {
+		t.Errorf("valid events should be recorded: %+v", results)
+	}
+	if results[1].Status != port.IngestRejected || results[1].Error == "" {
+		t.Errorf("invalid event should be rejected with a reason: %+v", results[1])
+	}
+	if len(es.ingested) != 2 {
+		t.Errorf("only the two valid events should be written, got %d", len(es.ingested))
+	}
+}

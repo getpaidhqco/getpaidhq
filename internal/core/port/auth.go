@@ -165,6 +165,9 @@ const (
 	ActionUpdateDunningConfiguration Action = "UpdateDunningConfiguration"
 	ActionGetCustomerDunningHistory  Action = "GetCustomerDunningHistory"
 	ActionCreatePaymentUpdateToken   Action = "CreatePaymentUpdateToken"
+
+	ActionRecordUsage Action = "RecordUsage"
+	ActionReadUsage   Action = "ReadUsage"
 )
 
 // Authz enforces authorization policies.
