@@ -89,7 +89,9 @@ type CustomerRepository interface {
 type ProductRepository interface {
 	FindById(ctx context.Context, orgId string, id string) (domain.Product, error)
 	Create(ctx context.Context, product domain.Product) (domain.Product, error)
-	Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Product, int, error)
+	// Find lists products, optionally filtered by status. An empty/nil statuses
+	// slice returns all products regardless of status.
+	Find(ctx context.Context, orgId string, p domain.Pagination, statuses []domain.ProductStatus) ([]domain.Product, int, error)
 	Update(ctx context.Context, product domain.Product) (domain.Product, error)
 	Delete(ctx context.Context, orgId string, id string) error
 }

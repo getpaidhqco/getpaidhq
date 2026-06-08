@@ -9,7 +9,7 @@ require (
 	github.com/checkout/checkout-sdk-go v1.4.0
 	github.com/dgrijalva/jwt-go v3.2.0+incompatible
 	github.com/go-playground/validator/v10 v10.30.2
-	github.com/jackc/pgx/v5 v5.9.2 // indirect
+	github.com/jackc/pgx/v5 v5.9.2
 	github.com/nats-io/nats-server/v2 v2.10.25
 	github.com/nats-io/nats.go v1.39.1
 	github.com/segmentio/ksuid v1.0.4

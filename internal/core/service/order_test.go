@@ -11,6 +11,7 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 )
 
 // ---- fakes specific to OrderService ----
@@ -285,4 +286,26 @@ func TestOrderService_CompleteOrder_HappyPath(t *testing.T) {
 		assert.Equal(t, pmRepo.created[0].Id, subRepo.updated[0].PaymentMethodId)
 		assert.Len(t, engine.started, 1)
 	})
+}
+
+// CreateOrder must refuse to sell an archived product. The guard runs after the
+// cart is assembled and before the customer/order is created, so a minimal
+// service (no engine/session/customer repos) is enough to exercise it via the
+// direct cart-items path.
+func TestOrderService_CreateOrder_RejectsArchivedProduct(t *testing.T) {
+	prod := &fakeProductRepo{byId: domain.Product{OrgId: "org_1", Id: "prod_1", Status: domain.ProductStatusArchived}}
+	price := &fakePriceRepo{byId: domain.Price{OrgId: "org_1", Id: "price_1", UnitPrice: 1000}}
+	orderRepo := &fakeOrderRepo{}
+	svc := NewOrderService(nil, nil, nil, price, &fakeCartRepo{}, orderRepo, &fakeCustomerRepo{}, nil, nil, nil, prod, nil, &recordingPubSub{}, silentLogger{})
+
+	_, err := svc.CreateOrder(context.Background(), port.CreateOrderInput{
+		OrgId:     "org_1",
+		CartItems: []domain.CartItem{{ProductId: "prod_1", PriceId: "price_1", Quantity: 1}},
+	})
+
+	require.Error(t, err)
+	var ce lib.CustomError
+	require.ErrorAs(t, err, &ce)
+	assert.Equal(t, lib.ConflictError, ce.Type)
+	assert.Empty(t, orderRepo.updated, "archived product must be rejected before the order is created")
 }

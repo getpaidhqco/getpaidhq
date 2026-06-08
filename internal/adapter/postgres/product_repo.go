@@ -37,16 +37,25 @@ func (r *ProductRepo) Create(ctx context.Context, product domain.Product) (domai
 	return r.FindById(ctx, product.OrgId, product.Id)
 }
 
-func (r *ProductRepo) Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Product, int, error) {
+func (r *ProductRepo) Find(ctx context.Context, orgId string, p domain.Pagination, statuses []domain.ProductStatus) ([]domain.Product, int, error) {
 	var rows []productRow
 	var count int64
+	// statusScope filters by status when the caller passes one or more; an empty
+	// slice means "all statuses". Applied to both the count and the page query so
+	// the total matches what's returned.
+	statusScope := func(db *gorm.DB) *gorm.DB {
+		if len(statuses) == 0 {
+			return db
+		}
+		return db.Where("status IN ?", statuses)
+	}
 	if err := dbFromCtx(ctx, r.db).Model(&productRow{}).
-		Scopes(OrgScope(orgId)).
+		Scopes(OrgScope(orgId), statusScope).
 		Count(&count).Error; err != nil {
 		return nil, 0, err
 	}
 	if err := dbFromCtx(ctx, r.db).
-		Scopes(OrgScope(orgId), Paginate(p)).
+		Scopes(OrgScope(orgId), statusScope, Paginate(p)).
 		Find(&rows).Error; err != nil {
 		return nil, 0, err
 	}
@@ -66,8 +75,13 @@ func (r *ProductRepo) Update(ctx context.Context, product domain.Product) (domai
 }
 
 func (r *ProductRepo) Delete(ctx context.Context, orgId string, id string) error {
-	return dbFromCtx(ctx, r.db).
+	err := dbFromCtx(ctx, r.db).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		Delete(&productRow{}).Error
+	// A product whose variant is referenced by order_items cannot be
+	// hard-deleted — the FK is intentionally Restrict to preserve order
+	// history. Surface that as a 409 with a clear message rather than a raw
+	// SQLSTATE 23503 leaking out as an opaque 400.
+	return asConflictOnFK(err, "Cannot delete a product that has existing orders.")
 }

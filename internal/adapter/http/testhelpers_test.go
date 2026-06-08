@@ -159,6 +159,10 @@ type testSrv struct {
 func newTestServer(mws ...func(http.Handler) http.Handler) *testSrv {
 	opts := []fuego.ServerOption{
 		fuego.WithErrorSerializer(ApiErrorSerializer),
+		// Mirror BuildServer: pass our ApiError envelope through untouched so
+		// the serializer renders the full {code,message,details}. See the note
+		// on PassThroughApiError / internal/config/server.go.
+		fuego.WithEngineOptions(fuego.WithErrorHandler(PassThroughApiError)),
 		fuego.WithoutStartupMessages(),
 	}
 	s := fuego.NewServer(opts...)
@@ -561,22 +565,39 @@ func (r *fakeProductRepo) FindById(context.Context, string, string) (domain.Prod
 
 func (r *fakeProductRepo) Create(_ context.Context, p domain.Product) (domain.Product, error) {
 	r.created = append(r.created, p)
+	// Single-product store: the service re-reads via FindById after create.
+	r.byId = p
 	return p, nil
 }
 
-func (r *fakeProductRepo) Find(context.Context, string, domain.Pagination) ([]domain.Product, int, error) {
+func (r *fakeProductRepo) Find(_ context.Context, _ string, _ domain.Pagination, statuses []domain.ProductStatus) ([]domain.Product, int, error) {
 	if r.listErr != nil {
 		return nil, 0, r.listErr
 	}
+	out := r.listResult
+	if len(statuses) > 0 {
+		out = nil
+		for _, p := range r.listResult {
+			for _, st := range statuses {
+				if p.Status == st {
+					out = append(out, p)
+					break
+				}
+			}
+		}
+	}
 	total := r.listTotal
 	if total == 0 {
-		total = len(r.listResult)
+		total = len(out)
 	}
-	return r.listResult, total, nil
+	return out, total, nil
 }
 
 func (r *fakeProductRepo) Update(_ context.Context, p domain.Product) (domain.Product, error) {
 	r.updated = append(r.updated, p)
+	// Behave like a single-product store so a subsequent FindById (e.g. the
+	// GetDetails call after archive/unarchive) reflects the mutation.
+	r.byId = p
 	return p, nil
 }
 

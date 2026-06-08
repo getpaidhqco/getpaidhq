@@ -108,6 +108,15 @@ func BuildServer(deps ServerDeps, h Handlers) *fuego.Server {
 
 	opts := []fuego.ServerOption{
 		fuego.WithErrorSerializer(handler.ApiErrorSerializer),
+		// Pass our own ApiError envelope through untouched. Fuego's default
+		// engine ErrorHandler coerces any error implementing ErrorWithStatus
+		// (ApiError does) into a fuego.HTTPError BEFORE the serializer runs,
+		// discarding our Message/Details and filling Title from http.StatusText
+		// — so every custom error degraded to {"message":"Bad Request","details":null}.
+		// Everything that is NOT our ApiError still goes through Fuego's default
+		// handler, preserving its status normalization for fuego.* error types
+		// and the passthrough for plain errors.
+		fuego.WithEngineOptions(fuego.WithErrorHandler(handler.PassThroughApiError)),
 		fuego.WithGlobalMiddlewares(mws...),
 		fuego.WithoutStartupMessages(),
 		// Canonical OpenAPI artifact: ./openapi.json at the repo root.

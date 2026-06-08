@@ -78,6 +78,28 @@ A record of one charge *attempt* at the PSP (status, fees, net amount). Settles 
 **Invoice**.
 _Avoid_: treating a Payment as the calculated total (that's the Invoice).
 
+### Catalog
+
+**Product**:
+A sellable item in an Org's catalog. Holds **Variants**, which hold **Prices**. Referenced
+by an **Order Item** at purchase. Has a lifecycle **Product Status**.
+
+**Product Status**:
+A Product's lifecycle, one of exactly two values:
+- **active** — live and **sellable**; shown in default catalog listings (dashboard, checkout).
+- **archived** — retired: hidden from default listings and **not sellable**, but fully
+  preserved in historic data (Orders, Invoices, Subscriptions, reports). Reversible.
+
+There is no `draft` or other state. "Sellable" is 1:1 with **active** — an archived Product
+cannot enter a new Cart, Order, or Subscription, but existing ones are untouched.
+_Avoid_: "soft delete" / "deleted" (we deliberately do **not** soft-delete Products —
+archiving is the retirement mechanism); "active" without qualification (also a
+**SubscriptionStatus** — say "active Product" / "active Subscription").
+
+**Archive / Unarchive**:
+The actions that move a Product to **archived** / back to **active**. Distinct from
+**delete** (a hard, irreversible removal kept only for orphan Products with no history).
+
 ### Existing domain (referenced)
 
 **Customer**:

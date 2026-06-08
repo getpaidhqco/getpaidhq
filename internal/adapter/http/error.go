@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -10,6 +11,21 @@ import (
 
 	"getpaidhq/internal/lib"
 )
+
+// PassThroughApiError is the engine ErrorHandler wired into BuildServer. It
+// returns our own ApiError untouched so the serializer's `case ApiError`
+// branch renders the full {code,message,details} envelope. Any other error is
+// delegated to Fuego's default ErrorHandler, which normalizes fuego.* error
+// types (populating Status from their ErrorWithStatus) and passes plain errors
+// through. Without this, Fuego coerces ApiError (it implements ErrorWithStatus)
+// into a bare HTTPError before the serializer, dropping Message and Details.
+func PassThroughApiError(ctx context.Context, err error) error {
+	var apiErr ApiError
+	if errors.As(err, &apiErr) {
+		return err
+	}
+	return fuego.ErrorHandler(ctx, err)
+}
 
 // ApiError is the JSON envelope every API error renders into. Code is the
 // stable machine-readable identifier (one of the lib.CustomErrorType values);

@@ -4,10 +4,16 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/jackc/pgx/v5/pgconn"
 	"gorm.io/gorm"
 
 	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 )
+
+// pgForeignKeyViolation is the SQLSTATE Postgres returns when a DELETE or
+// UPDATE is blocked because the row is still referenced from another table.
+const pgForeignKeyViolation = "23503"
 
 // translateErr wraps gorm-specific errors as domain-level sentinels so
 // callers can do `errors.Is(err, port.ErrNotFound)` without importing
@@ -25,6 +31,20 @@ func translateErr(err error) error {
 	}
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("%w: %w", port.ErrNotFound, err)
+	}
+	return err
+}
+
+// asConflictOnFK converts a Postgres foreign-key violation (23503) into a
+// typed ConflictError carrying msg, so handlers render a 409 with a clear,
+// caller-supplied message instead of leaking the raw driver error as an
+// opaque 400. The driver error is wrapped (%w via NewCustomError) so it stays
+// in the chain for logs and errors.Is. Any other error — including nil — is
+// returned unchanged.
+func asConflictOnFK(err error, msg string) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == pgForeignKeyViolation {
+		return lib.NewCustomError(lib.ConflictError, msg, err)
 	}
 	return err
 }

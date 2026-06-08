@@ -10,6 +10,7 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 )
 
 // fakeCartRepo is shared by the cart and session tests in this package.
@@ -79,6 +80,23 @@ func TestCartService_AddProduct(t *testing.T) {
 		_, err := svc.AddProduct(context.Background(), port.AddProductCommand{OrgId: "org_1", CartId: "cart_1", ProductId: "prod_x"})
 		require.Error(t, err)
 		assert.Empty(t, cart.updated)
+	})
+
+	t.Run("archived product cannot be added (409 conflict)", func(t *testing.T) {
+		cart := &fakeCartRepo{cart: domain.Cart{OrgId: "org_1", Id: "cart_1"}}
+		prod := &fakeProductRepo{byId: domain.Product{OrgId: "org_1", Id: "prod_1", Status: domain.ProductStatusArchived}}
+		price := &fakePriceRepo{byId: domain.Price{OrgId: "org_1", Id: "price_1", UnitPrice: 1000}}
+		svc := NewCartService(cart, price, silentLogger{}, prod)
+
+		_, err := svc.AddProduct(context.Background(), port.AddProductCommand{
+			OrgId: "org_1", CartId: "cart_1", ProductId: "prod_1", PriceId: "price_1", Quantity: 1,
+		})
+
+		require.Error(t, err)
+		var ce lib.CustomError
+		require.ErrorAs(t, err, &ce)
+		assert.Equal(t, lib.ConflictError, ce.Type)
+		assert.Empty(t, cart.updated, "archived product must not reach the cart")
 	})
 
 	t.Run("missing price is rejected", func(t *testing.T) {
