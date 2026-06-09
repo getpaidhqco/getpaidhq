@@ -79,14 +79,14 @@ func (r *SubscriptionRepo) FindByOrderId(ctx context.Context, orgId string, orde
 
 func (r *SubscriptionRepo) FindActiveMeteredForMeter(ctx context.Context, orgId, customerId, billableMetricId string) ([]domain.Subscription, error) {
 	var rows []subscriptionRow
-	// A subscription is "metered for M" when ANY item in its order carries a metered
-	// price for meter M (the plan subscription bills its order's usage items — the
-	// metered items don't create their own subscriptions). DISTINCT collapses orders
-	// that carry several metered items for the same meter.
+	// A subscription is "metered for M" when it OWNS an order line carrying a
+	// metered price for meter M (lines are stamped with subscription_id at order
+	// creation). DISTINCT collapses subscriptions that own several metered lines
+	// for the same meter.
 	err := dbFromCtx(ctx, r.db).
 		Model(&subscriptionRow{}).
 		Distinct("subscriptions.*").
-		Joins("JOIN order_items oi ON oi.org_id = subscriptions.org_id AND oi.order_id = subscriptions.order_id").
+		Joins("JOIN order_items oi ON oi.org_id = subscriptions.org_id AND oi.subscription_id = subscriptions.id").
 		Joins("JOIN prices p ON p.org_id = oi.org_id AND p.id = oi.price_id").
 		Where("subscriptions.org_id = ? AND subscriptions.customer_id = ?", orgId, customerId).
 		Where("p.billable_metric_id = ?", billableMetricId).

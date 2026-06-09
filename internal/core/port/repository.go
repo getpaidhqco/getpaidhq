@@ -58,6 +58,9 @@ type OrderRepository interface {
 	CreateOrderItem(ctx context.Context, entity domain.OrderItem) (domain.OrderItem, error)
 	UpdateOrderItem(ctx context.Context, orderItem domain.OrderItem) (domain.OrderItem, error)
 	FindOrderItemsByOrderId(ctx context.Context, orgId string, orderId string) ([]domain.OrderItem, error)
+	// FindOrderItemsBySubscriptionId returns the lines a subscription bills (the
+	// recurring lines stamped with this subscription's id).
+	FindOrderItemsBySubscriptionId(ctx context.Context, orgId string, subscriptionId string) ([]domain.OrderItem, error)
 }
 
 // CustomerRepository manages customer persistence.

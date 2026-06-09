@@ -106,3 +106,17 @@ func (r *OrderRepo) FindOrderItemsByOrderId(ctx context.Context, orgId string, o
 	}
 	return orderItemRowsToDomain(rows), nil
 }
+
+// FindOrderItemsBySubscriptionId returns the order lines a subscription bills
+// (the recurring lines stamped with this subscription's id).
+func (r *OrderRepo) FindOrderItemsBySubscriptionId(ctx context.Context, orgId string, subscriptionId string) ([]domain.OrderItem, error) {
+	var rows []orderItemRow
+	err := dbFromCtx(ctx, r.db).
+		Scopes(OrgScope(orgId)).
+		Where("subscription_id = ?", subscriptionId).
+		Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return orderItemRowsToDomain(rows), nil
+}
