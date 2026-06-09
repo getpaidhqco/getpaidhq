@@ -88,6 +88,8 @@ func (s *ProductService) CreateProduct(ctx context.Context, orgId string, input 
 					TaxCode:            p.TaxCode,
 					BillableMetricId:   p.BillableMetricId,
 					Tiers:              p.Tiers,
+					FilterField:        p.FilterField,
+					FilterValue:        p.FilterValue,
 					Metadata:           p.Metadata,
 				}.ToPrice(orgId, variant.Id))
 			if err != nil {
@@ -158,6 +160,8 @@ func (s *ProductService) CreateProductPrice(ctx context.Context, input port.Crea
 		TaxCode:            input.TaxCode,
 		BillableMetricId:   input.BillableMetricId,
 		Tiers:              input.Tiers,
+		FilterField:        input.FilterField,
+		FilterValue:        input.FilterValue,
 		Metadata:           input.Metadata,
 		CreatedAt:          time.Now(),
 		UpdatedAt:          time.Now(),
@@ -396,6 +400,8 @@ func (s *ProductService) UpdatePrice(ctx context.Context, orgId string, id strin
 	price.TaxCode = input.TaxCode
 	price.BillableMetricId = input.BillableMetricId
 	price.Tiers = input.Tiers
+	price.FilterField = input.FilterField
+	price.FilterValue = input.FilterValue
 	price.Metadata = input.Metadata
 	price.UpdatedAt = time.Now().UTC()
 

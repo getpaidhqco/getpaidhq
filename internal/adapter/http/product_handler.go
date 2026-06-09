@@ -102,6 +102,8 @@ func (s *ProductHandler) Create(c fuego.ContextWithBody[CreateProductRequest]) (
 				TaxCode:            p.TaxCode,
 				BillableMetricId:   p.BillableMetricId,
 				Tiers:              tiers,
+				FilterField:        p.FilterField,
+				FilterValue:        p.FilterValue,
 				Metadata:           p.Metadata,
 			}
 		}
@@ -270,6 +272,8 @@ func (s *ProductHandler) CreatePrice(c fuego.ContextWithBody[CreatePriceRequest]
 		TaxCode:            input.TaxCode,
 		BillableMetricId:   input.BillableMetricId,
 		Tiers:              tiers,
+		FilterField:        input.FilterField,
+		FilterValue:        input.FilterValue,
 		Metadata:           input.Metadata,
 	})
 	if err != nil {
@@ -340,6 +344,8 @@ func (s *ProductHandler) UpdatePrice(c fuego.ContextWithBody[CreatePriceRequest]
 		TaxCode:            input.TaxCode,
 		BillableMetricId:   input.BillableMetricId,
 		Tiers:              tiers,
+		FilterField:        input.FilterField,
+		FilterValue:        input.FilterValue,
 		Metadata:           input.Metadata,
 	})
 	if err != nil {

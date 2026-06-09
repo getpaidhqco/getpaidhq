@@ -280,7 +280,12 @@ type CreateProductPriceRequest struct {
 	TaxCode            string                 `json:"tax_code" validate:"omitempty,alphanum"`
 	BillableMetricId   string                 `json:"billable_metric_id" validate:"omitempty"`
 	Tiers              []PriceTierRequest     `json:"tiers" validate:"omitempty,dive"`
-	Metadata           map[string]string      `json:"metadata"`
+	// FilterField/FilterValue scope a metered price to one slice of its meter (a value
+	// of one of the meter's filters). filter_field empty = whole meter; filter_field
+	// set with empty filter_value = the default/catch-all charge.
+	FilterField string            `json:"filter_field" validate:"omitempty,max=255"`
+	FilterValue string            `json:"filter_value" validate:"omitempty,max=255"`
+	Metadata    map[string]string `json:"metadata"`
 }
 
 type CreatePriceRequest struct {
@@ -300,6 +305,8 @@ type CreatePriceRequest struct {
 	TaxCode            string                 `json:"tax_code" validate:"omitempty,alphanum"`
 	BillableMetricId   string                 `json:"billable_metric_id" validate:"omitempty"`
 	Tiers              []PriceTierRequest     `json:"tiers" validate:"omitempty,dive"`
+	FilterField        string                 `json:"filter_field" validate:"omitempty,max=255"`
+	FilterValue        string                 `json:"filter_value" validate:"omitempty,max=255"`
 	Metadata           map[string]string      `json:"metadata"`
 }
 

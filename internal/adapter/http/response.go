@@ -310,6 +310,8 @@ type PriceResponse struct {
 	TaxCode            string                 `json:"tax_code"`
 	BillableMetricId   string                 `json:"billable_metric_id"`
 	Tiers              []PriceTierResponse    `json:"tiers"`
+	FilterField        string                 `json:"filter_field"`
+	FilterValue        string                 `json:"filter_value"`
 	Metadata           map[string]string      `json:"metadata"`
 	CreatedAt          time.Time              `json:"created_at"`
 	UpdatedAt          time.Time              `json:"updated_at"`
@@ -351,6 +353,8 @@ func NewPriceFromEntity(entity domain.Price) PriceResponse {
 		TaxCode:            entity.TaxCode,
 		BillableMetricId:   entity.BillableMetricId,
 		Tiers:              tiers,
+		FilterField:        entity.FilterField,
+		FilterValue:        entity.FilterValue,
 		Metadata:           entity.Metadata,
 		CreatedAt:          entity.CreatedAt,
 		UpdatedAt:          entity.UpdatedAt,

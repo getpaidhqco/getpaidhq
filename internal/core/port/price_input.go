@@ -25,6 +25,8 @@ type CreatePriceInput struct {
 	TaxCode            string
 	BillableMetricId   string             // set when Category == metered
 	Tiers              []domain.PriceTier // rate bands for graduated / volume schemes
+	FilterField        string             // metered: scopes the price to one slice of its meter
+	FilterValue        string             // the filter value; empty with FilterField set = default charge
 	Metadata           map[string]string
 }
 
@@ -58,6 +60,8 @@ func (input CreatePriceInput) ToPrice(orgId, variantId string) domain.Price {
 		TaxCode:            input.TaxCode,
 		BillableMetricId:   input.BillableMetricId,
 		Tiers:              input.Tiers,
+		FilterField:        input.FilterField,
+		FilterValue:        input.FilterValue,
 		Metadata:           input.Metadata,
 		CreatedAt:          time.Now().UTC(),
 		UpdatedAt:          time.Now().UTC(),
@@ -81,5 +85,7 @@ type CreateProductPriceInput struct {
 	TaxCode            string
 	BillableMetricId   string
 	Tiers              []domain.PriceTier
+	FilterField        string
+	FilterValue        string
 	Metadata           map[string]string
 }
