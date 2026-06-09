@@ -7,42 +7,25 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewSubscriptionFromOrderItem_FreeTrial(t *testing.T) {
+func TestNewSubscriptionForCadence(t *testing.T) {
 	now := time.Now().UTC()
-	trialInterval := BillingIntervalMonth
 
-	orderItem := OrderItem{
-		OrgId:   "org_123",
-		OrderId: "order_123",
-	}
-	price := Price{
-		BillingInterval:    BillingIntervalMonth,
-		BillingIntervalQty: 1,
-		Category:           PriceCategorySubscription,
-		Currency:           "USD",
-		UnitPrice:          1000,
-		TrialInterval:      trialInterval,
-		TrialIntervalQty:   1,
-	}
+	subscription := NewSubscriptionForCadence("org_123", "order_123", "cus_1", BillingIntervalMonth, 1, 12, "USD")
 
-	subscription := NewSubscriptionFromOrderItem(orderItem, price)
-
-	assert.Equal(t, orderItem.OrgId, subscription.OrgId)
-	assert.Equal(t, orderItem.OrderId, subscription.OrderId)
+	assert.Equal(t, "org_123", subscription.OrgId)
+	assert.Equal(t, "order_123", subscription.OrderId)
+	assert.Equal(t, "cus_1", subscription.CustomerId)
 	assert.Equal(t, SubscriptionStatusPending, subscription.Status)
-	assert.Equal(t, price.BillingInterval, subscription.BillingInterval)
-	assert.Equal(t, price.BillingIntervalQty, subscription.BillingIntervalQty)
-	assert.Equal(t, string(price.Currency), subscription.Currency)
-	assert.Equal(t, price.UnitPrice, subscription.Amount)
-	assert.Equal(t, 0, subscription.Cycles)
+	assert.Equal(t, BillingIntervalMonth, subscription.BillingInterval)
+	assert.Equal(t, 1, subscription.BillingIntervalQty)
+	assert.Equal(t, 12, subscription.Cycles)
+	assert.Equal(t, "USD", subscription.Currency)
+	assert.NotEmpty(t, subscription.Id)
 	assert.Equal(t, 0, subscription.Retries)
 	assert.Equal(t, 0, subscription.CyclesProcessed)
 	assert.Equal(t, int64(0), subscription.TotalRevenue)
 	assert.True(t, subscription.CancelAt.IsZero())
 	assert.True(t, subscription.EndsAt.IsZero())
-	assert.True(t, subscription.LastCharge.IsZero())
-	assert.True(t, subscription.NextRetryAt.IsZero())
-	assert.True(t, subscription.CancelledAt.IsZero())
 	assert.WithinDuration(t, now, subscription.CreatedAt, 5*time.Second)
 	assert.WithinDuration(t, now, subscription.UpdatedAt, 5*time.Second)
 }
@@ -139,7 +122,7 @@ func TestSetActivationDates(t *testing.T) {
 		TrialIntervalQty:   0,
 	}
 
-	subscription := NewSubscriptionFromOrderItem(orderItem, price)
+	subscription := NewSubscriptionForCadence(orderItem.OrgId, orderItem.OrderId, "", price.BillingInterval, price.BillingIntervalQty, price.Cycles, string(price.Currency))
 	subscription.SetActivationDates(price)
 
 	assert.WithinDuration(t, now, subscription.StartDate, 10*time.Second)
@@ -150,7 +133,6 @@ func TestSetActivationDates(t *testing.T) {
 
 func TestUpdateBillingAnchor(t *testing.T) {
 	subscription := Subscription{
-		Amount:             1000,
 		BillingInterval:    "month",
 		BillingIntervalQty: 1,
 		BillingAnchor:      15,
@@ -158,7 +140,7 @@ func TestUpdateBillingAnchor(t *testing.T) {
 		CurrentPeriodEnd:   time.Now().UTC().AddDate(0, 1, 0),
 	}
 
-	prorationDetails := subscription.UpdateBillingAnchor(20, "none", subscription.Amount)
+	prorationDetails := subscription.UpdateBillingAnchor(20, "none", 1000)
 
 	assert.Equal(t, 20, subscription.BillingAnchor)
 	assert.Equal(t, 0, prorationDetails.CreditAmount)
@@ -169,7 +151,7 @@ func TestUpdateBillingAnchor(t *testing.T) {
 	assert.False(t, prorationDetails.NewPeriodEnd.IsZero())
 
 	subscription.BillingAnchor = 15
-	prorationDetails = subscription.UpdateBillingAnchor(25, "credit_unused", subscription.Amount)
+	prorationDetails = subscription.UpdateBillingAnchor(25, "credit_unused", 1000)
 
 	assert.Equal(t, 25, subscription.BillingAnchor)
 	assert.Greater(t, prorationDetails.CreditAmount, 0)
@@ -226,14 +208,13 @@ func TestCalculateProrationDetails(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			subscription := Subscription{
-				Amount:             amount,
 				CurrentPeriodStart: periodStart,
 				CurrentPeriodEnd:   periodEnd,
 			}
 
 			details := subscription.CalculateProrationDetails(
 				tt.prorationMode, tt.referenceDate, 15, 20,
-				base.Add(5*day), base.Add(35*day), subscription.Amount,
+				base.Add(5*day), base.Add(35*day), amount,
 			)
 
 			assert.Equal(t, tt.expectedCredit, details.CreditAmount)

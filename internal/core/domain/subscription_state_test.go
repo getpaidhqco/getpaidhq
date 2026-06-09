@@ -30,10 +30,16 @@ func monthlyItem() OrderItem {
 	}
 }
 
+// subForItem builds a pending subscription for an item's price cadence (the
+// activation/lifecycle methods still take the Price explicitly).
+func subForItem(item OrderItem, price Price) Subscription {
+	return NewSubscriptionForCadence(item.OrgId, item.OrderId, "", price.BillingInterval, price.BillingIntervalQty, price.Cycles, string(price.Currency))
+}
+
 func TestSetActivationDates_NoTrialNoCycles(t *testing.T) {
 	now := time.Now().UTC()
 	price := monthlyPrice(BillingIntervalNone, 0, 0)
-	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
+	s := subForItem(monthlyItem(), price)
 
 	got := s.SetActivationDates(price)
 
@@ -49,7 +55,7 @@ func TestSetActivationDates_NoTrialNoCycles(t *testing.T) {
 
 func TestSetActivationDates_WithTrialSetsTrialEnd(t *testing.T) {
 	price := monthlyPrice(BillingIntervalMonth, 1, 0)
-	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
+	s := subForItem(monthlyItem(), price)
 
 	s.SetActivationDates(price)
 
@@ -59,7 +65,7 @@ func TestSetActivationDates_WithTrialSetsTrialEnd(t *testing.T) {
 
 func TestSetActivationDates_WithCyclesSetsEndsAt(t *testing.T) {
 	price := monthlyPrice(BillingIntervalNone, 0, 12)
-	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
+	s := subForItem(monthlyItem(), price)
 
 	s.SetActivationDates(price)
 
@@ -70,7 +76,7 @@ func TestSetActivationDates_WithCyclesSetsEndsAt(t *testing.T) {
 func TestSetActive_FirstCycle(t *testing.T) {
 	now := time.Now().UTC()
 	price := monthlyPrice(BillingIntervalNone, 0, 0)
-	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
+	s := subForItem(monthlyItem(), price)
 
 	payment := Payment{
 		OrgId:       "org_1",
@@ -93,7 +99,7 @@ func TestSetActive_FirstCycle(t *testing.T) {
 func TestSetActive_RecurringChargeIncrementsCycles(t *testing.T) {
 	now := time.Now().UTC()
 	price := monthlyPrice(BillingIntervalNone, 0, 0)
-	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
+	s := subForItem(monthlyItem(), price)
 	s.CyclesProcessed = 1
 	s.LastCharge = now.AddDate(0, -1, 0)
 
@@ -114,7 +120,7 @@ func TestSetActive_RecurringChargeIncrementsCycles(t *testing.T) {
 
 func TestSetActive_NoPaymentDoesNotChargeButActivates(t *testing.T) {
 	price := monthlyPrice(BillingIntervalNone, 0, 0)
-	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
+	s := subForItem(monthlyItem(), price)
 
 	s.SetActive(price, Payment{})
 
@@ -127,7 +133,7 @@ func TestSetActive_NoPaymentDoesNotChargeButActivates(t *testing.T) {
 
 func TestSetActive_ZeroAmountSkipsChargeBranch(t *testing.T) {
 	price := monthlyPrice(BillingIntervalNone, 0, 0)
-	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
+	s := subForItem(monthlyItem(), price)
 
 	s.SetActive(price, Payment{OrgId: "org_1", Amount: 0})
 
@@ -139,7 +145,6 @@ func TestSetActive_ZeroAmountSkipsChargeBranch(t *testing.T) {
 func TestUpdateBillingAnchor_NoneMode(t *testing.T) {
 	now := time.Now().UTC()
 	s := Subscription{
-		Amount:             1000,
 		BillingInterval:    BillingIntervalMonth,
 		BillingIntervalQty: 1,
 		BillingAnchor:      15,
@@ -165,7 +170,6 @@ func TestUpdateBillingAnchor_NoneMode(t *testing.T) {
 func TestUpdateBillingAnchor_CreditUnusedMode(t *testing.T) {
 	now := time.Now().UTC()
 	s := Subscription{
-		Amount:             1000,
 		BillingInterval:    BillingIntervalMonth,
 		BillingIntervalQty: 1,
 		BillingAnchor:      15,

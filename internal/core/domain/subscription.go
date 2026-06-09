@@ -31,7 +31,6 @@ type Subscription struct {
 	Id              string
 	PspId           Gateway
 	OrderId         string
-	OrderItemId     string
 	CustomerId      string
 	Status          SubscriptionStatus
 	PaymentMethodId string
@@ -56,7 +55,6 @@ type Subscription struct {
 	NextRetryAt time.Time
 
 	Currency        string
-	Amount          int64
 	Metadata        map[string]string
 	CyclesProcessed int
 	TotalRevenue    int64
@@ -343,24 +341,22 @@ func calculateNextDate(interval BillingInterval, qty int, startDate time.Time) t
 	return startDate
 }
 
-// NewSubscriptionFromOrderItem constructs a Subscription from an OrderItem +
-// its Price. Both arguments are required: the OrderItem carries the parent
-// Order linkage, the Price carries the billing rule.
-func NewSubscriptionFromOrderItem(item OrderItem, price Price) Subscription {
+// NewSubscriptionForCadence constructs a pending Subscription for one billing
+// cadence within an order. The subscription owns a group of the order's
+// recurring lines (linked via OrderItem.SubscriptionId), not a single item, and
+// stores no charge amount (ADR 0002) — the per-cycle total is computed onto the
+// Invoice from the linked lines.
+func NewSubscriptionForCadence(orgId, orderId, customerId string, interval BillingInterval, qty, cycles int, currency string) Subscription {
 	return Subscription{
-		OrgId:              item.OrgId,
+		OrgId:              orgId,
 		Id:                 lib.GenerateId("sub"),
-		OrderId:            item.OrderId,
-		OrderItemId:        item.Id,
+		OrderId:            orderId,
+		CustomerId:         customerId,
 		Status:             SubscriptionStatusPending,
-		BillingInterval:    price.BillingInterval,
-		BillingIntervalQty: price.BillingIntervalQty,
-		Cycles:             price.Cycles,
-		Retries:            0,
-		Currency:           string(price.Currency),
-		Amount:             price.UnitPrice,
-		CyclesProcessed:    0,
-		TotalRevenue:       0,
+		BillingInterval:    interval,
+		BillingIntervalQty: qty,
+		Cycles:             cycles,
+		Currency:           currency,
 		CreatedAt:          time.Now().UTC(),
 		UpdatedAt:          time.Now().UTC(),
 	}

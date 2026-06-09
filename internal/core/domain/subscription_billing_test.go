@@ -240,10 +240,10 @@ func TestCalculateProrationDetails_EdgeCases(t *testing.T) {
 	periodEnd := billingBase.Add(30 * day)
 
 	t.Run("none mode returns zero credit and copies anchors/periods", func(t *testing.T) {
-		s := Subscription{Amount: 1000, CurrentPeriodStart: periodStart, CurrentPeriodEnd: periodEnd}
+		s := Subscription{CurrentPeriodStart: periodStart, CurrentPeriodEnd: periodEnd}
 		newStart := billingBase.Add(5 * day)
 		newEnd := billingBase.Add(35 * day)
-		d := s.CalculateProrationDetails("none", billingBase.Add(15*day), 15, 20, newStart, newEnd, s.Amount)
+		d := s.CalculateProrationDetails("none", billingBase.Add(15*day), 15, 20, newStart, newEnd, int64(1000))
 
 		assert.Equal(t, 0, d.CreditAmount)
 		assert.Equal(t, 0, d.DaysCredited)
@@ -257,37 +257,37 @@ func TestCalculateProrationDetails_EdgeCases(t *testing.T) {
 
 	t.Run("credit_unused with totalDays<=0 returns zero credit", func(t *testing.T) {
 		// CurrentPeriodEnd == CurrentPeriodStart -> totalDays == 0
-		s := Subscription{Amount: 1000, CurrentPeriodStart: periodStart, CurrentPeriodEnd: periodStart}
-		d := s.CalculateProrationDetails("credit_unused", periodStart, 15, 20, periodStart, periodEnd, s.Amount)
+		s := Subscription{CurrentPeriodStart: periodStart, CurrentPeriodEnd: periodStart}
+		d := s.CalculateProrationDetails("credit_unused", periodStart, 15, 20, periodStart, periodEnd, int64(1000))
 		assert.Equal(t, 0, d.CreditAmount)
 		assert.Equal(t, 0, d.DaysCredited)
 	})
 
 	t.Run("credit_unused with daysRemaining<=0 (reference at period end) returns zero credit", func(t *testing.T) {
-		s := Subscription{Amount: 1000, CurrentPeriodStart: periodStart, CurrentPeriodEnd: periodEnd}
-		d := s.CalculateProrationDetails("credit_unused", periodEnd, 15, 20, periodStart, periodEnd, s.Amount)
+		s := Subscription{CurrentPeriodStart: periodStart, CurrentPeriodEnd: periodEnd}
+		d := s.CalculateProrationDetails("credit_unused", periodEnd, 15, 20, periodStart, periodEnd, int64(1000))
 		assert.Equal(t, 0, d.CreditAmount)
 		assert.Equal(t, 0, d.DaysCredited)
 	})
 
 	t.Run("credit_unused with daysRemaining<=0 (reference past period end) returns zero credit", func(t *testing.T) {
-		s := Subscription{Amount: 1000, CurrentPeriodStart: periodStart, CurrentPeriodEnd: periodEnd}
-		d := s.CalculateProrationDetails("credit_unused", periodEnd.Add(day), 15, 20, periodStart, periodEnd, s.Amount)
+		s := Subscription{CurrentPeriodStart: periodStart, CurrentPeriodEnd: periodEnd}
+		d := s.CalculateProrationDetails("credit_unused", periodEnd.Add(day), 15, 20, periodStart, periodEnd, int64(1000))
 		assert.Equal(t, 0, d.CreditAmount)
 		assert.Equal(t, 0, d.DaysCredited)
 	})
 
 	t.Run("credit_unused prorates by remaining days", func(t *testing.T) {
-		s := Subscription{Amount: 1000, CurrentPeriodStart: periodStart, CurrentPeriodEnd: periodEnd}
+		s := Subscription{CurrentPeriodStart: periodStart, CurrentPeriodEnd: periodEnd}
 		// 10 days remaining out of 30 -> 1000 * 10 / 30 = 333
-		d := s.CalculateProrationDetails("credit_unused", periodEnd.Add(-10*day), 15, 20, periodStart, periodEnd, s.Amount)
+		d := s.CalculateProrationDetails("credit_unused", periodEnd.Add(-10*day), 15, 20, periodStart, periodEnd, int64(1000))
 		assert.Equal(t, 333, d.CreditAmount)
 		assert.Equal(t, 10, d.DaysCredited)
 	})
 
 	t.Run("unknown proration mode behaves like none", func(t *testing.T) {
-		s := Subscription{Amount: 1000, CurrentPeriodStart: periodStart, CurrentPeriodEnd: periodEnd}
-		d := s.CalculateProrationDetails("weird_mode", billingBase.Add(15*day), 15, 20, periodStart, periodEnd, s.Amount)
+		s := Subscription{CurrentPeriodStart: periodStart, CurrentPeriodEnd: periodEnd}
+		d := s.CalculateProrationDetails("weird_mode", billingBase.Add(15*day), 15, 20, periodStart, periodEnd, int64(1000))
 		assert.Equal(t, 0, d.CreditAmount)
 		assert.Equal(t, 0, d.DaysCredited)
 	})
