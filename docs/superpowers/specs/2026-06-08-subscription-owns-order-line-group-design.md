@@ -61,9 +61,11 @@ changes. Verify the parity docs after.
 - `OrderItem`: add `SubscriptionId string`.
 - `Subscription`: remove `OrderItemId`. Replace `NewSubscriptionFromOrderItem(item, price)` with
   `NewSubscriptionForCadence(orgId, orderId, customerId, interval, qty, cycles, currency)` (cadence
-  comes from the group, not one price). `Amount` becomes the **sum of the group's fixed unit
-  prices** (a derived base figure per ADR 0002), or is dropped in favour of deriving from the
-  invoice — decide in the plan; lean to "sum of fixed lines."
+  comes from the group, not one price). **Drop `Subscription.Amount`** (ADR 0002 — the subscription
+  stores no charge amount; the per-cycle total lives on the invoice). Every reader of
+  `subscription.Amount` (e.g. the Temporal activity log, any "Total" display) moves to deriving
+  from the invoice or is removed. The plan must enumerate the `Amount` readers and the Prisma
+  `amount` column removal.
 
 ### 3. Order creation (`internal/core/service/order.go`)
 - Delete `subscriptionAnchors`. Add `groupIntoSubscriptions(lines)` → map keyed by cadence.
@@ -103,12 +105,13 @@ removing `subscription.order_item_id` is a drop. Existing rows need backfill (po
 subscription's old single item at it, set that item's `subscription_id`). Given local-only/pre-1.0,
 the plan will either ship a one-off backfill script or document a clean reseed. No production data.
 
-## Pre-existing bug noted (decide in plan)
-Payment-success workflows on **both** engines start the runner for `subs[0]` only
-(`FindByOrderId()` then first). With grouping the common order is one subscription, so this stops
-mattering for the normal case; a multi-cadence order (2 subscriptions) would still only start the
-first runner. The HTTP `CompleteOrder` path already loops all. Decide whether to make both engines'
-payment-success loop all subscriptions (recommended) or defer.
+## Fix: start every subscription's runner (both engines)
+Today payment-success on **both** engines starts the runner for `subs[0]` only (`FindByOrderId()`
+then first). **Fix it**: both `internal/adapter/hatchet/workflows/payment_success.go` and
+`internal/adapter/temporal/workflows/payment_success.go` loop all subscriptions returned by
+`FindByOrderId` and start a runner per subscription (deterministic ids already make
+`Start*Workflow` idempotent). The HTTP `CompleteOrder` path already loops all — this brings the
+webhook/workflow path to parity. Keep observable behaviour identical across the two engines.
 
 ## Tests
 - **Order creation**: fixed+metered same cadence → one subscription owning both lines; two
