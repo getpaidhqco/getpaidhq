@@ -422,8 +422,12 @@ model OrderItem {
   org     Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   Variant Variant? @relation(fields: [orgId, variantId], references: [orgId, id])
 
-  variantId    String?        @map("variant_id")
-  Subscription Subscription[]
+  variantId String? @map("variant_id")
+
+  // The subscription that bills this recurring line (null for one-time lines).
+  // A subscription owns the order's recurring lines that share one cadence.
+  subscriptionId String?       @map("subscription_id")
+  subscription   Subscription? @relation("SubscriptionLines", fields: [orgId, subscriptionId], references: [orgId, id])
 
   @@id([orgId, id])
   @@map("order_items")
@@ -532,8 +536,8 @@ model Subscription {
   orderId String @map("order_id")
   order   Order  @relation(fields: [orgId, orderId], references: [orgId, id])
 
-  orderItemId String    @map("order_item_id")
-  orderItem   OrderItem @relation(fields: [orgId, orderItemId], references: [orgId, id])
+  // A subscription bills a group of the order's recurring lines (one cadence).
+  lines OrderItem[] @relation("SubscriptionLines")
 
   customerId String   @map("customer_id")
   customer   Customer @relation(fields: [orgId, customerId], references: [orgId, id])
@@ -559,7 +563,6 @@ model Subscription {
   nextRetry DateTime? @map("next_retry")
 
   currency String
-  amount   Int
 
   metadata Json
 
