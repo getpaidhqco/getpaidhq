@@ -50,17 +50,22 @@ These four are the spine; they were being conflated and are pinned here.
 **Order**:
 The record that a customer made a purchase — what was bought (its **Order Items**:
 products at prices) and for whom. Carries the *agreed pricing snapshot*; for usage
-pricing that snapshot is only an estimate, not a charge. The genesis record; a
-**Subscription** is created from an Order Item. One-time.
+pricing that snapshot is only an estimate, not a charge. The genesis record; the
+order's recurring lines are grouped by cadence into **Subscription**(s). One-time.
 _Avoid_: using "Order" for anything recurring or per-cycle (that's the **Invoice**).
 
 **Subscription**:
-A recurring agreement created from an **Order Item**, linked to a product/**Price**
-(and, for metered, a **Meter**). It does **not** store the charge amount — for usage
-pricing the amount isn't knowable up front, so each cycle's amount is computed into an
-**Invoice** from the linked **Price**(s) + usage. The Subscription holds the agreement
-plus *historic actuals* (revenue to date, cycles processed).
-_Avoid_: a `subscription.amount` field used as the charge source.
+A recurring agreement billed at **one cadence** (interval + qty) that **owns a group of
+the order's recurring lines** — a flat line, a metered line, or several — linked by
+`OrderItem.SubscriptionId`. An order's recurring lines are partitioned by cadence at
+checkout: one subscription per cadence (normally just one). One-time lines start no
+subscription. It does **not** store a charge amount — each cycle's amount is computed into
+an **Invoice** from the subscription's own lines (flat fee + usage). The Subscription holds
+the agreement plus *historic actuals* (revenue to date, cycles processed).
+_Avoid_: "a subscription is created from **one** Order Item" (it owns the cadence's lines,
+which may be several); a `subscription.amount` field (dropped — the per-cycle total lives on
+the Invoice); the old "primary subscription bills the order's shared usage" rule (removed —
+a subscription bills exactly the lines it owns).
 
 **Invoice** (new — does not exist yet):
 The per-billing-run record of what is owed: the calculated line-item totals for one
