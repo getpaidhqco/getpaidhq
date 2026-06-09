@@ -24,6 +24,7 @@ require (
 	github.com/go-redis/redis_rate/v10 v10.0.1
 	github.com/hatchet-dev/hatchet v0.86.5
 	github.com/joho/godotenv v1.5.1
+	github.com/lib/pq v1.10.9
 	github.com/mdwt/paystack-go v0.4.0
 	github.com/redis/go-redis/v9 v9.7.3
 	github.com/robfig/cron/v3 v3.0.1
