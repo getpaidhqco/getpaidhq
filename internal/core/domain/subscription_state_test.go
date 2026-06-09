@@ -30,10 +30,10 @@ func monthlyItem() OrderItem {
 	}
 }
 
-// subForItem builds a pending subscription for an item's price cadence (the
-// activation/lifecycle methods still take the Price explicitly).
+// subForItem builds a pending subscription from a single line's price; the
+// subscription derives its cadence + trial from that price.
 func subForItem(item OrderItem, price Price) Subscription {
-	return NewSubscriptionForCadence(item.OrgId, item.OrderId, "", price.BillingInterval, price.BillingIntervalQty, price.Cycles, string(price.Currency))
+	return NewSubscriptionFromLines(item.OrgId, item.OrderId, "", []Price{price})
 }
 
 func TestSetActivationDates_NoTrialNoCycles(t *testing.T) {
@@ -41,7 +41,7 @@ func TestSetActivationDates_NoTrialNoCycles(t *testing.T) {
 	price := monthlyPrice(BillingIntervalNone, 0, 0)
 	s := subForItem(monthlyItem(), price)
 
-	got := s.SetActivationDates(price)
+	got := s.SetActivationDates()
 
 	assert.Same(t, &s, got)
 	assert.WithinDuration(t, now, s.StartDate, 5*time.Second)
@@ -57,7 +57,7 @@ func TestSetActivationDates_WithTrialSetsTrialEnd(t *testing.T) {
 	price := monthlyPrice(BillingIntervalMonth, 1, 0)
 	s := subForItem(monthlyItem(), price)
 
-	s.SetActivationDates(price)
+	s.SetActivationDates()
 
 	assert.False(t, s.TrialEndsAt.IsZero(), "trial set -> TrialEndsAt populated")
 	assert.Equal(t, s.StartDate.AddDate(0, 1, 0), s.TrialEndsAt)
@@ -67,7 +67,7 @@ func TestSetActivationDates_WithCyclesSetsEndsAt(t *testing.T) {
 	price := monthlyPrice(BillingIntervalNone, 0, 12)
 	s := subForItem(monthlyItem(), price)
 
-	s.SetActivationDates(price)
+	s.SetActivationDates()
 
 	assert.False(t, s.EndsAt.IsZero(), "cycles>0 -> EndsAt populated")
 	assert.Equal(t, s.StartDate.AddDate(0, 12, 0), s.EndsAt)
@@ -84,7 +84,7 @@ func TestSetActive_FirstCycle(t *testing.T) {
 		CompletedAt: now,
 	}
 
-	got := s.SetActive(price, payment)
+	got := s.SetActive(payment)
 
 	assert.Same(t, &s, got)
 	assert.Equal(t, SubscriptionStatusActive, s.Status)
@@ -105,7 +105,7 @@ func TestSetActive_RecurringChargeIncrementsCycles(t *testing.T) {
 
 	payment := Payment{OrgId: "org_1", Amount: 1000, CompletedAt: now}
 
-	s.SetActive(price, payment)
+	s.SetActive(payment)
 
 	assert.Equal(t, SubscriptionStatusActive, s.Status)
 	assert.Equal(t, 2, s.CyclesProcessed, "recurring charge increments cycles")
@@ -122,7 +122,7 @@ func TestSetActive_NoPaymentDoesNotChargeButActivates(t *testing.T) {
 	price := monthlyPrice(BillingIntervalNone, 0, 0)
 	s := subForItem(monthlyItem(), price)
 
-	s.SetActive(price, Payment{})
+	s.SetActive(Payment{})
 
 	assert.Equal(t, SubscriptionStatusActive, s.Status)
 	assert.Equal(t, 0, s.CyclesProcessed, "no payment -> cycles unchanged")
@@ -135,7 +135,7 @@ func TestSetActive_ZeroAmountSkipsChargeBranch(t *testing.T) {
 	price := monthlyPrice(BillingIntervalNone, 0, 0)
 	s := subForItem(monthlyItem(), price)
 
-	s.SetActive(price, Payment{OrgId: "org_1", Amount: 0})
+	s.SetActive(Payment{OrgId: "org_1", Amount: 0})
 
 	assert.Equal(t, SubscriptionStatusActive, s.Status)
 	assert.Equal(t, 0, s.CyclesProcessed)

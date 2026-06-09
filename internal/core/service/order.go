@@ -253,8 +253,11 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 	// subscription that owns (bills) all its lines. The subscription stores no
 	// charge amount (ADR 0002); the per-cycle total is computed onto the invoice.
 	for _, group := range groupIntoSubscriptions(lines) {
-		head := group[0].price
-		sub := domain.NewSubscriptionForCadence(orgId, orderId, customerEntity.Id, head.BillingInterval, head.BillingIntervalQty, head.Cycles, currency)
+		prices := make([]domain.Price, len(group))
+		for i, l := range group {
+			prices[i] = l.price
+		}
+		sub := domain.NewSubscriptionFromLines(orgId, orderId, customerEntity.Id, prices)
 		sub.PspId = input.PspId
 		sub.PaymentMethodId = input.PaymentMethodId
 		created, err := s.subscriptionRepository.Create(ctx, sub)
@@ -460,12 +463,9 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 				}
 			}
 
-			subPrice, _, err := resolveSubscriptionPricing(ctx, s.orderRepository, s.priceRepository, input.OrgId, subscription.Id)
-			if err != nil {
-				s.logger.Error("Failed to resolve price for subscription activation", "subscription_id", subscription.Id, "err", err.Error())
-				return err
-			}
-			subscription.SetActive(subPrice, payment)
+			// The subscription carries its own cadence + trial (derived from its
+			// lines at construction), so activation needs no price lookup.
+			subscription.SetActive(payment)
 			s.logger.Infof("Subscription [%s] activated. firstPaymentCharged=%t", subscription.Id, firstPaymentCharged)
 			newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 			if err != nil {
@@ -595,31 +595,22 @@ type orderLine struct {
 	price domain.Price
 }
 
-// resolveSubscriptionPricing loads a subscription's lines and returns the
-// representative price (for lifecycle dates — the first fixed line, or the first
-// line for a pure-usage subscription) and the summed fixed base amount (the
-// recurring flat fee; metered lines contribute zero, ADR 0002). The
-// subscription's cadence already matches the representative price's interval.
-func resolveSubscriptionPricing(ctx context.Context, orderRepo port.OrderRepository, priceRepo port.PriceRepository, orgId, subscriptionId string) (domain.Price, int64, error) {
+// fixedBaseAmount sums a subscription's recurring flat fee from its own lines —
+// the fixed (non-metered) unit prices × quantity. Metered lines contribute zero
+// (ADR 0002). Used for proration credit and first-cycle revenue; the subscription
+// stores no amount, so this is derived on demand from the current line prices.
+func fixedBaseAmount(ctx context.Context, orderRepo port.OrderRepository, priceRepo port.PriceRepository, orgId, subscriptionId string) (int64, error) {
 	items, err := orderRepo.FindOrderItemsBySubscriptionId(ctx, orgId, subscriptionId)
 	if err != nil {
-		return domain.Price{}, 0, err
+		return 0, err
 	}
-	var first, rep domain.Price
-	haveFirst, haveFixedRep := false, false
 	var fixedBase int64
 	for _, it := range items {
 		p, perr := priceRepo.FindById(ctx, orgId, it.PriceId)
 		if perr != nil {
-			return domain.Price{}, 0, perr
-		}
-		if !haveFirst {
-			first, haveFirst = p, true
+			return 0, perr
 		}
 		if !p.IsMetered() {
-			if !haveFixedRep {
-				rep, haveFixedRep = p, true
-			}
 			q := int64(it.Quantity)
 			if q <= 0 {
 				q = 1
@@ -627,10 +618,7 @@ func resolveSubscriptionPricing(ctx context.Context, orderRepo port.OrderReposit
 			fixedBase += p.UnitPrice * q
 		}
 	}
-	if !haveFixedRep {
-		rep = first
-	}
-	return rep, fixedBase, nil
+	return fixedBase, nil
 }
 
 // groupIntoSubscriptions partitions an order's recurring lines (any price with a
@@ -646,10 +634,14 @@ func groupIntoSubscriptions(lines []orderLine) [][]orderLine {
 	var order []cadence
 	byCadence := map[cadence][]orderLine{}
 	for _, l := range lines {
-		if l.price.BillingInterval == "" || l.price.BillingInterval == domain.BillingIntervalNone {
-			continue
+		if !l.price.IsRecurring() {
+			continue // one-time / free line — no subscription
 		}
-		c := cadence{l.price.BillingInterval, l.price.BillingIntervalQty}
+		// Group by the line's *effective* cadence: a metered line is capped at
+		// monthly, so an annual base + usage on one order yields an annual base
+		// subscription and a separate monthly usage subscription.
+		interval, qty := l.price.SubscriptionCadence()
+		c := cadence{interval, qty}
 		if _, ok := byCadence[c]; !ok {
 			order = append(order, c)
 		}

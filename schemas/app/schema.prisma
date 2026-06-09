@@ -551,6 +551,10 @@ model Subscription {
   billingIntervalQty Int             @map("billing_interval_qty")
   cycles             Int
   billingAnchor      Int             @map("billing_anchor")
+  // Trial cadence the subscription derived from its lines at construction (so
+  // activation needs no Price lookup).
+  trialInterval      BillingInterval @default(none) @map("trial_interval")
+  trialIntervalQty   Int             @default(0) @map("trial_interval_qty")
   trialEndsAt        DateTime?       @map("trial_ends_at")
   cancelAt           DateTime?       @map("cancel_at")
   endsAt             DateTime?       @map("ends_at")

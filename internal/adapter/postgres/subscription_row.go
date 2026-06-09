@@ -24,6 +24,8 @@ type subscriptionRow struct {
 	BillingIntervalQty int                    `gorm:"column:billing_interval_qty"`
 	Cycles             int                    `gorm:"column:cycles"`
 	BillingAnchor      int                    `gorm:"column:billing_anchor"`
+	TrialInterval      domain.BillingInterval `gorm:"column:trial_interval"`
+	TrialIntervalQty   int                    `gorm:"column:trial_interval_qty"`
 
 	TrialEndsAt time.Time `gorm:"column:trial_ends_at;serializer:nulltime"`
 	CancelAt    time.Time `gorm:"column:cancel_at;serializer:nulltime"`
@@ -63,6 +65,8 @@ func (r subscriptionRow) toDomain() domain.Subscription {
 		BillingIntervalQty: r.BillingIntervalQty,
 		Cycles:             r.Cycles,
 		BillingAnchor:      r.BillingAnchor,
+		TrialInterval:      r.TrialInterval,
+		TrialIntervalQty:   r.TrialIntervalQty,
 		TrialEndsAt:        r.TrialEndsAt,
 		CancelAt:           r.CancelAt,
 		EndsAt:             r.EndsAt,
@@ -97,6 +101,8 @@ func subscriptionRowFromDomain(s domain.Subscription) subscriptionRow {
 		BillingIntervalQty: s.BillingIntervalQty,
 		Cycles:             s.Cycles,
 		BillingAnchor:      s.BillingAnchor,
+		TrialInterval:      s.TrialInterval,
+		TrialIntervalQty:   s.TrialIntervalQty,
 		TrialEndsAt:        s.TrialEndsAt,
 		CancelAt:           s.CancelAt,
 		EndsAt:             s.EndsAt,

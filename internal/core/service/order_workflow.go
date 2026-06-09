@@ -104,25 +104,24 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 
 	recurringPayment := len(subscriptions) > 0 && paymentCtx.Payment.Amount > 0
 	for _, subscription := range subscriptions {
-		// Resolve the subscription's representative price (lifecycle dates) and its
-		// recurring fixed base from its own lines. The subscription stores no
-		// amount (ADR 0002); revenue is the fixed base for the first cycle.
-		price, fixedBase, err := resolveSubscriptionPricing(ctx, s.orderRepository, s.priceRepository, orgId, subscription.Id)
-		if err != nil {
-			s.logger.Error("Failed to resolve price for subscription activation", "subscription_id", subscription.Id, "err", err.Error())
-			return domain.Order{}, err
-		}
-
+		// The subscription carries its own cadence + trial (derived from its lines),
+		// so activation needs no price. Revenue is the recurring fixed base for the
+		// first cycle (the subscription stores no amount, ADR 0002).
 		charged := paymentCtx.Payment.Amount > 0 && subscription.StartDate.Sub(time.Now().UTC()) < 0
 		if charged {
+			fixedBase, err := fixedBaseAmount(ctx, s.orderRepository, s.priceRepository, orgId, subscription.Id)
+			if err != nil {
+				s.logger.Error("Failed to resolve subscription base", "subscription_id", subscription.Id, "err", err.Error())
+				return domain.Order{}, err
+			}
 			subscriptionId = subscription.Id
-			subscription.SetActivationDates(price)
+			subscription.SetActivationDates()
 			subscription.Status = domain.SubscriptionStatusActive
 			subscription.LastCharge = subscription.StartDate
 			subscription.TotalRevenue = fixedBase
 			subscription.CyclesProcessed = 1
 		} else {
-			subscription.SetActivationDates(price)
+			subscription.SetActivationDates()
 			subscription.Status = domain.SubscriptionStatusTrial
 		}
 		subscription.PaymentMethodId = paymentMethod.Id

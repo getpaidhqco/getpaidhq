@@ -87,3 +87,17 @@ func TestGroupIntoSubscriptions(t *testing.T) {
 		}
 	})
 }
+
+// The credit-risk rule: a metered line is capped at monthly, so an annual base
+// + usage (even if the usage price is configured annually) splits into an annual
+// base subscription and a separate monthly usage subscription.
+func TestGroupIntoSubscriptions_MeteredCappedToMonthly(t *testing.T) {
+	year := domain.BillingIntervalYear
+	groups := groupIntoSubscriptions([]orderLine{
+		recurring("base", year, 1, ""),        // annual base
+		recurring("usage", year, 1, "tokens"), // usage, configured annual → forced monthly
+	})
+	if len(groups) != 2 {
+		t.Fatalf("annual base + usage must split into two subscriptions, got %v", groupItemIds(groups))
+	}
+}

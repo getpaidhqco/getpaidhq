@@ -33,3 +33,50 @@ type Price struct {
 // Metering is a pricing method, orthogonal to the price Category (cadence): a metered
 // price is typically a recurring subscription billed by usage.
 func (p Price) IsMetered() bool { return p.BillableMetricId != "" }
+
+// IsRecurring reports whether the price bills on a cadence (and therefore belongs
+// to a subscription). A metered price always recurs (usage must be billed); a
+// non-metered price recurs only when it carries a billing interval.
+func (p Price) IsRecurring() bool {
+	return p.IsMetered() || (p.BillingInterval != "" && p.BillingInterval != BillingIntervalNone)
+}
+
+// SubscriptionCadence is the cadence a subscription bills this line at. For a
+// non-metered line it's the configured interval. **Metered lines are capped at
+// monthly** — usage must never accumulate on a longer cadence (billing a year of
+// unbilled usage at once is an unacceptable credit risk), so any metered cadence
+// of more than a month (or none) is clamped to monthly; shorter cadences are kept.
+func (p Price) SubscriptionCadence() (BillingInterval, int) {
+	interval, qty := p.BillingInterval, p.BillingIntervalQty
+	if p.IsMetered() {
+		if interval == "" || interval == BillingIntervalNone || approxBillingDays(interval, qty) > 31 {
+			return BillingIntervalMonth, 1
+		}
+	}
+	return interval, qty
+}
+
+// approxBillingDays is a rough day-count for a cadence, used only to compare
+// cadence lengths (e.g. is a metered line billing less often than monthly).
+func approxBillingDays(interval BillingInterval, qty int) float64 {
+	if qty <= 0 {
+		qty = 1
+	}
+	q := float64(qty)
+	switch interval {
+	case BillingIntervalSecond:
+		return q / 86400
+	case BillingIntervalMinute:
+		return q / 1440
+	case BillingIntervalDay:
+		return q
+	case BillingIntervalWeek:
+		return q * 7
+	case BillingIntervalMonth:
+		return q * 30
+	case BillingIntervalYear:
+		return q * 365
+	default:
+		return 0
+	}
+}
