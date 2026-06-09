@@ -94,6 +94,59 @@ func TestMeterHandler_Create_ValidationRejected(t *testing.T) {
 	assert.Zero(t, repo.createN)
 }
 
+func TestMeterHandler_Create_WithFiltersAndGroup(t *testing.T) {
+	repo := &fakeMeterRepo{}
+	h := newMeterHandlerForTest(t, repo)
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/meters", CreateMeterRequest{
+		Code: "messages", Name: "Messages", Aggregation: domain.AggregationCount,
+		Filters: []MeterFilterRequest{{Field: "type", Values: []string{"SMS", "MMS"}}},
+		GroupBy: []string{"project"},
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	// Persisted onto the metric.
+	require.Len(t, repo.created.Filters, 1)
+	assert.Equal(t, "type", repo.created.Filters[0].Field)
+	assert.Equal(t, []string{"SMS", "MMS"}, repo.created.Filters[0].Values)
+	assert.Equal(t, []string{"project"}, repo.created.GroupBy)
+	// Echoed back in the response.
+	var got MeterResponse
+	decodeJSON(t, rec, &got)
+	require.Len(t, got.Filters, 1)
+	assert.Equal(t, "type", got.Filters[0].Field)
+	assert.Equal(t, []string{"project"}, got.GroupBy)
+}
+
+func TestMeterHandler_Create_RejectsBadFilterAndGroup(t *testing.T) {
+	cases := []struct {
+		name string
+		body CreateMeterRequest
+	}{
+		{"filter with no values", CreateMeterRequest{
+			Code: "m", Name: "n", Aggregation: domain.AggregationCount,
+			Filters: []MeterFilterRequest{{Field: "type"}},
+		}},
+		{"more than one group dimension", CreateMeterRequest{
+			Code: "m", Name: "n", Aggregation: domain.AggregationCount,
+			GroupBy: []string{"project", "cloud"},
+		}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			repo := &fakeMeterRepo{}
+			h := newMeterHandlerForTest(t, repo)
+			ts := newTestServer(fixedAuthMiddleware(adminUser()))
+			h.RegisterRoutes(ts.api())
+			rec := doJSON(t, ts, http.MethodPost, "/api/meters", tc.body)
+			assert.Equal(t, http.StatusBadRequest, rec.Code, "body=%s", rec.Body.String())
+			assert.Zero(t, repo.createN, "nothing stored on a rejected meter")
+		})
+	}
+}
+
 func TestMeterHandler_List(t *testing.T) {
 	repo := &fakeMeterRepo{listResult: []domain.BillableMetric{
 		{Id: "met_1", Code: "a"}, {Id: "met_2", Code: "b"},

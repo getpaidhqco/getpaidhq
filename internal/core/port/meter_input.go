@@ -19,6 +19,8 @@ type CreateMeterInput struct {
 	Recurring     bool
 	RoundingMode  string
 	RoundingScale int
+	Filters       []domain.MetricFilter
+	GroupBy       []string
 	Metadata      map[string]string
 }
 
@@ -35,6 +37,8 @@ func (input CreateMeterInput) ToMetric() domain.BillableMetric {
 		Recurring:     input.Recurring,
 		RoundingMode:  input.RoundingMode,
 		RoundingScale: input.RoundingScale,
+		Filters:       input.Filters,
+		GroupBy:       input.GroupBy,
 		Metadata:      input.Metadata,
 		CreatedAt:     now,
 		UpdatedAt:     now,
