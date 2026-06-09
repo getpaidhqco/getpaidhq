@@ -7,44 +7,43 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewSubscriptionFromOrderItem_FreeTrial(t *testing.T) {
+func TestNewSubscriptionFromLines(t *testing.T) {
 	now := time.Now().UTC()
-	trialInterval := BillingIntervalMonth
 
-	orderItem := OrderItem{
-		OrgId:   "org_123",
-		OrderId: "order_123",
-	}
-	price := Price{
-		BillingInterval:    BillingIntervalMonth,
-		BillingIntervalQty: 1,
-		Category:           PriceCategorySubscription,
-		Currency:           "USD",
-		UnitPrice:          1000,
-		TrialInterval:      trialInterval,
-		TrialIntervalQty:   1,
-	}
+	// A monthly plan with a 14-day trial + a per-token usage line on the same group.
+	plan := Price{Category: PriceCategorySubscription, BillingInterval: BillingIntervalMonth, BillingIntervalQty: 1, Cycles: 12, Currency: "USD", TrialInterval: BillingIntervalDay, TrialIntervalQty: 14}
+	usage := Price{Category: PriceCategorySubscription, BillingInterval: BillingIntervalMonth, BillingIntervalQty: 1, Currency: "USD", BillableMetricId: "met_1"}
 
-	subscription := NewSubscriptionFromOrderItem(orderItem, price)
+	subscription := NewSubscriptionFromLines("org_123", "order_123", "cus_1", []Price{usage, plan})
 
-	assert.Equal(t, orderItem.OrgId, subscription.OrgId)
-	assert.Equal(t, orderItem.OrderId, subscription.OrderId)
+	assert.Equal(t, "org_123", subscription.OrgId)
+	assert.Equal(t, "order_123", subscription.OrderId)
+	assert.Equal(t, "cus_1", subscription.CustomerId)
 	assert.Equal(t, SubscriptionStatusPending, subscription.Status)
-	assert.Equal(t, price.BillingInterval, subscription.BillingInterval)
-	assert.Equal(t, price.BillingIntervalQty, subscription.BillingIntervalQty)
-	assert.Equal(t, string(price.Currency), subscription.Currency)
-	assert.Equal(t, price.UnitPrice, subscription.Amount)
-	assert.Equal(t, 0, subscription.Cycles)
-	assert.Equal(t, 0, subscription.Retries)
-	assert.Equal(t, 0, subscription.CyclesProcessed)
-	assert.Equal(t, int64(0), subscription.TotalRevenue)
-	assert.True(t, subscription.CancelAt.IsZero())
-	assert.True(t, subscription.EndsAt.IsZero())
-	assert.True(t, subscription.LastCharge.IsZero())
-	assert.True(t, subscription.NextRetryAt.IsZero())
-	assert.True(t, subscription.CancelledAt.IsZero())
+	assert.Equal(t, BillingIntervalMonth, subscription.BillingInterval)
+	assert.Equal(t, 1, subscription.BillingIntervalQty)
+	// cadence/cycles/trial all derived from the plan line, not the (metered) first line.
+	assert.Equal(t, 12, subscription.Cycles)
+	assert.Equal(t, BillingIntervalDay, subscription.TrialInterval)
+	assert.Equal(t, 14, subscription.TrialIntervalQty)
+	assert.Equal(t, "USD", subscription.Currency)
+	assert.NotEmpty(t, subscription.Id)
 	assert.WithinDuration(t, now, subscription.CreatedAt, 5*time.Second)
-	assert.WithinDuration(t, now, subscription.UpdatedAt, 5*time.Second)
+}
+
+func TestPrice_SubscriptionCadence_MeteredCappedAtMonthly(t *testing.T) {
+	annualUsage := Price{BillingInterval: BillingIntervalYear, BillingIntervalQty: 1, BillableMetricId: "met_1"}
+	interval, qty := annualUsage.SubscriptionCadence()
+	assert.Equal(t, BillingIntervalMonth, interval, "metered usage never bills less often than monthly")
+	assert.Equal(t, 1, qty)
+
+	annualBase := Price{BillingInterval: BillingIntervalYear, BillingIntervalQty: 1}
+	interval, _ = annualBase.SubscriptionCadence()
+	assert.Equal(t, BillingIntervalYear, interval, "a fixed line keeps its configured cadence")
+
+	weeklyUsage := Price{BillingInterval: BillingIntervalWeek, BillingIntervalQty: 1, BillableMetricId: "met_1"}
+	interval, _ = weeklyUsage.SubscriptionCadence()
+	assert.Equal(t, BillingIntervalWeek, interval, "a shorter-than-monthly usage cadence is kept")
 }
 
 func TestNextBillingDate(t *testing.T) {
@@ -139,8 +138,8 @@ func TestSetActivationDates(t *testing.T) {
 		TrialIntervalQty:   0,
 	}
 
-	subscription := NewSubscriptionFromOrderItem(orderItem, price)
-	subscription.SetActivationDates(price)
+	subscription := NewSubscriptionFromLines(orderItem.OrgId, orderItem.OrderId, "", []Price{price})
+	subscription.SetActivationDates()
 
 	assert.WithinDuration(t, now, subscription.StartDate, 10*time.Second)
 	assert.WithinDuration(t, now, subscription.CurrentPeriodStart, 10*time.Second)
@@ -150,7 +149,6 @@ func TestSetActivationDates(t *testing.T) {
 
 func TestUpdateBillingAnchor(t *testing.T) {
 	subscription := Subscription{
-		Amount:             1000,
 		BillingInterval:    "month",
 		BillingIntervalQty: 1,
 		BillingAnchor:      15,
@@ -158,7 +156,7 @@ func TestUpdateBillingAnchor(t *testing.T) {
 		CurrentPeriodEnd:   time.Now().UTC().AddDate(0, 1, 0),
 	}
 
-	prorationDetails := subscription.UpdateBillingAnchor(20, "none", subscription.Amount)
+	prorationDetails := subscription.UpdateBillingAnchor(20, "none", 1000)
 
 	assert.Equal(t, 20, subscription.BillingAnchor)
 	assert.Equal(t, 0, prorationDetails.CreditAmount)
@@ -169,7 +167,7 @@ func TestUpdateBillingAnchor(t *testing.T) {
 	assert.False(t, prorationDetails.NewPeriodEnd.IsZero())
 
 	subscription.BillingAnchor = 15
-	prorationDetails = subscription.UpdateBillingAnchor(25, "credit_unused", subscription.Amount)
+	prorationDetails = subscription.UpdateBillingAnchor(25, "credit_unused", 1000)
 
 	assert.Equal(t, 25, subscription.BillingAnchor)
 	assert.Greater(t, prorationDetails.CreditAmount, 0)
@@ -226,14 +224,13 @@ func TestCalculateProrationDetails(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			subscription := Subscription{
-				Amount:             amount,
 				CurrentPeriodStart: periodStart,
 				CurrentPeriodEnd:   periodEnd,
 			}
 
 			details := subscription.CalculateProrationDetails(
 				tt.prorationMode, tt.referenceDate, 15, 20,
-				base.Add(5*day), base.Add(35*day), subscription.Amount,
+				base.Add(5*day), base.Add(35*day), amount,
 			)
 
 			assert.Equal(t, tt.expectedCredit, details.CreditAmount)

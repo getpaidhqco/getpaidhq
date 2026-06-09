@@ -79,6 +79,18 @@ func UsageLineFromPrice(orgId, invoiceId string, p Price, units decimal.Decimal)
 	}
 }
 
+// UsageLineFromPriceGrouped builds one usage line for a single group segment of a
+// metered Price: the same rate as the ungrouped line, but only this segment's units,
+// with the group key/value recorded in the line's Metadata and appended to the
+// description. Group splits a priced line into one line per discovered value at the
+// same rate (usage-filters-and-groups.md).
+func UsageLineFromPriceGrouped(orgId, invoiceId string, p Price, groupKey, groupValue string, units decimal.Decimal) InvoiceLineItem {
+	line := UsageLineFromPrice(orgId, invoiceId, p, units)
+	line.Metadata = map[string]string{groupKey: groupValue}
+	line.Description = p.Label + " (" + groupKey + "=" + groupValue + ")"
+	return line
+}
+
 // AddLine appends a line item and recomputes the invoice totals.
 func (inv *Invoice) AddLine(l InvoiceLineItem) {
 	inv.LineItems = append(inv.LineItems, l)

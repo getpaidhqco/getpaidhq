@@ -217,26 +217,6 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		return domain.CreateOrderResponse{}, err
 	}
 
-	// Create a subscription for the order. A subscription is a recurring agreement;
-	// its pricing method (fixed or metered) is orthogonal to its cadence — a metered
-	// price is a recurring subscription billed by usage, not a rider on a fixed plan.
-	//
-	// Each fixed (subscription-category) item creates its own subscription, which bills
-	// its flat fee plus the order's metered usage (multiline). If the order has NO fixed
-	// plan, the metered usage stands on its own: one subscription anchored on the first
-	// metered item bills the order's usage each cycle.
-	startSubscription := func(orderItem domain.OrderItem, price domain.Price) error {
-		subscription := domain.NewSubscriptionFromOrderItem(orderItem, price)
-		subscription.CustomerId = customerEntity.Id
-		subscription.PspId = input.PspId
-		subscription.PaymentMethodId = input.PaymentMethodId
-		if _, err := s.subscriptionRepository.Create(ctx, subscription); err != nil {
-			return err
-		}
-		_ = s.pubsub.Publish(orgId, port.TopicSubscriptionCreated, subscription)
-		return nil
-	}
-
 	var lines []orderLine
 	for _, item := range orderCart.Data.Items {
 		orderItem, err := s.orderRepository.CreateOrderItem(ctx, domain.OrderItem{
@@ -269,11 +249,31 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		lines = append(lines, orderLine{item: orderItem, price: price})
 	}
 
-	for _, anchor := range subscriptionAnchors(lines) {
-		if err := startSubscription(anchor.item, anchor.price); err != nil {
-			s.logger.Error("Failed to create subscription", "order_item", anchor.item.Id, "err", err.Error())
+	// Group the order's recurring lines by cadence; each group becomes one
+	// subscription that owns (bills) all its lines. The subscription stores no
+	// charge amount (ADR 0002); the per-cycle total is computed onto the invoice.
+	for _, group := range groupIntoSubscriptions(lines) {
+		prices := make([]domain.Price, len(group))
+		for i, l := range group {
+			prices[i] = l.price
+		}
+		sub := domain.NewSubscriptionFromLines(orgId, orderId, customerEntity.Id, prices)
+		sub.PspId = input.PspId
+		sub.PaymentMethodId = input.PaymentMethodId
+		created, err := s.subscriptionRepository.Create(ctx, sub)
+		if err != nil {
+			s.logger.Error("Failed to create subscription", "err", err.Error())
 			return domain.CreateOrderResponse{}, err
 		}
+		for _, l := range group {
+			item := l.item
+			item.SubscriptionId = created.Id
+			if _, err := s.orderRepository.UpdateOrderItem(ctx, item); err != nil {
+				s.logger.Error("Failed to link order item to subscription", "order_item", item.Id, "err", err.Error())
+				return domain.CreateOrderResponse{}, err
+			}
+		}
+		_ = s.pubsub.Publish(orgId, port.TopicSubscriptionCreated, created)
 	}
 
 	var pspResponse domain.InitPaymentResponse
@@ -463,17 +463,9 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 				}
 			}
 
-			itemForPrice, err := s.orderRepository.FindOrderItemById(ctx, input.OrgId, subscription.OrderItemId)
-			if err != nil {
-				s.logger.Error("Failed to find order item for subscription activation", "subscription_id", subscription.Id, "err", err.Error())
-				return err
-			}
-			subPrice, err := s.priceRepository.FindById(ctx, input.OrgId, itemForPrice.PriceId)
-			if err != nil {
-				s.logger.Error("Failed to find price for subscription activation", "price_id", itemForPrice.PriceId, "err", err.Error())
-				return err
-			}
-			subscription.SetActive(subPrice, payment)
+			// The subscription carries its own cadence + trial (derived from its
+			// lines at construction), so activation needs no price lookup.
+			subscription.SetActive(payment)
 			s.logger.Infof("Subscription [%s] activated. firstPaymentCharged=%t", subscription.Id, firstPaymentCharged)
 			newSub, err := s.subscriptionRepository.Update(ctx, subscription)
 			if err != nil {
@@ -603,28 +595,61 @@ type orderLine struct {
 	price domain.Price
 }
 
-// subscriptionAnchors decides which order items start a subscription. A subscription
-// is a recurring agreement; its pricing method (fixed or metered) is orthogonal to
-// cadence. Every fixed (subscription-category) item anchors its own subscription —
-// which bills its flat fee plus the order's metered usage. If the order has no fixed
-// plan, the first metered item anchors one subscription so pure-usage orders still
-// bill each cycle. One-time / free / variable items never start a subscription.
-func subscriptionAnchors(lines []orderLine) []orderLine {
-	var anchors []orderLine
-	firstMetered := -1
-	for i, l := range lines {
-		if l.price.IsMetered() {
-			if firstMetered == -1 {
-				firstMetered = i
+// fixedBaseAmount sums a subscription's recurring flat fee from its own lines —
+// the fixed (non-metered) unit prices × quantity. Metered lines contribute zero
+// (ADR 0002). Used for proration credit and first-cycle revenue; the subscription
+// stores no amount, so this is derived on demand from the current line prices.
+func fixedBaseAmount(ctx context.Context, orderRepo port.OrderRepository, priceRepo port.PriceRepository, orgId, subscriptionId string) (int64, error) {
+	items, err := orderRepo.FindOrderItemsBySubscriptionId(ctx, orgId, subscriptionId)
+	if err != nil {
+		return 0, err
+	}
+	var fixedBase int64
+	for _, it := range items {
+		p, perr := priceRepo.FindById(ctx, orgId, it.PriceId)
+		if perr != nil {
+			return 0, perr
+		}
+		if !p.IsMetered() {
+			q := int64(it.Quantity)
+			if q <= 0 {
+				q = 1
 			}
-			continue // metered usage rides the order's fixed plan, if any
-		}
-		if l.price.Category == domain.PriceCategorySubscription {
-			anchors = append(anchors, l)
+			fixedBase += p.UnitPrice * q
 		}
 	}
-	if len(anchors) == 0 && firstMetered >= 0 {
-		anchors = append(anchors, lines[firstMetered])
+	return fixedBase, nil
+}
+
+// groupIntoSubscriptions partitions an order's recurring lines (any price with a
+// real billing interval — fixed-subscription or metered) into one group per
+// billing cadence. Each group becomes one subscription that bills all its lines
+// together (flat + metered, on the same interval). One-time / free / no-interval
+// lines are not grouped — they are charged once and start no subscription.
+func groupIntoSubscriptions(lines []orderLine) [][]orderLine {
+	type cadence struct {
+		interval domain.BillingInterval
+		qty      int
 	}
-	return anchors
+	var order []cadence
+	byCadence := map[cadence][]orderLine{}
+	for _, l := range lines {
+		if !l.price.IsRecurring() {
+			continue // one-time / free line — no subscription
+		}
+		// Group by the line's *effective* cadence: a metered line is capped at
+		// monthly, so an annual base + usage on one order yields an annual base
+		// subscription and a separate monthly usage subscription.
+		interval, qty := l.price.SubscriptionCadence()
+		c := cadence{interval, qty}
+		if _, ok := byCadence[c]; !ok {
+			order = append(order, c)
+		}
+		byCadence[c] = append(byCadence[c], l)
+	}
+	groups := make([][]orderLine, 0, len(order))
+	for _, c := range order {
+		groups = append(groups, byCadence[c])
+	}
+	return groups
 }

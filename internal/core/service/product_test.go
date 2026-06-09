@@ -17,11 +17,11 @@ import (
 
 type fakeProductRepo struct {
 	port.ProductRepository
-	byId      domain.Product
-	byIdErr   error
-	createErr error
-	created   []domain.Product
-	updated   []domain.Product
+	byId         domain.Product
+	byIdErr      error
+	createErr    error
+	created      []domain.Product
+	updated      []domain.Product
 	deleted      []string
 	listed       []domain.Product
 	listStatuses []domain.ProductStatus

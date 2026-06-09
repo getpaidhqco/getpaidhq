@@ -252,7 +252,7 @@ func NewApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	usageService := service.NewUsageService(meterRepo, customerRepo, subRepo, ingestor, eventStore, pubsub, logger)
+	usageService := service.NewUsageService(meterRepo, customerRepo, subRepo, orderRepo, priceRepo, ingestor, eventStore, pubsub, logger)
 	meterService := service.NewMeterService(meterRepo, pubsub, logger)
 	invoiceService := service.NewInvoiceService(invoiceRepo, orderRepo, priceRepo, usageService, txManager, logger)
 	subService, err := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, priceRepo, gatewayFactory, invoiceService, pubsub, reporter, logger, txManager)

@@ -146,7 +146,7 @@ func TestBillingCycleWorkflow(t *testing.T) {
 	env.OnActivity(oa.ChargeCustomerForBillingPeriod, mock.Anything, mock.Anything).
 		Return(domain.ChargeResult{Status: domain.PaymentStatusSucceeded, Amount: 1000}, nil)
 
-	env.ExecuteWorkflow(BillingCycleWorkflow, BillingCycleInput{Subscription: domain.Subscription{Id: "sub_1", Amount: 1000}})
+	env.ExecuteWorkflow(BillingCycleWorkflow, BillingCycleInput{Subscription: domain.Subscription{Id: "sub_1"}})
 
 	require.True(t, env.IsWorkflowCompleted())
 	require.NoError(t, env.GetWorkflowError())

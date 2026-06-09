@@ -18,6 +18,8 @@ type UsageService struct {
 	meterRepository        port.MeterRepository
 	customerRepository     port.CustomerRepository
 	subscriptionRepository port.SubscriptionRepository
+	orderRepository        port.OrderRepository // subscription → its metered lines (read)
+	priceRepository        port.PriceRepository
 	ingestor               port.EventIngestor // durable write path (sync = the EventStore; or JetStream)
 	eventStore             port.EventStore    // reads / aggregation
 	pubsub                 port.PubSub
@@ -28,6 +30,8 @@ func NewUsageService(
 	meterRepository port.MeterRepository,
 	customerRepository port.CustomerRepository,
 	subscriptionRepository port.SubscriptionRepository,
+	orderRepository port.OrderRepository,
+	priceRepository port.PriceRepository,
 	ingestor port.EventIngestor,
 	eventStore port.EventStore,
 	pubsub port.PubSub,
@@ -37,11 +41,72 @@ func NewUsageService(
 		meterRepository:        meterRepository,
 		customerRepository:     customerRepository,
 		subscriptionRepository: subscriptionRepository,
+		orderRepository:        orderRepository,
+		priceRepository:        priceRepository,
 		ingestor:               ingestor,
 		eventStore:             eventStore,
 		pubsub:                 pubsub,
 		logger:                 logger,
 	}
+}
+
+// MeterUsage is one meter's usage quantity for a subscription over a period.
+type MeterUsage struct {
+	MetricCode  string
+	Aggregation domain.AggregationType
+	Quantity    decimal.Decimal
+}
+
+// SubscriptionUsage is a subscription's usage for its current billing period.
+type SubscriptionUsage struct {
+	SubscriptionId     string
+	CurrentPeriodStart time.Time
+	CurrentPeriodEnd   time.Time
+	Meters             []MeterUsage
+}
+
+// CurrentPeriodUsage returns a subscription's metered usage for its current
+// billing period — the sum, per meter, over the subscription's OWN metered lines
+// (the lines stamped with its subscription_id). A pending/cancelled subscription
+// (zero period) or one with no metered lines yields an empty Meters slice. An
+// unknown subscription surfaces as port.ErrNotFound for the caller to map to 404.
+func (s *UsageService) CurrentPeriodUsage(ctx context.Context, orgId, subscriptionId string) (SubscriptionUsage, error) {
+	sub, err := s.subscriptionRepository.FindById(ctx, orgId, subscriptionId)
+	if err != nil {
+		return SubscriptionUsage{}, err
+	}
+	out := SubscriptionUsage{
+		SubscriptionId:     sub.Id,
+		CurrentPeriodStart: sub.CurrentPeriodStart,
+		CurrentPeriodEnd:   sub.CurrentPeriodEnd,
+		Meters:             []MeterUsage{},
+	}
+	if sub.CurrentPeriodStart.IsZero() {
+		return out, nil
+	}
+	items, err := s.orderRepository.FindOrderItemsBySubscriptionId(ctx, orgId, sub.Id)
+	if err != nil {
+		return SubscriptionUsage{}, err
+	}
+	for _, it := range items {
+		price, perr := s.priceRepository.FindById(ctx, orgId, it.PriceId)
+		if perr != nil {
+			return SubscriptionUsage{}, perr
+		}
+		if !price.IsMetered() {
+			continue
+		}
+		units, uerr := s.UsageForSubscription(ctx, sub, price, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
+		if uerr != nil {
+			return SubscriptionUsage{}, uerr
+		}
+		metric, merr := s.meterRepository.FindById(ctx, orgId, price.BillableMetricId)
+		if merr != nil {
+			return SubscriptionUsage{}, merr
+		}
+		out.Meters = append(out.Meters, MeterUsage{MetricCode: metric.Code, Aggregation: metric.Aggregation, Quantity: units})
+	}
+	return out, nil
 }
 
 // RecordEvent validates + stores one usage event. Returns the ingest result
@@ -175,16 +240,15 @@ func (s *UsageService) AggregateForPeriod(ctx context.Context, metric domain.Bil
 	return applyRounding(metric, units), nil
 }
 
-// UsageForSubscription aggregates a metered subscription's usage for [from, to),
-// resolving the meter from the price. It sums events attributed to this subscription
-// and — only when this is the customer's earliest active metered subscription for the
-// meter — the unattributed events too (§10), so a catch-all is billed exactly once
-// across multiple metered subs. It also fills the customer's external id so usage
-// recorded against external_customer_id before the customer existed is still matched (§8).
-func (s *UsageService) UsageForSubscription(ctx context.Context, sub domain.Subscription, price domain.Price, from, to time.Time) (decimal.Decimal, error) {
+// usageQueryFor resolves the meter from the price and builds the scoped UsageQuery for
+// [from, to): customer (incl. the merchant's external id, §8), subscription attribution
+// with the earliest-metered-sub catch-all for unattributed usage (§10), and the price's
+// filter (one slice of the meter, or the default/catch-all charge). Shared by the scalar
+// and grouped read paths.
+func (s *UsageService) usageQueryFor(ctx context.Context, sub domain.Subscription, price domain.Price, from, to time.Time) (domain.BillableMetric, port.UsageQuery, error) {
 	metric, err := s.meterRepository.FindById(ctx, sub.OrgId, price.BillableMetricId)
 	if err != nil {
-		return decimal.Zero, err
+		return domain.BillableMetric{}, port.UsageQuery{}, err
 	}
 
 	q := port.UsageQuery{
@@ -199,18 +263,81 @@ func (s *UsageService) UsageForSubscription(ctx context.Context, sub domain.Subs
 	if cust, cerr := s.customerRepository.FindById(ctx, sub.OrgId, sub.CustomerId); cerr == nil {
 		q.ExternalCustomerId = cust.ExternalId
 	} else if !errors.Is(cerr, port.ErrNotFound) {
-		return decimal.Zero, cerr
+		return domain.BillableMetric{}, port.UsageQuery{}, cerr
 	}
 
 	// The earliest metered sub for (customer, meter) is the catch-all for
 	// unattributed usage.
 	metered, err := s.subscriptionRepository.FindActiveMeteredForMeter(ctx, sub.OrgId, sub.CustomerId, metric.Id)
 	if err != nil {
-		return decimal.Zero, err
+		return domain.BillableMetric{}, port.UsageQuery{}, err
 	}
 	q.IncludeUnattributed = len(metered) > 0 && metered[0].Id == sub.Id
 
+	applyPriceFilter(&q, metric, price)
+	return metric, q, nil
+}
+
+// applyPriceFilter scopes a query to the slice of the meter a metered price bills. A
+// price with no FilterField bills the whole meter; the default/catch-all charge
+// (FilterField set, no value) excludes the field's explicitly-priced values.
+func applyPriceFilter(q *port.UsageQuery, metric domain.BillableMetric, price domain.Price) {
+	if price.FilterField == "" {
+		return
+	}
+	q.FilterField = price.FilterField
+	if price.IsDefaultFilter() {
+		q.FilterExclude = metric.FilterValues(price.FilterField)
+	} else {
+		q.FilterValue = price.FilterValue
+	}
+}
+
+// UsageForSubscription aggregates a metered subscription's usage for [from, to) into a
+// single quantity, honouring the price's filter. Used by the current-period usage read;
+// the invoice builder uses MeteredUsageForSubscription so it can split grouped charges.
+func (s *UsageService) UsageForSubscription(ctx context.Context, sub domain.Subscription, price domain.Price, from, to time.Time) (decimal.Decimal, error) {
+	metric, q, err := s.usageQueryFor(ctx, sub, price, from, to)
+	if err != nil {
+		return decimal.Zero, err
+	}
 	return s.AggregateForPeriod(ctx, metric, q)
+}
+
+// MeteredUsage is a metered price's usage for a period: a single scalar quantity when
+// the meter has no group dimension, or one segment per group value when it does
+// (Grouped non-nil). The caller emits one invoice line for Units, or one per segment.
+type MeteredUsage struct {
+	Units   decimal.Decimal
+	Grouped []port.GroupedUsage
+}
+
+// MeteredUsageForSubscription returns a metered price's usage for [from, to): the
+// filtered scalar, or — when the meter declares a GroupBy dimension — one rounded
+// quantity per discovered group value (all at the price's single rate). v1 honours one
+// group dimension; a meter with more errors.
+func (s *UsageService) MeteredUsageForSubscription(ctx context.Context, sub domain.Subscription, price domain.Price, from, to time.Time) (MeteredUsage, error) {
+	metric, q, err := s.usageQueryFor(ctx, sub, price, from, to)
+	if err != nil {
+		return MeteredUsage{}, err
+	}
+	if len(metric.GroupBy) == 0 {
+		units, aerr := s.AggregateForPeriod(ctx, metric, q)
+		return MeteredUsage{Units: units}, aerr
+	}
+	if len(metric.GroupBy) > 1 {
+		return MeteredUsage{}, errors.New("multi-dimension grouping not implemented")
+	}
+	q.FieldName = metric.FieldName
+	q.MetricCode = metric.Code
+	groups, gerr := s.eventStore.AggregateGrouped(ctx, q, metric.Aggregation, metric.GroupBy[0])
+	if gerr != nil {
+		return MeteredUsage{}, gerr
+	}
+	for i := range groups {
+		groups[i].Quantity = applyRounding(metric, groups[i].Quantity)
+	}
+	return MeteredUsage{Grouped: groups}, nil
 }
 
 func applyRounding(metric domain.BillableMetric, units decimal.Decimal) decimal.Decimal {

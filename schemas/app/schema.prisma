@@ -301,6 +301,12 @@ model Price {
   billableMetricId String? @map("billable_metric_id")
   tiers            Json?
 
+  // Metered filter: scopes this price to one slice of its meter (a value of one of the
+  // meter's filters). filterField unset = whole meter; set with no value = catch-all.
+  // See docs/internal/usage-filters-and-groups.md.
+  filterField String? @map("filter_field")
+  filterValue String? @map("filter_value")
+
   metadata Json?
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -422,8 +428,12 @@ model OrderItem {
   org     Org      @relation(fields: [orgId], references: [id], onDelete: Cascade)
   Variant Variant? @relation(fields: [orgId, variantId], references: [orgId, id])
 
-  variantId    String?        @map("variant_id")
-  Subscription Subscription[]
+  variantId String? @map("variant_id")
+
+  // The subscription that bills this recurring line (null for one-time lines).
+  // A subscription owns the order's recurring lines that share one cadence.
+  subscriptionId String?       @map("subscription_id")
+  subscription   Subscription? @relation("SubscriptionLines", fields: [orgId, subscriptionId], references: [orgId, id])
 
   @@id([orgId, id])
   @@map("order_items")
@@ -532,8 +542,8 @@ model Subscription {
   orderId String @map("order_id")
   order   Order  @relation(fields: [orgId, orderId], references: [orgId, id])
 
-  orderItemId String    @map("order_item_id")
-  orderItem   OrderItem @relation(fields: [orgId, orderItemId], references: [orgId, id])
+  // A subscription bills a group of the order's recurring lines (one cadence).
+  lines OrderItem[] @relation("SubscriptionLines")
 
   customerId String   @map("customer_id")
   customer   Customer @relation(fields: [orgId, customerId], references: [orgId, id])
@@ -547,6 +557,10 @@ model Subscription {
   billingIntervalQty Int             @map("billing_interval_qty")
   cycles             Int
   billingAnchor      Int             @map("billing_anchor")
+  // Trial cadence the subscription derived from its lines at construction (so
+  // activation needs no Price lookup).
+  trialInterval      BillingInterval @default(none) @map("trial_interval")
+  trialIntervalQty   Int             @default(0) @map("trial_interval_qty")
   trialEndsAt        DateTime?       @map("trial_ends_at")
   cancelAt           DateTime?       @map("cancel_at")
   endsAt             DateTime?       @map("ends_at")
@@ -559,7 +573,6 @@ model Subscription {
   nextRetry DateTime? @map("next_retry")
 
   currency String
-  amount   Int
 
   metadata Json
 
@@ -979,6 +992,11 @@ model BillableMetric {
   recurring     Boolean @default(false)
   roundingMode  String? @map("rounding_mode")
   roundingScale Int     @default(0) @map("rounding_scale")
+  // filters: rate dimensions [{field,values}] — each value gets its own Price.
+  // groupBy: open breakout dimensions (key names) — usage split into one invoice line
+  // per discovered value at the Price's single rate. usage-filters-and-groups.md.
+  filters       Json?
+  groupBy       Json?   @map("group_by")
   metadata      Json?
 
   createdAt DateTime @default(now()) @map("created_at")

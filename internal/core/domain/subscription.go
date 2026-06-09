@@ -31,7 +31,6 @@ type Subscription struct {
 	Id              string
 	PspId           Gateway
 	OrderId         string
-	OrderItemId     string
 	CustomerId      string
 	Status          SubscriptionStatus
 	PaymentMethodId string
@@ -42,6 +41,11 @@ type Subscription struct {
 	BillingIntervalQty int
 	Cycles             int
 	BillingAnchor      int
+
+	// Trial cadence the subscription derived from its lines at construction, so it
+	// can compute TrialEndsAt at activation without re-reading a Price.
+	TrialInterval    BillingInterval
+	TrialIntervalQty int
 
 	TrialEndsAt time.Time
 	CancelAt    time.Time
@@ -56,7 +60,6 @@ type Subscription struct {
 	NextRetryAt time.Time
 
 	Currency        string
-	Amount          int64
 	Metadata        map[string]string
 	CyclesProcessed int
 	TotalRevenue    int64
@@ -252,32 +255,33 @@ func (s *Subscription) UpdateBillingAnchor(anchor int, prorationMode string, uni
 
 // SetActivationDates initializes the lifecycle date fields (StartDate /
 // TrialEndsAt / EndsAt / RenewsAt / CurrentPeriodStart / CurrentPeriodEnd /
-// BillingAnchor) from the Price the subscription is billed against. Price is
-// passed in explicitly — domain aggregates reference others by ID only.
-func (s *Subscription) SetActivationDates(price Price) *Subscription {
+// BillingAnchor) from the subscription's OWN billing fields — cadence, cycles,
+// and trial, all derived from its lines at construction (NewSubscriptionFromLines).
+// No Price argument: the aggregate owns the truth.
+func (s *Subscription) SetActivationDates() *Subscription {
 	startDate := time.Now().UTC()
 	var trialEndsAt time.Time
 	var endsAt time.Time
 
-	if price.TrialInterval != BillingIntervalNone {
-		switch price.TrialInterval {
+	if s.TrialInterval != BillingIntervalNone && s.TrialInterval != "" {
+		switch s.TrialInterval {
 		case "minute":
-			trialEndsAt = startDate.Add(time.Minute * time.Duration(price.TrialIntervalQty))
+			trialEndsAt = startDate.Add(time.Minute * time.Duration(s.TrialIntervalQty))
 		case "hour":
-			trialEndsAt = startDate.Add(time.Hour * time.Duration(price.TrialIntervalQty))
+			trialEndsAt = startDate.Add(time.Hour * time.Duration(s.TrialIntervalQty))
 		case "day":
-			trialEndsAt = startDate.AddDate(0, 0, price.TrialIntervalQty)
+			trialEndsAt = startDate.AddDate(0, 0, s.TrialIntervalQty)
 		case "week":
-			trialEndsAt = startDate.AddDate(0, 0, price.TrialIntervalQty*7)
+			trialEndsAt = startDate.AddDate(0, 0, s.TrialIntervalQty*7)
 		case "month":
-			trialEndsAt = startDate.AddDate(0, price.TrialIntervalQty, 0)
+			trialEndsAt = startDate.AddDate(0, s.TrialIntervalQty, 0)
 		case "year":
-			trialEndsAt = startDate.AddDate(price.TrialIntervalQty, 0, 0)
+			trialEndsAt = startDate.AddDate(s.TrialIntervalQty, 0, 0)
 		}
 	}
 
-	if price.Cycles > 0 {
-		endsAt = calculateNextDate(price.BillingInterval, price.Cycles*price.BillingIntervalQty, startDate)
+	if s.Cycles > 0 {
+		endsAt = calculateNextDate(s.BillingInterval, s.Cycles*s.BillingIntervalQty, startDate)
 	}
 
 	s.StartDate = startDate
@@ -291,11 +295,11 @@ func (s *Subscription) SetActivationDates(price Price) *Subscription {
 	return s
 }
 
-// SetActive transitions the subscription to active. Price is the billing rule;
-// payment is the (possibly zero-value) first-cycle Payment that should be
-// reflected in LastCharge / TotalRevenue / CyclesProcessed.
-func (s *Subscription) SetActive(price Price, payment Payment) *Subscription {
-	s.SetActivationDates(price)
+// SetActive transitions the subscription to active, initializing its lifecycle
+// dates from its own fields. payment is the (possibly zero-value) first-cycle
+// Payment reflected in LastCharge / TotalRevenue / CyclesProcessed.
+func (s *Subscription) SetActive(payment Payment) *Subscription {
+	s.SetActivationDates()
 	s.Status = SubscriptionStatusActive
 	if payment.OrgId != "" && payment.Amount > 0 {
 		s.LastCharge = payment.CompletedAt
@@ -343,24 +347,35 @@ func calculateNextDate(interval BillingInterval, qty int, startDate time.Time) t
 	return startDate
 }
 
-// NewSubscriptionFromOrderItem constructs a Subscription from an OrderItem +
-// its Price. Both arguments are required: the OrderItem carries the parent
-// Order linkage, the Price carries the billing rule.
-func NewSubscriptionFromOrderItem(item OrderItem, price Price) Subscription {
+// NewSubscriptionFromLines constructs a pending Subscription from a group of the
+// order's recurring lines that share one billing cadence (linked later via
+// OrderItem.SubscriptionId). The subscription derives everything it needs from
+// its own lines — cadence, cycles cap, and trial — rather than having an outside
+// caller pick a representative price. The plan line (the first non-metered line,
+// else the first line) supplies cycles + trial; the cadence is the lines' shared
+// SubscriptionCadence (metered lines capped at monthly). It stores no charge
+// amount (ADR 0002) — the per-cycle total is computed onto the Invoice.
+func NewSubscriptionFromLines(orgId, orderId, customerId string, prices []Price) Subscription {
+	plan := prices[0]
+	for _, p := range prices {
+		if !p.IsMetered() {
+			plan = p
+			break
+		}
+	}
+	interval, qty := plan.SubscriptionCadence()
 	return Subscription{
-		OrgId:              item.OrgId,
+		OrgId:              orgId,
 		Id:                 lib.GenerateId("sub"),
-		OrderId:            item.OrderId,
-		OrderItemId:        item.Id,
+		OrderId:            orderId,
+		CustomerId:         customerId,
 		Status:             SubscriptionStatusPending,
-		BillingInterval:    price.BillingInterval,
-		BillingIntervalQty: price.BillingIntervalQty,
-		Cycles:             price.Cycles,
-		Retries:            0,
-		Currency:           string(price.Currency),
-		Amount:             price.UnitPrice,
-		CyclesProcessed:    0,
-		TotalRevenue:       0,
+		BillingInterval:    interval,
+		BillingIntervalQty: qty,
+		Cycles:             plan.Cycles,
+		TrialInterval:      plan.TrialInterval,
+		TrialIntervalQty:   plan.TrialIntervalQty,
+		Currency:           string(plan.Currency),
 		CreatedAt:          time.Now().UTC(),
 		UpdatedAt:          time.Now().UTC(),
 	}

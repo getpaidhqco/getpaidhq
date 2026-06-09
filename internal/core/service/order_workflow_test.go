@@ -41,7 +41,7 @@ func completeSessionInput() port.CompleteCheckoutSessionInput {
 func TestOrderWorkflowService_CompleteCheckoutSession(t *testing.T) {
 	t.Run("paid session: order completed, PM created, sub activated, payment row, event", func(t *testing.T) {
 		orderRepo := &fakeOrderRepo{order: domain.Order{OrgId: "org_1", Id: "ord_1", CustomerId: "cus_1", Status: domain.OrderStatusPending}}
-		subRepo := &fakeSubRepo{byOrderId: []domain.Subscription{{OrgId: "org_1", Id: "sub_1", Amount: 5000}}}
+		subRepo := &fakeSubRepo{byOrderId: []domain.Subscription{{OrgId: "org_1", Id: "sub_1"}}}
 		pmRepo := &fakePaymentMethodRepo{}
 		payRepo := &fakePaymentRepo{}
 		ps := &recordingPubSub{}

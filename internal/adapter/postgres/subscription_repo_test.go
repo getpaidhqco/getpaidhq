@@ -33,17 +33,16 @@ func seedSubFixture(t *testing.T, db *gorm.DB, orgId string) subFixture {
 	price := seedPrice(t, db, orgId)
 	order := seedOrder(t, db, orgId, cust.Id)
 	item := seedOrderItem(t, db, orgId, order.Id, price.Id)
-	return subFixture{customer: cust, order: order, item: item, sub: newSubscription(orgId, cust.Id, order.Id, item.Id)}
+	return subFixture{customer: cust, order: order, item: item, sub: newSubscription(orgId, cust.Id, order.Id)}
 }
 
-func newSubscription(orgId, customerId, orderId, orderItemId string) domain.Subscription {
+func newSubscription(orgId, customerId, orderId string) domain.Subscription {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	return domain.Subscription{
 		OrgId:              orgId,
 		Id:                 lib.GenerateId("sub"),
 		PspId:              domain.Paystack,
 		OrderId:            orderId,
-		OrderItemId:        orderItemId,
 		CustomerId:         customerId,
 		Status:             domain.SubscriptionStatusActive,
 		StartDate:          now,
@@ -51,7 +50,6 @@ func newSubscription(orgId, customerId, orderId, orderItemId string) domain.Subs
 		BillingIntervalQty: 1,
 		Cycles:             12,
 		Currency:           "USD",
-		Amount:             1999,
 		Metadata:           map[string]string{"plan": "pro"},
 		CreatedAt:          now,
 		UpdatedAt:          now,
@@ -72,7 +70,6 @@ func TestSubscriptionRepo(t *testing.T) {
 		created, err := repo.Create(ctx, sub)
 		require.NoError(t, err)
 		assert.Equal(t, sub.Id, created.Id)
-		assert.Equal(t, sub.Amount, created.Amount)
 		assert.Equal(t, domain.SubscriptionStatusActive, created.Status)
 		// Customer is preloaded on the create round-trip.
 		assert.Equal(t, fx.customer.Id, created.CustomerId)
@@ -82,7 +79,6 @@ func TestSubscriptionRepo(t *testing.T) {
 		got, err := repo.FindById(ctx, orgId, sub.Id)
 		require.NoError(t, err)
 		assert.Equal(t, created.Id, got.Id)
-		assert.Equal(t, created.Amount, got.Amount)
 		assert.Equal(t, fx.customer.Id, got.CustomerId)
 	})
 
@@ -94,18 +90,15 @@ func TestSubscriptionRepo(t *testing.T) {
 		require.NoError(t, err)
 
 		created.Status = domain.SubscriptionStatusCancelled
-		created.Amount = 4999
 		created.CancelledAt = time.Now().UTC().Truncate(time.Microsecond)
 
 		updated, err := repo.Update(ctx, created)
 		require.NoError(t, err)
 		assert.Equal(t, domain.SubscriptionStatusCancelled, updated.Status)
-		assert.Equal(t, int64(4999), updated.Amount)
 
 		reread, err := repo.FindById(ctx, orgId, created.Id)
 		require.NoError(t, err)
 		assert.Equal(t, domain.SubscriptionStatusCancelled, reread.Status)
-		assert.Equal(t, int64(4999), reread.Amount)
 	})
 
 	t.Run("FindById not-found returns ErrRecordNotFound", func(t *testing.T) {
@@ -121,18 +114,18 @@ func TestSubscriptionRepo(t *testing.T) {
 		fx := seedSubFixture(t, db, orgId)
 		orderId := fx.order.Id
 
-		s1 := newSubscription(orgId, fx.customer.Id, orderId, fx.item.Id)
+		s1 := newSubscription(orgId, fx.customer.Id, orderId)
 		_, err := repo.Create(ctx, s1)
 		require.NoError(t, err)
 
-		s2 := newSubscription(orgId, fx.customer.Id, orderId, fx.item.Id)
+		s2 := newSubscription(orgId, fx.customer.Id, orderId)
 		_, err = repo.Create(ctx, s2)
 		require.NoError(t, err)
 
 		// A third sub on a different order must be excluded.
 		otherOrder := seedOrder(t, db, orgId, fx.customer.Id)
-		otherItem := seedOrderItem(t, db, orgId, otherOrder.Id, seedPrice(t, db, orgId).Id)
-		other := newSubscription(orgId, fx.customer.Id, otherOrder.Id, otherItem.Id)
+		seedOrderItem(t, db, orgId, otherOrder.Id, seedPrice(t, db, orgId).Id)
+		other := newSubscription(orgId, fx.customer.Id, otherOrder.Id)
 		_, err = repo.Create(ctx, other)
 		require.NoError(t, err)
 
@@ -149,7 +142,7 @@ func TestSubscriptionRepo(t *testing.T) {
 		cleanupOrg(t, db, orgId)
 		fx := seedSubFixture(t, db, orgId)
 		for range 3 {
-			_, err := repo.Create(ctx, newSubscription(orgId, fx.customer.Id, fx.order.Id, fx.item.Id))
+			_, err := repo.Create(ctx, newSubscription(orgId, fx.customer.Id, fx.order.Id))
 			require.NoError(t, err)
 		}
 
@@ -200,7 +193,6 @@ func TestSubscriptionRepo_FindDueForBilling(t *testing.T) {
 		f.sub.BillingIntervalQty = 1
 		f.sub.RenewsAt = renews
 		f.sub.Currency = "USD"
-		f.sub.Amount = 1000
 		f.sub.CreatedAt = now
 		f.sub.UpdatedAt = now
 		_, err := repo.Create(ctx, f.sub)
@@ -241,7 +233,6 @@ func TestSubscriptionRepo_FindUpcomingRenewals(t *testing.T) {
 		f.sub.BillingIntervalQty = 1
 		f.sub.RenewsAt = renews
 		f.sub.Currency = "USD"
-		f.sub.Amount = 1000
 		f.sub.CreatedAt = now
 		f.sub.UpdatedAt = now
 		_, err := repo.Create(ctx, f.sub)

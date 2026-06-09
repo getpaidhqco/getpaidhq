@@ -42,7 +42,10 @@ func newSubscriptionService(subRepo port.SubscriptionRepository, setting port.Se
 	invOrderRepo := &fakeOrderRepo{items: []domain.OrderItem{{Id: "oi_1", PriceId: "price_1", Quantity: 1}}}
 	invPriceRepo := &fakePriceRepo{byId: domain.Price{Id: "price_1", UnitPrice: 1000}}
 	invoiceSvc := NewInvoiceService(newFakeInvoiceRepo(), invOrderRepo, invPriceRepo, nil, nil, silentLogger{})
-	svc, err := NewSubscriptionService(nil, setting, nil, subRepo, customer, order, payment, &fakePriceRepo{}, nil, invoiceSvc, ps, lib.ErrorReporter{}, silentLogger{}, nil)
+	// The subscription service's own price repo backs cadence grouping in
+	// CreateSubscriptionsForOrder; give it a monthly recurring price.
+	subPriceRepo := &fakePriceRepo{byId: domain.Price{Id: "price_1", Category: domain.PriceCategorySubscription, BillingInterval: domain.BillingIntervalMonth, BillingIntervalQty: 1, UnitPrice: 1000}}
+	svc, err := NewSubscriptionService(nil, setting, nil, subRepo, customer, order, payment, subPriceRepo, nil, invoiceSvc, ps, lib.ErrorReporter{}, silentLogger{}, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -168,7 +171,7 @@ func TestSubscriptionService_HandleSubscriptionChargeSuccess(t *testing.T) {
 		svc := newSubscriptionService(subRepo, nil, nil, nil, payRepo, ps)
 
 		sub := domain.Subscription{
-			OrgId: "org_1", Id: "sub_1", OrderItemId: "oi_1", Amount: 1000, Cycles: 0, CyclesProcessed: 0, TotalRevenue: 0,
+			OrgId: "org_1", Id: "sub_1", Cycles: 0, CyclesProcessed: 0, TotalRevenue: 0,
 			BillingInterval: domain.BillingInterval("month"), BillingIntervalQty: 1,
 		}
 		got, err := svc.HandleSubscriptionChargeSuccess(context.Background(), port.SubscriptionChargeInput{Subscription: sub, ChargeResult: charge()})
@@ -188,7 +191,7 @@ func TestSubscriptionService_HandleSubscriptionChargeSuccess(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newSubscriptionService(subRepo, nil, nil, nil, payRepo, ps)
 
-		sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", OrderItemId: "oi_1", Amount: 1000, Cycles: 2, CyclesProcessed: 1}
+		sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", Cycles: 2, CyclesProcessed: 1}
 		got, err := svc.HandleSubscriptionChargeSuccess(context.Background(), port.SubscriptionChargeInput{Subscription: sub, ChargeResult: charge()})
 
 		require.NoError(t, err)
@@ -209,7 +212,7 @@ func TestSubscriptionService_HandleSubscriptionChargeFailure(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newSubscriptionService(subRepo, settingRepo, nil, nil, payRepo, ps)
 
-		sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", OrderItemId: "oi_1", Amount: 1000, Retries: 0, RenewsAt: time.Now().UTC()}
+		sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", Retries: 0, RenewsAt: time.Now().UTC()}
 		got, err := svc.HandleSubscriptionChargeFailure(context.Background(), port.SubscriptionChargeInput{Subscription: sub, ChargeResult: failCharge})
 
 		require.NoError(t, err)
@@ -227,7 +230,7 @@ func TestSubscriptionService_HandleSubscriptionChargeFailure(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newSubscriptionService(subRepo, settingRepo, nil, nil, payRepo, ps)
 
-		sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", Amount: 1000, Retries: 3, RenewsAt: time.Now().UTC()}
+		sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", Retries: 3, RenewsAt: time.Now().UTC()}
 		got, err := svc.HandleSubscriptionChargeFailure(context.Background(), port.SubscriptionChargeInput{Subscription: sub, ChargeResult: failCharge})
 
 		require.NoError(t, err)
@@ -245,7 +248,7 @@ func TestSubscriptionService_HandleSubscriptionChargeFailure(t *testing.T) {
 		ps := &recordingPubSub{}
 		svc := newSubscriptionService(subRepo, settingRepo, nil, nil, payRepo, ps)
 
-		sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", Amount: 1000, Retries: 2, RenewsAt: time.Now().UTC()}
+		sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", Retries: 2, RenewsAt: time.Now().UTC()}
 		got, err := svc.HandleSubscriptionChargeFailure(context.Background(), port.SubscriptionChargeInput{Subscription: sub, ChargeResult: failCharge})
 
 		require.NoError(t, err)
@@ -306,9 +309,8 @@ func TestSubscriptionService_CreateSubscriptionsForOrder(t *testing.T) {
 	got, err := svc.CreateSubscriptionsForOrder(context.Background(), "org_1", "ord_1")
 
 	require.NoError(t, err)
-	assert.Len(t, got, 2)
-	assert.Len(t, subRepo.created, 2)
-	for _, s := range subRepo.created {
-		assert.Equal(t, domain.SubscriptionStatusActive, s.Status, "completed order activates its subscriptions")
-	}
+	// Both items share one (monthly) cadence → one subscription owning both lines.
+	assert.Len(t, got, 1)
+	assert.Len(t, subRepo.created, 1)
+	assert.Equal(t, domain.SubscriptionStatusActive, subRepo.created[0].Status, "completed order activates its subscription")
 }

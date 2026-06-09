@@ -50,7 +50,12 @@ func TestSimpleSubscriptionBilling_E2E(t *testing.T) {
 	sub.CurrentPeriodEnd = periodEnd
 	sub.RenewsAt = periodEnd
 	subRow := subscriptionRowFromDomain(sub)
-	require.NoError(t, db.Omit("Customer", "OrderItem").Create(&subRow).Error)
+	require.NoError(t, db.Create(&subRow).Error)
+	// The per-cycle invoice bills the subscription's OWN lines: stamp the order
+	// item with this subscription's id.
+	require.NoError(t, db.Model(&orderItemRow{}).
+		Where("org_id = ? AND id = ?", orgId, fx.item.Id).
+		Update("subscription_id", sub.Id).Error)
 
 	// Expected charge total = the linked price's unit price × quantity (read from DB
 	// so the assertion doesn't hard-code seed values).

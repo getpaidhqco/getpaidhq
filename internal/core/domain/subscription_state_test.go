@@ -30,12 +30,18 @@ func monthlyItem() OrderItem {
 	}
 }
 
+// subForItem builds a pending subscription from a single line's price; the
+// subscription derives its cadence + trial from that price.
+func subForItem(item OrderItem, price Price) Subscription {
+	return NewSubscriptionFromLines(item.OrgId, item.OrderId, "", []Price{price})
+}
+
 func TestSetActivationDates_NoTrialNoCycles(t *testing.T) {
 	now := time.Now().UTC()
 	price := monthlyPrice(BillingIntervalNone, 0, 0)
-	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
+	s := subForItem(monthlyItem(), price)
 
-	got := s.SetActivationDates(price)
+	got := s.SetActivationDates()
 
 	assert.Same(t, &s, got)
 	assert.WithinDuration(t, now, s.StartDate, 5*time.Second)
@@ -49,9 +55,9 @@ func TestSetActivationDates_NoTrialNoCycles(t *testing.T) {
 
 func TestSetActivationDates_WithTrialSetsTrialEnd(t *testing.T) {
 	price := monthlyPrice(BillingIntervalMonth, 1, 0)
-	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
+	s := subForItem(monthlyItem(), price)
 
-	s.SetActivationDates(price)
+	s.SetActivationDates()
 
 	assert.False(t, s.TrialEndsAt.IsZero(), "trial set -> TrialEndsAt populated")
 	assert.Equal(t, s.StartDate.AddDate(0, 1, 0), s.TrialEndsAt)
@@ -59,9 +65,9 @@ func TestSetActivationDates_WithTrialSetsTrialEnd(t *testing.T) {
 
 func TestSetActivationDates_WithCyclesSetsEndsAt(t *testing.T) {
 	price := monthlyPrice(BillingIntervalNone, 0, 12)
-	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
+	s := subForItem(monthlyItem(), price)
 
-	s.SetActivationDates(price)
+	s.SetActivationDates()
 
 	assert.False(t, s.EndsAt.IsZero(), "cycles>0 -> EndsAt populated")
 	assert.Equal(t, s.StartDate.AddDate(0, 12, 0), s.EndsAt)
@@ -70,7 +76,7 @@ func TestSetActivationDates_WithCyclesSetsEndsAt(t *testing.T) {
 func TestSetActive_FirstCycle(t *testing.T) {
 	now := time.Now().UTC()
 	price := monthlyPrice(BillingIntervalNone, 0, 0)
-	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
+	s := subForItem(monthlyItem(), price)
 
 	payment := Payment{
 		OrgId:       "org_1",
@@ -78,7 +84,7 @@ func TestSetActive_FirstCycle(t *testing.T) {
 		CompletedAt: now,
 	}
 
-	got := s.SetActive(price, payment)
+	got := s.SetActive(payment)
 
 	assert.Same(t, &s, got)
 	assert.Equal(t, SubscriptionStatusActive, s.Status)
@@ -93,13 +99,13 @@ func TestSetActive_FirstCycle(t *testing.T) {
 func TestSetActive_RecurringChargeIncrementsCycles(t *testing.T) {
 	now := time.Now().UTC()
 	price := monthlyPrice(BillingIntervalNone, 0, 0)
-	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
+	s := subForItem(monthlyItem(), price)
 	s.CyclesProcessed = 1
 	s.LastCharge = now.AddDate(0, -1, 0)
 
 	payment := Payment{OrgId: "org_1", Amount: 1000, CompletedAt: now}
 
-	s.SetActive(price, payment)
+	s.SetActive(payment)
 
 	assert.Equal(t, SubscriptionStatusActive, s.Status)
 	assert.Equal(t, 2, s.CyclesProcessed, "recurring charge increments cycles")
@@ -114,9 +120,9 @@ func TestSetActive_RecurringChargeIncrementsCycles(t *testing.T) {
 
 func TestSetActive_NoPaymentDoesNotChargeButActivates(t *testing.T) {
 	price := monthlyPrice(BillingIntervalNone, 0, 0)
-	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
+	s := subForItem(monthlyItem(), price)
 
-	s.SetActive(price, Payment{})
+	s.SetActive(Payment{})
 
 	assert.Equal(t, SubscriptionStatusActive, s.Status)
 	assert.Equal(t, 0, s.CyclesProcessed, "no payment -> cycles unchanged")
@@ -127,9 +133,9 @@ func TestSetActive_NoPaymentDoesNotChargeButActivates(t *testing.T) {
 
 func TestSetActive_ZeroAmountSkipsChargeBranch(t *testing.T) {
 	price := monthlyPrice(BillingIntervalNone, 0, 0)
-	s := NewSubscriptionFromOrderItem(monthlyItem(), price)
+	s := subForItem(monthlyItem(), price)
 
-	s.SetActive(price, Payment{OrgId: "org_1", Amount: 0})
+	s.SetActive(Payment{OrgId: "org_1", Amount: 0})
 
 	assert.Equal(t, SubscriptionStatusActive, s.Status)
 	assert.Equal(t, 0, s.CyclesProcessed)
@@ -139,7 +145,6 @@ func TestSetActive_ZeroAmountSkipsChargeBranch(t *testing.T) {
 func TestUpdateBillingAnchor_NoneMode(t *testing.T) {
 	now := time.Now().UTC()
 	s := Subscription{
-		Amount:             1000,
 		BillingInterval:    BillingIntervalMonth,
 		BillingIntervalQty: 1,
 		BillingAnchor:      15,
@@ -165,7 +170,6 @@ func TestUpdateBillingAnchor_NoneMode(t *testing.T) {
 func TestUpdateBillingAnchor_CreditUnusedMode(t *testing.T) {
 	now := time.Now().UTC()
 	s := Subscription{
-		Amount:             1000,
 		BillingInterval:    BillingIntervalMonth,
 		BillingIntervalQty: 1,
 		BillingAnchor:      15,

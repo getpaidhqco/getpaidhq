@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"errors"
+	"strings"
 
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
@@ -91,6 +92,17 @@ func (s *EventStore) scope(ctx context.Context, q port.UsageQuery) *gorm.DB {
 			tx = tx.Where("subscription_id = ?", q.SubscriptionId)
 		}
 	}
+	// Filter to one slice of the meter. The default/catch-all charge (FilterExclude
+	// set) bills everything not explicitly priced, including events where the field is
+	// absent (NULL), so unclassified usage is captured exactly once.
+	if q.FilterField != "" {
+		switch {
+		case len(q.FilterExclude) > 0:
+			tx = tx.Where("(metadata->>? NOT IN ? OR metadata->>? IS NULL)", q.FilterField, q.FilterExclude, q.FilterField)
+		case q.FilterValue != "":
+			tx = tx.Where("metadata->>? = ?", q.FilterField, q.FilterValue)
+		}
+	}
 	return tx
 }
 
@@ -129,6 +141,54 @@ func (s *EventStore) Latest(ctx context.Context, q port.UsageQuery) (decimal.Dec
 // WeightedSum (value averaged over time) needs a window query; deferred (spec phase 5).
 func (s *EventStore) WeightedSum(ctx context.Context, q port.UsageQuery, initial decimal.Decimal) (decimal.Decimal, error) {
 	return decimal.Zero, errors.New("weighted_sum aggregation not implemented")
+}
+
+// AggregateGrouped aggregates q partitioned by a single metadata key, one row per
+// distinct value (events missing the key collapse to the empty-string segment). The
+// filter in scope() still applies, so a grouped charge only splits its own slice.
+func (s *EventStore) AggregateGrouped(ctx context.Context, q port.UsageQuery, agg domain.AggregationType, groupKey string) ([]port.GroupedUsage, error) {
+	expr, exprArgs, err := groupedAggExpr(agg, q.FieldName)
+	if err != nil {
+		return nil, err
+	}
+	type groupedRow struct {
+		GroupValue sql.NullString  `gorm:"column:group_value"`
+		Quantity   decimal.Decimal `gorm:"column:quantity"`
+	}
+	// The group key is a JSON key, not a value, so it can't be a bound parameter in the
+	// GROUP BY; inline it (single quotes escaped) and reference the identical expression
+	// in SELECT and GROUP BY. clause.GroupBy with Raw avoids gorm quoting it as a column.
+	keyExpr := "metadata->>'" + strings.ReplaceAll(groupKey, "'", "''") + "'"
+	var rows []groupedRow
+	err = s.scope(ctx, q).
+		Select(keyExpr+" AS group_value, "+expr+" AS quantity", exprArgs...).
+		Clauses(clause.GroupBy{Columns: []clause.Column{{Name: keyExpr, Raw: true}}}).
+		Scan(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	out := make([]port.GroupedUsage, 0, len(rows))
+	for _, r := range rows {
+		out = append(out, port.GroupedUsage{Key: groupKey, Value: r.GroupValue.String, Quantity: r.Quantity})
+	}
+	return out, nil
+}
+
+// groupedAggExpr is the SQL aggregate for a grouped query. Latest needs DISTINCT ON /
+// window and weighted_sum is unimplemented even ungrouped, so both are rejected here.
+func groupedAggExpr(agg domain.AggregationType, fieldName string) (string, []any, error) {
+	switch agg {
+	case domain.AggregationCount:
+		return "COUNT(*)", nil, nil
+	case domain.AggregationSum:
+		return "COALESCE(SUM(value),0)", nil, nil
+	case domain.AggregationMax:
+		return "COALESCE(MAX(value),0)", nil, nil
+	case domain.AggregationUniqueCount:
+		return "COUNT(DISTINCT metadata->>?)", []any{fieldName}, nil
+	default:
+		return "", nil, errors.New("grouped aggregation not supported: " + string(agg))
+	}
 }
 
 func (s *EventStore) scalar(ctx context.Context, q port.UsageQuery, expr string) (decimal.Decimal, error) {

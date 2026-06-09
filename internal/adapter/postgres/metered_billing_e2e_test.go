@@ -106,7 +106,6 @@ func seedMeteredFixture(t *testing.T, db *gorm.DB, orgId string, periodStart, pe
 		OrgId:              orgId,
 		Id:                 lib.GenerateId("sub"),
 		OrderId:            order.Id,
-		OrderItemId:        item.Id,
 		CustomerId:         cust.Id,
 		Status:             domain.SubscriptionStatusActive,
 		Currency:           "USD",
@@ -122,7 +121,11 @@ func seedMeteredFixture(t *testing.T, db *gorm.DB, orgId string, periodStart, pe
 		UpdatedAt:          now,
 	}
 	subRow := subscriptionRowFromDomain(sub)
-	require.NoError(t, db.Omit("Customer", "OrderItem").Create(&subRow).Error)
+	require.NoError(t, db.Create(&subRow).Error)
+	// The subscription owns its metered line.
+	require.NoError(t, db.Model(&orderItemRow{}).
+		Where("org_id = ? AND id = ?", orgId, item.Id).
+		Update("subscription_id", sub.Id).Error)
 
 	return meteredFixture{customer: cust, meter: meter, price: price, order: order, item: item, sub: sub}
 }
@@ -137,6 +140,8 @@ func buildUsageService(t *testing.T, db *gorm.DB) *service.UsageService {
 		NewMeterRepo(db),
 		NewCustomerRepo(db),
 		NewSubscriptionRepo(db),
+		NewOrderRepo(db),
+		NewPriceRepo(db),
 		store, // ingestor
 		store, // event store
 		noopPubSub{},
@@ -311,11 +316,11 @@ func TestMeteredBilling_PeriodScoping(t *testing.T) {
 		ext string
 		ts  time.Time
 	}{
-		{"before", periodStart.Add(-time.Hour)},   // previous period — excluded
-		{"in1", periodStart},                       // on [from] boundary — included
+		{"before", periodStart.Add(-time.Hour)},       // previous period — excluded
+		{"in1", periodStart},                          // on [from] boundary — included
 		{"in2", periodStart.Add(10 * 24 * time.Hour)}, // mid-period — included
-		{"on_end", periodEnd},                      // on [to] boundary — excluded (half-open)
-		{"after", periodEnd.Add(time.Hour)},        // next period — excluded
+		{"on_end", periodEnd},                         // on [to] boundary — excluded (half-open)
+		{"after", periodEnd.Add(time.Hour)},           // next period — excluded
 	}
 	for _, e := range events {
 		in := base

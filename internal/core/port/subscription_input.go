@@ -57,7 +57,6 @@ func (input CreateSubscriptionInput) ToSubscription() domain.Subscription {
 		TrialEndsAt:        trialEndsAt,
 		Retries:            0,
 		Currency:           input.Currency,
-		Amount:             input.Amount,
 		CyclesProcessed:    0,
 		TotalRevenue:       0,
 		CreatedAt:          time.Now().UTC(),

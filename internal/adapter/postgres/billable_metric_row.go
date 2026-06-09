@@ -17,6 +17,8 @@ type billableMetricRow struct {
 	Recurring     bool                   `gorm:"column:recurring"`
 	RoundingMode  string                 `gorm:"column:rounding_mode"`
 	RoundingScale int                    `gorm:"column:rounding_scale"`
+	Filters       []domain.MetricFilter  `gorm:"column:filters;serializer:json"`
+	GroupBy       []string               `gorm:"column:group_by;serializer:json"`
 	Metadata      map[string]string      `gorm:"column:metadata;serializer:json"`
 	CreatedAt     time.Time              `gorm:"column:created_at"`
 	UpdatedAt     time.Time              `gorm:"column:updated_at"`
@@ -35,6 +37,8 @@ func (r billableMetricRow) toDomain() domain.BillableMetric {
 		Recurring:     r.Recurring,
 		RoundingMode:  r.RoundingMode,
 		RoundingScale: r.RoundingScale,
+		Filters:       r.Filters,
+		GroupBy:       r.GroupBy,
 		Metadata:      r.Metadata,
 		CreatedAt:     r.CreatedAt,
 		UpdatedAt:     r.UpdatedAt,
@@ -52,6 +56,8 @@ func billableMetricRowFromDomain(m domain.BillableMetric) billableMetricRow {
 		Recurring:     m.Recurring,
 		RoundingMode:  m.RoundingMode,
 		RoundingScale: m.RoundingScale,
+		Filters:       m.Filters,
+		GroupBy:       m.GroupBy,
 		Metadata:      m.Metadata,
 		CreatedAt:     m.CreatedAt,
 		UpdatedAt:     m.UpdatedAt,

@@ -14,7 +14,6 @@ type subscriptionRow struct {
 	Id              string                    `gorm:"column:id;primaryKey"`
 	PspId           domain.Gateway            `gorm:"column:psp_id"`
 	OrderId         string                    `gorm:"column:order_id"`
-	OrderItemId     string                    `gorm:"column:order_item_id"`
 	CustomerId      string                    `gorm:"column:customer_id"`
 	Status          domain.SubscriptionStatus `gorm:"column:status"`
 	PaymentMethodId string                    `gorm:"column:payment_method_id"`
@@ -25,6 +24,8 @@ type subscriptionRow struct {
 	BillingIntervalQty int                    `gorm:"column:billing_interval_qty"`
 	Cycles             int                    `gorm:"column:cycles"`
 	BillingAnchor      int                    `gorm:"column:billing_anchor"`
+	TrialInterval      domain.BillingInterval `gorm:"column:trial_interval"`
+	TrialIntervalQty   int                    `gorm:"column:trial_interval_qty"`
 
 	TrialEndsAt time.Time `gorm:"column:trial_ends_at;serializer:nulltime"`
 	CancelAt    time.Time `gorm:"column:cancel_at;serializer:nulltime"`
@@ -39,7 +40,6 @@ type subscriptionRow struct {
 	NextRetryAt time.Time `gorm:"column:next_retry;serializer:nulltime"`
 
 	Currency        string            `gorm:"column:currency"`
-	Amount          int64             `gorm:"column:amount"`
 	Metadata        map[string]string `gorm:"column:metadata;serializer:json"`
 	CyclesProcessed int               `gorm:"column:cycles_processed"`
 	TotalRevenue    int64             `gorm:"column:total_revenue"`
@@ -56,7 +56,6 @@ func (r subscriptionRow) toDomain() domain.Subscription {
 		Id:                 r.Id,
 		PspId:              r.PspId,
 		OrderId:            r.OrderId,
-		OrderItemId:        r.OrderItemId,
 		CustomerId:         r.CustomerId,
 		Status:             r.Status,
 		PaymentMethodId:    r.PaymentMethodId,
@@ -66,6 +65,8 @@ func (r subscriptionRow) toDomain() domain.Subscription {
 		BillingIntervalQty: r.BillingIntervalQty,
 		Cycles:             r.Cycles,
 		BillingAnchor:      r.BillingAnchor,
+		TrialInterval:      r.TrialInterval,
+		TrialIntervalQty:   r.TrialIntervalQty,
 		TrialEndsAt:        r.TrialEndsAt,
 		CancelAt:           r.CancelAt,
 		EndsAt:             r.EndsAt,
@@ -76,7 +77,6 @@ func (r subscriptionRow) toDomain() domain.Subscription {
 		Retries:            r.Retries,
 		NextRetryAt:        r.NextRetryAt,
 		Currency:           r.Currency,
-		Amount:             r.Amount,
 		Metadata:           r.Metadata,
 		CyclesProcessed:    r.CyclesProcessed,
 		TotalRevenue:       r.TotalRevenue,
@@ -92,7 +92,6 @@ func subscriptionRowFromDomain(s domain.Subscription) subscriptionRow {
 		Id:                 s.Id,
 		PspId:              s.PspId,
 		OrderId:            s.OrderId,
-		OrderItemId:        s.OrderItemId,
 		CustomerId:         s.CustomerId,
 		Status:             s.Status,
 		PaymentMethodId:    s.PaymentMethodId,
@@ -102,6 +101,8 @@ func subscriptionRowFromDomain(s domain.Subscription) subscriptionRow {
 		BillingIntervalQty: s.BillingIntervalQty,
 		Cycles:             s.Cycles,
 		BillingAnchor:      s.BillingAnchor,
+		TrialInterval:      s.TrialInterval,
+		TrialIntervalQty:   s.TrialIntervalQty,
 		TrialEndsAt:        s.TrialEndsAt,
 		CancelAt:           s.CancelAt,
 		EndsAt:             s.EndsAt,
@@ -112,7 +113,6 @@ func subscriptionRowFromDomain(s domain.Subscription) subscriptionRow {
 		Retries:            s.Retries,
 		NextRetryAt:        s.NextRetryAt,
 		Currency:           s.Currency,
-		Amount:             s.Amount,
 		Metadata:           s.Metadata,
 		CyclesProcessed:    s.CyclesProcessed,
 		TotalRevenue:       s.TotalRevenue,

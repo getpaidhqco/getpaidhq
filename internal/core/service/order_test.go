@@ -84,6 +84,14 @@ func (r *fakeOrderRepo) FindOrderItemsByOrderId(_ context.Context, _, _ string) 
 	return r.items, nil
 }
 
+func (r *fakeOrderRepo) FindOrderItemsBySubscriptionId(_ context.Context, _, _ string) ([]domain.OrderItem, error) {
+	return r.items, nil
+}
+
+func (r *fakeOrderRepo) UpdateOrderItem(_ context.Context, oi domain.OrderItem) (domain.OrderItem, error) {
+	return oi, nil
+}
+
 func (r *fakeOrderRepo) FindOrderItemById(_ context.Context, _, id string) (domain.OrderItem, error) {
 	for _, it := range r.items {
 		if it.Id == id {

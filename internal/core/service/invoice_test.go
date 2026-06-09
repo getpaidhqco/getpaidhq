@@ -40,7 +40,7 @@ func TestInvoiceService_BuildForBillingPeriod_Multiline(t *testing.T) {
 		"met_out": {OrgId: "org_1", Id: "met_out", Code: "output_tokens", Aggregation: domain.AggregationCount},
 	}}
 	customers := &usageCustomerRepo{byId: map[string]domain.Customer{"cus_1": {OrgId: "org_1", Id: "cus_1"}}}
-	sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", OrderId: "ord_1", OrderItemId: "oi_plan", CustomerId: "cus_1", Status: domain.SubscriptionStatusActive}
+	sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", OrderId: "ord_1", CustomerId: "cus_1", Status: domain.SubscriptionStatusActive}
 	es := &usageEventStore{count: 100} // 100 units measured for each meter
 	usage := newUsageSvc(meters, customers, &usageSubRepo{metered: []domain.Subscription{sub}}, es)
 
@@ -81,7 +81,7 @@ func TestInvoiceService_BuildForBillingPeriod_Trial(t *testing.T) {
 	price := domain.Price{OrgId: "org_1", Id: "price_1", Category: domain.PriceCategorySubscription, Scheme: domain.Fixed, UnitPrice: 1000}
 	svc := newInvoiceServiceForTest(price, nil)
 
-	sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", OrderItemId: "oi_1", CustomerId: "cus_1", Status: domain.SubscriptionStatusTrial}
+	sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", CustomerId: "cus_1", Status: domain.SubscriptionStatusTrial}
 	inv, err := svc.BuildForBillingPeriod(context.Background(), sub)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -98,7 +98,7 @@ func TestInvoiceService_BuildForBillingPeriod_NonTrialBaseLine(t *testing.T) {
 	price := domain.Price{OrgId: "org_1", Id: "price_1", Category: domain.PriceCategorySubscription, Scheme: domain.Fixed, UnitPrice: 1000}
 	svc := newInvoiceServiceForTest(price, nil)
 
-	sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", OrderItemId: "oi_1", CustomerId: "cus_1", Status: domain.SubscriptionStatusActive}
+	sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", CustomerId: "cus_1", Status: domain.SubscriptionStatusActive}
 	inv, err := svc.BuildForBillingPeriod(context.Background(), sub)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -118,7 +118,7 @@ func TestInvoiceService_BuildForBillingPeriod_Metered(t *testing.T) {
 	meters := &usageMeterRepo{byId: map[string]domain.BillableMetric{"met_1": countMeter()}}
 	customers := &usageCustomerRepo{byId: map[string]domain.Customer{"cus_1": {OrgId: "org_1", Id: "cus_1"}}}
 	es := &usageEventStore{count: 3}
-	sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", OrderItemId: "oi_1", CustomerId: "cus_1", Status: domain.SubscriptionStatusActive}
+	sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", CustomerId: "cus_1", Status: domain.SubscriptionStatusActive}
 	usage := newUsageSvc(meters, customers, &usageSubRepo{metered: []domain.Subscription{sub}}, es)
 
 	svc := newInvoiceServiceForTest(price, usage)
