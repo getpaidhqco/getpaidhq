@@ -104,17 +104,12 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 
 	recurringPayment := len(subscriptions) > 0 && paymentCtx.Payment.Amount > 0
 	for _, subscription := range subscriptions {
-		// Fetch the OrderItem + Price so SetActivationDates has the billing rule.
-		// Domain aggregates reference others by ID only; composition lives at
-		// the service layer.
-		oi, err := s.orderRepository.FindOrderItemById(ctx, orgId, subscription.OrderItemId)
+		// Resolve the subscription's representative price (lifecycle dates) and its
+		// recurring fixed base from its own lines. The subscription stores no
+		// amount (ADR 0002); revenue is the fixed base for the first cycle.
+		price, fixedBase, err := resolveSubscriptionPricing(ctx, s.orderRepository, s.priceRepository, orgId, subscription.Id)
 		if err != nil {
-			s.logger.Error("Failed to find order item for subscription activation", "subscription_id", subscription.Id, "err", err.Error())
-			return domain.Order{}, err
-		}
-		price, err := s.priceRepository.FindById(ctx, orgId, oi.PriceId)
-		if err != nil {
-			s.logger.Error("Failed to find price for subscription activation", "price_id", oi.PriceId, "err", err.Error())
+			s.logger.Error("Failed to resolve price for subscription activation", "subscription_id", subscription.Id, "err", err.Error())
 			return domain.Order{}, err
 		}
 
@@ -124,7 +119,7 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 			subscription.SetActivationDates(price)
 			subscription.Status = domain.SubscriptionStatusActive
 			subscription.LastCharge = subscription.StartDate
-			subscription.TotalRevenue = subscription.Amount
+			subscription.TotalRevenue = fixedBase
 			subscription.CyclesProcessed = 1
 		} else {
 			subscription.SetActivationDates(price)

@@ -115,23 +115,38 @@ func (s *SubscriptionService) CreateSubscriptionsForOrder(ctx context.Context, o
 		return subs, err
 	}
 
+	lines := make([]orderLine, 0, len(orderItems))
 	for _, item := range orderItems {
 		price, err := s.priceRepository.FindById(ctx, orgId, item.PriceId)
 		if err != nil {
 			s.logger.Error("Failed to find price for order item", "item", item.Id, "price_id", item.PriceId, "err", err.Error())
 			return subs, err
 		}
-		subscription := domain.NewSubscriptionFromOrderItem(item, price)
+		lines = append(lines, orderLine{item: item, price: price})
+	}
+
+	// Group the order's recurring lines by cadence; each group is one subscription
+	// owning its lines (linked via OrderItem.SubscriptionId).
+	for _, group := range groupIntoSubscriptions(lines) {
+		head := group[0].price
+		subscription := domain.NewSubscriptionForCadence(orgId, orderId, order.CustomerId, head.BillingInterval, head.BillingIntervalQty, head.Cycles, order.Currency)
 		if order.Status == domain.OrderStatusCompleted {
 			subscription.Status = domain.SubscriptionStatusActive
 		}
-
-		_, err = s.subscriptionRepository.Create(ctx, subscription)
+		created, err := s.subscriptionRepository.Create(ctx, subscription)
 		if err != nil {
-			s.logger.Error("Failed to create subscription", "item", item, err.Error())
+			s.logger.Error("Failed to create subscription", "err", err.Error())
 			return subs, err
 		}
-		subs = append(subs, subscription)
+		for _, l := range group {
+			item := l.item
+			item.SubscriptionId = created.Id
+			if _, err := s.orderRepository.UpdateOrderItem(ctx, item); err != nil {
+				s.logger.Error("Failed to link order item to subscription", "order_item", item.Id, "err", err.Error())
+				return subs, err
+			}
+		}
+		subs = append(subs, created)
 	}
 
 	s.logger.Info("Subscriptions created", "count", len(subs))
@@ -383,7 +398,14 @@ func (s *SubscriptionService) UpdateBillingAnchor(ctx context.Context, input por
 		return domain.ProrationDetails{}, lib.NewCustomError(lib.InternalError, "", err)
 	}
 
-	prorationDetails := subscription.UpdateBillingAnchor(input.BillingAnchor, string(input.ProrationMode), subscription.Amount)
+	// Proration credits the unused portion of the recurring flat fee. The
+	// subscription stores no amount (ADR 0002) — derive the base from its fixed lines.
+	_, fixedBase, err := resolveSubscriptionPricing(ctx, s.orderRepository, s.priceRepository, input.OrgId, subscription.Id)
+	if err != nil {
+		s.logger.Error("Failed to resolve subscription base for proration", "err", err.Error())
+		return domain.ProrationDetails{}, err
+	}
+	prorationDetails := subscription.UpdateBillingAnchor(input.BillingAnchor, string(input.ProrationMode), fixedBase)
 
 	_, err = s.subscriptionRepository.Update(ctx, subscription)
 	if err != nil {

@@ -80,7 +80,7 @@ func (a *OrderActivities) GetOrderSubscriptions(ctx context.Context, orgId strin
 // gateway-side failures as retryable Temporal application errors so Temporal's
 // retry policy can kick in.
 func (a *OrderActivities) ChargeCustomerForBillingPeriod(ctx context.Context, currentSub domain.Subscription) (domain.ChargeResult, error) {
-	a.log(ctx, "ChargeCustomerForBillingPeriod", "id", currentSub.Id, "Total", currentSub.Amount)
+	a.log(ctx, "ChargeCustomerForBillingPeriod", "id", currentSub.Id)
 
 	result, err := a.subscriptionService.ChargeForBillingPeriod(ctx, currentSub)
 	if err != nil {
