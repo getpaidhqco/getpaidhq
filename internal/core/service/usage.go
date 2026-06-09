@@ -18,6 +18,8 @@ type UsageService struct {
 	meterRepository        port.MeterRepository
 	customerRepository     port.CustomerRepository
 	subscriptionRepository port.SubscriptionRepository
+	orderRepository        port.OrderRepository // subscription → its metered lines (read)
+	priceRepository        port.PriceRepository
 	ingestor               port.EventIngestor // durable write path (sync = the EventStore; or JetStream)
 	eventStore             port.EventStore    // reads / aggregation
 	pubsub                 port.PubSub
@@ -28,6 +30,8 @@ func NewUsageService(
 	meterRepository port.MeterRepository,
 	customerRepository port.CustomerRepository,
 	subscriptionRepository port.SubscriptionRepository,
+	orderRepository port.OrderRepository,
+	priceRepository port.PriceRepository,
 	ingestor port.EventIngestor,
 	eventStore port.EventStore,
 	pubsub port.PubSub,
@@ -37,11 +41,72 @@ func NewUsageService(
 		meterRepository:        meterRepository,
 		customerRepository:     customerRepository,
 		subscriptionRepository: subscriptionRepository,
+		orderRepository:        orderRepository,
+		priceRepository:        priceRepository,
 		ingestor:               ingestor,
 		eventStore:             eventStore,
 		pubsub:                 pubsub,
 		logger:                 logger,
 	}
+}
+
+// MeterUsage is one meter's usage quantity for a subscription over a period.
+type MeterUsage struct {
+	MetricCode  string
+	Aggregation domain.AggregationType
+	Quantity    decimal.Decimal
+}
+
+// SubscriptionUsage is a subscription's usage for its current billing period.
+type SubscriptionUsage struct {
+	SubscriptionId     string
+	CurrentPeriodStart time.Time
+	CurrentPeriodEnd   time.Time
+	Meters             []MeterUsage
+}
+
+// CurrentPeriodUsage returns a subscription's metered usage for its current
+// billing period — the sum, per meter, over the subscription's OWN metered lines
+// (the lines stamped with its subscription_id). A pending/cancelled subscription
+// (zero period) or one with no metered lines yields an empty Meters slice. An
+// unknown subscription surfaces as port.ErrNotFound for the caller to map to 404.
+func (s *UsageService) CurrentPeriodUsage(ctx context.Context, orgId, subscriptionId string) (SubscriptionUsage, error) {
+	sub, err := s.subscriptionRepository.FindById(ctx, orgId, subscriptionId)
+	if err != nil {
+		return SubscriptionUsage{}, err
+	}
+	out := SubscriptionUsage{
+		SubscriptionId:     sub.Id,
+		CurrentPeriodStart: sub.CurrentPeriodStart,
+		CurrentPeriodEnd:   sub.CurrentPeriodEnd,
+		Meters:             []MeterUsage{},
+	}
+	if sub.CurrentPeriodStart.IsZero() {
+		return out, nil
+	}
+	items, err := s.orderRepository.FindOrderItemsBySubscriptionId(ctx, orgId, sub.Id)
+	if err != nil {
+		return SubscriptionUsage{}, err
+	}
+	for _, it := range items {
+		price, perr := s.priceRepository.FindById(ctx, orgId, it.PriceId)
+		if perr != nil {
+			return SubscriptionUsage{}, perr
+		}
+		if !price.IsMetered() {
+			continue
+		}
+		units, uerr := s.UsageForSubscription(ctx, sub, price, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
+		if uerr != nil {
+			return SubscriptionUsage{}, uerr
+		}
+		metric, merr := s.meterRepository.FindById(ctx, orgId, price.BillableMetricId)
+		if merr != nil {
+			return SubscriptionUsage{}, merr
+		}
+		out.Meters = append(out.Meters, MeterUsage{MetricCode: metric.Code, Aggregation: metric.Aggregation, Quantity: units})
+	}
+	return out, nil
 }
 
 // RecordEvent validates + stores one usage event. Returns the ingest result

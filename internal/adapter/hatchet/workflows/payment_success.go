@@ -15,15 +15,10 @@ import (
 //  1. complete-order:        Mark the order paid and capture the row.
 //  2. get-subscriptions:     Load any subscriptions tied to the order.
 //  3. start-subscription-lifecycle:
-//     Kick off the subscription's billing lifecycle via the
-//     engine port — same code path as the HTTP
-//     /orders/:id/complete handler. On Hatchet this may spawn
-//     an immediate first charge (billing-cycle-runner) when
-//     the subscription is already due; otherwise it is a
-//     no-op and the cron sweep drives renewals.
-//
-// Only the first subscription is processed — preserving today's behaviour
-// intentionally.
+//     Kick off the billing lifecycle for EVERY subscription on the order via the
+//     engine port — same code path as the HTTP /orders/:id/complete handler. An
+//     order can carry more than one subscription (one per billing cadence), so all
+//     are started; Start*Workflow is idempotent via deterministic ids.
 func NewPaymentSuccessWorkflow(
 	client *hatchet.Client,
 	orderService port.OrderWorkflowService,
@@ -56,21 +51,17 @@ func NewPaymentSuccessWorkflow(
 	)
 
 	wf.NewTask("start-subscription-lifecycle",
-		func(ctx hatchet.Context, input PaymentSuccessInput) (domain.Subscription, error) {
+		func(ctx hatchet.Context, input PaymentSuccessInput) ([]domain.Subscription, error) {
 			var subs []domain.Subscription
 			if err := ctx.ParentOutput(getSubscriptions, &subs); err != nil {
-				return domain.Subscription{}, fmt.Errorf("get parent output: %w", err)
+				return nil, fmt.Errorf("get parent output: %w", err)
 			}
-			if len(subs) == 0 {
-				return domain.Subscription{}, nil
+			for _, sub := range subs {
+				if err := engine.StartSubscriptionWorkflow(ctx, sub); err != nil {
+					return nil, fmt.Errorf("start subscription workflow %s: %w", sub.Id, err)
+				}
 			}
-			sub := subs[0]
-
-			if err := engine.StartSubscriptionWorkflow(ctx, sub); err != nil {
-				return domain.Subscription{}, fmt.Errorf("start subscription workflow: %w", err)
-			}
-
-			return sub, nil
+			return subs, nil
 		},
 		hatchet.WithParents(getSubscriptions),
 		hatchet.WithExecutionTimeout(30*time.Second),

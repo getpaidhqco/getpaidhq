@@ -18,12 +18,10 @@ import (
 //  1. complete-order:        Mark the order paid and capture the row.
 //  2. get-subscriptions:     Load any subscriptions tied to the order.
 //  3. start-subscription-lifecycle:
-//     Kick off the subscription's billing lifecycle: start
-//     the per-subscription durable runner as a detached child
-//     workflow with a deterministic id. The runner's first
-//     iteration performs an immediate first charge when due.
-//
-// Only the first subscription is processed (matching Hatchet today).
+//     Start the per-subscription durable runner as a detached child workflow
+//     (deterministic id) for EVERY subscription on the order. An order can carry
+//     more than one subscription (one per billing cadence); the deterministic id
+//     makes starting idempotent.
 func PaymentSuccessWorkflow(ctx temporal.Context, input PaymentSuccessInput) (port.WorkflowResult, error) {
 	logger := temporal.GetLogger(ctx)
 	logger.Info("PaymentSuccessWorkflow started", "orderId", input.PaymentContext.OrderId)
@@ -61,16 +59,17 @@ func PaymentSuccessWorkflow(ctx temporal.Context, input PaymentSuccessInput) (po
 		return port.WorkflowResult{Success: true, Message: "no subscriptions for order", Payload: order}, nil
 	}
 
-	sub := subs[0]
-	childCtx := temporal.WithChildOptions(ctx, temporal.ChildWorkflowOptions{
-		WorkflowID:            SubscriptionWorkflowID(sub.OrgId, sub.Id),
-		ParentClosePolicy:     enums.PARENT_CLOSE_POLICY_ABANDON,
-		WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
-	})
-	if err := temporal.ExecuteChildWorkflow(childCtx, SubscriptionWorkflow, sub).
-		GetChildWorkflowExecution().Get(ctx, nil); err != nil {
-		logger.Error("Unable to start subscription runner", "err", err.Error())
-		return port.WorkflowResult{Success: false, Message: "Can't spawn subscription runner", Payload: order}, err
+	for _, sub := range subs {
+		childCtx := temporal.WithChildOptions(ctx, temporal.ChildWorkflowOptions{
+			WorkflowID:            SubscriptionWorkflowID(sub.OrgId, sub.Id),
+			ParentClosePolicy:     enums.PARENT_CLOSE_POLICY_ABANDON,
+			WorkflowIDReusePolicy: enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
+		})
+		if err := temporal.ExecuteChildWorkflow(childCtx, SubscriptionWorkflow, sub).
+			GetChildWorkflowExecution().Get(ctx, nil); err != nil {
+			logger.Error("Unable to start subscription runner", "subscription_id", sub.Id, "err", err.Error())
+			return port.WorkflowResult{Success: false, Message: "Can't spawn subscription runner", Payload: order}, err
+		}
 	}
 
 	logger.Info("PaymentSuccessWorkflow completed", "orderId", order.Id)
