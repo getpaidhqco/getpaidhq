@@ -40,7 +40,7 @@ func newSubscriptionHandlerForTest(
 func TestSubscriptionHandler_Get(t *testing.T) {
 	t.Run("happy path returns the subscription response", func(t *testing.T) {
 		subRepo := &fakeSubRepo{byId: domain.Subscription{
-			OrgId: "org_1", Id: "sub_1", Amount: 1000, Currency: "USD",
+			OrgId: "org_1", Id: "sub_1", Currency: "USD",
 			Status: domain.SubscriptionStatusActive,
 		}}
 		h := newSubscriptionHandlerForTest(t, subRepo, &fakePaymentRepo{}, &recordingEngine{})
@@ -54,7 +54,6 @@ func TestSubscriptionHandler_Get(t *testing.T) {
 		var got SubscriptionResponse
 		decodeJSON(t, rec, &got)
 		assert.Equal(t, "sub_1", got.Id)
-		assert.Equal(t, int64(1000), got.Amount)
 		assert.EqualValues(t, "active", got.Status)
 	})
 
@@ -253,7 +252,7 @@ func TestSubscriptionHandler_UpdateBillingAnchor_HappyPath(t *testing.T) {
 	// subscription. Seed the existing sub so the proration math succeeds.
 	subRepo := &fakeSubRepo{byId: domain.Subscription{
 		OrgId: "org_1", Id: "sub_1", Status: domain.SubscriptionStatusActive,
-		BillingAnchor: 1, Amount: 1000,
+		BillingAnchor:      1,
 		CurrentPeriodStart: time.Date(2025, 1, 1, 0, 0, 0, 0, time.UTC),
 		CurrentPeriodEnd:   time.Date(2025, 1, 31, 0, 0, 0, 0, time.UTC),
 	}}

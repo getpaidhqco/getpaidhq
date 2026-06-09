@@ -56,10 +56,42 @@ func (r *usageCustomerRepo) FindByExternalId(_ context.Context, _, ext string) (
 type usageSubRepo struct {
 	port.SubscriptionRepository
 	metered []domain.Subscription
+	byId    domain.Subscription
+	byIdErr error
 }
 
 func (r *usageSubRepo) FindActiveMeteredForMeter(_ context.Context, _, _, _ string) ([]domain.Subscription, error) {
 	return r.metered, nil
+}
+
+func (r *usageSubRepo) FindById(_ context.Context, _, _ string) (domain.Subscription, error) {
+	if r.byIdErr != nil {
+		return domain.Subscription{}, r.byIdErr
+	}
+	return r.byId, nil
+}
+
+// usageOrderRepo / usagePriceRepo resolve a subscription's own lines for the
+// current-period usage read.
+type usageOrderRepo struct {
+	port.OrderRepository
+	items []domain.OrderItem
+}
+
+func (r *usageOrderRepo) FindOrderItemsBySubscriptionId(_ context.Context, _, _ string) ([]domain.OrderItem, error) {
+	return r.items, nil
+}
+
+type usagePriceRepo struct {
+	port.PriceRepository
+	byId map[string]domain.Price
+}
+
+func (r *usagePriceRepo) FindById(_ context.Context, _, id string) (domain.Price, error) {
+	if p, ok := r.byId[id]; ok {
+		return p, nil
+	}
+	return domain.Price{}, port.ErrNotFound
 }
 
 type usageEventStore struct {
@@ -119,7 +151,7 @@ func sumMeter() domain.BillableMetric {
 
 func newUsageSvc(m *usageMeterRepo, c *usageCustomerRepo, sub *usageSubRepo, es *usageEventStore) *UsageService {
 	// sync mode: the event store is also the ingestor.
-	return NewUsageService(m, c, sub, es, es, &recordingPubSub{}, silentLogger{})
+	return NewUsageService(m, c, sub, nil, nil, es, es, &recordingPubSub{}, silentLogger{})
 }
 
 // fakeIngestor records writes and returns a fixed result (e.g. async "accepted").
@@ -138,7 +170,7 @@ func TestUsageService_RecordEvent_WritesViaIngestor(t *testing.T) {
 	customers := &usageCustomerRepo{byId: map[string]domain.Customer{"cus_1": {OrgId: "org_1", Id: "cus_1"}}}
 	es := &usageEventStore{} // separate read store — must NOT receive the write
 	ing := &fakeIngestor{result: port.IngestResult{Id: "mev_x", Status: port.IngestAccepted}}
-	svc := NewUsageService(meters, customers, &usageSubRepo{}, ing, es, &recordingPubSub{}, silentLogger{})
+	svc := NewUsageService(meters, customers, &usageSubRepo{}, nil, nil, ing, es, &recordingPubSub{}, silentLogger{})
 
 	res, err := svc.RecordEvent(context.Background(), port.RecordEventInput{OrgId: "org_1", MetricCode: "api_calls", CustomerId: "cus_1"})
 	if err != nil {
@@ -313,6 +345,58 @@ func TestUsageService_UsageForSubscription_Attribution(t *testing.T) {
 		}
 		if es.lastQuery.IncludeUnattributed {
 			t.Error("non-earliest sub must NOT include unattributed usage (avoids double-billing)")
+		}
+	})
+}
+
+func TestUsageService_CurrentPeriodUsage(t *testing.T) {
+	meters := &usageMeterRepo{byId: map[string]domain.BillableMetric{"met_1": countMeter()}}
+	customers := &usageCustomerRepo{byId: map[string]domain.Customer{"cus_1": {OrgId: "org_1", Id: "cus_1"}}}
+	start := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
+	activeSub := domain.Subscription{OrgId: "org_1", Id: "sub_1", CustomerId: "cus_1", CurrentPeriodStart: start, CurrentPeriodEnd: start.AddDate(0, 1, 0)}
+	meteredPrice := domain.Price{OrgId: "org_1", Id: "price_1", Category: domain.PriceCategorySubscription, BillableMetricId: "met_1"}
+
+	build := func(sub domain.Subscription, subErr error, price domain.Price, es *usageEventStore) *UsageService {
+		return NewUsageService(
+			meters, customers,
+			&usageSubRepo{byId: sub, byIdErr: subErr, metered: []domain.Subscription{sub}},
+			&usageOrderRepo{items: []domain.OrderItem{{OrgId: "org_1", Id: "oi_1", PriceId: "price_1", SubscriptionId: sub.Id}}},
+			&usagePriceRepo{byId: map[string]domain.Price{"price_1": price}},
+			es, es, &recordingPubSub{}, silentLogger{},
+		)
+	}
+
+	t.Run("metered line returns the period quantity", func(t *testing.T) {
+		es := &usageEventStore{count: 9}
+		got, err := build(activeSub, nil, meteredPrice, es).CurrentPeriodUsage(context.Background(), "org_1", "sub_1")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if len(got.Meters) != 1 || !got.Meters[0].Quantity.Equal(decimal.NewFromInt(9)) || got.Meters[0].MetricCode != "api_calls" {
+			t.Fatalf("unexpected usage: %+v", got.Meters)
+		}
+	})
+
+	t.Run("zero period yields no usage", func(t *testing.T) {
+		pending := activeSub
+		pending.CurrentPeriodStart = time.Time{}
+		got, err := build(pending, nil, meteredPrice, &usageEventStore{count: 9}).CurrentPeriodUsage(context.Background(), "org_1", "sub_1")
+		if err != nil || len(got.Meters) != 0 {
+			t.Fatalf("want empty meters for zero period, got %+v (err=%v)", got.Meters, err)
+		}
+	})
+
+	t.Run("non-metered line yields no usage", func(t *testing.T) {
+		got, err := build(activeSub, nil, domain.Price{OrgId: "org_1", Id: "price_1"}, &usageEventStore{count: 9}).CurrentPeriodUsage(context.Background(), "org_1", "sub_1")
+		if err != nil || len(got.Meters) != 0 {
+			t.Fatalf("want empty meters for non-metered line, got %+v (err=%v)", got.Meters, err)
+		}
+	})
+
+	t.Run("unknown subscription surfaces ErrNotFound", func(t *testing.T) {
+		_, err := build(domain.Subscription{}, port.ErrNotFound, meteredPrice, &usageEventStore{}).CurrentPeriodUsage(context.Background(), "org_1", "ghost")
+		if err == nil {
+			t.Fatal("want ErrNotFound")
 		}
 	})
 }

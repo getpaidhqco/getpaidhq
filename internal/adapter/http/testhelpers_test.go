@@ -869,6 +869,10 @@ func (r *fakeOrderRepo) FindOrderItemsByOrderId(context.Context, string, string)
 	return r.items, nil
 }
 
+func (r *fakeOrderRepo) FindOrderItemsBySubscriptionId(context.Context, string, string) ([]domain.OrderItem, error) {
+	return r.items, nil
+}
+
 // fakeSubRepo satisfies port.SubscriptionRepository.
 type fakeSubRepo struct {
 	port.SubscriptionRepository
