@@ -88,7 +88,7 @@ func buildSubscriptionService(t *testing.T, db *gorm.DB) *service.SubscriptionSe
 	// Invoice-centric billing (Spec A): the charge amount comes from a per-cycle
 	// invoice. Mirror app.go's narrow-service wiring.
 	usageEventStore := NewEventStore(db)
-	usageService := service.NewUsageService(NewMeterRepo(db), NewCustomerRepo(db), NewSubscriptionRepo(db), usageEventStore, usageEventStore, pubsub, logger)
+	usageService := service.NewUsageService(NewMeterRepo(db), NewCustomerRepo(db), NewSubscriptionRepo(db), NewOrderRepo(db), NewPriceRepo(db), usageEventStore, usageEventStore, pubsub, logger)
 	invoiceService := service.NewInvoiceService(NewInvoiceRepo(db), NewOrderRepo(db), NewPriceRepo(db), usageService, NewTxManager(db), logger)
 
 	svc, err := service.NewSubscriptionService(
@@ -188,7 +188,6 @@ func TestBillingChargeAdvancesState(t *testing.T) {
 	sub.PspId = domain.Gateway(pspConfigId)
 	sub.PaymentMethodId = pm.Id
 	sub.Status = domain.SubscriptionStatusActive
-	sub.Amount = 1999
 	sub.Currency = "USD"
 	sub.BillingInterval = domain.BillingIntervalMonth
 	sub.BillingIntervalQty = 1
@@ -196,7 +195,12 @@ func TestBillingChargeAdvancesState(t *testing.T) {
 	sub.CyclesProcessed = 0
 	sub.RenewsAt = time.Now().UTC().Add(-24 * time.Hour) // due
 	subRow := subscriptionRowFromDomain(sub)
-	require.NoError(t, db.Omit("Customer", "OrderItem").Create(&subRow).Error)
+	require.NoError(t, db.Create(&subRow).Error)
+	// The per-cycle invoice bills the subscription's OWN lines: stamp the seeded
+	// order item (a 1999 fixed monthly price) with this subscription's id.
+	require.NoError(t, db.Model(&orderItemRow{}).
+		Where("org_id = ? AND id = ?", orgId, fx.item.Id).
+		Update("subscription_id", sub.Id).Error)
 
 	svc := buildSubscriptionService(t, db)
 	subRepo := NewSubscriptionRepo(db)
@@ -218,7 +222,7 @@ func TestBillingChargeAdvancesState(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, sub.CyclesProcessed+1, updated.CyclesProcessed, "one successful charge advances exactly one cycle")
 	assert.Equal(t, domain.SubscriptionStatusActive, updated.Status, "not at cycle cap, stays active")
-	assert.Equal(t, sub.TotalRevenue+sub.Amount, updated.TotalRevenue, "revenue accrues by the charged amount")
+	assert.Equal(t, sub.TotalRevenue+result.Amount, updated.TotalRevenue, "revenue accrues by the charged amount")
 	assert.True(t, updated.RenewsAt.After(sub.RenewsAt), "renewal moves forward after a successful charge")
 
 	payments, total, err := paymentRepo.FindBySubscriptionId(ctx, orgId, sub.Id, domain.Pagination{Page: 1, Limit: 10})
@@ -288,7 +292,6 @@ func TestImmediateFirstCharge(t *testing.T) {
 	sub.PspId = domain.Gateway(pspConfigId)
 	sub.PaymentMethodId = pm.Id
 	sub.Status = domain.SubscriptionStatusActive
-	sub.Amount = 1999
 	sub.Currency = "USD"
 	sub.BillingInterval = domain.BillingIntervalMonth
 	sub.BillingIntervalQty = 1
@@ -299,7 +302,10 @@ func TestImmediateFirstCharge(t *testing.T) {
 	sub.CurrentPeriodStart = startDate // what SetActive (zero-amount) seeds
 	sub.CurrentPeriodEnd = startDate   // (NOT zero — this is the load-bearing seed)
 	subRow := subscriptionRowFromDomain(sub)
-	require.NoError(t, db.Omit("Customer", "OrderItem").Create(&subRow).Error)
+	require.NoError(t, db.Create(&subRow).Error)
+	require.NoError(t, db.Model(&orderItemRow{}).
+		Where("org_id = ? AND id = ?", orgId, fx.item.Id).
+		Update("subscription_id", sub.Id).Error)
 
 	// The activation gate: this is exactly the predicate the Hatchet
 	// StartSubscriptionWorkflow checks before spawning billing-cycle-runner.

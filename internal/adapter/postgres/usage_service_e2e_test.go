@@ -36,10 +36,10 @@ func TestUsageService_AggregateForPeriod_Rounding(t *testing.T) {
 	for i, v := range []string{"1.5", "1.4"} {
 		_, err := store.Ingest(ctx, domain.MeterEvent{
 			OrgId: orgId, Id: "r" + v, CustomerId: "cus_round", MetricCode: "tokens",
-			ExternalId:  "ext" + v,
-			Value:       decimal.RequireFromString(v),
-			Timestamp:   from.Add(time.Duration(i+1) * time.Hour),
-			CreatedAt:   from,
+			ExternalId: "ext" + v,
+			Value:      decimal.RequireFromString(v),
+			Timestamp:  from.Add(time.Duration(i+1) * time.Hour),
+			CreatedAt:  from,
 		})
 		require.NoError(t, err)
 	}
