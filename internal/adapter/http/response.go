@@ -124,12 +124,10 @@ func NewOrderItemResponseFromDetails(d service.OrderItemDetails) OrderItemRespon
 // ---------------------------------------------------------------------------
 
 type SubscriptionResponse struct {
-	Id          string                    `json:"id"`
-	Status      domain.SubscriptionStatus `json:"status"`
-	Currency    string                    `json:"currency"`
-	Amount      int64                     `json:"amount"`
-	OrderId     string                    `json:"order_id"`
-	OrderItemId string                    `json:"order_item_id"`
+	Id       string                    `json:"id"`
+	Status   domain.SubscriptionStatus `json:"status"`
+	Currency string                    `json:"currency"`
+	OrderId  string                    `json:"order_id"`
 
 	PaymentMethodId string `json:"payment_method_id,omitempty"`
 
@@ -168,7 +166,6 @@ func NewSubscriptionResponseFromDetails(d service.SubscriptionDetails) Subscript
 	return SubscriptionResponse{
 		Id:                 s.Id,
 		OrderId:            s.OrderId,
-		OrderItemId:        s.OrderItemId,
 		Customer:           NewCustomerFromEntity(d.Customer),
 		Status:             s.Status,
 		PaymentMethodId:    s.PaymentMethodId,
@@ -188,7 +185,6 @@ func NewSubscriptionResponseFromDetails(d service.SubscriptionDetails) Subscript
 		Retries:            s.Retries,
 		NextRetryAt:        s.NextRetryAt,
 		Currency:           s.Currency,
-		Amount:             s.Amount,
 		Metadata:           s.Metadata,
 		CyclesProcessed:    s.CyclesProcessed,
 		TotalRevenue:       s.TotalRevenue,
