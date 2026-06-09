@@ -99,6 +99,7 @@ type usageEventStore struct {
 	lastQuery port.UsageQuery
 	count     int64
 	dup       bool
+	grouped   []port.GroupedUsage // returned by AggregateGrouped
 }
 
 func (s *usageEventStore) Ingest(_ context.Context, e domain.MeterEvent) (port.IngestResult, error) {
@@ -141,6 +142,10 @@ func (s *usageEventStore) WeightedSum(_ context.Context, q port.UsageQuery, _ de
 	s.lastQuery = q
 	return decimal.Zero, nil
 }
+func (s *usageEventStore) AggregateGrouped(_ context.Context, q port.UsageQuery, _ domain.AggregationType, _ string) ([]port.GroupedUsage, error) {
+	s.lastQuery = q
+	return s.grouped, nil
+}
 
 func countMeter() domain.BillableMetric {
 	return domain.BillableMetric{OrgId: "org_1", Id: "met_1", Code: "api_calls", Aggregation: domain.AggregationCount}
@@ -152,6 +157,96 @@ func sumMeter() domain.BillableMetric {
 func newUsageSvc(m *usageMeterRepo, c *usageCustomerRepo, sub *usageSubRepo, es *usageEventStore) *UsageService {
 	// sync mode: the event store is also the ingestor.
 	return NewUsageService(m, c, sub, nil, nil, es, es, &recordingPubSub{}, silentLogger{})
+}
+
+func filterMeter() domain.BillableMetric {
+	m := countMeter()
+	m.Filters = []domain.MetricFilter{{Field: "type", Values: []string{"SMS", "MMS"}}}
+	return m
+}
+
+func TestUsageForSubscription_AppliesSpecificFilter(t *testing.T) {
+	es := &usageEventStore{count: 3}
+	svc := newUsageSvc(
+		&usageMeterRepo{byId: map[string]domain.BillableMetric{"met_1": filterMeter()}},
+		&usageCustomerRepo{}, &usageSubRepo{}, es)
+	sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", CustomerId: "cus_1"}
+	price := domain.Price{OrgId: "org_1", Id: "p_sms", BillableMetricId: "met_1", FilterField: "type", FilterValue: "SMS"}
+
+	if _, err := svc.UsageForSubscription(context.Background(), sub, price, time.Now().Add(-time.Hour), time.Now()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	q := es.lastQuery
+	if q.FilterField != "type" || q.FilterValue != "SMS" || q.FilterExclude != nil {
+		t.Errorf("query filter = field=%q value=%q exclude=%v; want type/SMS/nil", q.FilterField, q.FilterValue, q.FilterExclude)
+	}
+}
+
+func TestUsageForSubscription_DefaultFilterExcludesPricedValues(t *testing.T) {
+	es := &usageEventStore{count: 3}
+	svc := newUsageSvc(
+		&usageMeterRepo{byId: map[string]domain.BillableMetric{"met_1": filterMeter()}},
+		&usageCustomerRepo{}, &usageSubRepo{}, es)
+	sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", CustomerId: "cus_1"}
+	// default/catch-all charge: field set, no value.
+	price := domain.Price{OrgId: "org_1", Id: "p_other", BillableMetricId: "met_1", FilterField: "type"}
+
+	if _, err := svc.UsageForSubscription(context.Background(), sub, price, time.Now().Add(-time.Hour), time.Now()); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	q := es.lastQuery
+	if q.FilterField != "type" || q.FilterValue != "" {
+		t.Errorf("query = field=%q value=%q; want type/empty", q.FilterField, q.FilterValue)
+	}
+	if len(q.FilterExclude) != 2 || q.FilterExclude[0] != "SMS" || q.FilterExclude[1] != "MMS" {
+		t.Errorf("FilterExclude = %v; want [SMS MMS]", q.FilterExclude)
+	}
+}
+
+func TestMeteredUsageForSubscription_GroupedSplitsSegments(t *testing.T) {
+	m := filterMeter()
+	m.GroupBy = []string{"project"}
+	es := &usageEventStore{grouped: []port.GroupedUsage{
+		{Key: "project", Value: "acme", Quantity: decimal.NewFromInt(1000)},
+		{Key: "project", Value: "globex", Quantity: decimal.NewFromInt(500)},
+	}}
+	svc := newUsageSvc(
+		&usageMeterRepo{byId: map[string]domain.BillableMetric{"met_1": m}},
+		&usageCustomerRepo{}, &usageSubRepo{}, es)
+	sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", CustomerId: "cus_1"}
+	price := domain.Price{OrgId: "org_1", Id: "p_sms", BillableMetricId: "met_1", FilterField: "type", FilterValue: "SMS"}
+
+	out, err := svc.MeteredUsageForSubscription(context.Background(), sub, price, time.Now().Add(-time.Hour), time.Now())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(out.Grouped) != 2 {
+		t.Fatalf("grouped segments = %d, want 2", len(out.Grouped))
+	}
+	// The filter still scopes the grouped query.
+	if es.lastQuery.FilterValue != "SMS" {
+		t.Errorf("grouped query lost the filter: %q", es.lastQuery.FilterValue)
+	}
+}
+
+func TestMeteredUsageForSubscription_NoGroupReturnsScalar(t *testing.T) {
+	es := &usageEventStore{count: 7}
+	svc := newUsageSvc(
+		&usageMeterRepo{byId: map[string]domain.BillableMetric{"met_1": countMeter()}},
+		&usageCustomerRepo{}, &usageSubRepo{}, es)
+	sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", CustomerId: "cus_1"}
+	price := domain.Price{OrgId: "org_1", Id: "p", BillableMetricId: "met_1"}
+
+	out, err := svc.MeteredUsageForSubscription(context.Background(), sub, price, time.Now().Add(-time.Hour), time.Now())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if out.Grouped != nil {
+		t.Errorf("Grouped = %v, want nil for an ungrouped meter", out.Grouped)
+	}
+	if !out.Units.Equal(decimal.NewFromInt(7)) {
+		t.Errorf("Units = %s, want 7", out.Units)
+	}
 }
 
 // fakeIngestor records writes and returns a fixed result (e.g. async "accepted").

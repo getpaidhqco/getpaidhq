@@ -57,6 +57,24 @@ type UsageQuery struct {
 	// subscription_id (set when this is the customer's earliest metered sub).
 	SubscriptionId      string
 	IncludeUnattributed bool
+
+	// Filter scopes the aggregation to one slice of the meter (a metered Price's
+	// FilterField/FilterValue). When FilterField is set:
+	//   - FilterExclude non-empty → default/catch-all: metadata->>field NOT IN exclude
+	//     (and field absent), so unclassified usage is billed exactly once;
+	//   - else FilterValue → metadata->>field = value.
+	// FilterField == "" applies no filter. See usage-filters-and-groups.md.
+	FilterField   string
+	FilterValue   string
+	FilterExclude []string
+}
+
+// GroupedUsage is one segment of a grouped aggregation: a single value of the group
+// dimension and its aggregated quantity (e.g. {Key:"project", Value:"acme", Quantity:1000}).
+type GroupedUsage struct {
+	Key      string
+	Value    string
+	Quantity decimal.Decimal
 }
 
 // EventStore stores usage events and aggregates them. Swappable backend (Postgres
@@ -72,4 +90,8 @@ type EventStore interface {
 	Max(ctx context.Context, q UsageQuery) (decimal.Decimal, error)
 	Latest(ctx context.Context, q UsageQuery) (decimal.Decimal, error)
 	WeightedSum(ctx context.Context, q UsageQuery, initial decimal.Decimal) (decimal.Decimal, error)
+	// AggregateGrouped aggregates q (honouring its filter) partitioned by a single
+	// metadata key, returning one GroupedUsage per distinct value. Supports count, sum,
+	// unique_count, max; latest/weighted_sum return an error (need window queries).
+	AggregateGrouped(ctx context.Context, q UsageQuery, agg domain.AggregationType, groupKey string) ([]GroupedUsage, error)
 }

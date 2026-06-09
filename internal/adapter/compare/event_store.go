@@ -11,6 +11,7 @@ package compare
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -122,6 +123,72 @@ func (s *EventStore) WeightedSum(ctx context.Context, q port.UsageQuery, initial
 	prim, dur := timeDec(func() (decimal.Decimal, error) { return s.primary.WeightedSum(ctx, q, initial) })
 	s.checkDec(q, "weighted_sum", prim.v, prim.err, dur, func(c context.Context) (decimal.Decimal, error) { return s.secondary.WeightedSum(c, q, initial) })
 	return prim.v, prim.err
+}
+
+func (s *EventStore) AggregateGrouped(ctx context.Context, q port.UsageQuery, agg domain.AggregationType, groupKey string) ([]port.GroupedUsage, error) {
+	start := time.Now()
+	primV, primErr := s.primary.AggregateGrouped(ctx, q, agg, groupKey)
+	dur := time.Since(start)
+	s.checkGrouped(q, "aggregate_grouped", primV, primErr, dur, func(c context.Context) ([]port.GroupedUsage, error) {
+		return s.secondary.AggregateGrouped(c, q, agg, groupKey)
+	})
+	return primV, primErr
+}
+
+// checkGrouped is the grouped-aggregation analogue of checkDec: it compares the two
+// backends' segment sets order-independently and logs any mismatch in the background.
+func (s *EventStore) checkGrouped(q port.UsageQuery, op string, primV []port.GroupedUsage, primErr error, primDur time.Duration, sec func(context.Context) ([]port.GroupedUsage, error)) {
+	if !s.acquire() {
+		return
+	}
+	go func() {
+		defer s.release()
+		ctx, cancel := context.WithTimeout(context.Background(), s.timeout)
+		defer cancel()
+		start := time.Now()
+		secV, secErr := sec(ctx)
+		secDur := time.Since(start)
+		if primErr != nil || secErr != nil {
+			s.logErrs(op, q, primErr, secErr)
+			return
+		}
+		if !groupedEqual(primV, secV) {
+			s.logger.Warn("compare: mismatch",
+				"op", op, "metric", q.MetricCode, "org", q.OrgId,
+				"primary", groupedString(primV), "secondary", groupedString(secV),
+				"primary_ms", primDur.Milliseconds(), "secondary_ms", secDur.Milliseconds())
+			return
+		}
+		s.logger.Debug("compare: match grouped", "op", op, "metric", q.MetricCode,
+			"primary_ms", primDur.Milliseconds(), "secondary_ms", secDur.Milliseconds())
+	}()
+}
+
+// groupedEqual reports whether two grouped results have the same value→quantity set,
+// independent of row order.
+func groupedEqual(a, b []port.GroupedUsage) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	m := make(map[string]decimal.Decimal, len(a))
+	for _, g := range a {
+		m[g.Value] = g.Quantity
+	}
+	for _, g := range b {
+		v, ok := m[g.Value]
+		if !ok || !v.Equal(g.Quantity) {
+			return false
+		}
+	}
+	return true
+}
+
+func groupedString(g []port.GroupedUsage) string {
+	parts := make([]string, len(g))
+	for i, x := range g {
+		parts[i] = x.Value + "=" + x.Quantity.String()
+	}
+	return strings.Join(parts, ",")
 }
 
 // --- background comparison plumbing ---

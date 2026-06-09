@@ -24,10 +24,20 @@ type Price struct {
 	TaxCode            string
 	BillableMetricId   string      // set when the price is metered: the meter usage is measured against
 	Tiers              []PriceTier // rate bands for Graduated / Volume schemes
-	Metadata           map[string]string
-	CreatedAt          time.Time
-	UpdatedAt          time.Time
+	// FilterField/FilterValue scope a metered price to one slice of its meter (a value
+	// of one of the meter's MetricFilters). FilterField == "" bills the whole meter;
+	// FilterField set with FilterValue == "" is the default/catch-all charge (NOT IN
+	// the field's declared values). See usage-filters-and-groups.md.
+	FilterField string
+	FilterValue string
+	Metadata    map[string]string
+	CreatedAt   time.Time
+	UpdatedAt   time.Time
 }
+
+// IsDefaultFilter reports whether a metered price is the catch-all charge for its
+// filter field (the field is set but no specific value is named).
+func (p Price) IsDefaultFilter() bool { return p.FilterField != "" && p.FilterValue == "" }
 
 // IsMetered reports whether the price is usage-based — i.e. it has a meter attached.
 // Metering is a pricing method, orthogonal to the price Category (cadence): a metered

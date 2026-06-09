@@ -2,6 +2,7 @@ package compare
 
 import (
 	"context"
+	"errors"
 	"sort"
 	"sync"
 	"testing"
@@ -82,6 +83,16 @@ func (m *memStore) scoped(q port.UsageQuery) []domain.MeterEvent {
 				continue
 			}
 		}
+		if q.FilterField != "" {
+			v := e.Metadata[q.FilterField]
+			if len(q.FilterExclude) > 0 {
+				if sliceContains(q.FilterExclude, v) {
+					continue // default charge excludes explicitly-priced values
+				}
+			} else if q.FilterValue != "" && v != q.FilterValue {
+				continue
+			}
+		}
 		latest[dedupKeyOf(e)] = e // later ingest overwrites
 	}
 	out := make([]domain.MeterEvent, 0, len(latest))
@@ -132,6 +143,55 @@ func (m *memStore) Latest(_ context.Context, q port.UsageQuery) (decimal.Decimal
 
 func (m *memStore) WeightedSum(_ context.Context, _ port.UsageQuery, _ decimal.Decimal) (decimal.Decimal, error) {
 	return decimal.Zero, nil
+}
+
+func (m *memStore) AggregateGrouped(_ context.Context, q port.UsageQuery, agg domain.AggregationType, groupKey string) ([]port.GroupedUsage, error) {
+	groups := map[string][]domain.MeterEvent{}
+	var order []string
+	for _, e := range m.scoped(q) {
+		v := e.Metadata[groupKey]
+		if _, ok := groups[v]; !ok {
+			order = append(order, v)
+		}
+		groups[v] = append(groups[v], e)
+	}
+	out := make([]port.GroupedUsage, 0, len(order))
+	for _, v := range order {
+		var qty decimal.Decimal
+		switch agg {
+		case domain.AggregationCount:
+			qty = decimal.NewFromInt(int64(len(groups[v])))
+		case domain.AggregationSum:
+			for _, e := range groups[v] {
+				qty = qty.Add(e.Value)
+			}
+		case domain.AggregationMax:
+			for i, e := range groups[v] {
+				if i == 0 || e.Value.GreaterThan(qty) {
+					qty = e.Value
+				}
+			}
+		case domain.AggregationUniqueCount:
+			seen := map[string]struct{}{}
+			for _, e := range groups[v] {
+				seen[e.Metadata[q.FieldName]] = struct{}{}
+			}
+			qty = decimal.NewFromInt(int64(len(seen)))
+		default:
+			return nil, errors.New("grouped aggregation not supported: " + string(agg))
+		}
+		out = append(out, port.GroupedUsage{Key: groupKey, Value: v, Quantity: qty})
+	}
+	return out, nil
+}
+
+func sliceContains(xs []string, v string) bool {
+	for _, x := range xs {
+		if x == v {
+			return true
+		}
+	}
+	return false
 }
 
 // --- parity harness ---

@@ -154,6 +154,19 @@ func where(q port.UsageQuery) (string, []any) {
 		}
 		args = append(args, q.SubscriptionId)
 	}
+	// Filter to one slice of the meter. A CH Map returns '' for an absent key, so the
+	// default charge's NOT IN naturally folds in unclassified usage — matching the
+	// Postgres adapter's "OR field IS NULL" branch.
+	if q.FilterField != "" {
+		switch {
+		case len(q.FilterExclude) > 0:
+			sql += " AND metadata[?] NOT IN ?"
+			args = append(args, q.FilterField, q.FilterExclude)
+		case q.FilterValue != "":
+			sql += " AND metadata[?] = ?"
+			args = append(args, q.FilterField, q.FilterValue)
+		}
+	}
 	return sql, args
 }
 
@@ -201,4 +214,52 @@ func (s *EventStore) Latest(ctx context.Context, q port.UsageQuery) (decimal.Dec
 // with the Postgres adapter (spec phase 5 / primer §11).
 func (s *EventStore) WeightedSum(ctx context.Context, q port.UsageQuery, initial decimal.Decimal) (decimal.Decimal, error) {
 	return decimal.Zero, errors.New("weighted_sum aggregation not implemented")
+}
+
+// AggregateGrouped aggregates q partitioned by one metadata key, one row per distinct
+// value (absent key → ” segment, matching Postgres). The quantity is selected via
+// toString so a single scan path covers both UInt64 (count) and Decimal (sum/max)
+// results. Filter from where() still applies. latest/weighted_sum are unsupported.
+func (s *EventStore) AggregateGrouped(ctx context.Context, q port.UsageQuery, agg domain.AggregationType, groupKey string) ([]port.GroupedUsage, error) {
+	w, whereArgs := where(q)
+	var query string
+	var args []any
+	switch agg {
+	case domain.AggregationCount:
+		query = "SELECT metadata[?] AS gv, toString(uniqExact(" + dedupKey + ")) AS qty FROM meter_events WHERE " + w + " GROUP BY gv"
+		args = append([]any{groupKey}, whereArgs...)
+	case domain.AggregationMax:
+		query = "SELECT metadata[?] AS gv, toString(COALESCE(MAX(value), " + zeroDecimal + ")) AS qty FROM meter_events WHERE " + w + " GROUP BY gv"
+		args = append([]any{groupKey}, whereArgs...)
+	case domain.AggregationUniqueCount:
+		query = "SELECT metadata[?] AS gv, toString(uniqExact(metadata[?])) AS qty FROM meter_events WHERE " + w + " GROUP BY gv"
+		args = append([]any{groupKey, q.FieldName}, whereArgs...)
+	case domain.AggregationSum:
+		// Dedup resends (argMax by ingested_at) per (dedup_key, group), then sum per group.
+		query = "SELECT gv, toString(COALESCE(SUM(v), " + zeroDecimal + ")) AS qty FROM (" +
+			"SELECT metadata[?] AS gv, argMax(value, ingested_at) AS v FROM meter_events WHERE " + w +
+			" GROUP BY " + dedupKey + ", metadata[?]) GROUP BY gv"
+		args = append(append([]any{groupKey}, whereArgs...), groupKey)
+	default:
+		return nil, errors.New("grouped aggregation not supported: " + string(agg))
+	}
+
+	rows, err := s.conn.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []port.GroupedUsage
+	for rows.Next() {
+		var gv, qty string
+		if err := rows.Scan(&gv, &qty); err != nil {
+			return nil, err
+		}
+		d, derr := decimal.NewFromString(qty)
+		if derr != nil {
+			return nil, derr
+		}
+		out = append(out, port.GroupedUsage{Key: groupKey, Value: gv, Quantity: d})
+	}
+	return out, rows.Err()
 }

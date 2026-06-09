@@ -70,11 +70,19 @@ func (s *InvoiceService) BuildForBillingPeriod(ctx context.Context, sub domain.S
 			return domain.Invoice{}, perr
 		}
 		if price.IsMetered() {
-			units, uerr := s.usageService.UsageForSubscription(ctx, sub, price, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
+			usage, uerr := s.usageService.MeteredUsageForSubscription(ctx, sub, price, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
 			if uerr != nil {
 				return domain.Invoice{}, uerr
 			}
-			inv.AddLine(domain.UsageLineFromPrice(sub.OrgId, inv.Id, price, units))
+			// A grouped meter splits this charge into one line per discovered group
+			// value at the same rate; otherwise it's a single usage line.
+			if usage.Grouped != nil {
+				for _, g := range usage.Grouped {
+					inv.AddLine(domain.UsageLineFromPriceGrouped(sub.OrgId, inv.Id, price, g.Key, g.Value, g.Quantity))
+				}
+			} else {
+				inv.AddLine(domain.UsageLineFromPrice(sub.OrgId, inv.Id, price, usage.Units))
+			}
 			continue
 		}
 		// Fixed line → base line. A trial waives the flat fee (ADR 0003).

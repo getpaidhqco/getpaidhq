@@ -301,6 +301,12 @@ model Price {
   billableMetricId String? @map("billable_metric_id")
   tiers            Json?
 
+  // Metered filter: scopes this price to one slice of its meter (a value of one of the
+  // meter's filters). filterField unset = whole meter; set with no value = catch-all.
+  // See docs/internal/usage-filters-and-groups.md.
+  filterField String? @map("filter_field")
+  filterValue String? @map("filter_value")
+
   metadata Json?
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -986,6 +992,11 @@ model BillableMetric {
   recurring     Boolean @default(false)
   roundingMode  String? @map("rounding_mode")
   roundingScale Int     @default(0) @map("rounding_scale")
+  // filters: rate dimensions [{field,values}] — each value gets its own Price.
+  // groupBy: open breakout dimensions (key names) — usage split into one invoice line
+  // per discovered value at the Price's single rate. usage-filters-and-groups.md.
+  filters       Json?
+  groupBy       Json?   @map("group_by")
   metadata      Json?
 
   createdAt DateTime @default(now()) @map("created_at")
