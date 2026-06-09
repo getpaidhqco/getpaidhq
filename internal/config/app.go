@@ -356,7 +356,7 @@ func NewApp() (*App, error) {
 		Dunning:        handler.NewDunningHandler(dunningOrchestrationService, subService, logger, authzEngine, trustedProxies),
 		ApiKey:         handler.NewApiKeyHandler(apiKeyService, logger, authzEngine),
 		ReminderConfig: handler.NewReminderConfigHandler(reminderConfigService, logger),
-		Usage:          handler.NewUsageHandler(usageService, logger),
+		Usage:          handler.NewUsageHandler(usageService, logger, authzEngine),
 		Meter:          handler.NewMeterHandler(meterService, logger, authzEngine),
 		Invoice:        handler.NewInvoiceHandler(invoiceService, logger, authzEngine),
 		Payment:        handler.NewPaymentHandler(paymentService, logger, authzEngine),

@@ -24,12 +24,15 @@ const (
 	IngestRecorded  IngestStatus = "recorded"  // written, new
 	IngestDuplicate IngestStatus = "duplicate" // resend with a seen external_id, ignored at write
 	IngestAccepted  IngestStatus = "accepted"  // durably queued; the write happens asynchronously
+	IngestRejected  IngestStatus = "rejected"  // validation failed; never written (batch ingest only)
 )
 
-// IngestResult reports the outcome of ingesting one usage event.
+// IngestResult reports the outcome of ingesting one usage event. Error is set
+// only for a Rejected result (the validation reason); it is empty otherwise.
 type IngestResult struct {
 	Id     string
 	Status IngestStatus
+	Error  string
 }
 
 // EventIngestor accepts a fully-validated usage event for durable storage. The

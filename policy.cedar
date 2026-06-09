@@ -50,6 +50,7 @@ permit(
         Action::"ResumeSubscription",
         Action::"CancelSubscription",
         Action::"UpdateBillingAnchor",
+        Action::"ReadUsage",
         Action::"Healthcheck"
     ],
     resource

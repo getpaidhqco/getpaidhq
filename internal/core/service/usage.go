@@ -112,9 +112,54 @@ func (s *UsageService) CurrentPeriodUsage(ctx context.Context, orgId, subscripti
 // RecordEvent validates + stores one usage event. Returns the ingest result
 // (Duplicate=true when a resend with the same external_id was ignored).
 func (s *UsageService) RecordEvent(ctx context.Context, in port.RecordEventInput) (port.IngestResult, error) {
-	metric, err := s.meterRepository.FindByCode(ctx, in.OrgId, in.MetricCode)
+	event, err := s.buildEvent(ctx, in, map[string]domain.BillableMetric{})
 	if err != nil {
-		return port.IngestResult{}, lib.NewCustomError(lib.BadRequestError, "unknown metric code", err)
+		return port.IngestResult{}, err
+	}
+	res, err := s.ingestor.Ingest(ctx, event)
+	if err != nil {
+		// Single-handling rule: wrap and return; the HTTP boundary logs it.
+		return port.IngestResult{}, fmt.Errorf("ingest usage event: %w", err)
+	}
+	_ = s.pubsub.Publish(in.OrgId, "usage.recorded", event)
+	return res, nil
+}
+
+// RecordEvents validates and stores a batch of usage events. Each event is
+// processed independently: a validation failure yields a Rejected result (with
+// the reason) for that event without affecting the others, so the result slice
+// aligns 1:1 with inputs. Meter lookups are cached across the batch. An ingest
+// (infrastructure) failure aborts the batch and is returned as an error.
+func (s *UsageService) RecordEvents(ctx context.Context, inputs []port.RecordEventInput) ([]port.IngestResult, error) {
+	results := make([]port.IngestResult, len(inputs))
+	meterCache := make(map[string]domain.BillableMetric)
+	for i, in := range inputs {
+		event, verr := s.buildEvent(ctx, in, meterCache)
+		if verr != nil {
+			results[i] = port.IngestResult{Status: port.IngestRejected, Error: verr.Error()}
+			continue
+		}
+		res, err := s.ingestor.Ingest(ctx, event)
+		if err != nil {
+			return nil, fmt.Errorf("ingest usage event: %w", err)
+		}
+		_ = s.pubsub.Publish(in.OrgId, "usage.recorded", event)
+		results[i] = res
+	}
+	return results, nil
+}
+
+// buildEvent validates one input and constructs the MeterEvent to ingest. The
+// meterCache avoids repeated meter lookups when called across a batch.
+func (s *UsageService) buildEvent(ctx context.Context, in port.RecordEventInput, meterCache map[string]domain.BillableMetric) (domain.MeterEvent, error) {
+	metric, ok := meterCache[in.MetricCode]
+	if !ok {
+		m, err := s.meterRepository.FindByCode(ctx, in.OrgId, in.MetricCode)
+		if err != nil {
+			return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "unknown metric code", err)
+		}
+		metric = m
+		meterCache[in.MetricCode] = m
 	}
 
 	// Identify the customer (§6 step 2). Exactly one id is required. A customer_id
@@ -122,33 +167,33 @@ func (s *UsageService) RecordEvent(ctx context.Context, in port.RecordEventInput
 	// attached later if a customer with that external id is created). When the
 	// external id resolves now, we also store the internal customer_id.
 	if in.CustomerId == "" && in.ExternalCustomerId == "" {
-		return port.IngestResult{}, lib.NewCustomError(lib.BadRequestError, "customer_id or external_customer_id is required", nil)
+		return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "customer_id or external_customer_id is required", nil)
 	}
 	if in.CustomerId != "" {
 		if _, cerr := s.customerRepository.FindById(ctx, in.OrgId, in.CustomerId); cerr != nil {
 			if errors.Is(cerr, port.ErrNotFound) {
-				return port.IngestResult{}, lib.NewCustomError(lib.NotFoundError, "customer not found", cerr)
+				return domain.MeterEvent{}, lib.NewCustomError(lib.NotFoundError, "customer not found", cerr)
 			}
-			return port.IngestResult{}, cerr
+			return domain.MeterEvent{}, cerr
 		}
 	} else if cust, cerr := s.customerRepository.FindByExternalId(ctx, in.OrgId, in.ExternalCustomerId); cerr == nil {
 		in.CustomerId = cust.Id
 	} else if !errors.Is(cerr, port.ErrNotFound) {
-		return port.IngestResult{}, cerr
+		return domain.MeterEvent{}, cerr
 	}
 
 	// Attribution (§6 step 3). If a subscription is named it must belong to the
 	// customer and carry a metered price for this metric.
 	if in.SubscriptionId != "" {
 		if in.CustomerId == "" {
-			return port.IngestResult{}, lib.NewCustomError(lib.BadRequestError, "subscription_id requires a known customer", nil)
+			return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "subscription_id requires a known customer", nil)
 		}
 		metered, merr := s.subscriptionRepository.FindActiveMeteredForMeter(ctx, in.OrgId, in.CustomerId, metric.Id)
 		if merr != nil {
-			return port.IngestResult{}, merr
+			return domain.MeterEvent{}, merr
 		}
 		if !containsSubscription(metered, in.SubscriptionId) {
-			return port.IngestResult{}, lib.NewCustomError(lib.BadRequestError, "subscription does not carry a metered price for this metric", nil)
+			return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "subscription does not carry a metered price for this metric", nil)
 		}
 	}
 
@@ -156,11 +201,11 @@ func (s *UsageService) RecordEvent(ctx context.Context, in port.RecordEventInput
 	if metric.Aggregation != domain.AggregationCount && metric.Aggregation != domain.AggregationUniqueCount {
 		raw, ok := in.Metadata[metric.FieldName]
 		if !ok {
-			return port.IngestResult{}, lib.NewCustomError(lib.BadRequestError, "metadata is missing the metric field "+metric.FieldName, nil)
+			return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "metadata is missing the metric field "+metric.FieldName, nil)
 		}
 		v, perr := decimal.NewFromString(raw)
 		if perr != nil {
-			return port.IngestResult{}, lib.NewCustomError(lib.BadRequestError, "metric field "+metric.FieldName+" is not numeric", perr)
+			return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "metric field "+metric.FieldName+" is not numeric", perr)
 		}
 		value = v
 	}
@@ -184,13 +229,7 @@ func (s *UsageService) RecordEvent(ctx context.Context, in port.RecordEventInput
 		CreatedAt:          time.Now().UTC(),
 	}
 
-	res, err := s.ingestor.Ingest(ctx, event)
-	if err != nil {
-		// Single-handling rule: wrap and return; the HTTP boundary logs it.
-		return port.IngestResult{}, fmt.Errorf("ingest usage event: %w", err)
-	}
-	_ = s.pubsub.Publish(in.OrgId, "usage.recorded", event)
-	return res, nil
+	return event, nil
 }
 
 // containsSubscription reports whether subId is one of subs.

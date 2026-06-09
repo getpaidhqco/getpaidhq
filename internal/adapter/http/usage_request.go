@@ -6,7 +6,22 @@ import (
 	"getpaidhq/internal/core/port"
 )
 
-// RecordEventRequest is the body for POST /usage/events. Exactly one of customer_id /
+// IngestEventsRequest is the body for POST /usage/ingest — a batch of 1..N usage
+// events. Each element is validated and ingested independently (per-event results).
+type IngestEventsRequest struct {
+	Events []RecordEventRequest `json:"events" validate:"required,min=1,max=500,dive"`
+}
+
+// ToInputs maps the batch to service inputs, scoped to the org.
+func (r IngestEventsRequest) ToInputs(orgId string) []port.RecordEventInput {
+	inputs := make([]port.RecordEventInput, len(r.Events))
+	for i, e := range r.Events {
+		inputs[i] = e.ToInput(orgId)
+	}
+	return inputs
+}
+
+// RecordEventRequest is one usage event in an ingest batch. Exactly one of customer_id /
 // external_customer_id should be set (enforced in the service). metric_code is required.
 type RecordEventRequest struct {
 	CustomerId         string            `json:"customer_id"`
