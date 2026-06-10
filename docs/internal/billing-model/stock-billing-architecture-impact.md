@@ -126,6 +126,40 @@ All five share `field_name: "seat_id"` (or `"count"` for level reports) and an
 ordinary fixed/graduated/volume price. Worked math per use case:
 [`seat-billing/README.md`](./seat-billing/README.md).
 
+### The pipeline
+
+How a price's three settings execute. Cadence is the trigger; quantity is the
+spine; rate is a pure function at the end.
+
+```
+                     CADENCE — the clock
+       category + billing_interval. A subscription period
+       closes → the pipeline runs once per price, billing
+       the window [periodStart, periodEnd)
+                           │
+                           ▼
+events ──▶ QUANTITY ──q──▶ RATE ──amount──▶ invoice line
+
+QUANTITY (the meter):
+  no meter         → q = 1 (flat price)
+  flow meter       → this period's events only:
+                     count / sum / max / latest / unique_count
+  carry-over meter → replay full history → standing level →
+                     latest / max / unique_count / weighted_sum
+                     (B/C selected by the price switches)
+
+RATE (the scheme):
+  fixed            → q × unit_price
+  graduated        → price each band progressively
+  volume           → price all of q at the band it reaches
+```
+
+Each stage consumes only the previous stage's output: events flow in
+continuously; nothing computes until a period closes; the meter collapses the
+window into one number; `PriceUsage(price, q)` turns it into money without
+knowing where q came from — which is why fractional seat quantities price
+through graduated tiers with no seat-specific pricing code.
+
 ---
 
 ## 2. Hexagonal placement — impact per layer
