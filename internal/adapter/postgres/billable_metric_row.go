@@ -14,7 +14,7 @@ type billableMetricRow struct {
 	Name          string                 `gorm:"column:name"`
 	Aggregation   domain.AggregationType `gorm:"column:aggregation"`
 	FieldName     string                 `gorm:"column:field_name"`
-	Recurring     bool                   `gorm:"column:recurring"`
+	CarryOver     bool                   `gorm:"column:carry_over"`
 	RoundingMode  string                 `gorm:"column:rounding_mode"`
 	RoundingScale int                    `gorm:"column:rounding_scale"`
 	Filters       []domain.MetricFilter  `gorm:"column:filters;serializer:json"`
@@ -34,7 +34,7 @@ func (r billableMetricRow) toDomain() domain.BillableMetric {
 		Name:          r.Name,
 		Aggregation:   r.Aggregation,
 		FieldName:     r.FieldName,
-		Recurring:     r.Recurring,
+		CarryOver:     r.CarryOver,
 		RoundingMode:  r.RoundingMode,
 		RoundingScale: r.RoundingScale,
 		Filters:       r.Filters,
@@ -53,7 +53,7 @@ func billableMetricRowFromDomain(m domain.BillableMetric) billableMetricRow {
 		Name:          m.Name,
 		Aggregation:   m.Aggregation,
 		FieldName:     m.FieldName,
-		Recurring:     m.Recurring,
+		CarryOver:     m.CarryOver,
 		RoundingMode:  m.RoundingMode,
 		RoundingScale: m.RoundingScale,
 		Filters:       m.Filters,

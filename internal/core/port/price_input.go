@@ -27,6 +27,8 @@ type CreatePriceInput struct {
 	Tiers              []domain.PriceTier // rate bands for graduated / volume schemes
 	FilterField        string             // metered: scopes the price to one slice of its meter
 	FilterValue        string             // the filter value; empty with FilterField set = default charge
+	ProrateOnIncrease  bool               // carry-over weighted_sum: prorate mid-period adds
+	CreditOnDecrease   bool               // carry-over weighted_sum: credit mid-period removes
 	Metadata           map[string]string
 }
 
@@ -62,6 +64,8 @@ func (input CreatePriceInput) ToPrice(orgId, variantId string) domain.Price {
 		Tiers:              input.Tiers,
 		FilterField:        input.FilterField,
 		FilterValue:        input.FilterValue,
+		ProrateOnIncrease:  input.ProrateOnIncrease,
+		CreditOnDecrease:   input.CreditOnDecrease,
 		Metadata:           input.Metadata,
 		CreatedAt:          time.Now().UTC(),
 		UpdatedAt:          time.Now().UTC(),
@@ -87,5 +91,7 @@ type CreateProductPriceInput struct {
 	Tiers              []domain.PriceTier
 	FilterField        string
 	FilterValue        string
+	ProrateOnIncrease  bool
+	CreditOnDecrease   bool
 	Metadata           map[string]string
 }

@@ -145,6 +145,12 @@ func (m *memStore) WeightedSum(_ context.Context, _ port.UsageQuery, _ decimal.D
 	return decimal.Zero, nil
 }
 
+func (m *memStore) ListHistory(_ context.Context, q port.UsageQuery) ([]domain.MeterEvent, error) {
+	events := m.scoped(q)
+	sort.SliceStable(events, func(i, j int) bool { return events[i].Timestamp.Before(events[j].Timestamp) })
+	return events, nil
+}
+
 func (m *memStore) AggregateGrouped(_ context.Context, q port.UsageQuery, agg domain.AggregationType, groupKey string) ([]port.GroupedUsage, error) {
 	groups := map[string][]domain.MeterEvent{}
 	var order []string

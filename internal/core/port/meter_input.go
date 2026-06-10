@@ -16,7 +16,7 @@ type CreateMeterInput struct {
 	Name          string
 	Aggregation   domain.AggregationType
 	FieldName     string
-	Recurring     bool
+	CarryOver     bool
 	RoundingMode  string
 	RoundingScale int
 	Filters       []domain.MetricFilter
@@ -34,7 +34,7 @@ func (input CreateMeterInput) ToMetric() domain.BillableMetric {
 		Name:          input.Name,
 		Aggregation:   input.Aggregation,
 		FieldName:     input.FieldName,
-		Recurring:     input.Recurring,
+		CarryOver:     input.CarryOver,
 		RoundingMode:  input.RoundingMode,
 		RoundingScale: input.RoundingScale,
 		Filters:       input.Filters,

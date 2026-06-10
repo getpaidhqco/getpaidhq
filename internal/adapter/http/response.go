@@ -312,6 +312,8 @@ type PriceResponse struct {
 	Tiers              []PriceTierResponse    `json:"tiers"`
 	FilterField        string                 `json:"filter_field"`
 	FilterValue        string                 `json:"filter_value"`
+	ProrateOnIncrease  bool                   `json:"prorate_on_increase"`
+	CreditOnDecrease   bool                   `json:"credit_on_decrease"`
 	Metadata           map[string]string      `json:"metadata"`
 	CreatedAt          time.Time              `json:"created_at"`
 	UpdatedAt          time.Time              `json:"updated_at"`
@@ -355,6 +357,8 @@ func NewPriceFromEntity(entity domain.Price) PriceResponse {
 		Tiers:              tiers,
 		FilterField:        entity.FilterField,
 		FilterValue:        entity.FilterValue,
+		ProrateOnIncrease:  entity.ProrateOnIncrease,
+		CreditOnDecrease:   entity.CreditOnDecrease,
 		Metadata:           entity.Metadata,
 		CreatedAt:          entity.CreatedAt,
 		UpdatedAt:          entity.UpdatedAt,

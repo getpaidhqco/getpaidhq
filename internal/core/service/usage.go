@@ -198,7 +198,29 @@ func (s *UsageService) buildEvent(ctx context.Context, in port.RecordEventInput,
 	}
 
 	value := decimal.Zero
-	if metric.Aggregation != domain.AggregationCount && metric.Aggregation != domain.AggregationUniqueCount {
+	if metric.CarryOver {
+		// Carry-over (stock) meter: the event is either an add/remove for one
+		// identity, or a level report (a numeric total). See
+		// docs/internal/billing-model/stock-billing-architecture-impact.md §4.
+		if op, hasOp := in.Metadata[domain.UsageOperationKey]; hasOp {
+			if op != domain.UsageOperationAdd && op != domain.UsageOperationRemove {
+				return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, `metadata.operation must be "add" or "remove"`, nil)
+			}
+			if in.Metadata[metric.FieldName] == "" {
+				return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "metadata is missing the identity field "+metric.FieldName, nil)
+			}
+		} else {
+			raw, ok := in.Metadata[metric.FieldName]
+			if !ok {
+				return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "metadata needs either an operation with the identity field "+metric.FieldName+", or a numeric level under "+metric.FieldName, nil)
+			}
+			v, perr := decimal.NewFromString(raw)
+			if perr != nil {
+				return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "metric field "+metric.FieldName+" is not numeric", perr)
+			}
+			value = v
+		}
+	} else if metric.Aggregation != domain.AggregationCount && metric.Aggregation != domain.AggregationUniqueCount {
 		raw, ok := in.Metadata[metric.FieldName]
 		if !ok {
 			return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "metadata is missing the metric field "+metric.FieldName, nil)
@@ -249,6 +271,14 @@ func (s *UsageService) AggregateForPeriod(ctx context.Context, metric domain.Bil
 	q.FieldName = metric.FieldName
 	q.MetricCode = metric.Code
 
+	if metric.CarryOver {
+		units, err := s.aggregateCarryOver(ctx, metric, q)
+		if err != nil {
+			return decimal.Zero, err
+		}
+		return applyRounding(metric, units), nil
+	}
+
 	var (
 		units decimal.Decimal
 		err   error
@@ -277,6 +307,47 @@ func (s *UsageService) AggregateForPeriod(ctx context.Context, metric domain.Bil
 		return decimal.Zero, err
 	}
 	return applyRounding(metric, units), nil
+}
+
+// aggregateCarryOver computes a carry-over (stock) meter's quantity: fetch the
+// full event history up to the period end, rebuild the standing level, apply the
+// aggregation over [q.From, q.To). Add/remove events become per-identity
+// intervals; with no operation events the reported values are the level. See
+// docs/internal/billing-model/stock-billing-architecture-impact.md §3/§5.
+func (s *UsageService) aggregateCarryOver(ctx context.Context, metric domain.BillableMetric, q port.UsageQuery) (decimal.Decimal, error) {
+	hq := q
+	hq.From = time.Time{} // events before the period determine the level at its start
+	events, err := s.eventStore.ListHistory(ctx, hq)
+	if err != nil {
+		return decimal.Zero, err
+	}
+
+	if domain.HasOperations(events) {
+		intervals := domain.ReconstructIntervals(events, metric.FieldName)
+		switch metric.Aggregation {
+		case domain.AggregationLatest:
+			return decimal.NewFromInt(domain.CountStandingAtEnd(intervals, q.To)), nil
+		case domain.AggregationMax:
+			return decimal.NewFromInt(domain.CountPeakConcurrent(intervals, q.From, q.To)), nil
+		case domain.AggregationUniqueCount:
+			return decimal.NewFromInt(domain.CountDistinctActive(intervals, q.From, q.To)), nil
+		case domain.AggregationWeightedSum:
+			return domain.WeightIntervals(intervals, q.From, q.To, q.ProrateOnIncrease, q.CreditOnDecrease), nil
+		}
+		return decimal.Zero, errors.New("aggregation not supported for carry-over meters: " + string(metric.Aggregation))
+	}
+
+	switch metric.Aggregation {
+	case domain.AggregationLatest:
+		return domain.LastReportedLevel(events), nil
+	case domain.AggregationMax:
+		return domain.PeakReportedLevel(events, q.From, q.To), nil
+	case domain.AggregationUniqueCount:
+		return decimal.Zero, nil // level reports carry no identities
+	case domain.AggregationWeightedSum:
+		return domain.WeightReportedLevels(events, q.From, q.To), nil
+	}
+	return decimal.Zero, errors.New("aggregation not supported for carry-over meters: " + string(metric.Aggregation))
 }
 
 // usageQueryFor resolves the meter from the price and builds the scoped UsageQuery for
@@ -312,6 +383,10 @@ func (s *UsageService) usageQueryFor(ctx context.Context, sub domain.Subscriptio
 		return domain.BillableMetric{}, port.UsageQuery{}, err
 	}
 	q.IncludeUnattributed = len(metered) > 0 && metered[0].Id == sub.Id
+
+	// The proration switches are the price's; the carry-over read needs them.
+	q.ProrateOnIncrease = price.ProrateOnIncrease
+	q.CreditOnDecrease = price.CreditOnDecrease
 
 	applyPriceFilter(&q, metric, price)
 	return metric, q, nil

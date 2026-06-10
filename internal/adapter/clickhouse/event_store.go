@@ -216,6 +216,12 @@ func (s *EventStore) WeightedSum(ctx context.Context, q port.UsageQuery, initial
 	return decimal.Zero, errors.New("weighted_sum aggregation not implemented")
 }
 
+// ListHistory (carry-over reads) is not yet implemented for ClickHouse; the default
+// Postgres event store carries stock billing.
+func (s *EventStore) ListHistory(ctx context.Context, q port.UsageQuery) ([]domain.MeterEvent, error) {
+	return nil, errors.New("carry-over history read not implemented for clickhouse")
+}
+
 // AggregateGrouped aggregates q partitioned by one metadata key, one row per distinct
 // value (absent key → ” segment, matching Postgres). The quantity is selected via
 // toString so a single scan path covers both UInt64 (count) and Decimal (sum/max)
