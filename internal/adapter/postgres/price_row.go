@@ -28,6 +28,8 @@ type priceRow struct {
 	Tiers              []domain.PriceTier     `gorm:"column:tiers;serializer:json"`
 	FilterField        string                 `gorm:"column:filter_field"`
 	FilterValue        string                 `gorm:"column:filter_value"`
+	ProrateOnIncrease  bool                   `gorm:"column:prorate_on_increase"`
+	CreditOnDecrease   bool                   `gorm:"column:credit_on_decrease"`
 	Metadata           map[string]string      `gorm:"column:metadata;serializer:json"`
 	CreatedAt          time.Time              `gorm:"column:created_at"`
 	UpdatedAt          time.Time              `gorm:"column:updated_at"`
@@ -57,6 +59,8 @@ func (r priceRow) toDomain() domain.Price {
 		Tiers:              r.Tiers,
 		FilterField:        r.FilterField,
 		FilterValue:        r.FilterValue,
+		ProrateOnIncrease:  r.ProrateOnIncrease,
+		CreditOnDecrease:   r.CreditOnDecrease,
 		Metadata:           r.Metadata,
 		CreatedAt:          r.CreatedAt,
 		UpdatedAt:          r.UpdatedAt,
@@ -85,6 +89,8 @@ func priceRowFromDomain(p domain.Price) priceRow {
 		Tiers:              p.Tiers,
 		FilterField:        p.FilterField,
 		FilterValue:        p.FilterValue,
+		ProrateOnIncrease:  p.ProrateOnIncrease,
+		CreditOnDecrease:   p.CreditOnDecrease,
 		Metadata:           p.Metadata,
 		CreatedAt:          p.CreatedAt,
 		UpdatedAt:          p.UpdatedAt,

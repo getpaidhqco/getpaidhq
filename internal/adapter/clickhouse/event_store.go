@@ -129,10 +129,16 @@ func (s *EventStore) IngestBatch(ctx context.Context, events []domain.MeterEvent
 
 // where builds the shared filter: org + metric + half-open [from,to) window + match
 // either customer id + optional subscription attribution. Returns the SQL fragment
-// (without the WHERE keyword) and its positional args.
+// (without the WHERE keyword) and its positional args. A zero From (carry-over
+// reads: full history up to To) skips the lower bound — DateTime64 can't hold Go's
+// zero time.
 func where(q port.UsageQuery) (string, []any) {
 	sql := "org_id = ? AND metric_code = ? AND timestamp >= ? AND timestamp < ?"
 	args := []any{q.OrgId, q.MetricCode, q.From, q.To}
+	if q.From.IsZero() {
+		sql = "org_id = ? AND metric_code = ? AND timestamp < ?"
+		args = []any{q.OrgId, q.MetricCode, q.To}
+	}
 	// Match either customer id — but only on the ids actually provided, so an empty
 	// id doesn't sweep in other customers' rows (which default to "").
 	switch {
@@ -214,6 +220,35 @@ func (s *EventStore) Latest(ctx context.Context, q port.UsageQuery) (decimal.Dec
 // with the Postgres adapter (spec phase 5 / primer §11).
 func (s *EventStore) WeightedSum(ctx context.Context, q port.UsageQuery, initial decimal.Decimal) (decimal.Decimal, error) {
 	return decimal.Zero, errors.New("weighted_sum aggregation not implemented")
+}
+
+// ListHistory returns the events matching q, ordered by timestamp. Resends are
+// collapsed at read time like every other read: one row per dedup_key, the latest
+// insert (ingested_at) winning — LIMIT 1 BY is ClickHouse's idiom for that.
+func (s *EventStore) ListHistory(ctx context.Context, q port.UsageQuery) ([]domain.MeterEvent, error) {
+	w, args := where(q)
+	sql := `SELECT org_id, customer_id, external_customer_id, metric_code, subscription_id,
+			external_id, timestamp, value, metadata, id
+		FROM (
+			SELECT * FROM meter_events WHERE ` + w + `
+			ORDER BY ingested_at DESC
+			LIMIT 1 BY ` + dedupKey + `
+		) ORDER BY timestamp ASC`
+	rows, err := s.conn.Query(ctx, sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domain.MeterEvent
+	for rows.Next() {
+		var e domain.MeterEvent
+		if err := rows.Scan(&e.OrgId, &e.CustomerId, &e.ExternalCustomerId, &e.MetricCode,
+			&e.SubscriptionId, &e.ExternalId, &e.Timestamp, &e.Value, &e.Metadata, &e.Id); err != nil {
+			return nil, err
+		}
+		out = append(out, e)
+	}
+	return out, rows.Err()
 }
 
 // AggregateGrouped aggregates q partitioned by one metadata key, one row per distinct

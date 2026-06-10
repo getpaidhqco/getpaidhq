@@ -30,9 +30,13 @@ type Price struct {
 	// the field's declared values). See usage-filters-and-groups.md.
 	FilterField string
 	FilterValue string
-	Metadata    map[string]string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	// Proration switches for prices on time-weighted (weighted_sum) carry-over
+	// meters; inert otherwise. See docs/internal/billing-model/seat-billing/mapping.md §2.3.
+	ProrateOnIncrease bool // a seat added mid-period accrues from its add date
+	CreditOnDecrease  bool // a seat removed mid-period stops accruing at its remove date
+	Metadata          map[string]string
+	CreatedAt         time.Time
+	UpdatedAt         time.Time
 }
 
 // IsDefaultFilter reports whether a metered price is the catch-all charge for its

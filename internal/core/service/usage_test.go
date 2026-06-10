@@ -146,6 +146,10 @@ func (s *usageEventStore) AggregateGrouped(_ context.Context, q port.UsageQuery,
 	s.lastQuery = q
 	return s.grouped, nil
 }
+func (s *usageEventStore) ListHistory(_ context.Context, q port.UsageQuery) ([]domain.MeterEvent, error) {
+	s.lastQuery = q
+	return s.ingested, nil
+}
 
 func countMeter() domain.BillableMetric {
 	return domain.BillableMetric{OrgId: "org_1", Id: "met_1", Code: "api_calls", Aggregation: domain.AggregationCount}

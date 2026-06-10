@@ -104,6 +104,8 @@ func (s *ProductHandler) Create(c fuego.ContextWithBody[CreateProductRequest]) (
 				Tiers:              tiers,
 				FilterField:        p.FilterField,
 				FilterValue:        p.FilterValue,
+				ProrateOnIncrease:  p.ProrateOnIncrease,
+				CreditOnDecrease:   p.CreditOnDecrease,
 				Metadata:           p.Metadata,
 			}
 		}
@@ -274,6 +276,8 @@ func (s *ProductHandler) CreatePrice(c fuego.ContextWithBody[CreatePriceRequest]
 		Tiers:              tiers,
 		FilterField:        input.FilterField,
 		FilterValue:        input.FilterValue,
+		ProrateOnIncrease:  input.ProrateOnIncrease,
+		CreditOnDecrease:   input.CreditOnDecrease,
 		Metadata:           input.Metadata,
 	})
 	if err != nil {
@@ -346,6 +350,8 @@ func (s *ProductHandler) UpdatePrice(c fuego.ContextWithBody[CreatePriceRequest]
 		Tiers:              tiers,
 		FilterField:        input.FilterField,
 		FilterValue:        input.FilterValue,
+		ProrateOnIncrease:  input.ProrateOnIncrease,
+		CreditOnDecrease:   input.CreditOnDecrease,
 		Metadata:           input.Metadata,
 	})
 	if err != nil {

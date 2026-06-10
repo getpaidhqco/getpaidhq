@@ -307,6 +307,11 @@ model Price {
   filterField String? @map("filter_field")
   filterValue String? @map("filter_value")
 
+  // Proration switches for prices on weighted_sum carry-over meters; inert otherwise.
+  // See docs/internal/billing-model/seat-billing/mapping.md §2.3.
+  prorateOnIncrease Boolean @default(false) @map("prorate_on_increase")
+  creditOnDecrease  Boolean @default(false) @map("credit_on_decrease")
+
   metadata Json?
 
   createdAt DateTime @default(now()) @map("created_at")
@@ -989,7 +994,7 @@ model BillableMetric {
   name          String
   aggregation   String
   fieldName     String? @map("field_name")
-  recurring     Boolean @default(false)
+  carryOver     Boolean @default(false) @map("carry_over")
   roundingMode  String? @map("rounding_mode")
   roundingScale Int     @default(0) @map("rounding_scale")
   // filters: rate dimensions [{field,values}] — each value gets its own Price.

@@ -125,6 +125,12 @@ func (s *EventStore) WeightedSum(ctx context.Context, q port.UsageQuery, initial
 	return prim.v, prim.err
 }
 
+// ListHistory serves the primary only — a row-level fetch has no scalar result to
+// compare in the background.
+func (s *EventStore) ListHistory(ctx context.Context, q port.UsageQuery) ([]domain.MeterEvent, error) {
+	return s.primary.ListHistory(ctx, q)
+}
+
 func (s *EventStore) AggregateGrouped(ctx context.Context, q port.UsageQuery, agg domain.AggregationType, groupKey string) ([]port.GroupedUsage, error) {
 	start := time.Now()
 	primV, primErr := s.primary.AggregateGrouped(ctx, q, agg, groupKey)
