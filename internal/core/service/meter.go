@@ -69,6 +69,12 @@ func (s *MeterService) Create(ctx context.Context, in port.CreateMeterInput) (do
 // semantics on a ledger. docs/internal/billing-model/stock-billing-architecture-impact.md §4.
 func validateCarryOver(in port.CreateMeterInput) error {
 	if !in.CarryOver {
+		// A time-averaged quantity is a standing level — that's what carry_over
+		// means. A flow weighted_sum would reset to zero each period and underbill
+		// every quiet period, so it is forbidden outright.
+		if in.Aggregation == domain.AggregationWeightedSum {
+			return lib.NewCustomError(lib.BadRequestError, "weighted_sum requires carry_over: true", nil)
+		}
 		return nil
 	}
 	switch in.Aggregation {

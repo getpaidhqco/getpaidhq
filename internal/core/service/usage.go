@@ -299,7 +299,8 @@ func (s *UsageService) AggregateForPeriod(ctx context.Context, metric domain.Bil
 	case domain.AggregationLatest:
 		units, err = s.eventStore.Latest(ctx, q)
 	case domain.AggregationWeightedSum:
-		units, err = s.eventStore.WeightedSum(ctx, q, decimal.Zero)
+		// Forbidden at meter creation; defensive guard for any pre-existing row.
+		return decimal.Zero, errors.New("weighted_sum requires a carry-over meter")
 	default:
 		return decimal.Zero, errors.New("unknown aggregation type: " + string(metric.Aggregation))
 	}

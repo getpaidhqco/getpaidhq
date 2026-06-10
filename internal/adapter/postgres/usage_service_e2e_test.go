@@ -75,26 +75,21 @@ func TestUsageService_AggregateForPeriod_Rounding(t *testing.T) {
 	}
 }
 
-// TestEventStore_WeightedSum_NotImplemented pins the current deferred state of the
-// weighted_sum aggregation at both the store and the service layer. When weighted_sum
-// is implemented (spec phase 5), this test must be updated to assert the computed
-// value instead — it is the canary that the behaviour changed.
-func TestEventStore_WeightedSum_NotImplemented(t *testing.T) {
+// TestEventStore_WeightedSum_FlowForbidden pins that weighted_sum only exists on
+// carry-over meters: a flow meter resets each period, so a time-averaged level
+// would underbill every quiet period. Forbidden at meter creation; the read path
+// guards defensively.
+func TestEventStore_WeightedSum_FlowForbidden(t *testing.T) {
 	db := testDB(t)
 	ctx := context.Background()
 	orgId := uniqueOrg(t)
 	defer cleanupOrg(t, db, orgId)
 
-	store := NewEventStore(db)
 	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	q := port.UsageQuery{OrgId: orgId, MetricCode: "tokens", CustomerId: "cus_ws", From: from, To: from.Add(time.Hour)}
 
-	_, err := store.WeightedSum(ctx, q, decimal.Zero)
-	require.Error(t, err, "weighted_sum is deferred — the store must report it unimplemented")
-
-	// And it surfaces through AggregateForPeriod for a weighted_sum meter.
 	usage := buildUsageService(t, db)
 	metric := domain.BillableMetric{OrgId: orgId, Code: "tokens", Aggregation: domain.AggregationWeightedSum, FieldName: "amount"}
-	_, err = usage.AggregateForPeriod(ctx, metric, q)
-	require.Error(t, err, "AggregateForPeriod must propagate the unimplemented weighted_sum error")
+	_, err := usage.AggregateForPeriod(ctx, metric, q)
+	require.Error(t, err, "weighted_sum without carry_over must be rejected")
 }

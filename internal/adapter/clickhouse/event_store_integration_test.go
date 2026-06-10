@@ -239,19 +239,6 @@ func TestClickHouseEventStore_ExternalCustomerIdMatch(t *testing.T) {
 	assert.True(t, sum.Equal(decimal.NewFromInt(7)), "3 + 4, got %s", sum)
 }
 
-// TestClickHouseEventStore_WeightedSum_NotImplemented pins the deferred weighted_sum
-// aggregation on the ClickHouse adapter, matching the Postgres adapter's behaviour.
-func TestClickHouseEventStore_WeightedSum_NotImplemented(t *testing.T) {
-	conn := testConn(t)
-	store := NewEventStoreWithConn(conn)
-	ctx := context.Background()
-
-	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	q := port.UsageQuery{OrgId: "org_x", MetricCode: "api_calls", From: from, To: from.Add(time.Hour), CustomerId: "cus_1"}
-	_, err := store.WeightedSum(ctx, q, decimal.Zero)
-	require.Error(t, err, "weighted_sum is deferred on ClickHouse too")
-}
-
 // TestClickHouseEventStore_ListHistory mirrors the Postgres adapter's
 // TestEventStore_ListHistory: a zero From reads the full history up to To (the
 // carry-over read), results are ordered by timestamp, and a resend sharing an

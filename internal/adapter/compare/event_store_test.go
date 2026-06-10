@@ -141,10 +141,6 @@ func (m *memStore) Latest(_ context.Context, q port.UsageQuery) (decimal.Decimal
 	return events[len(events)-1].Value, nil
 }
 
-func (m *memStore) WeightedSum(_ context.Context, _ port.UsageQuery, _ decimal.Decimal) (decimal.Decimal, error) {
-	return decimal.Zero, nil
-}
-
 func (m *memStore) ListHistory(_ context.Context, q port.UsageQuery) ([]domain.MeterEvent, error) {
 	events := m.scoped(q)
 	sort.SliceStable(events, func(i, j int) bool { return events[i].Timestamp.Before(events[j].Timestamp) })

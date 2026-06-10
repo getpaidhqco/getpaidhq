@@ -224,6 +224,9 @@ Validation, enforced at meter/price write time and at ingest:
 
 - A carry-over meter's aggregation must be `latest`, `max`, `unique_count`, or
   `weighted_sum`; `count` and `sum` are invalid.
+- `weighted_sum` requires `carry_over: true` — a time-averaged quantity is a
+  standing level by definition. On a flow meter it would reset to zero each
+  period and underbill every quiet period, so meter creation rejects it.
 - `Filters` / `GroupBy` are invalid on carry-over meters (no defined replay
   semantics per rate slice).
 - Ingest: an event for a carry-over meter is either an operation event —
@@ -278,8 +281,7 @@ positive usage line per period** — never a negative credit line. Rounding
 - **Ingestion pipeline**: same `POST /api/usage/events`, same `EventIngestor` modes
   (sync/jetstream), same dedup. Only *validation* grows (§4).
 - **Flow meters**: every existing meter (`CarryOver=false`) takes the exact code
-  path it does today — including the deferred flow-meter `weighted_sum`
-  (value-average), which remains unimplemented in the stores.
+  path it does today.
 
 ---
 
