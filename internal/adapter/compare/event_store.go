@@ -119,12 +119,6 @@ func (s *EventStore) Latest(ctx context.Context, q port.UsageQuery) (decimal.Dec
 	return prim.v, prim.err
 }
 
-func (s *EventStore) WeightedSum(ctx context.Context, q port.UsageQuery, initial decimal.Decimal) (decimal.Decimal, error) {
-	prim, dur := timeDec(func() (decimal.Decimal, error) { return s.primary.WeightedSum(ctx, q, initial) })
-	s.checkDec(q, "weighted_sum", prim.v, prim.err, dur, func(c context.Context) (decimal.Decimal, error) { return s.secondary.WeightedSum(c, q, initial) })
-	return prim.v, prim.err
-}
-
 // ListHistory serves the primary only — a row-level fetch has no scalar result to
 // compare in the background.
 func (s *EventStore) ListHistory(ctx context.Context, q port.UsageQuery) ([]domain.MeterEvent, error) {

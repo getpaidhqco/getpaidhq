@@ -43,6 +43,11 @@ func TestMeterService_Create_CarryOver(t *testing.T) {
 			wantErr: true,
 		},
 		{
+			name:    "weighted_sum without carry_over is rejected",
+			in:      port.CreateMeterInput{OrgId: "org_1", Code: "avg_gb", Name: "Avg GB", Aggregation: domain.AggregationWeightedSum, FieldName: "gb"},
+			wantErr: true,
+		},
+		{
 			name: "filters are rejected",
 			in: port.CreateMeterInput{OrgId: "org_1", Code: "seats", Name: "Seats", Aggregation: domain.AggregationWeightedSum, FieldName: "seat_id", CarryOver: true,
 				Filters: []domain.MetricFilter{{Field: "type", Values: []string{"x"}}}},

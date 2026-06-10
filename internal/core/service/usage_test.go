@@ -138,10 +138,6 @@ func (s *usageEventStore) Latest(_ context.Context, q port.UsageQuery) (decimal.
 	s.lastQuery = q
 	return decimal.Zero, nil
 }
-func (s *usageEventStore) WeightedSum(_ context.Context, q port.UsageQuery, _ decimal.Decimal) (decimal.Decimal, error) {
-	s.lastQuery = q
-	return decimal.Zero, nil
-}
 func (s *usageEventStore) AggregateGrouped(_ context.Context, q port.UsageQuery, _ domain.AggregationType, _ string) ([]port.GroupedUsage, error) {
 	s.lastQuery = q
 	return s.grouped, nil

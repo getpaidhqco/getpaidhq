@@ -98,7 +98,6 @@ type EventStore interface {
 	Sum(ctx context.Context, q UsageQuery) (decimal.Decimal, error)
 	Max(ctx context.Context, q UsageQuery) (decimal.Decimal, error)
 	Latest(ctx context.Context, q UsageQuery) (decimal.Decimal, error)
-	WeightedSum(ctx context.Context, q UsageQuery, initial decimal.Decimal) (decimal.Decimal, error)
 	// ListHistory returns the events matching q, ordered by timestamp. Carry-over
 	// reads call it with a zero From: events before the period determine the level
 	// standing when it starts.

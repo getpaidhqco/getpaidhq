@@ -138,13 +138,6 @@ func (s *EventStore) Latest(ctx context.Context, q port.UsageQuery) (decimal.Dec
 	return out, err
 }
 
-// WeightedSum (value averaged over time) needs a window query; deferred (spec phase 5).
-// Carry-over meters don't use it — their weighted reading is computed in core over
-// ListHistory.
-func (s *EventStore) WeightedSum(ctx context.Context, q port.UsageQuery, initial decimal.Decimal) (decimal.Decimal, error) {
-	return decimal.Zero, errors.New("weighted_sum aggregation not implemented")
-}
-
 // ListHistory returns the events matching q, ordered by timestamp.
 func (s *EventStore) ListHistory(ctx context.Context, q port.UsageQuery) ([]domain.MeterEvent, error) {
 	var rows []meterEventRow

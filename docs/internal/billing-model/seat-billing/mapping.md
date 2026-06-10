@@ -165,9 +165,9 @@ the same readings come off the reported step function:
 | `unique_count` | count of distinct seats with an interval overlapping `[from, to)` | zero — no identities |
 | `weighted_sum` | `Σ clip(interval, switches) ÷ periodLength` | time-average of the reported level (symmetric only) |
 
-(The flow-meter `weighted_sum` — value averaged over time for non-carry-over
-meters — remains unimplemented in the stores; only the carry-over readings above
-exist.)
+`weighted_sum` requires `carry_over: true` — a time-averaged quantity is a
+standing level by definition. On a flow meter it would reset to zero each period
+and underbill every quiet period, so meter creation rejects it.
 
 ### 2.5 Billing cycle
 
