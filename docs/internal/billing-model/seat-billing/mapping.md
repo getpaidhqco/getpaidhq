@@ -260,7 +260,7 @@ Swap to **B** (`credit_on_decrease=true`) and bob's interval clips to Jun 21
 | Capability | Code |
 | --- | --- |
 | Carry-over read path | `UsageService.AggregateForPeriod` → `aggregateCarryOver` (`internal/core/service/usage.go`) |
-| History fetch | `EventStore.ListHistory` (`internal/adapter/postgres/event_store.go`; ClickHouse not yet implemented) |
+| History fetch | `EventStore.ListHistory` — both stores (`internal/adapter/postgres/event_store.go`, `internal/adapter/clickhouse/event_store.go`) |
 | Interval reconstruction + level math | `internal/core/domain/usage_interval.go` (`ReconstructIntervals`, `CountStandingAtEnd`, `CountPeakConcurrent`, `CountDistinctActive`, `WeightIntervals`, level-report reads) |
 | Operation convention + ingest validation | `domain.UsageOperationKey` consts; `UsageService.buildEvent` |
 | Meter validation | `validateCarryOver` (`internal/core/service/meter.go`) |

@@ -299,8 +299,7 @@ positive usage line per period** — never a negative credit line. Rounding
    `WeightIntervals`, the level-report reads) with the June timeline from the
    use-case docs as the unit-test fixture — all policies, plus the consistency
    check (both switches off = the `unique_count` reading).
-2. `ListHistory` in postgres (clickhouse can lag behind a feature flag since
-   `USAGE_EVENT_STORE` defaults to postgres).
+2. `ListHistory` in both event stores (postgres and clickhouse).
 3. The carry-over branch in `AggregateForPeriod` + ingest validation.
 4. Price switches: API + schema columns + meter validation (§4 rules).
 5. e2e: seat billing across a period boundary, add/remove events and level reports
