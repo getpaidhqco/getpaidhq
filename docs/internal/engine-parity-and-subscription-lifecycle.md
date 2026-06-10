@@ -4,7 +4,7 @@
 > and [durable-runner-timeouts.md](durable-runner-timeouts.md). This is the load-bearing mental
 > model for *why* the two engines look different and *where the first charge happens*.
 
-## Engine parity means same **behaviour**, not same **code**
+## Engine parity means same **behaviour**, not same **implementation**
 
 `WORKFLOW_ENGINE=hatchet|temporal` selects between two adapters that implement the billing/dunning/
 reminder surface **deliberately differently**. Parity is about **observable outcomes** — a
@@ -19,12 +19,6 @@ The two models are opposite on purpose, because the engines' durability primitiv
 | Why this model | Temporal's timer/history model supports workflows that live (sleep) indefinitely | Hatchet GC's the durable event log **by creation-date partition**, so an immortal task is reaped mid-flight (see [durable-runner-timeouts.md](durable-runner-timeouts.md)) |
 | Renewal "timer" | `workflow.Await` durable sleep until `RenewsAt` | hourly cron `billing-sweep` selects `renews_at <= now` |
 | Reaches shared services via | **activities** (workflow code must stay deterministic) | steps + run-key-idempotent spawns |
-
-**This divergence is the interesting part, not an accident.** The same billing semantics expressed
-through two fundamentally different execution models is exactly why running both is worthwhile. The
-**shared core is identical and engine-agnostic** — `internal/core/{domain,service,port}`, the
-postgres repos, `ReminderConfig`, the idempotency guards. Only the orchestration adapters
-(`internal/adapter/{hatchet,temporal}/`) differ.
 
 ### The rule this implies (also in CLAUDE.md)
 
