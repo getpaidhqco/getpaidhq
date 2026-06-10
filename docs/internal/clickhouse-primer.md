@@ -161,10 +161,10 @@ Details: `research/lago/usage-based-billing.md` §6–7.
 ## 7. Where it fits in gphq — two parity adapters behind one port
 
 `port.EventStore` is the seam. Both adapters implement the same interface; config
-picks one (or both, to compare). Same `UsageQuery` in, same `float64` out; different
-mechanics inside, so we can compare them. Events attach to a **customer** and a
-**metric**, and may carry an optional **`external_id`** that serves as the dedup key
-(see the design spec for the field meanings).
+picks one. Same `UsageQuery` in, same `float64` out; different mechanics inside, but
+the same outcome — verified by the parity test harness below. Events attach to a
+**customer** and a **metric**, and may carry an optional **`external_id`** that serves
+as the dedup key (see the design spec for the field meanings).
 
 ```
                   UsageService / billing-cycle workflow
@@ -235,10 +235,7 @@ so boundary semantics can't drift (a classic parity bug).
 ```
 USAGE_EVENT_STORE=postgres    # default
 USAGE_EVENT_STORE=clickhouse
-USAGE_EVENT_STORE=compare     # write both, read postgres, check clickhouse in background, log diffs
 ```
-`compare` checks the two on real data without affecting billing: every aggregation
-runs both, returns Postgres, logs mismatches + timings.
 
 **Parity test harness:** one table-driven test feeds the same event set (including
 resent duplicates, out-of-window events, boundary timestamps) into both adapters,
@@ -250,8 +247,8 @@ epsilon. Same test body, two adapters — that's how we know they agree.
 ## 8. Recommendation
 
 Ship the **Postgres adapter first**, but **define the port and write the parity
-harness up front** so the ClickHouse adapter slots in and can be checked via `compare`
-mode. Don't stand up the Kafka-engine/MV tier — a NATS consumer doing batched
+harness up front** so the ClickHouse adapter slots in and can be checked against
+Postgres by the test harness. Don't stand up the Kafka-engine/MV tier — a NATS consumer doing batched
 INSERTs gives the same ClickHouse benefits without running Kafka. You then get a
 real, measured comparison (latency, correctness, ops cost) on your own data before
 committing to either backend long-term.

@@ -18,8 +18,7 @@ type Env struct {
 	CedarPolicyFile string `mapstructure:"CEDAR_POLICY"`
 
 	// UsageEventStore selects the backend for usage events: "postgres"
-	// (default), "clickhouse", or "compare" (write both, serve postgres,
-	// check clickhouse in the background). See docs/internal/clickhouse-primer.md.
+	// (default) or "clickhouse". See docs/internal/clickhouse-primer.md.
 	UsageEventStore string `mapstructure:"USAGE_EVENT_STORE"`
 
 	// UsageDatabaseURL is the DSN for the Postgres usage-event store. When
@@ -28,8 +27,8 @@ type Env struct {
 	UsageDatabaseURL string `mapstructure:"USAGE_DATABASE_URL"`
 
 	// ClickhouseDSN is the clickhouse-go connection string for the ClickHouse
-	// usage-event store. Only opened when UsageEventStore is "clickhouse" or
-	// "compare". Example: clickhouse://user:pass@localhost:9000/getpaidhq_usage
+	// usage-event store. Only opened when UsageEventStore is "clickhouse".
+	// Example: clickhouse://user:pass@localhost:9000/getpaidhq_usage
 	ClickhouseDSN string `mapstructure:"CLICKHOUSE_DSN"`
 
 	// UsageIngestMode selects the durable write path for usage events: "sync"

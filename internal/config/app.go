@@ -18,7 +18,6 @@ import (
 	"getpaidhq/internal/adapter/checkout_com"
 	"getpaidhq/internal/adapter/clerk"
 	"getpaidhq/internal/adapter/clickhouse"
-	"getpaidhq/internal/adapter/compare"
 	"getpaidhq/internal/adapter/cron"
 	"getpaidhq/internal/adapter/hatchet"
 	hatchetsteps "getpaidhq/internal/adapter/hatchet/steps"
@@ -65,11 +64,6 @@ func usageDB(env lib.Env, operational *gorm.DB, logger lib.Logger) (*gorm.DB, er
 //   - "postgres" (default): events in the Postgres usage store (separate DB when
 //     USAGE_DATABASE_URL is set, else the operational DB).
 //   - "clickhouse": the ClickHouse adapter (CLICKHOUSE_DSN).
-//   - "compare": write both, serve Postgres, check ClickHouse in the background.
-//
-// The two backends must produce identical aggregation results — see
-// docs/internal/clickhouse-primer.md §7 and the parity harness in
-// internal/adapter/compare.
 func buildEventStore(env lib.Env, db *gorm.DB, logger lib.Logger) (port.EventStore, error) {
 	udb, err := usageDB(env, db, logger)
 	if err != nil {
@@ -85,14 +79,8 @@ func buildEventStore(env lib.Env, db *gorm.DB, logger lib.Logger) (port.EventSto
 			return nil, err
 		}
 		return ch, nil
-	case "compare":
-		ch, err := clickhouse.NewEventStore(env.ClickhouseDSN)
-		if err != nil {
-			return nil, err
-		}
-		return compare.NewEventStore(pg, ch, logger), nil
 	default:
-		return nil, fmt.Errorf("unsupported USAGE_EVENT_STORE %q (want 'postgres', 'clickhouse', or 'compare')", env.UsageEventStore)
+		return nil, fmt.Errorf("unsupported USAGE_EVENT_STORE %q (want 'postgres' or 'clickhouse')", env.UsageEventStore)
 	}
 }
 

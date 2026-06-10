@@ -1,8 +1,7 @@
 // Package clickhouse is the ClickHouse backend for the usage-event store. It is one
 // of two adapters behind port.EventStore (the other is internal/adapter/postgres);
 // both must return identical aggregation results — see
-// docs/internal/clickhouse-primer.md §7 and the parity harness in
-// internal/adapter/compare.
+// docs/internal/clickhouse-primer.md §7.
 //
 // Parity model: Postgres dedups resends at WRITE time (partial unique index on
 // (org_id, external_id) + ON CONFLICT DO NOTHING). ClickHouse keeps every insert and
