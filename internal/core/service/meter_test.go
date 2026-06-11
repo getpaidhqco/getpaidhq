@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"getpaidhq/internal/core/domain"
@@ -25,7 +26,7 @@ func TestMeterService_Create(t *testing.T) {
 	tests := []struct {
 		name    string
 		in      port.CreateMeterInput
-		wantErr bool
+		wantErr string // substring of the validation error; "" = valid
 		stored  bool
 	}{
 		{
@@ -41,22 +42,22 @@ func TestMeterService_Create(t *testing.T) {
 		{
 			name:    "missing code",
 			in:      port.CreateMeterInput{OrgId: "org_1", Name: "x", Aggregation: domain.AggregationCount},
-			wantErr: true,
+			wantErr: "code is required",
 		},
 		{
 			name:    "unknown aggregation",
 			in:      port.CreateMeterInput{OrgId: "org_1", Code: "c", Name: "x", Aggregation: domain.AggregationType("nonsense")},
-			wantErr: true,
+			wantErr: "unknown aggregation",
 		},
 		{
 			name:    "sum without field is rejected",
 			in:      port.CreateMeterInput{OrgId: "org_1", Code: "c", Name: "x", Aggregation: domain.AggregationSum},
-			wantErr: true,
+			wantErr: "field_name is required",
 		},
 		{
 			name:    "bad rounding mode",
 			in:      port.CreateMeterInput{OrgId: "org_1", Code: "c", Name: "x", Aggregation: domain.AggregationCount, RoundingMode: "truncate"},
-			wantErr: true,
+			wantErr: "rounding_mode",
 		},
 	}
 
@@ -65,17 +66,23 @@ func TestMeterService_Create(t *testing.T) {
 			repo := &fakeMeterRepoSvc{}
 			svc := NewMeterService(repo, &recordingPubSub{}, silentLogger{})
 			_, err := svc.Create(context.Background(), tt.in)
-			if tt.wantErr && err == nil {
-				t.Fatalf("expected error, got nil")
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("error = %q, want it to contain %q", err.Error(), tt.wantErr)
+				}
+				if repo.createN != 0 {
+					t.Errorf("invalid input must not store, got %d writes", repo.createN)
+				}
+				return
 			}
-			if !tt.wantErr && err != nil {
+			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 			if tt.stored && repo.createN != 1 {
 				t.Errorf("expected meter stored once, got %d", repo.createN)
-			}
-			if tt.wantErr && repo.createN != 0 {
-				t.Errorf("invalid input must not store, got %d writes", repo.createN)
 			}
 		})
 	}

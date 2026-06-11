@@ -62,7 +62,13 @@ func (g *gatewayProvider) InitPayment(_ context.Context, input domain.InitPaymen
 	return domain.InitPaymentResponse{PspResponse: input}, nil
 }
 
-// ChargePayment always returns a succeeded charge.
+// DeclineToken is the memory gateway's test-card sentinel: a charge whose
+// payment-method token equals it is declined (a retryable card error), the way
+// PSP test cards decline. Every other token succeeds.
+const DeclineToken = "tok_decline"
+
+// ChargePayment returns a succeeded charge, unless the payment method carries
+// DeclineToken — then it returns a declined, retryable charge.
 //
 // The response is shaped to satisfy SubscriptionService.ChargeForBillingPeriod:
 // it reads Status (must be ChargePaymentStatusSuccess to map to
@@ -73,6 +79,25 @@ func (g *gatewayProvider) ChargePayment(_ context.Context, input domain.ChargePa
 	reference := input.Reference
 	if reference == "" {
 		reference = lib.GenerateId("memref")
+	}
+	if input.PaymentMethod.Token == DeclineToken {
+		return domain.ChargePaymentResponse{
+			Status:      domain.ChargePaymentStatusError,
+			Retryable:   true,
+			Psp:         domain.Memory,
+			PspId:       lib.GenerateId("mempsp"),
+			Reference:   reference,
+			Currency:    domain.Currency(input.Currency),
+			ErrorCode:   "card_declined",
+			ErrorReason: "memory gateway decline token",
+			PaymentType: "card",
+			PspResponse: map[string]any{
+				"gateway":   "memory",
+				"succeeded": false,
+				"amount":    input.Amount,
+				"currency":  input.Currency,
+			},
+		}
 	}
 	return domain.ChargePaymentResponse{
 		Status:        domain.ChargePaymentStatusSuccess,

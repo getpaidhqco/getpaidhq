@@ -20,6 +20,7 @@ func twoTiers() []PriceTier {
 }
 
 func TestPriceUsage_FractionalQuantities(t *testing.T) {
+	t.Parallel()
 	tests := []struct {
 		name      string
 		price     Price
@@ -92,6 +93,7 @@ func TestPriceUsage_FractionalQuantities(t *testing.T) {
 // The effective per-unit rate is derived from the ROUNDED total, so the line's
 // quantity × unit_amount reproduces the billed cents.
 func TestPriceUsage_EffectiveUnitRate(t *testing.T) {
+	t.Parallel()
 	t.Run("volume returns the band's rate", func(t *testing.T) {
 		_, unit := PriceUsage(Price{Scheme: Volume, Tiers: twoTiers()}, decimal.RequireFromString("10.5"))
 		assert.True(t, unit.Equal(decimal.NewFromInt(5)), "got %s", unit)
@@ -110,13 +112,15 @@ func TestPriceUsage_EffectiveUnitRate(t *testing.T) {
 // A used tier's FlatAmount is added once per tier (graduated) or once for the
 // reached band (volume).
 func TestPriceUsage_TierFlatAmounts(t *testing.T) {
+	t.Parallel()
 	tiers := []PriceTier{
 		{FromValue: decimal.Zero, ToValue: decimal.NewFromInt(10), PerUnitAmount: decimal.NewFromInt(10), FlatAmount: 100},
 		{FromValue: decimal.NewFromInt(10), ToValue: decimal.Zero, PerUnitAmount: decimal.NewFromInt(5), FlatAmount: 50},
 	}
 	t.Run("graduated adds each used tier's flat", func(t *testing.T) {
 		got, _ := PriceUsage(Price{Scheme: Graduated, Tiers: tiers}, decimal.RequireFromString("10.5"))
-		assert.Equal(t, int64(103+100+50), got) // 102.5 rounded once + both flats
+		// 10×10 + 0.5×5 + 100 + 50 = 252.5, rounded ONCE at the end → 253.
+		assert.Equal(t, int64(253), got)
 	})
 	t.Run("volume adds only the reached band's flat", func(t *testing.T) {
 		got, _ := PriceUsage(Price{Scheme: Volume, Tiers: tiers}, decimal.RequireFromString("10.5"))

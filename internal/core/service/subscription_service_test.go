@@ -109,13 +109,14 @@ func TestSubscriptionService_ResumeSubscription(t *testing.T) {
 		}}
 		svc := newSubscriptionService(subRepo, nil, nil, nil, nil, nil)
 
+		before := time.Now().UTC()
 		got, err := svc.ResumeSubscription(context.Background(), port.ResumeSubscriptionInput{
 			OrgId: "org_1", Id: "sub_1", ResumeBehavior: domain.StartNewBillingPeriod,
 		})
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.SubscriptionStatusActive, got.Status)
-		assert.True(t, got.RenewsAt.After(time.Now().UTC()), "renewal moved into the future")
+		assert.True(t, got.RenewsAt.After(before), "renewal moved into the future")
 	})
 
 	t.Run("continue-existing-period rejects when next billing is already past", func(t *testing.T) {

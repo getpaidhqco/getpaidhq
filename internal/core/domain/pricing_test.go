@@ -7,6 +7,7 @@ import (
 )
 
 func TestPriceUsage_Fixed(t *testing.T) {
+	t.Parallel()
 	p := Price{Scheme: Fixed, UnitPrice: 10} // 10 cents/unit
 	amt, unit := PriceUsage(p, decimal.NewFromInt(5000))
 	if amt != 50000 {
@@ -18,6 +19,7 @@ func TestPriceUsage_Fixed(t *testing.T) {
 }
 
 func TestPriceUsage_Graduated(t *testing.T) {
+	t.Parallel()
 	// first 100 units @ 10c (+ $2 flat=200), next units @ 5c
 	p := Price{Scheme: Graduated, Tiers: []PriceTier{
 		{FromValue: decimal.NewFromInt(0), ToValue: decimal.NewFromInt(100), PerUnitAmount: decimal.NewFromInt(10), FlatAmount: 200},
@@ -36,6 +38,7 @@ func TestPriceUsage_Graduated(t *testing.T) {
 }
 
 func TestPriceUsage_Volume(t *testing.T) {
+	t.Parallel()
 	// all units at the single tier the total reaches
 	p := Price{Scheme: Volume, Tiers: []PriceTier{
 		{FromValue: decimal.NewFromInt(0), ToValue: decimal.NewFromInt(100), PerUnitAmount: decimal.NewFromInt(2), FlatAmount: 1000},
@@ -57,6 +60,7 @@ func TestPriceUsage_Volume(t *testing.T) {
 }
 
 func TestPriceUsage_Tiered_AliasesGraduated(t *testing.T) {
+	t.Parallel()
 	p := Price{Scheme: Tiered, Tiers: []PriceTier{
 		{FromValue: decimal.Zero, ToValue: decimal.Zero, PerUnitAmount: decimal.NewFromInt(3)},
 	}}
