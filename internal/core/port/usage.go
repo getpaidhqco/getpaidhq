@@ -70,6 +70,12 @@ type UsageQuery struct {
 	FilterField   string
 	FilterValue   string
 	FilterExclude []string
+
+	// Proration switches for time-weighted carry-over aggregation, copied from the
+	// billing Price at query-build time (the meter owns how data is read; the price
+	// owns the deal). See docs/internal/billing-model/stock-billing-architecture-impact.md.
+	ProrateOnIncrease bool
+	CreditOnDecrease  bool
 }
 
 // GroupedUsage is one segment of a grouped aggregation: a single value of the group
@@ -92,7 +98,10 @@ type EventStore interface {
 	Sum(ctx context.Context, q UsageQuery) (decimal.Decimal, error)
 	Max(ctx context.Context, q UsageQuery) (decimal.Decimal, error)
 	Latest(ctx context.Context, q UsageQuery) (decimal.Decimal, error)
-	WeightedSum(ctx context.Context, q UsageQuery, initial decimal.Decimal) (decimal.Decimal, error)
+	// ListHistory returns the events matching q, ordered by timestamp. Carry-over
+	// reads call it with a zero From: events before the period determine the level
+	// standing when it starts.
+	ListHistory(ctx context.Context, q UsageQuery) ([]domain.MeterEvent, error)
 	// AggregateGrouped aggregates q (honouring its filter) partitioned by a single
 	// metadata key, returning one GroupedUsage per distinct value. Supports count, sum,
 	// unique_count, max; latest/weighted_sum return an error (need window queries).

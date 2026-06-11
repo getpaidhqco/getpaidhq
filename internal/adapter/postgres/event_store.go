@@ -138,9 +138,17 @@ func (s *EventStore) Latest(ctx context.Context, q port.UsageQuery) (decimal.Dec
 	return out, err
 }
 
-// WeightedSum (value averaged over time) needs a window query; deferred (spec phase 5).
-func (s *EventStore) WeightedSum(ctx context.Context, q port.UsageQuery, initial decimal.Decimal) (decimal.Decimal, error) {
-	return decimal.Zero, errors.New("weighted_sum aggregation not implemented")
+// ListHistory returns the events matching q, ordered by timestamp.
+func (s *EventStore) ListHistory(ctx context.Context, q port.UsageQuery) ([]domain.MeterEvent, error) {
+	var rows []meterEventRow
+	if err := s.scope(ctx, q).Order("timestamp ASC").Find(&rows).Error; err != nil {
+		return nil, err
+	}
+	out := make([]domain.MeterEvent, len(rows))
+	for i, r := range rows {
+		out[i] = r.toDomain()
+	}
+	return out, nil
 }
 
 // AggregateGrouped aggregates q partitioned by a single metadata key, one row per

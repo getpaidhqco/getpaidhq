@@ -52,6 +52,9 @@ func (s *MeterService) Create(ctx context.Context, in port.CreateMeterInput) (do
 	if err := validateFiltersAndGroups(in.Filters, in.GroupBy); err != nil {
 		return domain.BillableMetric{}, err
 	}
+	if err := validateCarryOver(in); err != nil {
+		return domain.BillableMetric{}, err
+	}
 
 	metric, err := s.meterRepository.Create(ctx, in.ToMetric())
 	if err != nil {
@@ -59,6 +62,34 @@ func (s *MeterService) Create(ctx context.Context, in port.CreateMeterInput) (do
 	}
 	_ = s.pubsub.Publish(in.OrgId, "meter.created", metric)
 	return metric, nil
+}
+
+// validateCarryOver guards carry-over (stock) meters: the aggregation must be one
+// of the standing-level readings, and filters/group_by have no defined replay
+// semantics on a ledger. docs/internal/billing-model/stock-billing-architecture-impact.md §4.
+func validateCarryOver(in port.CreateMeterInput) error {
+	if !in.CarryOver {
+		// A time-averaged quantity is a standing level — that's what carry_over
+		// means. A flow weighted_sum would reset to zero each period and underbill
+		// every quiet period, so it is forbidden outright.
+		if in.Aggregation == domain.AggregationWeightedSum {
+			return lib.NewCustomError(lib.BadRequestError, "weighted_sum requires carry_over: true", nil)
+		}
+		return nil
+	}
+	switch in.Aggregation {
+	case domain.AggregationLatest, domain.AggregationMax,
+		domain.AggregationUniqueCount, domain.AggregationWeightedSum:
+	default:
+		return lib.NewCustomError(lib.BadRequestError, "aggregation "+string(in.Aggregation)+" is not supported for carry-over meters", nil)
+	}
+	if len(in.Filters) > 0 {
+		return lib.NewCustomError(lib.BadRequestError, "filters are not supported on carry-over meters", nil)
+	}
+	if len(in.GroupBy) > 0 {
+		return lib.NewCustomError(lib.BadRequestError, "group_by is not supported on carry-over meters", nil)
+	}
+	return nil
 }
 
 // validateFiltersAndGroups guards the meter's filter (rate) and group (breakout)

@@ -283,9 +283,12 @@ type CreateProductPriceRequest struct {
 	// FilterField/FilterValue scope a metered price to one slice of its meter (a value
 	// of one of the meter's filters). filter_field empty = whole meter; filter_field
 	// set with empty filter_value = the default/catch-all charge.
-	FilterField string            `json:"filter_field" validate:"omitempty,max=255"`
-	FilterValue string            `json:"filter_value" validate:"omitempty,max=255"`
-	Metadata    map[string]string `json:"metadata"`
+	FilterField string `json:"filter_field" validate:"omitempty,max=255"`
+	FilterValue string `json:"filter_value" validate:"omitempty,max=255"`
+	// Proration switches for prices on weighted_sum carry-over meters; inert otherwise.
+	ProrateOnIncrease bool              `json:"prorate_on_increase"`
+	CreditOnDecrease  bool              `json:"credit_on_decrease"`
+	Metadata          map[string]string `json:"metadata"`
 }
 
 type CreatePriceRequest struct {
@@ -307,6 +310,8 @@ type CreatePriceRequest struct {
 	Tiers              []PriceTierRequest     `json:"tiers" validate:"omitempty,dive"`
 	FilterField        string                 `json:"filter_field" validate:"omitempty,max=255"`
 	FilterValue        string                 `json:"filter_value" validate:"omitempty,max=255"`
+	ProrateOnIncrease  bool                   `json:"prorate_on_increase"`
+	CreditOnDecrease   bool                   `json:"credit_on_decrease"`
 	Metadata           map[string]string      `json:"metadata"`
 }
 

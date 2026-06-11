@@ -19,7 +19,7 @@ type MeterResponse struct {
 	Name          string                 `json:"name"`
 	Aggregation   domain.AggregationType `json:"aggregation"`
 	FieldName     string                 `json:"field_name"`
-	Recurring     bool                   `json:"recurring"`
+	CarryOver     bool                   `json:"carry_over"`
 	RoundingMode  string                 `json:"rounding_mode"`
 	RoundingScale int                    `json:"rounding_scale"`
 	Filters       []MeterFilterResponse  `json:"filters"`
@@ -40,7 +40,7 @@ func NewMeterResponse(m domain.BillableMetric) MeterResponse {
 		Name:          m.Name,
 		Aggregation:   m.Aggregation,
 		FieldName:     m.FieldName,
-		Recurring:     m.Recurring,
+		CarryOver:     m.CarryOver,
 		RoundingMode:  m.RoundingMode,
 		RoundingScale: m.RoundingScale,
 		Filters:       filters,

@@ -20,7 +20,7 @@ type BillableMetric struct {
 	Name          string
 	Aggregation   AggregationType
 	FieldName     string // which event Metadata key to read; empty for count
-	Recurring     bool   // does the running total carry across billing periods
+	CarryOver     bool   // carry the aggregate forward across period boundaries (standing value snapshotted per period) instead of resetting each period
 	RoundingMode  string // round | ceil | floor | "" (none)
 	RoundingScale int    // decimal places for rounding the aggregated quantity
 	// Filters are the rate dimensions: each declares a metadata key + the values that

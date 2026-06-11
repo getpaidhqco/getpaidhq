@@ -239,15 +239,43 @@ func TestClickHouseEventStore_ExternalCustomerIdMatch(t *testing.T) {
 	assert.True(t, sum.Equal(decimal.NewFromInt(7)), "3 + 4, got %s", sum)
 }
 
-// TestClickHouseEventStore_WeightedSum_NotImplemented pins the deferred weighted_sum
-// aggregation on the ClickHouse adapter, matching the Postgres adapter's behaviour.
-func TestClickHouseEventStore_WeightedSum_NotImplemented(t *testing.T) {
+// TestClickHouseEventStore_ListHistory mirrors the Postgres adapter's
+// TestEventStore_ListHistory: a zero From reads the full history up to To (the
+// carry-over read), results are ordered by timestamp, and a resend sharing an
+// external_id collapses to one row at read time.
+func TestClickHouseEventStore_ListHistory(t *testing.T) {
 	conn := testConn(t)
 	store := NewEventStoreWithConn(conn)
 	ctx := context.Background()
+	orgId := "org_" + t.Name()
 
-	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
-	q := port.UsageQuery{OrgId: "org_x", MetricCode: "api_calls", From: from, To: from.Add(time.Hour), CustomerId: "cus_1"}
-	_, err := store.WeightedSum(ctx, q, decimal.Zero)
-	require.Error(t, err, "weighted_sum is deferred on ClickHouse too")
+	jul1 := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
+	mk := func(id, ext, seat string, ts time.Time) domain.MeterEvent {
+		return domain.MeterEvent{
+			OrgId: orgId, Id: id, CustomerId: "cus_hist", MetricCode: "seats",
+			ExternalId: ext,
+			Metadata:   map[string]string{domain.UsageOperationKey: domain.UsageOperationAdd, "seat_id": seat},
+			Timestamp:  ts, CreatedAt: ts,
+		}
+	}
+	events := []domain.MeterEvent{
+		mk("h2", "xh2", "bob", time.Date(2026, 6, 16, 0, 0, 0, 0, time.UTC)),
+		mk("h1", "xh1", "alice", time.Date(2026, 5, 20, 0, 0, 0, 0, time.UTC)), // pre-period, ingested out of order
+		mk("h1b", "xh1", "alice", time.Date(2026, 5, 20, 0, 0, 0, 0, time.UTC)), // resend of xh1 → read-time dedup
+		mk("h3", "xh3", "late", time.Date(2026, 7, 2, 0, 0, 0, 0, time.UTC)),   // after the period
+	}
+	for _, e := range events {
+		_, err := store.Ingest(ctx, e)
+		require.NoError(t, err)
+	}
+
+	got, err := store.ListHistory(ctx, port.UsageQuery{
+		OrgId: orgId, MetricCode: "seats", CustomerId: "cus_hist",
+		To: jul1, // zero From: full history up to the period end
+	})
+	require.NoError(t, err)
+	require.Len(t, got, 2, "pre-period included, post-period excluded, resend collapsed")
+	assert.Equal(t, "alice", got[0].Metadata["seat_id"], "ordered by timestamp")
+	assert.Equal(t, "bob", got[1].Metadata["seat_id"])
+	assert.Equal(t, domain.UsageOperationAdd, got[0].Metadata[domain.UsageOperationKey], "metadata round-trips")
 }

@@ -21,7 +21,7 @@ type CreateMeterRequest struct {
 	Name          string                 `json:"name" validate:"required,min=1,max=255"`
 	Aggregation   domain.AggregationType `json:"aggregation" validate:"required,oneof=count sum max latest weighted_sum unique_count"`
 	FieldName     string                 `json:"field_name" validate:"omitempty,max=255"`
-	Recurring     bool                   `json:"recurring"`
+	CarryOver     bool                   `json:"carry_over"`
 	RoundingMode  string                 `json:"rounding_mode" validate:"omitempty,oneof=round ceil floor"`
 	RoundingScale int                    `json:"rounding_scale" validate:"omitempty,gte=0,lte=18"`
 	// Filters are the rate dimensions (each value gets its own metered Price). GroupBy
@@ -44,7 +44,7 @@ func (r CreateMeterRequest) ToInput(orgId string) port.CreateMeterInput {
 		Name:          r.Name,
 		Aggregation:   r.Aggregation,
 		FieldName:     r.FieldName,
-		Recurring:     r.Recurring,
+		CarryOver:     r.CarryOver,
 		RoundingMode:  r.RoundingMode,
 		RoundingScale: r.RoundingScale,
 		Filters:       filters,
