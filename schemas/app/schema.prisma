@@ -286,6 +286,9 @@ model Price {
 
   currency  String
   unitPrice Int    @map("unit_price")
+  // Units unitPrice buys (fixed scheme): effective rate = unitPrice/unitCount
+  // cents per unit, so an integer-cent price can express sub-cent rates.
+  unitCount Int    @default(1) @map("unit_count")
 
   cycles             Int?
   billingInterval    BillingInterval? @map("billing_interval")

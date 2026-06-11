@@ -271,6 +271,10 @@ type CreateProductPriceRequest struct {
 	Cycles             int                    `json:"cycles" validate:"omitempty,gt=0"`
 	Currency           string                 `json:"currency" validate:"required,iso4217"`
 	UnitPrice          int64                  `json:"unit_price" validate:"gte=0"`
+	// UnitCount is how many units unit_price buys (fixed scheme only): rate =
+	// unit_price/unit_count cents per unit ("$1 per 1000 calls" = 100/1000).
+	// Omitted or 1 = per single unit.
+	UnitCount          int                    `json:"unit_count" validate:"omitempty,gte=1"`
 	MinPrice           int64                  `json:"min_price" validate:"omitempty,gte=0"`
 	SuggestedPrice     int64                  `json:"suggested_price" validate:"omitempty,gte=0"`
 	BillingInterval    domain.BillingInterval `json:"billing_interval" validate:"omitempty,oneof=none minute hour day week month year"`
@@ -299,6 +303,9 @@ type CreatePriceRequest struct {
 	Label              string                 `json:"label"`
 	Currency           string                 `json:"currency" validate:"required,iso4217"`
 	UnitPrice          int64                  `json:"unit_price" validate:"gte=0"`
+	// UnitCount is how many units unit_price buys (fixed scheme only); see
+	// CreateProductPriceRequest.UnitCount.
+	UnitCount          int                    `json:"unit_count" validate:"omitempty,gte=1"`
 	MinPrice           int64                  `json:"min_price" validate:"omitempty,gte=0"`
 	SuggestedPrice     int64                  `json:"suggested_price" validate:"omitempty,gte=0"`
 	BillingInterval    domain.BillingInterval `json:"billing_interval" validate:"omitempty,oneof=none minute hour day week month year"`

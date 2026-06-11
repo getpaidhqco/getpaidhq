@@ -22,9 +22,33 @@ func PriceUsage(p Price, units decimal.Decimal) (amountCents int64, unitAmountCe
 	case Graduated, Tiered: // Tiered is an alias for Graduated
 		return priceGraduated(p.Tiers, units)
 	default: // Fixed
-		unit := decimal.NewFromInt(p.UnitPrice)
-		return unit.Mul(units).Round(0).IntPart(), unit
+		return priceFixed(p, units)
 	}
+}
+
+// priceFixed bills units at UnitPrice cents per UnitCount units (UnitCount <= 1
+// means per single unit). The division happens before the single rounding, so a
+// sub-cent effective rate accumulates exactly across the quantity.
+func priceFixed(p Price, units decimal.Decimal) (int64, decimal.Decimal) {
+	unit := decimal.NewFromInt(p.UnitPrice)
+	if p.UnitCount > 1 {
+		count := decimal.NewFromInt(int64(p.UnitCount))
+		return unit.Mul(units).Div(count).Round(0).IntPart(), unit.Div(count)
+	}
+	return unit.Mul(units).Round(0).IntPart(), unit
+}
+
+// FixedLineAmount is the whole-cent charge for an integer quantity at unitPrice
+// cents per unitCount units — the cart/order line total. unitCount <= 1 keeps
+// plain integer multiplication.
+func FixedLineAmount(unitPrice, unitCount, quantity int64) int64 {
+	if unitCount <= 1 {
+		return unitPrice * quantity
+	}
+	return decimal.NewFromInt(unitPrice).
+		Mul(decimal.NewFromInt(quantity)).
+		Div(decimal.NewFromInt(unitCount)).
+		Round(0).IntPart()
 }
 
 // priceGraduated bills each unit at the rate of the tier it falls into; total is the

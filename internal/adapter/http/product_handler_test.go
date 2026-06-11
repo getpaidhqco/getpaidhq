@@ -467,6 +467,66 @@ func TestProductHandler_UpdatePrice_WithTiers(t *testing.T) {
 	assert.Equal(t, int64(50), got.Tiers[0].FlatAmount)
 }
 
+// ---------------------------------------------------------------------------
+// unit_count at the HTTP boundary: how many units unit_price buys (fixed
+// scheme). Sub-cent effective rates without a fractional wire type.
+// ---------------------------------------------------------------------------
+
+func TestProductHandler_CreatePrice_WithUnitCount(t *testing.T) {
+	price := &fakePriceRepo{}
+	h := newProductHandlerForTest(t, &fakeProductRepo{}, &fakeVariantRepo{}, price, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/prices", CreatePriceRequest{
+		VariantId: "var_1", Category: "subscription", Scheme: "fixed", Currency: "USD",
+		UnitPrice: 100, UnitCount: 1000, // $1 per 1000 units
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.Len(t, price.created, 1)
+	assert.Equal(t, 1000, price.created[0].UnitCount)
+
+	var got PriceResponse
+	decodeJSON(t, rec, &got)
+	assert.Equal(t, 1000, got.UnitCount)
+}
+
+func TestProductHandler_CreatePrice_UnitCountDefaultsToOne(t *testing.T) {
+	// Omitted unit_count normalizes to 1 (per single unit) before persistence.
+	price := &fakePriceRepo{}
+	h := newProductHandlerForTest(t, &fakeProductRepo{}, &fakeVariantRepo{}, price, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/prices", CreatePriceRequest{
+		VariantId: "var_1", Category: "one_time", Scheme: "fixed", Currency: "USD", UnitPrice: 200,
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.Len(t, price.created, 1)
+	assert.Equal(t, 1, price.created[0].UnitCount)
+}
+
+func TestProductHandler_CreatePrice_UnitCountRejectedOnTieredScheme(t *testing.T) {
+	// Tiers carry their own per-unit rates; unit_count only modifies the fixed scheme.
+	price := &fakePriceRepo{}
+	h := newProductHandlerForTest(t, &fakeProductRepo{}, &fakeVariantRepo{}, price, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/prices", CreatePriceRequest{
+		VariantId: "var_1", Category: "one_time", Scheme: "tiered", Currency: "USD", UnitCount: 1000,
+		Tiers: []PriceTierRequest{{FromValue: "0", ToValue: "", PerUnitAmount: "5"}},
+	})
+
+	assertErrorEnvelope(t, rec, http.StatusBadRequest, "bad_request")
+	assert.Empty(t, price.created)
+}
+
 func TestProductHandler_CreateProduct_WithPriceTiers(t *testing.T) {
 	// Valid tiers parse via the nested product create path (Create → variant → price).
 	price := &fakePriceRepo{}
