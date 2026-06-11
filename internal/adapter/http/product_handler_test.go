@@ -527,6 +527,92 @@ func TestProductHandler_CreatePrice_UnitCountRejectedOnTieredScheme(t *testing.T
 	assert.Empty(t, price.created)
 }
 
+// ---------------------------------------------------------------------------
+// package scheme at the HTTP boundary: every started block of unit_count units
+// bills unit_price in full. Metered only; flat (no tiers).
+// ---------------------------------------------------------------------------
+
+func TestProductHandler_CreatePrice_PackageScheme(t *testing.T) {
+	// "$5 per started 1,000 SMS": package needs a meter and carries the same
+	// (unit_price, unit_count) pair as fixed.
+	price := &fakePriceRepo{}
+	h := newProductHandlerForTest(t, &fakeProductRepo{}, &fakeVariantRepo{}, price, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/prices", CreatePriceRequest{
+		VariantId: "var_1", Category: "subscription", Scheme: "package", Currency: "USD",
+		UnitPrice: 500, UnitCount: 1000, BillableMetricId: "met_1",
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.Len(t, price.created, 1)
+	assert.Equal(t, domain.Package, price.created[0].Scheme)
+	assert.Equal(t, int64(500), price.created[0].UnitPrice)
+	assert.Equal(t, 1000, price.created[0].UnitCount)
+
+	var got PriceResponse
+	decodeJSON(t, rec, &got)
+	assert.Equal(t, domain.Package, got.Scheme)
+	assert.Equal(t, 1000, got.UnitCount)
+}
+
+func TestProductHandler_CreatePrice_PackageRequiresMetric(t *testing.T) {
+	// Package bills started blocks of usage — without a meter there is no usage.
+	price := &fakePriceRepo{}
+	h := newProductHandlerForTest(t, &fakeProductRepo{}, &fakeVariantRepo{}, price, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/prices", CreatePriceRequest{
+		VariantId: "var_1", Category: "subscription", Scheme: "package", Currency: "USD",
+		UnitPrice: 500, UnitCount: 1000,
+	})
+
+	assertErrorEnvelope(t, rec, http.StatusBadRequest, "bad_request")
+	assert.Empty(t, price.created)
+}
+
+func TestProductHandler_CreatePrice_PackageRejectsTiers(t *testing.T) {
+	// Package is flat by definition — block #1 costs the same as block #500.
+	price := &fakePriceRepo{}
+	h := newProductHandlerForTest(t, &fakeProductRepo{}, &fakeVariantRepo{}, price, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/prices", CreatePriceRequest{
+		VariantId: "var_1", Category: "subscription", Scheme: "package", Currency: "USD",
+		UnitPrice: 500, UnitCount: 1000, BillableMetricId: "met_1",
+		Tiers: []PriceTierRequest{{FromValue: "0", ToValue: "", PerUnitAmount: "5"}},
+	})
+
+	assertErrorEnvelope(t, rec, http.StatusBadRequest, "bad_request")
+	assert.Empty(t, price.created)
+}
+
+func TestProductHandler_UpdatePrice_ToPackageScheme(t *testing.T) {
+	// An existing metered price can switch to package via update.
+	price := &fakePriceRepo{byId: domain.Price{Id: "price_1"}}
+	h := newProductHandlerForTest(t, &fakeProductRepo{}, &fakeVariantRepo{}, price, &fakeCartRepo{})
+
+	ts := newTestServer(fixedAuthMiddleware(adminUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPatch, "/api/prices/price_1", CreatePriceRequest{
+		VariantId: "var_1", Category: "subscription", Scheme: "package", Currency: "USD",
+		UnitPrice: 500, UnitCount: 1000, BillableMetricId: "met_1",
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	var got PriceResponse
+	decodeJSON(t, rec, &got)
+	assert.Equal(t, domain.Package, got.Scheme)
+	assert.Equal(t, 1000, got.UnitCount)
+}
+
 func TestProductHandler_CreateProduct_WithPriceTiers(t *testing.T) {
 	// Valid tiers parse via the nested product create path (Create → variant → price).
 	price := &fakePriceRepo{}

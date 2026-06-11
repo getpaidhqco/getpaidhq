@@ -95,6 +95,7 @@ func TestValidatePriceConfig(t *testing.T) {
 		scheme    domain.PriceScheme
 		tiers     []domain.PriceTier
 		unitCount int
+		metricId  string
 		wantErr   bool
 	}{
 		{name: "fixed needs no tiers", scheme: domain.Fixed},
@@ -106,10 +107,13 @@ func TestValidatePriceConfig(t *testing.T) {
 		{name: "graduated rejects unit_count", scheme: domain.Graduated, tiers: tier, unitCount: 1000, wantErr: true},
 		{name: "volume rejects unit_count", scheme: domain.Volume, tiers: tier, unitCount: 2, wantErr: true},
 		{name: "tiered with unit_count 1 ok", scheme: domain.Tiered, tiers: tier, unitCount: 1},
+		{name: "package with metric ok", scheme: domain.Package, unitCount: 1000, metricId: "met_1"},
+		{name: "package requires a metric", scheme: domain.Package, unitCount: 1000, wantErr: true},
+		{name: "package rejects tiers", scheme: domain.Package, tiers: tier, metricId: "met_1", wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validatePriceConfig(tt.scheme, tt.tiers, tt.unitCount)
+			err := validatePriceConfig(tt.scheme, tt.tiers, tt.unitCount, tt.metricId)
 			if tt.wantErr && err == nil {
 				t.Fatalf("expected error, got nil")
 			}

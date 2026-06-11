@@ -131,7 +131,7 @@ func (s *ProductService) FindById(ctx context.Context, orgId string, id string) 
 }
 
 func (s *ProductService) CreateProductPrice(ctx context.Context, input port.CreatePriceInput) (domain.Price, error) {
-	if err := validatePriceConfig(input.Scheme, input.Tiers, input.UnitCount); err != nil {
+	if err := validatePriceConfig(input.Scheme, input.Tiers, input.UnitCount, input.BillableMetricId); err != nil {
 		return domain.Price{}, err
 	}
 
@@ -371,7 +371,7 @@ func (s *ProductService) ListPrices(ctx context.Context, orgId string, variantId
 }
 
 func (s *ProductService) UpdatePrice(ctx context.Context, orgId string, id string, input port.CreatePriceInput) (domain.Price, error) {
-	if err := validatePriceConfig(input.Scheme, input.Tiers, input.UnitCount); err != nil {
+	if err := validatePriceConfig(input.Scheme, input.Tiers, input.UnitCount, input.BillableMetricId); err != nil {
 		return domain.Price{}, err
 	}
 	price, err := s.priceRepository.FindById(ctx, orgId, id)
@@ -516,17 +516,26 @@ func (s *ProductService) GetVariantDetails(ctx context.Context, orgId, id string
 }
 
 // validatePriceConfig checks a graduated/volume/tiered scheme carries at least one
-// rate tier and that unit_count is only used with the fixed scheme (tiers carry
-// their own per-unit rates). (Metering needs no category check — a price is
-// metered iff it has a meter attached; see Price.IsMetered.)
-func validatePriceConfig(scheme domain.PriceScheme, tiers []domain.PriceTier, unitCount int) error {
+// rate tier and that unit_count is only used with the fixed and package schemes
+// (tiers carry their own per-unit rates). A package price bills started blocks of
+// usage, so it must be metered and is flat by definition (no tiers). (Otherwise
+// metering needs no category check — a price is metered iff it has a meter
+// attached; see Price.IsMetered.)
+func validatePriceConfig(scheme domain.PriceScheme, tiers []domain.PriceTier, unitCount int, billableMetricId string) error {
 	switch scheme {
 	case domain.Graduated, domain.Volume, domain.Tiered:
 		if len(tiers) == 0 {
 			return lib.NewCustomError(lib.BadRequestError, "tiers are required for graduated, volume, or tiered schemes", nil)
 		}
 		if unitCount > 1 {
-			return lib.NewCustomError(lib.BadRequestError, "unit_count applies only to the fixed scheme", nil)
+			return lib.NewCustomError(lib.BadRequestError, "unit_count applies only to the fixed and package schemes", nil)
+		}
+	case domain.Package:
+		if billableMetricId == "" {
+			return lib.NewCustomError(lib.BadRequestError, "package scheme requires a billable metric — it bills started blocks of usage", nil)
+		}
+		if len(tiers) > 0 {
+			return lib.NewCustomError(lib.BadRequestError, "package scheme is flat — tiers are not allowed", nil)
 		}
 	}
 	return nil

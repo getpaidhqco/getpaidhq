@@ -267,13 +267,14 @@ type CreateProductVariantRequest struct {
 type CreateProductPriceRequest struct {
 	Label              string                 `json:"label" validate:"omitempty,min=1,max=255"`
 	Category           domain.PriceCategory   `json:"category" validate:"required,oneof=one_time subscription free variable"`
-	Scheme             domain.PriceScheme     `json:"scheme" validate:"required,oneof=fixed tiered volume graduated"`
+	Scheme             domain.PriceScheme     `json:"scheme" validate:"required,oneof=fixed tiered volume graduated package"`
 	Cycles             int                    `json:"cycles" validate:"omitempty,gt=0"`
 	Currency           string                 `json:"currency" validate:"required,iso4217"`
 	UnitPrice          int64                  `json:"unit_price" validate:"gte=0"`
-	// UnitCount is how many units unit_price buys (fixed scheme only): rate =
+	// UnitCount is how many units unit_price buys (fixed and package schemes): rate =
 	// unit_price/unit_count cents per unit ("$1 per 1000 calls" = 100/1000).
-	// Omitted or 1 = per single unit.
+	// Omitted or 1 = per single unit. Fixed prorates a partial unit_count block;
+	// package bills every started block in full ("$5 per started 1,000 SMS").
 	UnitCount          int                    `json:"unit_count" validate:"omitempty,gte=1"`
 	MinPrice           int64                  `json:"min_price" validate:"omitempty,gte=0"`
 	SuggestedPrice     int64                  `json:"suggested_price" validate:"omitempty,gte=0"`
@@ -298,12 +299,12 @@ type CreateProductPriceRequest struct {
 type CreatePriceRequest struct {
 	VariantId          string                 `json:"variant_id" validate:"required"`
 	Category           domain.PriceCategory   `json:"category" validate:"required,oneof=one_time subscription free variable"`
-	Scheme             domain.PriceScheme     `json:"scheme" validate:"required,oneof=fixed tiered volume graduated"`
+	Scheme             domain.PriceScheme     `json:"scheme" validate:"required,oneof=fixed tiered volume graduated package"`
 	Cycles             int                    `json:"cycles" validate:"omitempty,gt=0"`
 	Label              string                 `json:"label"`
 	Currency           string                 `json:"currency" validate:"required,iso4217"`
 	UnitPrice          int64                  `json:"unit_price" validate:"gte=0"`
-	// UnitCount is how many units unit_price buys (fixed scheme only); see
+	// UnitCount is how many units unit_price buys (fixed and package schemes); see
 	// CreateProductPriceRequest.UnitCount.
 	UnitCount          int                    `json:"unit_count" validate:"omitempty,gte=1"`
 	MinPrice           int64                  `json:"min_price" validate:"omitempty,gte=0"`

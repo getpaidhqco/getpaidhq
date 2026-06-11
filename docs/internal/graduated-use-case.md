@@ -169,4 +169,6 @@ first emails" — volume would retroactively discount the whole quantity
 
 - Filters vs groups (splitting a priced line for visibility, e.g. per `project` or
   `api_key`, at the **same** rate): `billing-model.md`.
+- Package worked example (flat block pricing — a started block owes the full
+  block): `package-use-case.md`.
 - Metered cadence is capped at monthly (`Price.SubscriptionCadence`, `price.go:59`).
