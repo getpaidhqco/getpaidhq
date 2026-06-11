@@ -16,6 +16,7 @@ type CreatePriceInput struct {
 	Cycles             int
 	Currency           string
 	UnitPrice          int64
+	UnitCount          int // units UnitPrice buys (fixed scheme); <= 1 = per single unit
 	MinPrice           int64
 	SuggestedPrice     int64
 	BillingInterval    domain.BillingInterval
@@ -53,6 +54,7 @@ func (input CreatePriceInput) ToPrice(orgId, variantId string) domain.Price {
 		Cycles:             input.Cycles,
 		Currency:           domain.Currency(input.Currency),
 		UnitPrice:          input.UnitPrice,
+		UnitCount:          max(1, input.UnitCount),
 		MinPrice:           input.MinPrice,
 		SuggestedPrice:     input.SuggestedPrice,
 		BillingInterval:    billingInterval,
@@ -80,6 +82,7 @@ type CreateProductPriceInput struct {
 	Cycles             int
 	Currency           string
 	UnitPrice          int64
+	UnitCount          int // units UnitPrice buys (fixed scheme); <= 1 = per single unit
 	MinPrice           int64
 	SuggestedPrice     int64
 	BillingInterval    domain.BillingInterval

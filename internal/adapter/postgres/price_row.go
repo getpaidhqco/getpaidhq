@@ -17,6 +17,7 @@ type priceRow struct {
 	Cycles             int                    `gorm:"column:cycles"`
 	Currency           domain.Currency        `gorm:"column:currency"`
 	UnitPrice          int64                  `gorm:"column:unit_price"`
+	UnitCount          int                    `gorm:"column:unit_count"`
 	MinPrice           int64                  `gorm:"column:min_price"`
 	SuggestedPrice     int64                  `gorm:"column:suggested_price"`
 	BillingInterval    domain.BillingInterval `gorm:"column:billing_interval"`
@@ -48,6 +49,7 @@ func (r priceRow) toDomain() domain.Price {
 		Cycles:             r.Cycles,
 		Currency:           r.Currency,
 		UnitPrice:          r.UnitPrice,
+		UnitCount:          r.UnitCount,
 		MinPrice:           r.MinPrice,
 		SuggestedPrice:     r.SuggestedPrice,
 		BillingInterval:    r.BillingInterval,
@@ -78,6 +80,7 @@ func priceRowFromDomain(p domain.Price) priceRow {
 		Cycles:             p.Cycles,
 		Currency:           p.Currency,
 		UnitPrice:          p.UnitPrice,
+		UnitCount:          p.UnitCount,
 		MinPrice:           p.MinPrice,
 		SuggestedPrice:     p.SuggestedPrice,
 		BillingInterval:    p.BillingInterval,

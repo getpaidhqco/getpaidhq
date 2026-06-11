@@ -75,11 +75,12 @@ func (s *CartService) AddProduct(ctx context.Context, input port.AddProductComma
 		Description:   product.Name,
 		Quantity:      int64(input.Quantity),
 		UnitPrice:     price.UnitPrice,
-		SubTotal:      price.UnitPrice * int64(input.Quantity),
+		UnitCount:     int64(price.UnitCount),
+		SubTotal:      domain.FixedLineAmount(price.UnitPrice, int64(price.UnitCount), int64(input.Quantity)),
 		DiscountTotal: 0,
 		TaxTotal:      0,
 		ShippingTotal: 0,
-		Total:         price.UnitPrice * int64(input.Quantity),
+		Total:         domain.FixedLineAmount(price.UnitPrice, int64(price.UnitCount), int64(input.Quantity)),
 	})
 	cartEntity.Calculate()
 

@@ -301,6 +301,7 @@ type PriceResponse struct {
 	Cycles             int                    `json:"cycles"`
 	Currency           domain.Currency        `json:"currency"`
 	UnitPrice          int64                  `json:"unit_price"`
+	UnitCount          int                    `json:"unit_count"` // units unit_price buys; 1 = per single unit
 	MinPrice           int64                  `json:"min_price"`
 	SuggestedPrice     int64                  `json:"suggested_price"`
 	BillingInterval    domain.BillingInterval `json:"billing_interval"`
@@ -346,6 +347,7 @@ func NewPriceFromEntity(entity domain.Price) PriceResponse {
 		Cycles:             entity.Cycles,
 		Currency:           entity.Currency,
 		UnitPrice:          entity.UnitPrice,
+		UnitCount:          entity.UnitCount,
 		MinPrice:           entity.MinPrice,
 		SuggestedPrice:     entity.SuggestedPrice,
 		BillingInterval:    entity.BillingInterval,

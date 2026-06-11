@@ -79,6 +79,7 @@ func (s *ProductService) CreateProduct(ctx context.Context, orgId string, input 
 					Cycles:             p.Cycles,
 					Currency:           p.Currency,
 					UnitPrice:          p.UnitPrice,
+					UnitCount:          p.UnitCount,
 					MinPrice:           p.MinPrice,
 					SuggestedPrice:     p.SuggestedPrice,
 					BillingInterval:    p.BillingInterval,
@@ -130,7 +131,7 @@ func (s *ProductService) FindById(ctx context.Context, orgId string, id string) 
 }
 
 func (s *ProductService) CreateProductPrice(ctx context.Context, input port.CreatePriceInput) (domain.Price, error) {
-	if err := validatePriceConfig(input.Scheme, input.Tiers); err != nil {
+	if err := validatePriceConfig(input.Scheme, input.Tiers, input.UnitCount); err != nil {
 		return domain.Price{}, err
 	}
 
@@ -151,6 +152,7 @@ func (s *ProductService) CreateProductPrice(ctx context.Context, input port.Crea
 		Cycles:             input.Cycles,
 		Currency:           domain.Currency(input.Currency),
 		UnitPrice:          input.UnitPrice,
+		UnitCount:          max(1, input.UnitCount),
 		MinPrice:           input.MinPrice,
 		SuggestedPrice:     input.SuggestedPrice,
 		BillingInterval:    input.BillingInterval,
@@ -369,7 +371,7 @@ func (s *ProductService) ListPrices(ctx context.Context, orgId string, variantId
 }
 
 func (s *ProductService) UpdatePrice(ctx context.Context, orgId string, id string, input port.CreatePriceInput) (domain.Price, error) {
-	if err := validatePriceConfig(input.Scheme, input.Tiers); err != nil {
+	if err := validatePriceConfig(input.Scheme, input.Tiers, input.UnitCount); err != nil {
 		return domain.Price{}, err
 	}
 	price, err := s.priceRepository.FindById(ctx, orgId, id)
@@ -391,6 +393,7 @@ func (s *ProductService) UpdatePrice(ctx context.Context, orgId string, id strin
 	price.Cycles = input.Cycles
 	price.Currency = domain.Currency(input.Currency)
 	price.UnitPrice = input.UnitPrice
+	price.UnitCount = max(1, input.UnitCount)
 	price.MinPrice = input.MinPrice
 	price.SuggestedPrice = input.SuggestedPrice
 	price.BillingInterval = input.BillingInterval
@@ -513,13 +516,17 @@ func (s *ProductService) GetVariantDetails(ctx context.Context, orgId, id string
 }
 
 // validatePriceConfig checks a graduated/volume/tiered scheme carries at least one
-// rate tier. (Metering needs no category check — a price is metered iff it has a
-// meter attached; see Price.IsMetered.)
-func validatePriceConfig(scheme domain.PriceScheme, tiers []domain.PriceTier) error {
+// rate tier and that unit_count is only used with the fixed scheme (tiers carry
+// their own per-unit rates). (Metering needs no category check — a price is
+// metered iff it has a meter attached; see Price.IsMetered.)
+func validatePriceConfig(scheme domain.PriceScheme, tiers []domain.PriceTier, unitCount int) error {
 	switch scheme {
 	case domain.Graduated, domain.Volume, domain.Tiered:
 		if len(tiers) == 0 {
 			return lib.NewCustomError(lib.BadRequestError, "tiers are required for graduated, volume, or tiered schemes", nil)
+		}
+		if unitCount > 1 {
+			return lib.NewCustomError(lib.BadRequestError, "unit_count applies only to the fixed scheme", nil)
 		}
 	}
 	return nil

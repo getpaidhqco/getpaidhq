@@ -91,20 +91,25 @@ func TestMeterService_Create(t *testing.T) {
 func TestValidatePriceConfig(t *testing.T) {
 	tier := []domain.PriceTier{{}}
 	tests := []struct {
-		name    string
-		scheme  domain.PriceScheme
-		tiers   []domain.PriceTier
-		wantErr bool
+		name      string
+		scheme    domain.PriceScheme
+		tiers     []domain.PriceTier
+		unitCount int
+		wantErr   bool
 	}{
 		{name: "fixed needs no tiers", scheme: domain.Fixed},
 		{name: "graduated needs tiers", scheme: domain.Graduated, wantErr: true},
 		{name: "graduated with tiers ok", scheme: domain.Graduated, tiers: tier},
 		{name: "volume needs tiers", scheme: domain.Volume, wantErr: true},
 		{name: "tiered with tiers ok", scheme: domain.Tiered, tiers: tier},
+		{name: "fixed allows unit_count", scheme: domain.Fixed, unitCount: 1000},
+		{name: "graduated rejects unit_count", scheme: domain.Graduated, tiers: tier, unitCount: 1000, wantErr: true},
+		{name: "volume rejects unit_count", scheme: domain.Volume, tiers: tier, unitCount: 2, wantErr: true},
+		{name: "tiered with unit_count 1 ok", scheme: domain.Tiered, tiers: tier, unitCount: 1},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			err := validatePriceConfig(tt.scheme, tt.tiers)
+			err := validatePriceConfig(tt.scheme, tt.tiers, tt.unitCount)
 			if tt.wantErr && err == nil {
 				t.Fatalf("expected error, got nil")
 			}

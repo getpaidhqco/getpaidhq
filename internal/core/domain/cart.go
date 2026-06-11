@@ -27,6 +27,7 @@ type CartLineItem struct {
 	Description   string        `json:"description"`
 	Quantity      int64         `json:"quantity"`
 	UnitPrice     int64         `json:"unit_price"`
+	UnitCount     int64         `json:"unit_count,omitempty"` // units UnitPrice buys; 0/1 = per single unit
 	TaxTotal      int64         `json:"tax_total"`
 	SubTotal      int64         `json:"sub_total"`
 	DiscountTotal int64         `json:"discount_total"`
@@ -36,7 +37,7 @@ type CartLineItem struct {
 
 // Calculate recalculates the line item totals.
 func (i *CartLineItem) Calculate() {
-	i.SubTotal = i.UnitPrice * i.Quantity
+	i.SubTotal = FixedLineAmount(i.UnitPrice, i.UnitCount, i.Quantity)
 	i.Total = i.SubTotal
 }
 
@@ -56,6 +57,7 @@ type CartItemPrice struct {
 	Currency           string          `json:"currency"`
 	Cycles             int64           `json:"cycles"`
 	UnitPrice          int64           `json:"unit_price"`
+	UnitCount          int64           `json:"unit_count,omitempty"`
 	MinPrice           int64           `json:"min_price"`
 	SuggestedPrice     int64           `json:"suggested_price"`
 	BillingInterval    BillingInterval `json:"billing_interval"`
@@ -83,6 +85,7 @@ func PriceToCartItemPrice(p Price) CartItemPrice {
 		Currency:           string(p.Currency),
 		Cycles:             int64(p.Cycles),
 		UnitPrice:          p.UnitPrice,
+		UnitCount:          int64(p.UnitCount),
 		BillingInterval:    p.BillingInterval,
 		BillingIntervalQty: int64(p.BillingIntervalQty),
 		TrialInterval:      p.TrialInterval,

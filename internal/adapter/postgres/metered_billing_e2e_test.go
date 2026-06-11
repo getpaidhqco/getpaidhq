@@ -243,6 +243,35 @@ func TestMeteredSubscriptionBilling_E2E(t *testing.T) {
 	assert.True(t, persisted.CurrentPeriodEnd.Equal(nextEnd), "next period ends one interval later")
 }
 
+// TestMeteredBilling_UnitCount_E2E bills a sub-cent effective rate end to end:
+// $1 per 1000 calls (UnitPrice 100, UnitCount 1000). 25 counted events =
+// 2.5c, divided before the single round → 3c on the charge, the invoice total,
+// and the usage line.
+func TestMeteredBilling_UnitCount_E2E(t *testing.T) {
+	db := testDB(t)
+	orgId := uniqueOrg(t)
+	cleanupOrg(t, db, orgId)
+
+	jan1 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	feb1 := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
+	fx := seedUsageFixture(t, db, orgId,
+		domain.BillableMetric{Code: "api_calls", Name: "API calls", Aggregation: domain.AggregationCount},
+		domain.Price{Label: "API calls", Scheme: domain.Fixed, UnitPrice: 100, UnitCount: 1000},
+		jan1, feb1)
+	seedMemoryPspForSub(t, db, orgId, &fx.sub)
+
+	usage := buildUsageService(t, db)
+	for i := range 25 {
+		recordUsage(t, usage, port.RecordEventInput{
+			OrgId: orgId, CustomerId: fx.customer.Id, MetricCode: fx.meter.Code,
+			SubscriptionId: fx.sub.Id, ExternalId: lib.GenerateId("uc"),
+			Timestamp: jan1.Add(time.Duration(i+1) * time.Minute),
+		})
+	}
+
+	chargeAndAssertInvoice(t, db, orgId, fx, "25", 3)
+}
+
 // TestMeteredBilling_DuplicateEventNotDoubleCharged proves a resend with the same
 // external_id is deduped at write time and therefore billed once: two events share
 // external_id "dup" (second reported Duplicate) plus one distinct event → 2 billable

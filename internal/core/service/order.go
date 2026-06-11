@@ -130,11 +130,12 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 				Description:   product.Name,
 				Quantity:      int64(item.Quantity),
 				UnitPrice:     price.UnitPrice,
-				SubTotal:      price.UnitPrice * int64(item.Quantity),
+				UnitCount:     int64(price.UnitCount),
+				SubTotal:      domain.FixedLineAmount(price.UnitPrice, int64(price.UnitCount), int64(item.Quantity)),
 				DiscountTotal: 0,
 				TaxTotal:      0,
 				ShippingTotal: 0,
-				Total:         price.UnitPrice * int64(item.Quantity),
+				Total:         domain.FixedLineAmount(price.UnitPrice, int64(price.UnitCount), int64(item.Quantity)),
 			})
 		}
 		orderCart.Calculate()
@@ -615,7 +616,7 @@ func fixedBaseAmount(ctx context.Context, orderRepo port.OrderRepository, priceR
 			if q <= 0 {
 				q = 1
 			}
-			fixedBase += p.UnitPrice * q
+			fixedBase += domain.FixedLineAmount(p.UnitPrice, int64(p.UnitCount), q)
 		}
 	}
 	return fixedBase, nil
