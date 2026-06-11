@@ -286,8 +286,9 @@ model Price {
 
   currency  String
   unitPrice Int    @map("unit_price")
-  // Units unitPrice buys (fixed scheme): effective rate = unitPrice/unitCount
-  // cents per unit, so an integer-cent price can express sub-cent rates.
+  // Units unitPrice buys (fixed and package schemes): effective rate =
+  // unitPrice/unitCount cents per unit, so an integer-cent price can express
+  // sub-cent rates. Fixed prorates a partial block; package rounds it up.
   unitCount Int    @default(1) @map("unit_count")
 
   cycles             Int?
@@ -338,6 +339,8 @@ enum PriceScheme {
   tiered
   volume
   graduated
+  // Bills every started block of unitCount units at unitPrice (round up).
+  package
 }
 
 enum BillingInterval {

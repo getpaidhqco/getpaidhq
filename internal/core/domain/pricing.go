@@ -21,9 +21,28 @@ func PriceUsage(p Price, units decimal.Decimal) (amountCents int64, unitAmountCe
 		return priceVolume(p.Tiers, units)
 	case Graduated, Tiered: // Tiered is an alias for Graduated
 		return priceGraduated(p.Tiers, units)
+	case Package:
+		return pricePackage(p, units)
 	default: // Fixed
 		return priceFixed(p, units)
 	}
+}
+
+// pricePackage bills every started block of UnitCount units at UnitPrice cents:
+// ceil(units / UnitCount) × UnitPrice. A partial block owes the full block —
+// the opposite of priceFixed, which prorates it. Zero usage owes nothing (no
+// minimum block). UnitCount <= 1 degenerates to per-unit blocks, so fractional
+// quantities still round up to whole units.
+func pricePackage(p Price, units decimal.Decimal) (int64, decimal.Decimal) {
+	if units.LessThanOrEqual(decimal.Zero) {
+		return 0, decimal.Zero
+	}
+	size := int64(p.UnitCount)
+	if size < 1 {
+		size = 1
+	}
+	blocks := units.Div(decimal.NewFromInt(size)).Ceil()
+	return roundWithUnit(blocks.Mul(decimal.NewFromInt(p.UnitPrice)), units)
 }
 
 // priceFixed bills units at UnitPrice cents per UnitCount units (UnitCount <= 1

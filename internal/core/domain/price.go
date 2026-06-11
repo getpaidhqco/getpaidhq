@@ -15,10 +15,11 @@ type Price struct {
 	Cycles             int
 	Currency           Currency
 	UnitPrice          int64
-	// UnitCount is how many units UnitPrice buys (fixed scheme only): the effective
-	// rate is UnitPrice/UnitCount cents per unit, so an integer-cent price can express
-	// sub-cent rates ("$1 per 1000 calls" = UnitPrice 100, UnitCount 1000). 0 and 1
-	// both mean per single unit.
+	// UnitCount is how many units UnitPrice buys (fixed and package schemes): the
+	// effective rate is UnitPrice/UnitCount cents per unit, so an integer-cent price
+	// can express sub-cent rates ("$1 per 1000 calls" = UnitPrice 100, UnitCount
+	// 1000). 0 and 1 both mean per single unit. Fixed prorates a partial UnitCount
+	// block; Package bills it as a full block (round up).
 	UnitCount          int
 	MinPrice           int64
 	SuggestedPrice     int64

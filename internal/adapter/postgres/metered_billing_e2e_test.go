@@ -423,3 +423,64 @@ func TestMeteredBilling_ExternalCustomerIdAttribution(t *testing.T) {
 	require.Len(t, inv.LineItems, 1)
 	assert.True(t, inv.LineItems[0].Quantity.Equal(decimal.NewFromInt(2)), "internal + orphan external match, got %s", inv.LineItems[0].Quantity)
 }
+
+// TestMeteredBilling_Package_PartialBlock_E2E bills the package scheme end to
+// end: $5 per started 1,000 calls (UnitPrice 500, UnitCount 1000). 25 counted
+// events are far inside the first block, yet the started block owes the full
+// $5 — on the charge, the invoice total, and the usage line. (Fixed would have
+// prorated this to 13c; see TestPriceUsage_PackageVsFixedPartialBlock.)
+func TestMeteredBilling_Package_PartialBlock_E2E(t *testing.T) {
+	db := testDB(t)
+	orgId := uniqueOrg(t)
+	cleanupOrg(t, db, orgId)
+
+	jan1 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	feb1 := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
+	fx := seedUsageFixture(t, db, orgId,
+		domain.BillableMetric{Code: "api_calls", Name: "API calls", Aggregation: domain.AggregationCount},
+		domain.Price{Label: "API calls (package)", Scheme: domain.Package, UnitPrice: 500, UnitCount: 1000},
+		jan1, feb1)
+	seedMemoryPspForSub(t, db, orgId, &fx.sub)
+
+	usage := buildUsageService(t, db)
+	for i := range 25 {
+		recordUsage(t, usage, port.RecordEventInput{
+			OrgId: orgId, CustomerId: fx.customer.Id, MetricCode: fx.meter.Code,
+			SubscriptionId: fx.sub.Id, ExternalId: lib.GenerateId("pkg"),
+			Timestamp: jan1.Add(time.Duration(i+1) * time.Minute),
+		})
+	}
+
+	chargeAndAssertInvoice(t, db, orgId, fx, "25", 500)
+}
+
+// TestMeteredBilling_Package_BlockBoundary_E2E crosses a block boundary on a sum
+// meter: $5 per started 1,000 SMS, events summing to 1,100 → 2 started blocks →
+// $10. One unit into the second block is enough; exact multiples would bill
+// exact blocks.
+func TestMeteredBilling_Package_BlockBoundary_E2E(t *testing.T) {
+	db := testDB(t)
+	orgId := uniqueOrg(t)
+	cleanupOrg(t, db, orgId)
+
+	jan1 := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+	feb1 := time.Date(2026, 2, 1, 0, 0, 0, 0, time.UTC)
+	fx := seedUsageFixture(t, db, orgId,
+		domain.BillableMetric{Code: "sms_sent", Name: "SMS sent",
+			Aggregation: domain.AggregationSum, FieldName: "count"},
+		domain.Price{Label: "SMS (package)", Scheme: domain.Package, UnitPrice: 500, UnitCount: 1000},
+		jan1, feb1)
+	seedMemoryPspForSub(t, db, orgId, &fx.sub)
+
+	usage := buildUsageService(t, db)
+	for i, count := range []string{"700", "400"} { // 1,100 total → 2 started blocks
+		recordUsage(t, usage, port.RecordEventInput{
+			OrgId: orgId, CustomerId: fx.customer.Id, MetricCode: fx.meter.Code,
+			SubscriptionId: fx.sub.Id, ExternalId: lib.GenerateId("sms"),
+			Timestamp: jan1.Add(time.Duration(i+1) * 24 * time.Hour),
+			Metadata:  map[string]string{"count": count},
+		})
+	}
+
+	chargeAndAssertInvoice(t, db, orgId, fx, "1100", 1000)
+}

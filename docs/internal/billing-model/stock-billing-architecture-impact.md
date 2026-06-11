@@ -149,7 +149,8 @@ QUANTITY (the meter):
                      (B/C selected by the price switches)
 
 RATE (the scheme):
-  fixed            → q × unit_price
+  fixed            → q × unit_price / unit_count   (prorates partial blocks)
+  package          → ceil(q / unit_count) × unit_price   (started block = full block)
   graduated        → price each band progressively
   volume           → price all of q at the band it reaches
 ```
