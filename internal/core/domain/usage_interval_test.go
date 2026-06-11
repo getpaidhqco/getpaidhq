@@ -46,12 +46,14 @@ func levelReport(v string, ts time.Time) MeterEvent {
 }
 
 func TestHasOperations(t *testing.T) {
+	t.Parallel()
 	assert.True(t, HasOperations(juneLedger()))
 	assert.False(t, HasOperations([]MeterEvent{levelReport("3", may20)}))
 	assert.False(t, HasOperations(nil))
 }
 
 func TestReconstructIntervals_JuneTimeline(t *testing.T) {
+	t.Parallel()
 	got := ReconstructIntervals(juneLedger(), "seat_id")
 	want := []UsageInterval{
 		{Identity: "alice", From: may20},
@@ -63,6 +65,7 @@ func TestReconstructIntervals_JuneTimeline(t *testing.T) {
 }
 
 func TestReconstructIntervals_Tolerance(t *testing.T) {
+	t.Parallel()
 	t.Run("duplicate add is idempotent", func(t *testing.T) {
 		got := ReconstructIntervals([]MeterEvent{
 			seatEvent(UsageOperationAdd, "a", may20),
@@ -105,6 +108,7 @@ func TestReconstructIntervals_Tolerance(t *testing.T) {
 }
 
 func TestCounts_JuneTimeline(t *testing.T) {
+	t.Parallel()
 	intervals := ReconstructIntervals(juneLedger(), "seat_id")
 	assert.Equal(t, int64(3), CountStandingAtEnd(intervals, jul1), "alice, carol, dave")
 	assert.Equal(t, int64(4), CountPeakConcurrent(intervals, jun1, jul1), "all four overlap Jun 16-21")
@@ -112,6 +116,7 @@ func TestCounts_JuneTimeline(t *testing.T) {
 }
 
 func TestCounts_Boundaries(t *testing.T) {
+	t.Parallel()
 	t.Run("interval closed exactly at period start does not count", func(t *testing.T) {
 		iv := []UsageInterval{{Identity: "a", From: may20, To: jun1}}
 		assert.Equal(t, int64(0), CountDistinctActive(iv, jun1, jul1))
@@ -140,6 +145,7 @@ func TestCounts_Boundaries(t *testing.T) {
 // The switch table from seat-billing/mapping.md on the June timeline. Midnight
 // timestamps make the exact-time fractions whole-day fractions.
 func TestWeightIntervals_SwitchTable(t *testing.T) {
+	t.Parallel()
 	intervals := ReconstructIntervals(juneLedger(), "seat_id")
 	cases := []struct {
 		name              string
@@ -162,6 +168,7 @@ func TestWeightIntervals_SwitchTable(t *testing.T) {
 }
 
 func TestWeightIntervals_Boundaries(t *testing.T) {
+	t.Parallel()
 	t.Run("interval entirely before the period bills zero even without credit", func(t *testing.T) {
 		iv := []UsageInterval{{Identity: "a", From: may20, To: time.Date(2026, 5, 25, 0, 0, 0, 0, time.UTC)}}
 		assert.True(t, WeightIntervals(iv, jun1, jul1, true, false).IsZero())
@@ -182,6 +189,7 @@ func juneReports() []MeterEvent {
 }
 
 func TestLevelReports_June(t *testing.T) {
+	t.Parallel()
 	assert.True(t, LastReportedLevel(juneReports()).Equal(decimal.NewFromInt(3)))
 	assert.True(t, PeakReportedLevel(juneReports(), jun1, jul1).Equal(decimal.NewFromInt(4)))
 
@@ -192,6 +200,7 @@ func TestLevelReports_June(t *testing.T) {
 }
 
 func TestLevelReports_StandingValueFromBeforePeriod(t *testing.T) {
+	t.Parallel()
 	// 5 reported in May, 2 reported Jun 10 — the May value stands until Jun 10.
 	reports := []MeterEvent{
 		levelReport("5", time.Date(2026, 5, 15, 0, 0, 0, 0, time.UTC)),
@@ -207,6 +216,7 @@ func TestLevelReports_StandingValueFromBeforePeriod(t *testing.T) {
 }
 
 func TestLevelReports_Empty(t *testing.T) {
+	t.Parallel()
 	assert.True(t, LastReportedLevel(nil).IsZero())
 	assert.True(t, PeakReportedLevel(nil, jun1, jul1).IsZero())
 	assert.True(t, WeightReportedLevels(nil, jun1, jul1).IsZero())

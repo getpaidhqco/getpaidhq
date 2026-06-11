@@ -38,6 +38,10 @@ test-integration: ## Run all tests incl. Postgres/Testcontainers integration tes
 test-race: ## Run unit tests with the race detector (CGO required)
 	CGO_ENABLED=1 go test -race ./...
 
+.PHONY: test-integration-race
+test-integration-race: ## Race-detect the full suite incl. Testcontainers integration tests
+	CGO_ENABLED=1 go test -race -tags=integration ./...
+
 .PHONY: vet
 vet: ## go vet
 	go vet ./...

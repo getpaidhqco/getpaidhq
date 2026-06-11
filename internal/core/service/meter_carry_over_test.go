@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"strings"
 	"testing"
 
 	"getpaidhq/internal/core/domain"
@@ -9,12 +10,13 @@ import (
 )
 
 // Carry-over meters allow only the standing-level aggregations and no
-// filters/group_by (stock-billing-architecture-impact.md §4).
+// filters/group_by; weighted_sum exists only on carry-over meters
+// (stock-billing-architecture-impact.md §4).
 func TestMeterService_Create_CarryOver(t *testing.T) {
 	tests := []struct {
 		name    string
 		in      port.CreateMeterInput
-		wantErr bool
+		wantErr string // substring of the validation error; "" = valid
 	}{
 		{
 			name: "latest is valid",
@@ -35,29 +37,29 @@ func TestMeterService_Create_CarryOver(t *testing.T) {
 		{
 			name:    "count is rejected",
 			in:      port.CreateMeterInput{OrgId: "org_1", Code: "seats", Name: "Seats", Aggregation: domain.AggregationCount, CarryOver: true},
-			wantErr: true,
+			wantErr: "not supported for carry-over",
 		},
 		{
 			name:    "sum is rejected",
 			in:      port.CreateMeterInput{OrgId: "org_1", Code: "seats", Name: "Seats", Aggregation: domain.AggregationSum, FieldName: "n", CarryOver: true},
-			wantErr: true,
+			wantErr: "not supported for carry-over",
 		},
 		{
 			name:    "weighted_sum without carry_over is rejected",
 			in:      port.CreateMeterInput{OrgId: "org_1", Code: "avg_gb", Name: "Avg GB", Aggregation: domain.AggregationWeightedSum, FieldName: "gb"},
-			wantErr: true,
+			wantErr: "weighted_sum requires carry_over",
 		},
 		{
 			name: "filters are rejected",
 			in: port.CreateMeterInput{OrgId: "org_1", Code: "seats", Name: "Seats", Aggregation: domain.AggregationWeightedSum, FieldName: "seat_id", CarryOver: true,
 				Filters: []domain.MetricFilter{{Field: "type", Values: []string{"x"}}}},
-			wantErr: true,
+			wantErr: "filters are not supported",
 		},
 		{
 			name: "group_by is rejected",
 			in: port.CreateMeterInput{OrgId: "org_1", Code: "seats", Name: "Seats", Aggregation: domain.AggregationWeightedSum, FieldName: "seat_id", CarryOver: true,
 				GroupBy: []string{"team"}},
-			wantErr: true,
+			wantErr: "group_by is not supported",
 		},
 	}
 	for _, tt := range tests {
@@ -65,14 +67,20 @@ func TestMeterService_Create_CarryOver(t *testing.T) {
 			repo := &fakeMeterRepoSvc{}
 			svc := NewMeterService(repo, &recordingPubSub{}, silentLogger{})
 			_, err := svc.Create(context.Background(), tt.in)
-			if tt.wantErr && err == nil {
-				t.Fatalf("expected error, got nil")
+			if tt.wantErr != "" {
+				if err == nil {
+					t.Fatalf("expected error containing %q, got nil", tt.wantErr)
+				}
+				if !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("error = %q, want it to contain %q", err.Error(), tt.wantErr)
+				}
+				if repo.createN != 0 {
+					t.Errorf("invalid input must not store, got %d writes", repo.createN)
+				}
+				return
 			}
-			if !tt.wantErr && err != nil {
+			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
-			}
-			if tt.wantErr && repo.createN != 0 {
-				t.Errorf("invalid input must not store, got %d writes", repo.createN)
 			}
 		})
 	}

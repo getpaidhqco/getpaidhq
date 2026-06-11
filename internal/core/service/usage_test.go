@@ -173,7 +173,7 @@ func TestUsageForSubscription_AppliesSpecificFilter(t *testing.T) {
 	sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", CustomerId: "cus_1"}
 	price := domain.Price{OrgId: "org_1", Id: "p_sms", BillableMetricId: "met_1", FilterField: "type", FilterValue: "SMS"}
 
-	if _, err := svc.UsageForSubscription(context.Background(), sub, price, time.Now().Add(-time.Hour), time.Now()); err != nil {
+	if _, err := svc.UsageForSubscription(context.Background(), sub, price, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 1, 1, 1, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	q := es.lastQuery
@@ -191,7 +191,7 @@ func TestUsageForSubscription_DefaultFilterExcludesPricedValues(t *testing.T) {
 	// default/catch-all charge: field set, no value.
 	price := domain.Price{OrgId: "org_1", Id: "p_other", BillableMetricId: "met_1", FilterField: "type"}
 
-	if _, err := svc.UsageForSubscription(context.Background(), sub, price, time.Now().Add(-time.Hour), time.Now()); err != nil {
+	if _, err := svc.UsageForSubscription(context.Background(), sub, price, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 1, 1, 1, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	q := es.lastQuery
@@ -216,7 +216,7 @@ func TestMeteredUsageForSubscription_GroupedSplitsSegments(t *testing.T) {
 	sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", CustomerId: "cus_1"}
 	price := domain.Price{OrgId: "org_1", Id: "p_sms", BillableMetricId: "met_1", FilterField: "type", FilterValue: "SMS"}
 
-	out, err := svc.MeteredUsageForSubscription(context.Background(), sub, price, time.Now().Add(-time.Hour), time.Now())
+	out, err := svc.MeteredUsageForSubscription(context.Background(), sub, price, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 1, 1, 1, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
@@ -237,7 +237,7 @@ func TestMeteredUsageForSubscription_NoGroupReturnsScalar(t *testing.T) {
 	sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", CustomerId: "cus_1"}
 	price := domain.Price{OrgId: "org_1", Id: "p", BillableMetricId: "met_1"}
 
-	out, err := svc.MeteredUsageForSubscription(context.Background(), sub, price, time.Now().Add(-time.Hour), time.Now())
+	out, err := svc.MeteredUsageForSubscription(context.Background(), sub, price, time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC), time.Date(2026, 1, 1, 1, 0, 0, 0, time.UTC))
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}

@@ -111,7 +111,7 @@ Event fields (the top-level fields are the existing API; events also carry
 | --- | --- | --- |
 | `metric_code` | top-level, required | which meter |
 | `timestamp` | top-level | when the change happened — replay sorts on it, and for B/C it is the proration input (the fraction is computed from timestamps as sent). Defaults to ingest time if omitted. |
-| `metadata.operation` | reserved key, values `add` \| `remove` | makes the event an add/remove event. The only new reserved name in this design. |
+| `metadata.operation` | reserved on carry-over meters, values `add` \| `remove` | makes the event an add/remove event. On flow meters it is ordinary metadata (usable as a filter field, for example). The only new reserved name in this design. |
 | `metadata.<field_name>` | key named by the meter's `field_name` | the seat identity (add/remove events) or the numeric total (level reports) |
 
 | Use case | The deal | Meter | Price switches | Works with | June bill |
