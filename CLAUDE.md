@@ -71,7 +71,7 @@ Adapter registry in `app.go`: `map[domain.Gateway]port.GatewayAdapter` (`domain.
 
 Metered billing records `meter_events` into a dedicated store, scaled/retained independently of the operational DB. Swappable via env:
 
-- **Event store** `USAGE_EVENT_STORE`: `postgres` (default) | `clickhouse` | `compare` (dual-write + diff, for migration validation).
+- **Event store** `USAGE_EVENT_STORE`: `postgres` (default) | `clickhouse`.
 - **Ingestion** `USAGE_INGEST_MODE`: `sync` (default) | `jetstream` (NATS JetStream + background batch consumer). Behind the `EventIngestor` port.
 - Endpoints: `POST /api/usage/events`; meters under `/api/meters`. Meter-event ids are `NULL` when absent (never `""`); dedup index is Prisma-owned.
 

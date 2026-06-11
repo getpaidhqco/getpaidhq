@@ -30,7 +30,7 @@ internal/
 ├── adapter/      # concrete port implementations (one dir per adapter)
 │   ├── postgres/ redis/ nats/ jetstream/        # storage, cache, pub/sub, usage ingest
 │   ├── hatchet/ temporal/                        # interchangeable workflow engines
-│   ├── clickhouse/ compare/                      # alternative usage-event stores
+│   ├── clickhouse/                               # alternative usage-event store
 │   ├── cedar/ clerk/ cognito/ apikey/            # authz + authenticators
 │   ├── checkout_com/ paystack/                   # payment gateways
 │   ├── cron/ http/ memory/                       # scheduler, Fuego handlers, test fakes
@@ -79,7 +79,7 @@ Schemas are Prisma-owned and split by database: `schemas/app/schema.prisma` (ope
 | Workflow engine  | Hatchet (default) or Temporal (`internal/adapter/{hatchet,temporal}`) |
 | Pub/Sub          | NATS (`nats`), JetStream for usage ingest (`jetstream`)     |
 | Database         | PostgreSQL via GORM (`postgres`)                            |
-| Usage event store| Postgres (default), ClickHouse, or compare/dual-write       |
+| Usage event store| Postgres (default) or ClickHouse                            |
 | Cache            | Redis                                                        |
 | Authorization    | Cedar                                                        |
 | Authentication   | Clerk + API key (both wired); Cognito (compiled, unwired)   |
@@ -123,7 +123,7 @@ Important keys:
 - `WORKFLOW_ENGINE` — `hatchet` (default) or `temporal`
 - `DATABASE_URL` — operational Postgres (always opened)
 - `USAGE_DATABASE_URL` — usage-event store (falls back to `DATABASE_URL` when empty)
-- `USAGE_EVENT_STORE` (`postgres` | `clickhouse` | `compare`), `USAGE_INGEST_MODE` (`sync` | `jetstream`)
+- `USAGE_EVENT_STORE` (`postgres` | `clickhouse`), `USAGE_INGEST_MODE` (`sync` | `jetstream`)
 - `HATCHET_CLIENT_*` — Hatchet SDK config (auto-read by the SDK)
 - `TEMPORAL_*` — Temporal host/namespace/task-queue (when `WORKFLOW_ENGINE=temporal`)
 - `ALLOWED_ORIGINS`, `API_KEY_PEPPER`

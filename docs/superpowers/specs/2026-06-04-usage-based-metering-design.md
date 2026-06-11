@@ -1,7 +1,7 @@
 # Usage-based metering
 
 **Date:** 2026-06-04
-**Goal:** Add usage metering to gphq-server — define meters, ingest usage events, add them up over a billing period, and attach the result as usage line items on the per-cycle invoice. Usage events are stored behind a swappable interface so we can run and compare a Postgres backend and a ClickHouse backend that produce the same numbers.
+**Goal:** Add usage metering to gphq-server — define meters, ingest usage events, add them up over a billing period, and attach the result as usage line items on the per-cycle invoice. Usage events are stored behind a swappable interface so a Postgres backend and a ClickHouse backend can be run interchangeably and verified to produce the same numbers.
 
 **Depends on:** `docs/superpowers/specs/2026-06-04-invoice-centric-billing.md` (Spec A) — the per-cycle `Invoice` + `InvoiceLineItem` model this builds on. **Read it first.**
 
@@ -283,7 +283,6 @@ internal/adapter/usage/                       <-- the usage DB
   db.go                   opens USAGE_DATABASE_URL (falls back to DATABASE_URL)
   postgres/event_store.go     EventStore (Postgres)
   clickhouse/event_store.go   EventStore (ClickHouse) + migrations/0001_meter_events.sql
-  compare/event_store.go      wraps both; serves Postgres, checks ClickHouse in background
 internal/adapter/http/
   usage_handler.go        POST /api/usage/events (+ /batch), GET .../customers/:id/usage
 internal/config/
@@ -373,7 +372,6 @@ Both take the same `UsageQuery` and return the same value; time ranges are half-
 ```
 USAGE_EVENT_STORE=postgres    # default
 USAGE_EVENT_STORE=clickhouse
-USAGE_EVENT_STORE=compare     # write both; serve Postgres; check ClickHouse in background; log diffs + timings
 ```
 
 **Equality test:** one table-driven test feeds the same events (resent duplicates, out-of-window, boundary timestamps, string-id unique-count) into both implementations, runs every method over several queries, and asserts equality within a tiny tolerance. Same test, two backends.
@@ -396,7 +394,7 @@ So attributed usage bills its named subscription, and anything sent without a su
 2. **Ingestion + billing.** §6 endpoints → `RecordEvent`; `metered` price category; extend `InvoiceService.BuildForBillingPeriod` to append usage lines. End-to-end metered subscription billed in arrears on the invoice.
 3. **Invoice preview.** `GET .../customers/:id/usage` via `CurrentUsage`.
 4. **weighted_sum** (window query) + recurring metrics.
-5. **ClickHouse backend.** `clickhouse` `EventStore` + migration + docker service; verify with the equality test and `compare` mode.
+5. **ClickHouse backend.** `clickhouse` `EventStore` + migration + docker service; verify with the equality test.
 
 ## 12. Deferred (not in v1)
 
