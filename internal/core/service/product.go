@@ -135,39 +135,10 @@ func (s *ProductService) CreateProductPrice(ctx context.Context, input port.Crea
 		return domain.Price{}, err
 	}
 
-	if input.BillingInterval == "" {
-		input.BillingInterval = domain.BillingIntervalNone
-	}
-	if input.TrialInterval == "" {
-		input.TrialInterval = domain.BillingIntervalNone
-	}
-
-	price, err := s.priceRepository.Create(ctx, domain.Price{
-		OrgId:              input.OrgId,
-		Id:                 lib.GenerateId("price"),
-		Label:              input.Label,
-		VariantId:          input.VariantId,
-		Category:           input.Category,
-		Scheme:             input.Scheme,
-		Cycles:             input.Cycles,
-		Currency:           domain.Currency(input.Currency),
-		UnitPrice:          input.UnitPrice,
-		UnitCount:          max(1, input.UnitCount),
-		MinPrice:           input.MinPrice,
-		SuggestedPrice:     input.SuggestedPrice,
-		BillingInterval:    input.BillingInterval,
-		BillingIntervalQty: input.BillingIntervalQty,
-		TrialInterval:      input.TrialInterval,
-		TrialIntervalQty:   input.TrialIntervalQty,
-		TaxCode:            input.TaxCode,
-		BillableMetricId:   input.BillableMetricId,
-		Tiers:              input.Tiers,
-		FilterField:        input.FilterField,
-		FilterValue:        input.FilterValue,
-		Metadata:           input.Metadata,
-		CreatedAt:          time.Now(),
-		UpdatedAt:          time.Now(),
-	})
+	// ToPrice is the one place that maps CreatePriceInput → domain.Price (interval
+	// defaults included) — building the struct by hand here had already drifted,
+	// silently dropping the proration switches.
+	price, err := s.priceRepository.Create(ctx, input.ToPrice(input.OrgId, input.VariantId))
 
 	if err != nil {
 		s.logger.Error("Failed to create product price", err.Error())
@@ -405,6 +376,8 @@ func (s *ProductService) UpdatePrice(ctx context.Context, orgId string, id strin
 	price.Tiers = input.Tiers
 	price.FilterField = input.FilterField
 	price.FilterValue = input.FilterValue
+	price.ProrateOnIncrease = input.ProrateOnIncrease
+	price.CreditOnDecrease = input.CreditOnDecrease
 	price.Metadata = input.Metadata
 	price.UpdatedAt = time.Now().UTC()
 
