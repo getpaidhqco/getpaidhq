@@ -22,16 +22,21 @@ type App struct {
 func AddAll(root *cobra.Command, app *App) {
 	root.AddCommand(
 		newHealthCmd(app),
+		newApiKeysCmd(app),
 		newCartsCmd(app),
 		newCustomersCmd(app),
+		newGatewaysCmd(app),
 		newInvoicesCmd(app),
 		newOrdersCmd(app),
+		newOrgsCmd(app),
 		newPaymentMethodsCmd(app),
 		newPaymentsCmd(app),
 		newPricesCmd(app),
 		newProductsCmd(app),
 		newSessionsCmd(app),
+		newSettingsCmd(app),
 		newSubscriptionsCmd(app),
 		newVariantsCmd(app),
+		newWebhooksCmd(app),
 	)
 }
