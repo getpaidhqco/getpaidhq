@@ -3,7 +3,6 @@ package commands
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 
 	"github.com/spf13/cobra"
 
@@ -344,9 +343,6 @@ func newSettingsListCmd(app *App) *cobra.Command {
 			q := listQuery(cmd)
 			parent, _ := cmd.Flags().GetString("parent")
 			if parent != "" {
-				if q == nil {
-					q = make(url.Values)
-				}
 				q.Set("parent_id", parent)
 			}
 			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/settings", q, nil)
