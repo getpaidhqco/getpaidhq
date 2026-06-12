@@ -288,7 +288,7 @@ func TestOrderService_CompleteOrder_HappyPath(t *testing.T) {
 
 		require.NoError(t, err)
 		require.Len(t, pmRepo.created, 1, "payment method created from token")
-		assert.Equal(t, "tok_visa", pmRepo.created[0].Token)
+		assert.Equal(t, "tok_visa", pmRepo.created[0].Token.Reveal())
 		// The created PM id flows onto the activated subscription.
 		require.Len(t, subRepo.updated, 1)
 		assert.Equal(t, pmRepo.created[0].Id, subRepo.updated[0].PaymentMethodId)

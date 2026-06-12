@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"testing"
 
@@ -52,7 +53,10 @@ func TestOrderWorkflowService_CompleteCheckoutSession(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, domain.OrderStatusCompleted, got.Status)
 		require.Len(t, pmRepo.created, 1)
-		assert.Equal(t, "tok_1", pmRepo.created[0].Token)
+		assert.Equal(t, "tok_1", pmRepo.created[0].Token.Reveal())
+	// Details must not smuggle the token alongside the redacting Token field.
+	detailsJSON, _ := json.Marshal(pmRepo.created[0].Details)
+	assert.NotContains(t, string(detailsJSON), "tok_1")
 		require.Len(t, subRepo.updated, 1)
 		assert.Equal(t, domain.SubscriptionStatusActive, subRepo.updated[0].Status)
 		assert.Equal(t, pmRepo.created[0].Id, subRepo.updated[0].PaymentMethodId)

@@ -15,7 +15,13 @@ type PaymentMethod struct {
 	CustomerId     string
 	BillingAddress Address
 	Type           PaymentMethodType
-	Token          string
+	// Token is the PSP's reusable charge credential (Paystack
+	// authorization_code, Checkout.com source id). Secret-typed: fmt/slog/
+	// json all render "[redacted]", so pubsub events, outbound webhooks, and
+	// any accidental logging or response DTO can't leak it. Reveal() only
+	// where it leaves for the PSP (charge command construction) and at the
+	// postgres column write.
+	Token          Secret
 	Details        any
 	Metadata       map[string]string
 	ExpireAt       time.Time

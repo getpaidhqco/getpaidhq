@@ -410,7 +410,7 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 				CustomerId:     order.CustomerId,
 				BillingAddress: domain.Address{},
 				Type:           input.PaymentMethod.Type,
-				Token:          input.PaymentMethod.Token,
+				Token:          domain.Secret(input.PaymentMethod.Token),
 				Details:        input.PaymentMethod.Details,
 				CreatedAt:      time.Now().UTC(),
 				UpdatedAt:      time.Now().UTC(),

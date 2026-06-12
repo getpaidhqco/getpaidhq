@@ -191,7 +191,7 @@ func TestCustomerHandler_CreatePaymentMethod(t *testing.T) {
 		// CustomerId is taken from the path param, not the body.
 		assert.Equal(t, "cus_1", pmRepo.created[0].CustomerId)
 		// The token is accepted inbound and stored, but never echoed back.
-		assert.Equal(t, "tok_visa", pmRepo.created[0].Token)
+		assert.Equal(t, "tok_visa", pmRepo.created[0].Token.Reveal())
 		assert.NotContains(t, rec.Body.String(), "tok_visa")
 	})
 
@@ -243,7 +243,7 @@ func TestCustomerHandler_UpdatePaymentMethod(t *testing.T) {
 
 		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
 		require.Len(t, pmRepo.updated, 1)
-		assert.Equal(t, "tok_new", pmRepo.updated[0].Token, "the new token is persisted")
+		assert.Equal(t, "tok_new", pmRepo.updated[0].Token.Reveal(), "the new token is persisted")
 	})
 
 	t.Run("non-admin (owner) is denied", func(t *testing.T) {

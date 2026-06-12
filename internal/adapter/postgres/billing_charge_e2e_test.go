@@ -151,7 +151,7 @@ func seedPaymentMethod(t *testing.T, db *gorm.DB, orgId, customerId string) doma
 		Name:       "Visa ****4242",
 		CustomerId: customerId,
 		Type:       domain.PaymentMethodTypeCard,
-		Token:      lib.GenerateId("tok"),
+		Token:      domain.Secret(lib.GenerateId("tok")),
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}
