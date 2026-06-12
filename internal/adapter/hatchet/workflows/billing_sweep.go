@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"fmt"
 	"slices"
 	"time"
 
@@ -9,12 +10,29 @@ import (
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
-// NewBillingSweepWorkflow builds the hourly cron entrypoint. It does NO
+// SweepCadence normalizes the configured sweep interval (BILLING_SWEEP_INTERVAL)
+// to whole minutes clamped to [1m, 60m] — cron granularity is one minute — and
+// returns the matching cron expression. The same normalized interval must drive
+// the OrgBillingRunKey bucket, or dedup and cadence drift apart.
+func SweepCadence(interval time.Duration) (time.Duration, string) {
+	m := int(interval.Round(time.Minute).Minutes())
+	if m < 1 {
+		m = 1
+	}
+	if m >= 60 {
+		return time.Hour, "0 * * * *"
+	}
+	return time.Duration(m) * time.Minute, fmt.Sprintf("*/%d * * * *", m)
+}
+
+// NewBillingSweepWorkflow builds the cron sweep entrypoint (interval from
+// BILLING_SWEEP_INTERVAL, default 5m). It does NO
 // subscription work itself: it lists org ids and spawns one org-billing run
 // per tenant (the tenant is the sharding axis — a whale org can't block
 // others). Modeled on Lago's SubscriptionsBillerJob. Non-durable: a fresh run
 // each tick, plain time.Now() is fine (no replay).
-func NewBillingSweepWorkflow(client *hatchet.Client, orgRepo port.OrgRepository, logger port.Logger) *hatchet.StandaloneTask {
+func NewBillingSweepWorkflow(client *hatchet.Client, orgRepo port.OrgRepository, interval time.Duration, logger port.Logger) *hatchet.StandaloneTask {
+	tick, cron := SweepCadence(interval)
 	return client.NewStandaloneTask("billing-sweep",
 		func(ctx hatchet.Context, _ struct{}) (struct{}, error) {
 			ids, err := orgRepo.ListIds(ctx)
@@ -22,7 +40,7 @@ func NewBillingSweepWorkflow(client *hatchet.Client, orgRepo port.OrgRepository,
 				logger.Error("billing-sweep: ListIds failed", "err", err.Error())
 				return struct{}{}, err
 			}
-			bucket := time.Now().UTC().Truncate(time.Hour)
+			bucket := time.Now().UTC().Truncate(tick)
 			for _, orgId := range ids {
 				if _, err := client.RunNoWait(ctx, "org-billing", OrgBillingInput{OrgId: orgId},
 					hatchet.WithRunKey(OrgBillingRunKey(orgId, bucket)),
@@ -38,8 +56,8 @@ func NewBillingSweepWorkflow(client *hatchet.Client, orgRepo port.OrgRepository,
 		// WithWorkflowCron (a WorkflowOption), NOT WithCron (a TaskOption): on a
 		// standalone task, WithCron's value lands in taskConfig.onCron and is
 		// silently dropped — only WithWorkflowCron populates the registered
-		// workflow's OnCron/CronTriggers. Hourly at :10, mirrors Lago's cadence.
-		hatchet.WithWorkflowCron("10 * * * *"),
+		// workflow's OnCron/CronTriggers.
+		hatchet.WithWorkflowCron(cron),
 	)
 }
 

@@ -39,7 +39,7 @@ func NewBillingCycleRunnerWorkflow(client *hatchet.Client, subscriptionService p
 			)
 			if err != nil {
 				// Infra failure (e.g. no gateway). Non-fatal: the error is surfaced
-				// on the run and we exit; the next hourly sweep re-selects this sub
+				// on the run and we exit; the next sweep tick re-selects this sub
 				// (still due) and retries.
 				return sub, err
 			}

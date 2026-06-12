@@ -48,14 +48,16 @@ func BillingRunKey(orgId, subscriptionId string, cycle int) string {
 }
 
 // OrgBillingRunKey dedups the per-org billing fan-out within a single sweep
-// bucket (the truncated-hour timestamp), so an accidental double-sweep in the
-// same hour doesn't double-spawn an org's billing run.
+// bucket (the timestamp truncated to the SweepCadence interval), so an
+// accidental double-sweep in the same bucket doesn't double-spawn an org's
+// billing run. Minute precision in the format so distinct buckets get
+// distinct keys.
 func OrgBillingRunKey(orgId string, bucket time.Time) string {
-	return fmt.Sprintf("orgbilling_%s_%s", orgId, bucket.UTC().Format("2006010215"))
+	return fmt.Sprintf("orgbilling_%s_%s", orgId, bucket.UTC().Format("200601021504"))
 }
 
 // ReminderStageRunKey dedups a renewal reminder to exactly once per
-// (subscription, cycle, offset-stage). The sweep may re-spawn this every hour
+// (subscription, cycle, offset-stage). The sweep may re-spawn this every tick
 // the sub is inside the stage window; identical keys collapse (USE_EXISTING),
 // so the reminder sends once per stage per cycle and self-heals across missed
 // ticks. `cycle` is CyclesProcessed; the offset label distinguishes stages

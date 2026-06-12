@@ -74,7 +74,7 @@ func NewHatchetEngine(
 	billingCycleWF := hatchetwf.NewBillingCycleWorkflow(c, subscriptionService)
 	billingCycleRunnerWF := hatchetwf.NewBillingCycleRunnerWorkflow(c, subscriptionService)
 	orgBillingWF := hatchetwf.NewOrgBillingWorkflow(c, subscriptionRepo, reminderResolver, logger)
-	billingSweepWF := hatchetwf.NewBillingSweepWorkflow(c, orgRepo, logger)
+	billingSweepWF := hatchetwf.NewBillingSweepWorkflow(c, orgRepo, env.HatchetBillingSweepInterval, logger)
 	sendReminderWF := hatchetwf.NewSendRenewalReminderWorkflow(c, subscriptionService)
 	dunningAttemptWF := hatchetwf.NewDunningAttemptWorkflow(c, dunningSteps)
 	dunningRunnerWF := hatchetwf.NewDunningRunnerWorkflow(c, dunningSteps)
@@ -215,12 +215,12 @@ func (h Hatchet) StartSubscriptionWorkflow(ctx context.Context, sub domain.Subsc
 	//      activated without an upfront checkout payment — system-charges-now, or a
 	//      just-ended trial — so RenewsAt/NextRetryAt/TrialEndsAt is already in the
 	//      past. Spawn billing-cycle-runner directly so the first charge is durable
-	//      and immediate, rather than waiting up to an hour for the next sweep. This
+	//      and immediate, rather than waiting for the next sweep tick. This
 	//      is the Hatchet analog of Temporal's runner first-iteration charge.
 	//
 	//   2. Not due (the common checkout-payment case): SetActive recorded the
 	//      checkout payment as cycle 1 and set RenewsAt into the future, so there is
-	//      nothing to charge now. Stay a no-op — the hourly billing-sweep drives the
+	//      nothing to charge now. Stay a no-op — the cron billing-sweep drives the
 	//      renewal when RenewsAt falls due.
 	//
 	// The spawn is keyed BillingRunKey(org, sub, CyclesProcessed) — the exact same
