@@ -114,6 +114,7 @@ Configuration precedence: flags > GPHQ_* environment variables >
 	})
 
 	commands.AddAll(root, app)
+	root.AddCommand(newDocsCmd(root))
 	return root
 }
 

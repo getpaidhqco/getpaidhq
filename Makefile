@@ -28,6 +28,11 @@ build-cli: ## Build the gphq CLI binary to bin/gphq
 install-cli: ## go install the gphq CLI
 	go install ./cmd/gphq
 
+.PHONY: docs-cli
+docs-cli: ## Regenerate the CLI markdown reference (docs/cli/reference)
+	rm -rf docs/cli/reference && mkdir -p docs/cli/reference
+	go run ./cmd/gphq docs --dir docs/cli/reference
+
 .PHONY: clean
 clean: ## Remove build artifacts
 	rm -f $(BIN)

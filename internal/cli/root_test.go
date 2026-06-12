@@ -11,6 +11,32 @@ import (
 	"getpaidhq/internal/cli"
 )
 
+func TestGeneratedDocsAreCurrent(t *testing.T) {
+	tmp := t.TempDir()
+	if code, _, errOut := run(t, "docs", "--dir", tmp); code != 0 {
+		t.Fatalf("docs generation failed: %s", errOut)
+	}
+	want, err := os.ReadDir(tmp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	const committed = "../../docs/cli/reference"
+	got, err := os.ReadDir(committed)
+	if err != nil {
+		t.Fatalf("%v — run `make docs-cli` and commit the result", err)
+	}
+	if len(want) != len(got) {
+		t.Fatalf("reference has %d files, regenerated %d — run `make docs-cli`", len(got), len(want))
+	}
+	for _, f := range want {
+		a, _ := os.ReadFile(filepath.Join(tmp, f.Name()))
+		b, err := os.ReadFile(filepath.Join(committed, f.Name()))
+		if err != nil || !bytes.Equal(a, b) {
+			t.Errorf("docs/cli/reference/%s is stale — run `make docs-cli`", f.Name())
+		}
+	}
+}
+
 func run(t *testing.T, args ...string) (code int, out, errOut string) {
 	t.Helper()
 	// Isolate from host environment so tests don't pick up developer config,

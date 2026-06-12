@@ -15,6 +15,7 @@ GetPaidHQ is a Go subscription-billing backend. HTTP API on [Fuego](https://gith
 - [Installation](#installation)
 - [Configuration](#configuration)
 - [Database schema](#database-schema)
+- [CLI](#cli)
 - [Development](#development)
 
 ## Architecture
@@ -142,6 +143,16 @@ make db-push-all        # all three
 ```
 
 When a deployment pipeline is re-added, migrations will be regenerated from the current base.
+
+## CLI
+
+`gphq` is the command-line client for the API. It covers every endpoint and is useful for scripting, local testing, and ad-hoc operations against any environment.
+
+```
+make install-cli   # or: make build-cli → bin/gphq
+```
+
+Full guide and command reference: **[docs/cli/README.md](docs/cli/README.md)**
 
 ## Development
 
