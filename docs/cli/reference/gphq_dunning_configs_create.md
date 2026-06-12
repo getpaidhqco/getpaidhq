@@ -36,11 +36,11 @@ gphq dunning configs create [flags]
 ### Options
 
 ```
-      --applies-to string    scope: all, product, customer, etc. (required unless --data is used)
+      --applies-to string    scope: all, product, customer, etc. (required)
       --data string          raw JSON body (@file, -, or inline); the API requires a nested config object so complex configurations must use this flag
       --description string   optional description
   -h, --help                 help for create
-      --name string          configuration name (required unless --data is used)
+      --name string          configuration name (required)
       --priority int         priority (lower = higher precedence)
 ```
 

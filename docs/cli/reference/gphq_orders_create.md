@@ -13,7 +13,7 @@ gphq orders create [flags]
 ### Examples
 
 ```
-  gphq orders create --customer-id cus_1 --psp paystack --currency NGN --item product=prod_1,price=pri_1
+  gphq orders create --customer cus_1 --psp paystack --currency NGN --item product=prod_1,price=pri_1
   gphq orders create --data '{"psp_id":"paystack","customer":{"id":"cus_1"}}'
 ```
 
@@ -21,7 +21,7 @@ gphq orders create [flags]
 
 ```
       --currency string         cart currency
-      --customer-id string      customer ID
+      --customer string         existing customer id
       --data string             raw JSON body (@file, -, or inline)
       --email string            customer email
       --first-name string       customer first name

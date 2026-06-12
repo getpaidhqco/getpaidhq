@@ -14,7 +14,7 @@ func TestOrdersCmd(t *testing.T) {
 			name: "orders create flags",
 			args: []string{
 				"orders", "create",
-				"--customer-id", "cus_1",
+				"--customer", "cus_1",
 				"--psp", "paystack",
 				"--currency", "NGN",
 				"--item", "product=prod_1,price=pri_1",
@@ -42,7 +42,7 @@ func TestOrdersCmd(t *testing.T) {
 		// orders create — missing --psp → exit 2
 		{
 			name:     "orders create missing psp",
-			args:     []string{"orders", "create", "--customer-id", "cus_1"},
+			args:     []string{"orders", "create", "--customer", "cus_1"},
 			wantErr:  []string{"--psp is required"},
 			wantCode: 2,
 		},
@@ -50,34 +50,34 @@ func TestOrdersCmd(t *testing.T) {
 		{
 			name:     "orders create missing customer",
 			args:     []string{"orders", "create", "--psp", "paystack"},
-			wantErr:  []string{"provide --customer-id or --email"},
+			wantErr:  []string{"provide --customer or --email"},
 			wantCode: 2,
 		},
 		// orders create — bad --item (no price) → exit 2
 		{
 			name:     "orders create bad item no price",
-			args:     []string{"orders", "create", "--customer-id", "cus_1", "--psp", "paystack", "--item", "product=prod_1"},
+			args:     []string{"orders", "create", "--customer", "cus_1", "--psp", "paystack", "--item", "product=prod_1"},
 			wantErr:  []string{"--item needs product=<id>,price=<id>"},
 			wantCode: 2,
 		},
 		// orders create — bad --item qty not integer → exit 2
 		{
 			name:     "orders create bad item qty",
-			args:     []string{"orders", "create", "--customer-id", "cus_1", "--psp", "paystack", "--item", "product=prod_1,price=pri_1,qty=abc"},
+			args:     []string{"orders", "create", "--customer", "cus_1", "--psp", "paystack", "--item", "product=prod_1,price=pri_1,qty=abc"},
 			wantErr:  []string{"--item qty must be a positive integer"},
 			wantCode: 2,
 		},
 		// orders create — unknown --item key (typo) → exit 2
 		{
 			name:     "orders create unknown item key",
-			args:     []string{"orders", "create", "--customer-id", "cus_1", "--psp", "paystack", "--item", "product=prod_1,price=pri_1,quanity=5"},
+			args:     []string{"orders", "create", "--customer", "cus_1", "--psp", "paystack", "--item", "product=prod_1,price=pri_1,quanity=5"},
 			wantErr:  []string{"unknown key"},
 			wantCode: 2,
 		},
 		// orders create -o json — raw envelope passes through (incl. "psp" key)
 		{
 			name:       "orders create json mode",
-			args:       []string{"-o", "json", "orders", "create", "--customer-id", "cus_1", "--psp", "paystack", "--currency", "NGN", "--item", "product=prod_1,price=pri_1"},
+			args:       []string{"-o", "json", "orders", "create", "--customer", "cus_1", "--psp", "paystack", "--currency", "NGN", "--item", "product=prod_1,price=pri_1"},
 			wantMethod: "POST",
 			wantPath:   "/api/orders",
 			respBody:   `{"order":{"id":"ord_3","customer_id":"cus_1","reference":"REF003","status":"pending","currency":"NGN","total":5000,"created_at":"2026-06-12T09:00:00Z"},"psp":{"id":"paystack"}}`,
@@ -99,8 +99,8 @@ func TestOrdersCmd(t *testing.T) {
 		// orders complete
 		// ----------------------------------------------------------------
 		{
-			name:       "orders complete with payment-method-id",
-			args:       []string{"orders", "complete", "ord_1", "--payment-method-id", "pm_1"},
+			name:       "orders complete with payment-method",
+			args:       []string{"orders", "complete", "ord_1", "--payment-method", "pm_1"},
 			wantMethod: "POST",
 			wantPath:   "/api/orders/ord_1/complete",
 			wantBody:   `{"payment_method_id":"pm_1","payment_method":{"psp":"","name":"","is_default":false,"billing_address":{"first_name":"","last_name":"","email":"","phone":"","line1":"","line2":"","city":"","state":"","postal_code":"","country":""},"type":"","details":null,"token":"","metadata":null},"payment":{"psp_id":"","reference":"","amount":0,"completed_at":"","metadata":null,"currency":""},"metadata":null}`,

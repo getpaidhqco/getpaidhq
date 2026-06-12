@@ -127,7 +127,7 @@ func newOrdersCreateCmd(app *App) *cobra.Command {
 		Use:   "create",
 		Short: "Create an order",
 		Long:  "Create a new order. Pass flags for common fields or --data for a raw JSON body.",
-		Example: "  gphq orders create --customer-id cus_1 --psp paystack --currency NGN --item product=prod_1,price=pri_1\n" +
+		Example: "  gphq orders create --customer cus_1 --psp paystack --currency NGN --item product=prod_1,price=pri_1\n" +
 			"  gphq orders create --data '{\"psp_id\":\"paystack\",\"customer\":{\"id\":\"cus_1\"}}'",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -136,10 +136,10 @@ func newOrdersCreateCmd(app *App) *cobra.Command {
 				if psp == "" {
 					return nil, Usagef("--psp is required (or use --data)")
 				}
-				customerID, _ := cmd.Flags().GetString("customer-id")
+				customerID, _ := cmd.Flags().GetString("customer")
 				email, _ := cmd.Flags().GetString("email")
 				if customerID == "" && email == "" {
-					return nil, Usagef("provide --customer-id or --email (or use --data)")
+					return nil, Usagef("provide --customer or --email (or use --data)")
 				}
 				firstName, _ := cmd.Flags().GetString("first-name")
 				lastName, _ := cmd.Flags().GetString("last-name")
@@ -187,7 +187,7 @@ func newOrdersCreateCmd(app *App) *cobra.Command {
 		},
 	}
 	f := cmd.Flags()
-	f.String("customer-id", "", "customer ID")
+	f.String("customer", "", "existing customer id")
 	f.String("email", "", "customer email")
 	f.String("first-name", "", "customer first name")
 	f.String("last-name", "", "customer last name")
@@ -207,11 +207,11 @@ func newOrdersCompleteCmd(app *App) *cobra.Command {
 		Use:     "complete <orderId>",
 		Short:   "Complete an order",
 		Long:    "Mark an order as complete, optionally providing payment method details.",
-		Example: "  gphq orders complete ord_1 --payment-method-id pm_1\n  gphq orders complete ord_1 --data -",
+		Example: "  gphq orders complete ord_1 --payment-method pm_1\n  gphq orders complete ord_1 --data -",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			body, err := bodyOrData(cmd, func() (any, error) {
-				pmID, _ := cmd.Flags().GetString("payment-method-id")
+				pmID, _ := cmd.Flags().GetString("payment-method")
 				return api.CompleteOrderRequest{
 					PaymentMethodId: pmID,
 				}, nil
@@ -228,7 +228,7 @@ func newOrdersCompleteCmd(app *App) *cobra.Command {
 		},
 	}
 	f := cmd.Flags()
-	f.String("payment-method-id", "", "payment method ID to use for completion")
+	f.String("payment-method", "", "payment method ID to use for completion")
 	f.String("data", "", "raw JSON body (@file, -, or inline)")
 	return annotate(cmd, "POST", "/api/orders/{id}/complete")
 }

@@ -13,16 +13,16 @@ gphq orders complete <orderId> [flags]
 ### Examples
 
 ```
-  gphq orders complete ord_1 --payment-method-id pm_1
+  gphq orders complete ord_1 --payment-method pm_1
   gphq orders complete ord_1 --data -
 ```
 
 ### Options
 
 ```
-      --data string                raw JSON body (@file, -, or inline)
-  -h, --help                       help for complete
-      --payment-method-id string   payment method ID to use for completion
+      --data string             raw JSON body (@file, -, or inline)
+  -h, --help                    help for complete
+      --payment-method string   payment method ID to use for completion
 ```
 
 ### Options inherited from parent commands

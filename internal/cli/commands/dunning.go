@@ -373,10 +373,10 @@ Example --data payload:
 		},
 	}
 	f := cmd.Flags()
-	f.String("name", "", "configuration name (required unless --data is used)")
+	f.String("name", "", "configuration name (required)")
 	f.String("description", "", "optional description")
 	f.Int("priority", 0, "priority (lower = higher precedence)")
-	f.String("applies-to", "", "scope: all, product, customer, etc. (required unless --data is used)")
+	f.String("applies-to", "", "scope: all, product, customer, etc. (required)")
 	f.String("data", "", "raw JSON body (@file, -, or inline); the API requires a nested config object so complex configurations must use this flag")
 	return annotate(cmd, "POST", "/api/dunning/configurations")
 }

@@ -241,7 +241,7 @@ To ingest multiple events in one request pass --data with a full
 	f.String("external-customer", "", "external customer ID (external_customer_id)")
 	f.String("subscription", "", "subscription ID (subscription_id)")
 	f.String("external-id", "", "idempotency key for the event (external_id)")
-	f.String("timestamp", "", "event timestamp in RFC3339 format (defaults to zero time)")
+	f.String("timestamp", "", "event time, RFC3339 (defaults to ingestion time)")
 	f.StringArray("metadata", nil, "event metadata key=value pairs (repeatable)")
 	f.String("data", "", "raw JSON body — full {\"events\":[...]} batch (@file, -, or inline)")
 	return annotate(cmd, "POST", "/api/usage/ingest")

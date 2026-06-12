@@ -36,7 +36,7 @@ gphq usage ingest [flags]
       --metadata stringArray       event metadata key=value pairs (repeatable)
       --metric string              meter code the event counts against (metric_code; required)
       --subscription string        subscription ID (subscription_id)
-      --timestamp string           event timestamp in RFC3339 format (defaults to zero time)
+      --timestamp string           event time, RFC3339 (defaults to ingestion time)
 ```
 
 ### Options inherited from parent commands

@@ -137,7 +137,7 @@ CUSTOMER_ID=$(jq -r '.id' customer.json)
 
 ```
 gphq orders create \
-  --customer-id "$CUSTOMER_ID" \
+  --customer "$CUSTOMER_ID" \
   --psp paystack \
   --currency USD \
   --item "product=$PRODUCT_ID,price=$PRICE_ID" \
