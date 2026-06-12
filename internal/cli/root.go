@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -75,11 +76,27 @@ Configuration precedence: flags > GPHQ_* environment variables >
 		bind("api_key", "api-key")
 		bind("base_url", "base-url")
 		bind("output", "output")
-		if dir, err := os.UserConfigDir(); err == nil {
-			v.SetConfigFile(filepath.Join(dir, "gphq", "config.toml"))
-			_ = v.ReadInConfig() // optional; missing file is fine
+		// Resolve config path: $XDG_CONFIG_HOME/gphq/config.toml, or
+		// $HOME/.config/gphq/config.toml. Skipped if home dir is unavailable.
+		var cfgPath string
+		if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+			cfgPath = filepath.Join(xdg, "gphq", "config.toml")
+		} else if home, err := os.UserHomeDir(); err == nil {
+			cfgPath = filepath.Join(home, ".config", "gphq", "config.toml")
+		}
+		if cfgPath != "" {
+			v.SetConfigFile(cfgPath)
+			if err := v.ReadInConfig(); err != nil {
+				var notFound viper.ConfigFileNotFoundError
+				if !errors.Is(err, fs.ErrNotExist) && !errors.As(err, &notFound) {
+					return fmt.Errorf("reading config file %s: %w", cfgPath, err)
+				}
+			}
 		}
 		app.Output = v.GetString("output")
+		if app.Output == "" {
+			app.Output = "table"
+		}
 		if app.Output != "table" && app.Output != "json" {
 			return commands.Usagef("invalid --output %q (want table or json)", app.Output)
 		}
