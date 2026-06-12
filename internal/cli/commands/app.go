@@ -20,5 +20,5 @@ type App struct {
 // AddAll registers every resource group on the root command. Each task in
 // the implementation plan appends its constructor here.
 func AddAll(root *cobra.Command, app *App) {
-	_ = app // populated as resource groups land
+	root.AddCommand(newHealthCmd(app), newCustomersCmd(app))
 }

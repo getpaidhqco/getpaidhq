@@ -51,6 +51,13 @@ func TestInvalidOutputFormat(t *testing.T) {
 	}
 }
 
+func TestMissingAPIKey(t *testing.T) {
+	code, _, errOut := run(t, "customers", "list", "--base-url", "http://127.0.0.1:1")
+	if code != 1 || !strings.Contains(errOut, "no API key") {
+		t.Fatalf("code=%d err=%q", code, errOut)
+	}
+}
+
 // TestConfigPrecedence verifies the flags > env > config file > defaults chain.
 func TestConfigPrecedence(t *testing.T) {
 	// (a) GPHQ_OUTPUT=yaml env → invalid output, exit 2.
