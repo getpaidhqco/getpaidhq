@@ -46,7 +46,7 @@ func TestProductsCmd(t *testing.T) {
 			args:       []string{"products", "list"},
 			wantMethod: "GET",
 			wantPath:   "/api/products",
-			wantQuery:  url.Values{},
+			wantQuery:  url.Values{"status": {""}},
 			respBody:   `{"data":[{"id":"prod_3","name":"Active Product","status":"active","variants":[{"id":"var_2","name":"V1","prices":[],"created_at":"2026-06-12T09:00:00Z","updated_at":"2026-06-12T09:00:00Z"}],"created_at":"2026-06-12T09:00:00Z","updated_at":"2026-06-12T09:00:00Z"}],"meta":{"total":5,"page":0,"limit":10}}`,
 			wantOut:    []string{"prod_3", "Active Product", "active", "total 5 · page 0 · limit 10"},
 			wantCode:   0,
@@ -107,18 +107,17 @@ func TestProductsCmd(t *testing.T) {
 			args:       []string{"products", "archive", "prod_1"},
 			wantMethod: "POST",
 			wantPath:   "/api/products/prod_1/archive",
-			// archive sends no body
-			wantBody: ``,
-			respBody: `{"id":"prod_1","name":"Acme Pro","status":"archived","variants":[],"created_at":"2026-06-12T09:00:00Z","updated_at":"2026-06-12T09:00:00Z"}`,
-			wantOut:  []string{"prod_1", "archived"},
-			wantCode: 0,
+			wantNoBody: true,
+			respBody:   `{"id":"prod_1","name":"Acme Pro","status":"archived","variants":[],"created_at":"2026-06-12T09:00:00Z","updated_at":"2026-06-12T09:00:00Z"}`,
+			wantOut:    []string{"prod_1", "archived"},
+			wantCode:   0,
 		},
 		{
 			name:       "products unarchive",
 			args:       []string{"products", "unarchive", "prod_1"},
 			wantMethod: "POST",
 			wantPath:   "/api/products/prod_1/unarchive",
-			wantBody:   ``,
+			wantNoBody: true,
 			respBody:   `{"id":"prod_1","name":"Acme Pro","status":"active","variants":[],"created_at":"2026-06-12T09:00:00Z","updated_at":"2026-06-12T09:00:00Z"}`,
 			wantOut:    []string{"prod_1", "active"},
 			wantCode:   0,
@@ -282,6 +281,7 @@ func TestPricesCmd(t *testing.T) {
 		{
 			name: "prices update",
 			args: []string{"prices", "update", "pri_1",
+				"--variant", "var_1",
 				"--category", "subscription",
 				"--scheme", "fixed",
 				"--currency", "USD",
@@ -292,9 +292,8 @@ func TestPricesCmd(t *testing.T) {
 			},
 			wantMethod: "PATCH",
 			wantPath:   "/api/prices/pri_1",
-			// variant_id must be empty/absent — update does not set it
 			wantBody: `{
-				"variant_id":"",
+				"variant_id":"var_1",
 				"category":"subscription",
 				"scheme":"fixed",
 				"cycles":0,
@@ -320,6 +319,14 @@ func TestPricesCmd(t *testing.T) {
 			respBody: `{"id":"pri_1","variant_id":"var_1","label":"Monthly Plus","category":"subscription","scheme":"fixed","cycles":0,"currency":"USD","unit_price":1299,"unit_count":0,"min_price":0,"suggested_price":0,"billing_interval":"month","billing_interval_qty":1,"trial_interval":"","trial_interval_qty":0,"tax_code":"","billable_metric_id":"","tiers":[],"filter_field":"","filter_value":"","prorate_on_increase":false,"credit_on_decrease":false,"metadata":null,"created_at":"2026-06-12T09:00:00Z","updated_at":"2026-06-12T09:00:00Z"}`,
 			wantOut:  []string{"pri_1", "Monthly Plus"},
 			wantCode: 0,
+		},
+
+		// prices update missing --variant → exit 2
+		{
+			name:     "prices update missing variant",
+			args:     []string{"prices", "update", "pri_1", "--category", "subscription", "--scheme", "fixed", "--currency", "USD"},
+			wantErr:  []string{"--variant, --category, --scheme and --currency are required"},
+			wantCode: 2,
 		},
 
 		// ---- prices delete ----

@@ -23,6 +23,7 @@ type cmdCase struct {
 	wantPath   string     // exact request path
 	wantQuery  url.Values // subset match
 	wantBody   string     // JSON-equal match ("" = skip)
+	wantNoBody bool       // when true, assert the captured request body is empty
 	respStatus int        // default 200
 	respBody   string
 	wantOut    []string // substrings on stdout
@@ -80,6 +81,11 @@ func runCase(t *testing.T, tc cmdCase) {
 		for k := range tc.wantQuery {
 			if got := gotQuery.Get(k); got != tc.wantQuery.Get(k) {
 				t.Errorf("query[%s] = %q, want %q", k, got, tc.wantQuery.Get(k))
+			}
+		}
+		if tc.wantNoBody {
+			if gotBody != "" {
+				t.Errorf("expected empty request body, got %q", gotBody)
 			}
 		}
 		if tc.wantBody != "" {

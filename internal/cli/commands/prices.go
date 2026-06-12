@@ -125,17 +125,19 @@ func newPricesUpdateCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "update <priceId>",
 		Short: "Update a price",
-		Long:  "Update a price. The server reuses the create schema; variant_id is left empty for updates.",
-		Example: "  gphq prices update pri_1 --category subscription --scheme fixed --currency USD --unit-price 1299\n" +
+		Long: "Update a price. The server reuses the create schema, so --variant (the variant the price belongs to) " +
+			"must be re-supplied on every flag-based update.",
+		Example: "  gphq prices update pri_1 --variant var_1 --category subscription --scheme fixed --currency USD --unit-price 1299\n" +
 			"  gphq prices update pri_1 --data @price.json",
 		Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			body, err := bodyOrData(cmd, func() (any, error) {
+				variantID, _ := cmd.Flags().GetString("variant")
 				category, _ := cmd.Flags().GetString("category")
 				scheme, _ := cmd.Flags().GetString("scheme")
 				currency, _ := cmd.Flags().GetString("currency")
-				if category == "" || scheme == "" || currency == "" {
-					return nil, Usagef("--category, --scheme and --currency are required (or use --data)")
+				if variantID == "" || category == "" || scheme == "" || currency == "" {
+					return nil, Usagef("--variant, --category, --scheme and --currency are required (or use --data)")
 				}
 				label, _ := cmd.Flags().GetString("label")
 				unitPrice, _ := cmd.Flags().GetInt64("unit-price")
@@ -149,8 +151,8 @@ func newPricesUpdateCmd(app *App) *cobra.Command {
 				if err != nil {
 					return nil, err
 				}
-				// variant_id is intentionally empty for price updates
 				return api.CreatePriceRequest{
+					VariantId:          variantID,
 					Category:           domain.PriceCategory(category),
 					Scheme:             domain.PriceScheme(scheme),
 					Currency:           currency,
@@ -174,7 +176,7 @@ func newPricesUpdateCmd(app *App) *cobra.Command {
 			return renderOne(app, raw, priceHeaders, priceRow)
 		},
 	}
-	addPriceFlags(cmd, false)
+	addPriceFlags(cmd, true)
 	return annotate(cmd, "PATCH", "/api/prices/{priceId}")
 }
 

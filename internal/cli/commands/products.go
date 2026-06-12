@@ -60,7 +60,7 @@ func newProductsCreateCmd(app *App) *cobra.Command {
 		Short: "Create a product",
 		Long: "Create a new product. The API requires at least one variant — use --data with a complete JSON body.\n" +
 			"Flag-only creates (--name only) will be rejected by the server unless you provide variants via --data.",
-		Example: "  gphq products create --data @product.json\n  gphq products create --name \"Acme Pro\" --data -",
+		Example: "  gphq products create --name \"Acme Pro\" --description \"My product\"\n  gphq products create --data @product.json",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			body, err := bodyOrData(cmd, func() (any, error) {
