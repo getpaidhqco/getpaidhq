@@ -10,6 +10,7 @@ import (
 	api "getpaidhq/internal/adapter/http"
 	"getpaidhq/internal/cli/output"
 	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
 )
 
 var customerHeaders = []string{"ID", "EMAIL", "NAME", "PHONE", "CREATED"}
@@ -156,7 +157,10 @@ func newPMAddCmd(app *App) *cobra.Command {
 					return nil, Usagef("--psp, --name, --type and --token are required (or use --data)")
 				}
 				isDefault, _ := cmd.Flags().GetBool("default")
-				return api.CreatePaymentMethodRequest{
+				// This endpoint binds port.CreatePaymentMethodInput directly (PascalCase wire
+				// format, unlike every other route) — see customer_handler.go. OrgId and
+				// CustomerId are left zero; the server overwrites them from auth and path.
+				return port.CreatePaymentMethodInput{
 					Psp:       psp,
 					Name:      name,
 					Type:      domain.PaymentMethodType(pmType),
@@ -198,7 +202,10 @@ func newPMUpdateCmd(app *App) *cobra.Command {
 				pmType, _ := cmd.Flags().GetString("type")
 				token, _ := cmd.Flags().GetString("token")
 				isDefault, _ := cmd.Flags().GetBool("default")
-				return api.UpdatePaymentMethodRequest{
+				// This endpoint binds port.UpdatePaymentMethodInput directly (PascalCase wire
+				// format, unlike every other route) — see customer_handler.go. OrgId, CustomerId,
+				// and PaymentMethodId are left zero; the server overwrites them from auth and path.
+				return port.UpdatePaymentMethodInput{
 					Name:      name,
 					Type:      domain.PaymentMethodType(pmType),
 					Token:     token,

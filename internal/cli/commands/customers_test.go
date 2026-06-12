@@ -124,7 +124,7 @@ func TestCustomersCmd(t *testing.T) {
 			},
 			wantMethod: "POST",
 			wantPath:   "/api/customers/cus_1/payment-methods",
-			wantBody:   `{"psp":"paystack","name":"My Card","type":"card","token":"tok_abc123","is_default":true,"billing_address":{},"details":null,"metadata":null}`,
+			wantBody:   `{"OrgId":"","CustomerId":"","Psp":"paystack","Name":"My Card","Type":"card","Details":null,"Token":"tok_abc123","IsDefault":true,"BillingAddress":{},"Metadata":null}`,
 			respBody:   `{"id":"pm_1","name":"My Card","type":"card","psp":"paystack","created_at":"2026-06-12T09:00:00Z"}`,
 			wantOut:    []string{"pm_1"},
 			wantCode:   0,
