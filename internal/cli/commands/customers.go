@@ -9,8 +9,8 @@ import (
 	"github.com/spf13/cobra"
 
 	api "getpaidhq/internal/adapter/http"
-	domain "getpaidhq/internal/core/domain"
 	"getpaidhq/internal/cli/output"
+	domain "getpaidhq/internal/core/domain"
 )
 
 var customerHeaders = []string{"ID", "EMAIL", "NAME", "PHONE", "CREATED"}

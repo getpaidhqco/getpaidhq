@@ -60,8 +60,8 @@ func TestCustomersCmd(t *testing.T) {
 		},
 		// list: pagination flags and query params
 		{
-			name: "list with pagination",
-			args: []string{"customers", "list", "--page", "2", "--limit", "5", "--sort-by", "email", "--sort-order", "asc"},
+			name:       "list with pagination",
+			args:       []string{"customers", "list", "--page", "2", "--limit", "5", "--sort-by", "email", "--sort-order", "asc"},
 			wantMethod: "GET",
 			wantPath:   "/api/customers",
 			wantQuery: url.Values{
