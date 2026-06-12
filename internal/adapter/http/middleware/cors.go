@@ -7,25 +7,24 @@ import (
 	"github.com/rs/cors"
 
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
-// CorsMiddleware builds the project's CORS handler. Origins are
-// read from the ALLOWED_ORIGINS env var (comma-separated). An explicit
-// "*" entry enables permissive CORS for development; an empty value
-// rejects every cross-origin request.
+// CorsMiddleware builds the project's CORS handler. allowedOrigins is the
+// raw comma-separated origin list (ALLOWED_ORIGINS). An explicit "*" entry
+// enables permissive CORS for development; an empty value rejects every
+// cross-origin request.
 type CorsMiddleware struct {
-	logger port.Logger
-	env    lib.Env
+	logger         port.Logger
+	allowedOrigins string
 }
 
-func NewCorsMiddleware(logger port.Logger, env lib.Env) CorsMiddleware {
-	return CorsMiddleware{logger: logger, env: env}
+func NewCorsMiddleware(logger port.Logger, allowedOrigins string) CorsMiddleware {
+	return CorsMiddleware{logger: logger, allowedOrigins: allowedOrigins}
 }
 
 // Handler returns a net/http middleware suitable for fuego.WithGlobalMiddlewares.
 func (m CorsMiddleware) Handler() func(http.Handler) http.Handler {
-	allowed := parseOrigins(m.env.AllowedOrigins)
+	allowed := parseOrigins(m.allowedOrigins)
 	openCors := contains(allowed, "*")
 
 	opts := cors.Options{

@@ -8,7 +8,6 @@ import (
 	"github.com/cedar-policy/cedar-go"
 
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 type CedarAuthz struct {
@@ -16,8 +15,9 @@ type CedarAuthz struct {
 	policySet *cedar.PolicySet
 }
 
-func NewCedarAuthz(logger port.Logger, env lib.Env) port.Authz {
-	config, err := openConfig(env.CedarPolicyFile)
+// NewCedarAuthz loads the policy document at policyFile (CEDAR_POLICY).
+func NewCedarAuthz(logger port.Logger, policyFile string) port.Authz {
+	config, err := openConfig(policyFile)
 	if err != nil {
 		log.Fatal("cannot read cedar policy")
 	}
@@ -26,12 +26,12 @@ func NewCedarAuthz(logger port.Logger, env lib.Env) port.Authz {
 	// (admin / owner / member). cedar.Policy.UnmarshalCedar only reads the first
 	// statement, which silently dropped the owner+member rules and denied every
 	// non-admin role. NewPolicySetFromBytes loads them all.
-	ps, err := cedar.NewPolicySetFromBytes(env.CedarPolicyFile, config)
+	ps, err := cedar.NewPolicySetFromBytes(policyFile, config)
 	if err != nil {
 		log.Fatal(err)
 	}
 
-	logger.Infof("Loaded cedar policy from %s (%d rules)", env.CedarPolicyFile, len(ps.Map()))
+	logger.Infof("Loaded cedar policy from %s (%d rules)", policyFile, len(ps.Map()))
 	return CedarAuthz{
 		logger:    logger,
 		policySet: ps,

@@ -53,7 +53,7 @@ func repoRootPolicyPath(t *testing.T) string {
 // policy.cedar, exactly the way config.NewApp wires it.
 func newTestAuthz(t *testing.T) port.Authz {
 	t.Helper()
-	return NewCedarAuthz(noopLogger{}, lib.Env{CedarPolicyFile: repoRootPolicyPath(t)})
+	return NewCedarAuthz(noopLogger{}, repoRootPolicyPath(t))
 }
 
 func user(role port.UserRole) port.AuthUser {

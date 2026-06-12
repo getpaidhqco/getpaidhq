@@ -67,7 +67,7 @@ func (f *fakeApiKeyRepo) Update(_ context.Context, e domain.ApiKey) (domain.ApiK
 func (f *fakeApiKeyRepo) Delete(context.Context, string, string) error { return nil }
 
 func newAuth(repo port.ApiKeyRepository) port.Authenticator {
-	return NewApiKeyMiddleware(noopLogger{}, lib.Env{ApiKeyPepper: testPepper}, repo)
+	return NewApiKeyMiddleware(noopLogger{}, testPepper, repo)
 }
 
 func TestApiKeyMiddleware_Authenticate(t *testing.T) {
@@ -124,7 +124,7 @@ func TestApiKeyMiddleware_Authenticate(t *testing.T) {
 
 	t.Run("missing API_KEY_PEPPER fails closed", func(t *testing.T) {
 		repo := &fakeApiKeyRepo{}
-		auth := NewApiKeyMiddleware(noopLogger{}, lib.Env{ApiKeyPepper: ""}, repo)
+		auth := NewApiKeyMiddleware(noopLogger{}, "", repo)
 		_, err := auth.Authenticate(context.Background(), "any")
 
 		require.Error(t, err)

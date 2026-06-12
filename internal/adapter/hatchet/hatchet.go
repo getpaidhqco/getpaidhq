@@ -9,7 +9,6 @@ import (
 	hatchetwf "getpaidhq/internal/adapter/hatchet/workflows"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 
 	hatchetclient "github.com/hatchet-dev/hatchet/pkg/client"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
@@ -34,7 +33,7 @@ type Hatchet struct {
 
 func NewHatchetEngine(
 	logger port.Logger,
-	env lib.Env,
+	cfg Config,
 	orderService port.OrderWorkflowService,
 	subscriptionService port.SubscriptionService,
 	paymentService port.PaymentService,
@@ -44,11 +43,11 @@ func NewHatchetEngine(
 	webhookSteps *steps.OutgoingWebhookSteps,
 	dunningSteps *steps.DunningSteps,
 ) *Hatchet {
-	logger.Infof("Initializing Hatchet engine [host_port=%s][namespace=%s]", env.HatchetHostPort, env.HatchetNamespace)
+	logger.Infof("Initializing Hatchet engine [host_port=%s][namespace=%s]", cfg.HostPort, cfg.Namespace)
 
 	// The Hatchet client auto-reads HATCHET_CLIENT_TOKEN, HATCHET_CLIENT_HOST_PORT,
 	// HATCHET_CLIENT_NAMESPACE, HATCHET_CLIENT_TLS_STRATEGY from the environment
-	// — the lib.Env values above are loaded from the same vars and are kept here
+	// — the Config values above are loaded from the same vars and are kept here
 	// for visibility / future programmatic overrides.
 	// Bridge Hatchet's zerolog output into the app logger so the client's
 	// heartbeat/connection chatter shares our slog format and level instead of
@@ -74,7 +73,7 @@ func NewHatchetEngine(
 	billingCycleWF := hatchetwf.NewBillingCycleWorkflow(c, subscriptionService)
 	billingCycleRunnerWF := hatchetwf.NewBillingCycleRunnerWorkflow(c, subscriptionService)
 	orgBillingWF := hatchetwf.NewOrgBillingWorkflow(c, subscriptionRepo, reminderResolver, logger)
-	billingSweepWF := hatchetwf.NewBillingSweepWorkflow(c, orgRepo, env.HatchetBillingSweepInterval, logger)
+	billingSweepWF := hatchetwf.NewBillingSweepWorkflow(c, orgRepo, cfg.BillingSweepInterval, logger)
 	sendReminderWF := hatchetwf.NewSendRenewalReminderWorkflow(c, subscriptionService)
 	dunningAttemptWF := hatchetwf.NewDunningAttemptWorkflow(c, dunningSteps)
 	dunningRunnerWF := hatchetwf.NewDunningRunnerWorkflow(c, dunningSteps)

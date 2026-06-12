@@ -9,25 +9,25 @@ import (
 	"github.com/clerk/clerk-sdk-go/v2/user"
 
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 type ClerkMiddleware struct {
 	logger             port.Logger
-	env                lib.Env
 	metadataRepository port.MetadataStoreRepository
 }
 
+// NewClerkMiddleware authenticates Clerk bearer tokens. secretKey is the
+// Clerk backend API key (CLERK_SECRET); the clerk-sdk-go v2 global-key style
+// means it is set process-wide here.
 func NewClerkMiddleware(
 	logger port.Logger,
-	env lib.Env,
+	secretKey string,
 	metadataRepository port.MetadataStoreRepository,
 ) port.Authenticator {
-	clerk.SetKey(env.ClerkSecretKey)
+	clerk.SetKey(secretKey)
 	return ClerkMiddleware{
 		metadataRepository: metadataRepository,
 		logger:             logger,
-		env:                env,
 	}
 }
 

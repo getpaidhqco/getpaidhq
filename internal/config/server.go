@@ -10,7 +10,6 @@ import (
 	handler "getpaidhq/internal/adapter/http"
 	"getpaidhq/internal/adapter/http/middleware"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // Handlers groups every HTTP handler the application registers. The full
@@ -49,7 +48,15 @@ type ServerDeps struct {
 	Logger         port.Logger
 	Validator      *validator.Validate
 	Authenticators []port.Authenticator
-	Env            lib.Env
+	// AllowedOrigins is the raw comma-separated CORS origin list (ALLOWED_ORIGINS).
+	AllowedOrigins string
+	// TrustedProxies is the raw comma-separated CIDR list (TRUSTED_PROXIES)
+	// used to key the rate limiter by securely-resolved client IP.
+	TrustedProxies string
+	// RateLimitRPS / RateLimitBurst configure the per-client rate limit
+	// (RATE_LIMIT_RPS / RATE_LIMIT_BURST). RPS <= 0 disables it.
+	RateLimitRPS   int
+	RateLimitBurst int
 	// RateLimiter backs the per-client rate-limit middleware. When nil (e.g.
 	// the OpenAPI exporter) the middleware is a pass-through regardless of
 	// RATE_LIMIT_RPS.
@@ -89,14 +96,14 @@ func BuildServer(deps ServerDeps, h Handlers) *fuego.Server {
 	// without a Clerk key.
 	if len(deps.Authenticators) > 0 {
 		mws = append(mws,
-			middleware.NewAuthnWrapperMiddleware(deps.Authenticators, deps.Logger, deps.Env).Handler(),
+			middleware.NewAuthnWrapperMiddleware(deps.Authenticators, deps.Logger).Handler(),
 		)
 	}
 
-	trustedProxies, _ := handler.ParseTrustedProxies(deps.Env.TrustedProxies)
+	trustedProxies, _ := handler.ParseTrustedProxies(deps.TrustedProxies)
 	rateLimiter := middleware.NewRateLimitMiddleware(deps.Logger, deps.RateLimiter, middleware.RateLimitConfig{
-		RPS:     deps.Env.RateLimitRPS,
-		Burst:   deps.Env.RateLimitBurst,
+		RPS:     deps.RateLimitRPS,
+		Burst:   deps.RateLimitBurst,
 		KeyFunc: func(r *http.Request) string { return handler.ClientIP(r, trustedProxies) },
 	})
 	if rateLimiter.Enabled() {
@@ -104,7 +111,7 @@ func BuildServer(deps ServerDeps, h Handlers) *fuego.Server {
 	}
 
 	// CORS appended LAST so it runs OUTERMOST — see the ordering note above.
-	mws = append(mws, middleware.NewCorsMiddleware(deps.Logger, deps.Env).Handler())
+	mws = append(mws, middleware.NewCorsMiddleware(deps.Logger, deps.AllowedOrigins).Handler())
 
 	opts := []fuego.ServerOption{
 		fuego.WithErrorSerializer(handler.ApiErrorSerializer),

@@ -195,8 +195,8 @@ func NewApp() (*App, error) {
 		return nil, err
 	}
 	cache := redis.NewRedisClient(env.Get("REDIS_HOST"), env.Get("REDIS_PASSWORD"), 0)
-	authzEngine := cedar.NewCedarAuthz(logger, env)
-	scheduler := cron.NewCronScheduler(logger, env)
+	authzEngine := cedar.NewCedarAuthz(logger, env.CedarPolicyFile)
+	scheduler := cron.NewCronScheduler(logger)
 
 	// Rate-limiter backend selection. With Redis configured the limit is
 	// enforced cluster-wide (a shared GCRA budget across every instance);
@@ -213,13 +213,13 @@ func NewApp() (*App, error) {
 	}
 
 	// Auth
-	clerkAuth := clerk.NewClerkMiddleware(logger, env, metadataRepo)
-	clerkProvider := clerk.NewClerkClient(env, logger, metadataRepo)
+	clerkAuth := clerk.NewClerkMiddleware(logger, env.ClerkSecretKey, metadataRepo)
+	clerkProvider := clerk.NewClerkClient(env.ClerkSecretKey, logger, metadataRepo)
 	// Clerk is tried first; a non-Clerk token (an x-api-key value) fails its
 	// check and falls through to the API-key authenticator. Order matters only
 	// for which one "wins" a token it can actually validate, and the two token
 	// shapes are disjoint.
-	apiKeyAuth := apikey.NewApiKeyMiddleware(logger, env, apiKeyRepo)
+	apiKeyAuth := apikey.NewApiKeyMiddleware(logger, env.ApiKeyPepper, apiKeyRepo)
 	authenticators := []port.Authenticator{clerkAuth, apiKeyAuth}
 
 	// Cipher for stored PSP credentials. Optional at boot: with no
@@ -288,13 +288,21 @@ func NewApp() (*App, error) {
 		orderActivities := temporalact.NewOrderActivities(orderWorkflowService, subService, paymentService, subRepo, reminderConfigService)
 		webhookActivities := temporalact.NewOutgoingWebhookActivities(webhookSubService)
 		dunningActivities := temporalact.NewDunningActivities(dunningService)
-		t := temporal.NewTemporalEngine(logger, env, orderActivities, webhookActivities, dunningActivities, reporter)
+		t := temporal.NewTemporalEngine(logger, temporal.Config{
+			HostPort:  env.TemporalHost,
+			Namespace: env.TemporalNamespace,
+			TaskQueue: env.TemporalTaskQueue,
+		}, orderActivities, webhookActivities, dunningActivities, reporter)
 		engine = t
 		dunningEngine = t
 	case "hatchet", "":
 		webhookSteps := hatchetsteps.NewOutgoingWebhookSteps(logger, webhookSubRepo, settingRepo, webhookSubService, pubsub)
 		dunningSteps := hatchetsteps.NewDunningSteps(logger, dunningService)
-		h := hatchet.NewHatchetEngine(logger, env, orderWorkflowService, subService, paymentService, subRepo, orgRepo, reminderConfigService, webhookSteps, dunningSteps)
+		h := hatchet.NewHatchetEngine(logger, hatchet.Config{
+			HostPort:             env.HatchetHostPort,
+			Namespace:            env.HatchetNamespace,
+			BillingSweepInterval: env.HatchetBillingSweepInterval,
+		}, orderWorkflowService, subService, paymentService, subRepo, orgRepo, reminderConfigService, webhookSteps, dunningSteps)
 		engine = h
 		dunningEngine = h
 	default:
@@ -375,7 +383,10 @@ func NewApp() (*App, error) {
 		Logger:         logger,
 		Validator:      httpValidator,
 		Authenticators: authenticators,
-		Env:            env,
+		AllowedOrigins: env.AllowedOrigins,
+		TrustedProxies: env.TrustedProxies,
+		RateLimitRPS:   env.RateLimitRPS,
+		RateLimitBurst: env.RateLimitBurst,
 		RateLimiter:    rateLimiter,
 	}, handlers)
 
