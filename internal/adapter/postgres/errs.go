@@ -15,6 +15,10 @@ import (
 // UPDATE is blocked because the row is still referenced from another table.
 const pgForeignKeyViolation = "23503"
 
+// pgUniqueViolation is the SQLSTATE Postgres returns when an INSERT or
+// UPDATE collides with a unique index.
+const pgUniqueViolation = "23505"
+
 // translateErr wraps gorm-specific errors as domain-level sentinels so
 // callers can do `errors.Is(err, port.ErrNotFound)` without importing
 // gorm. Every repo method that ends with First/Take/Last (i.e. expects
@@ -44,6 +48,18 @@ func translateErr(err error) error {
 func asConflictOnFK(err error, msg string) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgForeignKeyViolation {
+		return lib.NewCustomError(lib.ConflictError, msg, err)
+	}
+	return err
+}
+
+// asConflictOnUnique converts a Postgres unique violation (23505) into a
+// typed ConflictError carrying msg, so handlers render a 409 with a clear,
+// caller-supplied message instead of leaking the raw driver error. Same
+// wrapping contract as asConflictOnFK.
+func asConflictOnUnique(err error, msg string) error {
+	var pgErr *pgconn.PgError
+	if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
 		return lib.NewCustomError(lib.ConflictError, msg, err)
 	}
 	return err

@@ -77,7 +77,7 @@ func (r *CustomerRepo) FindByExternalId(ctx context.Context, orgId string, exter
 func (r *CustomerRepo) Create(ctx context.Context, entity domain.Customer) (domain.Customer, error) {
 	row := customerRowFromDomain(entity)
 	if err := r.writeRow(ctx, &row, false).Error; err != nil {
-		return domain.Customer{}, err
+		return domain.Customer{}, asConflictOnUnique(err, "A customer with this email or external id already exists")
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
