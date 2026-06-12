@@ -36,6 +36,9 @@ func newCartsAddCmd(app *App) *cobra.Command {
 					return nil, Usagef("--product and --price are required (or use --data)")
 				}
 				qty, _ := cmd.Flags().GetInt("qty")
+				if qty < 1 {
+					return nil, Usagef("--qty must be a positive integer")
+				}
 				return api.AddItemRequest{
 					ProductId: product,
 					PriceId:   price,

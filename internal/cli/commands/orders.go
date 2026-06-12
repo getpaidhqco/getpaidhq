@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -35,13 +36,13 @@ var subscriptionHeaders = []string{"ID", "STATUS", "CURRENCY", "INTERVAL", "RENE
 // returns []domain.Subscription — a struct with no json tags, so all field
 // names are capitalized in the wire format.
 type domainSubscription struct {
-	Id                 string `json:"Id"`
-	Status             string `json:"Status"`
-	Currency           string `json:"Currency"`
-	BillingInterval    string `json:"BillingInterval"`
-	BillingIntervalQty int    `json:"BillingIntervalQty"`
-	RenewsAt           string `json:"RenewsAt"`
-	CreatedAt          string `json:"CreatedAt"`
+	Id                 string    `json:"Id"`
+	Status             string    `json:"Status"`
+	Currency           string    `json:"Currency"`
+	BillingInterval    string    `json:"BillingInterval"`
+	BillingIntervalQty int       `json:"BillingIntervalQty"`
+	RenewsAt           time.Time `json:"RenewsAt"`
+	CreatedAt          time.Time `json:"CreatedAt"`
 }
 
 func subscriptionRow(s domainSubscription) []string {
@@ -50,8 +51,8 @@ func subscriptionRow(s domainSubscription) []string {
 		s.Status,
 		s.Currency,
 		fmt.Sprintf("%d %s", s.BillingIntervalQty, s.BillingInterval),
-		output.Str(s.RenewsAt),
-		output.Str(s.CreatedAt),
+		output.Time(s.RenewsAt),
+		output.Time(s.CreatedAt),
 	}
 }
 
@@ -78,6 +79,13 @@ func parseOrderItems(vals []string) ([]api.CartItem, error) {
 		kv, err := parseKV(strings.Split(v, ","), "item")
 		if err != nil {
 			return nil, err
+		}
+		for k := range kv {
+			switch k {
+			case "product", "price", "qty":
+			default:
+				return nil, Usagef("--item has unknown key %q (want product=,price=[,qty=])", k)
+			}
 		}
 		item := api.CartItem{ProductId: kv["product"], PriceId: kv["price"], Quantity: 1}
 		if item.ProductId == "" || item.PriceId == "" {

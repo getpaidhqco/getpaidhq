@@ -67,6 +67,23 @@ func TestOrdersCmd(t *testing.T) {
 			wantErr:  []string{"--item qty must be a positive integer"},
 			wantCode: 2,
 		},
+		// orders create — unknown --item key (typo) → exit 2
+		{
+			name:     "orders create unknown item key",
+			args:     []string{"orders", "create", "--customer-id", "cus_1", "--psp", "paystack", "--item", "product=prod_1,price=pri_1,quanity=5"},
+			wantErr:  []string{"unknown key"},
+			wantCode: 2,
+		},
+		// orders create -o json — raw envelope passes through (incl. "psp" key)
+		{
+			name:       "orders create json mode",
+			args:       []string{"-o", "json", "orders", "create", "--customer-id", "cus_1", "--psp", "paystack", "--currency", "NGN", "--item", "product=prod_1,price=pri_1"},
+			wantMethod: "POST",
+			wantPath:   "/api/orders",
+			respBody:   `{"order":{"id":"ord_3","customer_id":"cus_1","reference":"REF003","status":"pending","currency":"NGN","total":5000,"created_at":"2026-06-12T09:00:00Z"},"psp":{"id":"paystack"}}`,
+			wantOut:    []string{`"psp"`, `"id": "ord_3"`},
+			wantCode:   0,
+		},
 		// orders create — via --data inline JSON (verbatim passthrough)
 		{
 			name:       "orders create via data",
@@ -151,6 +168,36 @@ func TestOrdersCmd(t *testing.T) {
 			wantOut:  []string{"sub_1", "active", "NGN"},
 			wantCode: 0,
 		},
+		// orders subscriptions — timestamps render in "2006-01-02 15:04" form
+		{
+			name:       "orders subscriptions timestamp format",
+			args:       []string{"orders", "subscriptions", "ord_1"},
+			wantMethod: "GET",
+			wantPath:   "/api/orders/ord_1/subscriptions",
+			respBody:   `[{"Id":"sub_2","Status":"active","Currency":"USD","BillingInterval":"month","BillingIntervalQty":1,"RenewsAt":"2026-07-12T09:00:00Z","CreatedAt":"2026-06-12T09:00:00Z"}]`,
+			wantOut:    []string{"2026-07-12 09:00", "2026-06-12 09:00"},
+			wantCode:   0,
+		},
+		// orders subscriptions — zero RenewsAt renders as "-"
+		{
+			name:       "orders subscriptions zero renews-at",
+			args:       []string{"orders", "subscriptions", "ord_1"},
+			wantMethod: "GET",
+			wantPath:   "/api/orders/ord_1/subscriptions",
+			respBody:   `[{"Id":"sub_3","Status":"active","Currency":"USD","BillingInterval":"month","BillingIntervalQty":1,"RenewsAt":"0001-01-01T00:00:00Z","CreatedAt":"2026-06-12T09:00:00Z"}]`,
+			wantOut:    []string{"sub_3", "-"},
+			wantCode:   0,
+		},
+		// orders subscriptions -o json — raw array passthrough
+		{
+			name:       "orders subscriptions json mode",
+			args:       []string{"-o", "json", "orders", "subscriptions", "ord_1"},
+			wantMethod: "GET",
+			wantPath:   "/api/orders/ord_1/subscriptions",
+			respBody:   `[{"Id":"sub_4","Status":"active","Currency":"NGN","BillingInterval":"month","BillingIntervalQty":1,"RenewsAt":"2026-07-12T09:00:00Z","CreatedAt":"2026-06-12T09:00:00Z"}]`,
+			wantOut:    []string{`"Id": "sub_4"`, `"Status": "active"`},
+			wantCode:   0,
+		},
 		// orders subscriptions — no args → exit 2
 		{
 			name:     "orders subscriptions no args",
@@ -196,6 +243,13 @@ func TestCartsCmd(t *testing.T) {
 			name:     "carts add missing price",
 			args:     []string{"carts", "add", "cart_1", "--product", "prod_1"},
 			wantErr:  []string{"--product and --price are required"},
+			wantCode: 2,
+		},
+		// carts add — --qty 0 → exit 2
+		{
+			name:     "carts add qty zero",
+			args:     []string{"carts", "add", "cart_1", "--product", "prod_1", "--price", "pri_1", "--qty", "0"},
+			wantErr:  []string{"--qty must be a positive integer"},
 			wantCode: 2,
 		},
 		// carts remove — happy path
