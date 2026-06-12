@@ -190,6 +190,9 @@ func TestCustomerHandler_CreatePaymentMethod(t *testing.T) {
 		require.Len(t, pmRepo.created, 1)
 		// CustomerId is taken from the path param, not the body.
 		assert.Equal(t, "cus_1", pmRepo.created[0].CustomerId)
+		// The token is accepted inbound and stored, but never echoed back.
+		assert.Equal(t, "tok_visa", pmRepo.created[0].Token)
+		assert.NotContains(t, rec.Body.String(), "tok_visa")
 	})
 
 	t.Run("non-admin (owner) is denied", func(t *testing.T) {
