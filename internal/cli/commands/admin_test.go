@@ -90,7 +90,7 @@ func TestAdminCommands(t *testing.T) {
 		// -----------------------------------------------------------------
 		// gateways create — CRITICAL: credentials must pass through as
 		// literal strings. Using api.CreateGatewayRequest would marshal
-		// domain.Secret values as "[REDACTED]" and silently break creation.
+		// domain.Secret values as "[redacted]" and silently break creation.
 		// This assertion is the regression guard against that mistake.
 		// -----------------------------------------------------------------
 		{
@@ -103,9 +103,9 @@ func TestAdminCommands(t *testing.T) {
 			},
 			wantMethod: "POST",
 			wantPath:   "/api/gateways",
-			// CRITICAL: credentials must arrive as literal strings, NOT "[REDACTED]".
+			// CRITICAL: credentials must arrive as literal strings, NOT "[redacted]".
 			// Using api.CreateGatewayRequest (with map[string]domain.Secret) would
-			// marshal to "[REDACTED]" — we build a plain map to prevent that.
+			// marshal to "[redacted]" — we build a plain map to prevent that.
 			wantBody: `{"name":"prod-paystack","psp":"paystack","config":null,"credentials":{"secret_key":"sk_live_x"}}`,
 			respBody: `{"id":"gw_1","name":"prod-paystack","psp":"paystack","created_at":"2024-01-01T00:00:00Z","updated_at":"2024-01-01T00:00:00Z"}`,
 			wantOut:  []string{"gw_1"},

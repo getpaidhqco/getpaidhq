@@ -229,8 +229,8 @@ func newGatewaysCreateCmd(app *App) *cobra.Command {
 
 				// SECURITY: We must NOT use api.CreateGatewayRequest here.
 				// That struct has Credentials as map[string]domain.Secret, and
-				// domain.Secret redacts itself to "[REDACTED]" when JSON-marshaled.
-				// Using the typed struct would send literal "[REDACTED]" to the
+				// domain.Secret redacts itself to "[redacted]" when JSON-marshaled.
+				// Using the typed struct would send literal "[redacted]" to the
 				// server instead of the real credential values. We build a plain
 				// map so the raw string values pass through unmodified.
 				return map[string]any{
