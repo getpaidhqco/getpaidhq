@@ -27,7 +27,9 @@ func newPaymentMethodHandlerForTest(t *testing.T, pmRepo *fakePaymentMethodRepo)
 }
 
 func TestPaymentMethodHandler_Get_HappyPath(t *testing.T) {
-	pmRepo := &fakePaymentMethodRepo{byId: domain.PaymentMethod{Id: "pm_1", Name: "Visa ****4242"}}
+	pmRepo := &fakePaymentMethodRepo{byId: domain.PaymentMethod{
+		Id: "pm_1", Name: "Visa ****4242", Token: "AUTH_x9_secret",
+	}}
 	pmh := newPaymentMethodHandlerForTest(t, pmRepo)
 
 	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
@@ -40,6 +42,9 @@ func TestPaymentMethodHandler_Get_HappyPath(t *testing.T) {
 	decodeJSON(t, rec, &got)
 	assert.Equal(t, "pm_1", got.Id)
 	assert.Equal(t, "Visa ****4242", got.Name)
+	// The gateway charge token is a bearer credential; it must never appear
+	// in a response body.
+	assert.NotContains(t, rec.Body.String(), "AUTH_x9_secret")
 }
 
 // TestPaymentMethodHandler_Get_OrgAndIdPlumbing pins the tenant-isolation

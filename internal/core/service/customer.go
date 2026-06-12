@@ -128,7 +128,7 @@ func (s *CustomerService) CreatePaymentMethod(ctx context.Context, orgId string,
 		CustomerId:     input.CustomerId,
 		BillingAddress: billingAddress,
 		Type:           input.Type,
-		Token:          input.Token,
+		Token:          domain.Secret(input.Token),
 		Details:        input.Details,
 		Metadata:       input.Metadata,
 		ExpireAt:       expireAt,
@@ -185,7 +185,7 @@ func (s *CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string,
 	}
 
 	if input.Token != "" {
-		paymentMethod.Token = input.Token
+		paymentMethod.Token = domain.Secret(input.Token)
 	}
 	if input.Details != nil {
 		paymentMethod.Details = input.Details

@@ -7,6 +7,9 @@ import (
 )
 
 // PaymentMethodResponse is the HTTP shape of a customer's payment method.
+// It deliberately carries no Token: the gateway charge token is a bearer
+// credential and charges are server-initiated, so no client ever needs it
+// back. Card display data lives in Details.
 type PaymentMethodResponse struct {
 	Id             string                     `json:"id"`
 	Status         domain.PaymentMethodStatus `json:"status"`
@@ -15,7 +18,6 @@ type PaymentMethodResponse struct {
 	CustomerId     string                     `json:"customer_id"`
 	BillingAddress domain.Address             `json:"billing_address"`
 	Type           domain.PaymentMethodType   `json:"type"`
-	Token          string                     `json:"token,omitempty"`
 	Details        any                        `json:"details,omitempty"`
 	Metadata       map[string]string          `json:"metadata,omitempty"`
 	ExpireAt       time.Time                  `json:"expire_at,omitzero"`
@@ -33,7 +35,6 @@ func NewPaymentMethodResponse(pm domain.PaymentMethod) PaymentMethodResponse {
 		CustomerId:     pm.CustomerId,
 		BillingAddress: pm.BillingAddress,
 		Type:           pm.Type,
-		Token:          pm.Token,
 		Details:        pm.Details,
 		Metadata:       pm.Metadata,
 		ExpireAt:       pm.ExpireAt,

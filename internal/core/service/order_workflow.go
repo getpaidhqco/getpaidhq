@@ -77,16 +77,21 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 		return domain.Order{}, err
 	}
 
+	// Details keeps the PSP's display data but NOT the token — Details is
+	// echoed in API responses and events, and the token already lives in the
+	// dedicated (redacting) Token field.
+	details := paymentCtx.PaymentMethod
+	details.Token = ""
 	paymentMethod, err := s.paymentMethodRepository.Create(ctx, domain.PaymentMethod{
 		OrgId:          orgId,
 		Id:             lib.GenerateId("payment_method"),
 		Psp:            string(paymentCtx.Psp),
-		Token:          paymentCtx.PaymentMethod.Token,
+		Token:          domain.Secret(paymentCtx.PaymentMethod.Token),
 		Name:           "Default",
 		CustomerId:     order.CustomerId,
 		BillingAddress: customer.BillingAddress,
 		Type:           domain.PaymentMethodType(paymentCtx.PaymentMethod.Type),
-		Details:        paymentCtx.PaymentMethod,
+		Details:        details,
 		CreatedAt:      time.Now().UTC(),
 		UpdatedAt:      time.Now().UTC(),
 	})

@@ -312,7 +312,7 @@ func (s *DunningService) runChargeAttempt(ctx context.Context, orgId, campaignId
 			Name:        paymentMethod.Name,
 			Type:        string(paymentMethod.Type),
 			IsRecurring: true,
-			Token:       paymentMethod.Token,
+			Token:       paymentMethod.Token.Reveal(),
 		},
 		Customer: customer,
 	})

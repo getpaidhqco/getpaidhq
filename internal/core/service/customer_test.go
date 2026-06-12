@@ -166,7 +166,7 @@ func TestCustomerService_CreatePaymentMethod(t *testing.T) {
 		require.NoError(t, err)
 		assert.Equal(t, domain.PaymentMethodStatusActive, got.Status)
 		require.Len(t, pm.created, 1)
-		assert.Equal(t, "tok_1", pm.created[0].Token)
+		assert.Equal(t, "tok_1", pm.created[0].Token.Reveal())
 		assert.True(t, ps.hasTopic(port.TopicPaymentMethodCreated))
 		assert.Empty(t, repo.updated, "no default update when IsDefault is false")
 	})
@@ -233,7 +233,7 @@ func TestCustomerService_UpdatePaymentMethod(t *testing.T) {
 		})
 
 		require.NoError(t, err)
-		assert.Equal(t, "new", got.Token)
+		assert.Equal(t, "new", got.Token.Reveal())
 		require.Len(t, pm.updated, 1)
 		assert.True(t, ps.hasTopic(port.TopicPaymentMethodUpdated))
 	})
