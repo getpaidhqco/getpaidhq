@@ -64,7 +64,7 @@ func newInvoicesListCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Short:   "List invoices",
-		Long:    "List all invoices for the organisation with optional pagination.",
+		Long:    "List all invoices for the organization with optional pagination.",
 		Example: "  gphq invoices list\n  gphq invoices list --page 2 --limit 5",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
@@ -118,7 +118,7 @@ func newPaymentsListCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "list",
 		Short:   "List payments",
-		Long:    "List all payments for the organisation with optional pagination.",
+		Long:    "List all payments for the organization with optional pagination.",
 		Example: "  gphq payments list\n  gphq payments list --page 2 --limit 5",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
