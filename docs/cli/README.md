@@ -10,11 +10,11 @@ make install-cli     # go install ./cmd/gphq  (adds gphq to $GOPATH/bin)
 make build-cli       # writes bin/gphq in the repo
 ```
 
-Requires Go 1.24+.
+Requires Go 1.26+.
 
 ## Authentication
 
-API keys are org-scoped and shown once at creation time. Create one via the dashboard or:
+API keys are org-scoped and shown once at creation time. Your first key must come from the dashboard (key creation itself requires authentication). Once you have one, further keys can be minted from the CLI:
 
 ```
 gphq api-keys create --name "my-key"
@@ -51,11 +51,13 @@ By default, commands print a human-readable table. Pass `-o json` to get the raw
 gphq customers list -o json | jq '.data[].id'
 ```
 
-Errors are written to stderr as:
+Errors are written to stderr. API errors carry the server's error code:
 
 ```
 error (<code>): <message>
 ```
+
+Usage and network errors print as `error: <message>`.
 
 Exit codes: `0` success, `1` API/network/config error, `2` usage error (bad flags or arguments).
 
@@ -73,8 +75,8 @@ Common fields have typed flags (e.g. `--email`, `--currency`). For full or neste
 
 List commands accept:
 
-- `--page <n>` — page number (default 1)
-- `--limit <n>` — results per page (default 20)
+- `--page <n>` — page number, zero-indexed (default 0, the first page)
+- `--limit <n>` — results per page (default 10)
 - `--sort-by <field>` — field to sort by
 - `--sort-order asc|desc` — sort direction
 
