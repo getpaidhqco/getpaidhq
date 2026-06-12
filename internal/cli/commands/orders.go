@@ -28,8 +28,12 @@ func orderRow(o api.OrderResponse) []string {
 	}
 }
 
-// subscriptionHeaders and subscriptionRow are defined here pending a later
-// task that collects them into subscriptions.go.
+// subscriptionHeaders and subscriptionRow are intentionally defined here, not
+// in subscriptions.go. They decode the untagged []domain.Subscription wire shape
+// returned by GET /api/orders/{id}/subscriptions — all JSON field names are
+// capitalised (no json tags on domain.Subscription). subscriptions.go's
+// subHeaders/subRow decode the api.SubscriptionResponse type which uses
+// snake_case json tags; these two shapes are distinct and must not be merged.
 var subscriptionHeaders = []string{"ID", "STATUS", "CURRENCY", "INTERVAL", "RENEWS", "CREATED"}
 
 // domainSubscription mirrors the JSON emitted by ListSubscriptions, which

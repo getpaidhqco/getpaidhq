@@ -3,7 +3,6 @@ package commands
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -25,37 +24,6 @@ func subRow(s api.SubscriptionResponse) []string {
 		fmt.Sprintf("%d %s", s.BillingIntervalQty, s.BillingInterval),
 		output.Time(s.RenewsAt),
 		output.Time(s.CreatedAt),
-	}
-}
-
-// paymentHeaders and paymentRow are defined here (used by subscriptions payments);
-// Task 8 (invoices/payments) will reuse these.
-var paymentHeaders = []string{"ID", "STATUS", "CURRENCY", "AMOUNT", "REFERENCE", "CREATED"}
-
-func paymentRow(p api.PaymentResponse) []string {
-	return []string{
-		p.Id,
-		string(p.Status),
-		p.Currency,
-		strconv.FormatInt(p.Amount, 10),
-		output.Str(p.Reference),
-		output.Time(p.CreatedAt),
-	}
-}
-
-// invoiceHeaders and invoiceRow are defined here (used by subscriptions invoices);
-// Task 8 (invoices/payments) will reuse these.
-var invoiceHeaders = []string{"ID", "STATUS", "CURRENCY", "TOTAL", "CYCLE", "PERIOD END", "CREATED"}
-
-func invoiceRow(i api.InvoiceResponse) []string {
-	return []string{
-		i.Id,
-		i.Status,
-		i.Currency,
-		strconv.FormatInt(i.Total, 10),
-		strconv.Itoa(i.Cycle),
-		output.Time(i.PeriodEnd),
-		output.Time(i.CreatedAt),
 	}
 }
 
