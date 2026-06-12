@@ -19,6 +19,7 @@ import (
 	"getpaidhq/internal/adapter/clerk"
 	"getpaidhq/internal/adapter/clickhouse"
 	"getpaidhq/internal/adapter/cron"
+	"getpaidhq/internal/adapter/crypto"
 	"getpaidhq/internal/adapter/hatchet"
 	hatchetsteps "getpaidhq/internal/adapter/hatchet/steps"
 	handler "getpaidhq/internal/adapter/http"
@@ -221,15 +222,29 @@ func NewApp() (*App, error) {
 	apiKeyAuth := apikey.NewApiKeyMiddleware(logger, env, apiKeyRepo)
 	authenticators := []port.Authenticator{clerkAuth, apiKeyAuth}
 
+	// Cipher for stored PSP credentials. Optional at boot: with no
+	// SECRETS_ENCRYPTION_KEY the cipher is nil and configuring/using a
+	// gateway fails with a clear error at that point instead of the whole
+	// server refusing to start. A key that is SET but invalid is a config
+	// bug and does fail boot.
+	var secretCipher port.SecretCipher
+	if env.SecretsEncryptionKey != "" {
+		cipher, err := crypto.NewAesGcmCipher(env.SecretsEncryptionKey)
+		if err != nil {
+			return nil, err
+		}
+		secretCipher = cipher
+	}
+
 	// Payment gateway adapters
 	gatewayAdapters := map[domain.Gateway]port.GatewayAdapter{
-		domain.Paystack:       paystack.NewAdapter(paymentRepo, pspRepo, settingRepo, logger, env.PaystackSecret),
+		domain.Paystack:       paystack.NewAdapter(paymentRepo, pspRepo, secretCipher, logger, env.PaystackSecret),
 		domain.CheckoutDotCom: checkout_com.NewAdapter(logger, env.CheckoutWebhookSecret),
 		// In-memory, always-succeeds gateway. Harmless in prod (only used if an
 		// org's PSP config selects "memory"); enables local/offline charge testing.
 		domain.Memory: memory.NewGatewayAdapter(logger),
 	}
-	gatewayFactory := service.NewGatewayFactory(pspRepo, settingRepo, logger, gatewayAdapters)
+	gatewayFactory := service.NewGatewayFactory(pspRepo, secretCipher, logger, gatewayAdapters)
 
 	_ = cache
 
@@ -317,7 +332,7 @@ func NewApp() (*App, error) {
 	orgService := service.NewOrgService(orgRepo, pubsub, clerkProvider, customerRepo, settingRepo, metadataRepo, apiKeyRepo, logger, env.ApiKeyPepper)
 	apiKeyService := service.NewApiKeyService(apiKeyRepo, env.ApiKeyPepper, logger)
 	settingService := service.NewSettingService(settingRepo, logger)
-	pspService := service.NewPspService(pspRepo, settingRepo, logger, pubsub)
+	pspService := service.NewPspService(pspRepo, secretCipher, logger, pubsub)
 	webhookService := service.NewWebhookService(logger, gatewayFactory, engine, idempotencyRepo, subRepo)
 	metadataService := service.NewMetadataService(metadataRepo, logger)
 

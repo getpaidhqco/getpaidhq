@@ -33,11 +33,11 @@ func NewGatewayAdapter(logger port.Logger) *GatewayAdapter {
 	return &GatewayAdapter{logger: logger}
 }
 
-// CreateGateway returns a provider that always succeeds. The settings JSON is
-// ignored — the in-memory gateway has no configuration to parse — but the
-// signature matches every other adapter so the GatewayFactory treats it
-// uniformly.
-func (a *GatewayAdapter) CreateGateway(_ string) (domain.GatewayProvider, error) {
+// CreateGateway returns a provider that always succeeds. The stored config
+// and credentials are ignored — the in-memory gateway has no configuration
+// to parse — but the signature matches every other adapter so the
+// GatewayFactory treats it uniformly.
+func (a *GatewayAdapter) CreateGateway(_ map[string]string, _ map[string]domain.Secret) (domain.GatewayProvider, error) {
 	return &gatewayProvider{logger: a.logger}, nil
 }
 

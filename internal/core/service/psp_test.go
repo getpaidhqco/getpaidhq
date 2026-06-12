@@ -2,7 +2,9 @@ package service
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -36,70 +38,105 @@ func (r *fakePspRepo) FindById(_ context.Context, _, _ string) (domain.PspConfig
 	return r.byId, nil
 }
 
-// fakeSettingRepoRW records setting creation and serves a configurable lookup.
-type fakeSettingRepoRW struct {
-	port.SettingRepository
-	byId      domain.Setting
-	byIdErr   error
-	createErr error
-	created   []domain.Setting
+// fakeSecretCipher is a reversible stand-in for the AES-GCM cipher that still
+// enforces AAD binding: an envelope only opens with the (orgId, id) it was
+// sealed for. Envelope shape: "enc[orgId:id]" + plaintext.
+type fakeSecretCipher struct {
+	encryptErr error
+	decryptErr error
 }
 
-func (r *fakeSettingRepoRW) Create(_ context.Context, s domain.Setting) (domain.Setting, error) {
-	if r.createErr != nil {
-		return domain.Setting{}, r.createErr
+func (c *fakeSecretCipher) Encrypt(orgId, id string, plaintext []byte) (string, error) {
+	if c.encryptErr != nil {
+		return "", c.encryptErr
 	}
-	r.created = append(r.created, s)
-	return s, nil
+	return "enc[" + orgId + ":" + id + "]" + string(plaintext), nil
 }
 
-func (r *fakeSettingRepoRW) FindById(_ context.Context, _, _, _ string) (domain.Setting, error) {
-	if r.byIdErr != nil {
-		return domain.Setting{}, r.byIdErr
+func (c *fakeSecretCipher) Decrypt(orgId, id string, envelope string) ([]byte, error) {
+	if c.decryptErr != nil {
+		return nil, c.decryptErr
 	}
-	return r.byId, nil
+	prefix := "enc[" + orgId + ":" + id + "]"
+	if !strings.HasPrefix(envelope, prefix) {
+		return nil, errors.New("envelope failed authentication")
+	}
+	return []byte(strings.TrimPrefix(envelope, prefix)), nil
 }
 
 func TestPspService_CreateGateway(t *testing.T) {
-	t.Run("creates the psp config and a settings row", func(t *testing.T) {
+	t.Run("stores config readable and credentials sealed", func(t *testing.T) {
 		psp := &fakePspRepo{}
-		settings := &fakeSettingRepoRW{}
-		svc := NewPspService(psp, settings, silentLogger{}, &recordingPubSub{})
+		cipher := &fakeSecretCipher{}
+		svc := NewPspService(psp, cipher, silentLogger{}, &recordingPubSub{})
 
 		got, err := svc.CreateGateway(context.Background(), port.CreateGatewayInput{
 			OrgId: "org_1", PspId: domain.Paystack, Name: "Primary",
-			Settings: map[string]string{"secret_key": "sk_test"},
+			Config:      map[string]string{"connect_id": "cn_1"},
+			Credentials: map[string]domain.Secret{"api_key": "sk_test"},
 		})
 
 		require.NoError(t, err)
 		assert.True(t, got.Active, "newly created gateway is active")
 		assert.Equal(t, domain.Paystack, got.PspId)
 		require.Len(t, psp.created, 1)
-		require.Len(t, settings.created, 1)
-		// The settings row is parented to the new psp id under the "settings" key.
-		assert.Equal(t, got.Id, settings.created[0].ParentId)
-		assert.Equal(t, "settings", settings.created[0].Id)
-		assert.Equal(t, "psp", settings.created[0].Type)
-		assert.Contains(t, settings.created[0].Value, "sk_test")
+		row := psp.created[0]
+		assert.Equal(t, map[string]string{"connect_id": "cn_1"}, row.Config)
+		// The stored envelope is sealed for this org+gateway (real ciphertext
+		// opacity is covered by the adapter/crypto tests; the fake is reversible).
+		assert.True(t, strings.HasPrefix(row.EncryptedCredentials, "enc[org_1:"+row.Id+"]"))
+		opened, err := cipher.Decrypt("org_1", row.Id, row.EncryptedCredentials)
+		require.NoError(t, err)
+		var creds map[string]string
+		require.NoError(t, json.Unmarshal(opened, &creds))
+		assert.Equal(t, map[string]string{"api_key": "sk_test"}, creds)
 	})
 
-	t.Run("psp create failure short-circuits before settings", func(t *testing.T) {
-		psp := &fakePspRepo{createErr: errors.New("db down")}
-		settings := &fakeSettingRepoRW{}
-		svc := NewPspService(psp, settings, silentLogger{}, &recordingPubSub{})
+	t.Run("missing credentials are rejected", func(t *testing.T) {
+		psp := &fakePspRepo{}
+		svc := NewPspService(psp, &fakeSecretCipher{}, silentLogger{}, &recordingPubSub{})
 
 		_, err := svc.CreateGateway(context.Background(), port.CreateGatewayInput{OrgId: "org_1", PspId: domain.Paystack})
 
 		require.Error(t, err)
-		assert.Empty(t, settings.created, "no settings written when psp create fails")
+		assert.Empty(t, psp.created)
 	})
 
-	t.Run("settings create failure is surfaced", func(t *testing.T) {
+	t.Run("nil cipher (no SECRETS_ENCRYPTION_KEY) is a clear error", func(t *testing.T) {
 		psp := &fakePspRepo{}
-		settings := &fakeSettingRepoRW{createErr: errors.New("db down")}
-		svc := NewPspService(psp, settings, silentLogger{}, &recordingPubSub{})
+		svc := NewPspService(psp, nil, silentLogger{}, &recordingPubSub{})
 
-		_, err := svc.CreateGateway(context.Background(), port.CreateGatewayInput{OrgId: "org_1", PspId: domain.Paystack})
+		_, err := svc.CreateGateway(context.Background(), port.CreateGatewayInput{
+			OrgId: "org_1", PspId: domain.Paystack,
+			Credentials: map[string]domain.Secret{"api_key": "sk_test"},
+		})
+
+		require.Error(t, err)
+		assert.Contains(t, err.Error(), "SECRETS_ENCRYPTION_KEY")
+		assert.Empty(t, psp.created, "nothing stored without a cipher")
+	})
+
+	t.Run("encrypt failure short-circuits before the row is written", func(t *testing.T) {
+		psp := &fakePspRepo{}
+		svc := NewPspService(psp, &fakeSecretCipher{encryptErr: errors.New("hsm down")}, silentLogger{}, &recordingPubSub{})
+
+		_, err := svc.CreateGateway(context.Background(), port.CreateGatewayInput{
+			OrgId: "org_1", PspId: domain.Paystack,
+			Credentials: map[string]domain.Secret{"api_key": "sk_test"},
+		})
+
+		require.Error(t, err)
+		assert.Empty(t, psp.created)
+	})
+
+	t.Run("psp create failure is surfaced", func(t *testing.T) {
+		psp := &fakePspRepo{createErr: errors.New("db down")}
+		svc := NewPspService(psp, &fakeSecretCipher{}, silentLogger{}, &recordingPubSub{})
+
+		_, err := svc.CreateGateway(context.Background(), port.CreateGatewayInput{
+			OrgId: "org_1", PspId: domain.Paystack,
+			Credentials: map[string]domain.Secret{"api_key": "sk_test"},
+		})
 
 		require.Error(t, err)
 	})

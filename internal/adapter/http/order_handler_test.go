@@ -31,7 +31,7 @@ func newOrderHandlerForTest(
 	engine *recordingEngine,
 ) *OrderHandler {
 	t.Helper()
-	factory := service.NewGatewayFactory(&fakePspRepo{}, &fakeSettingRepo{}, silentLogger{}, map[domain.Gateway]port.GatewayAdapter{})
+	factory := service.NewGatewayFactory(&fakePspRepo{}, fakeSecretCipher{}, silentLogger{}, map[domain.Gateway]port.GatewayAdapter{})
 	svc := service.NewOrderService(
 		noopTxManager{}, engine, sessionRepo, priceRepo, cartRepo, orderRepo,
 		custRepo, subRepo, payRepo, pmRepo, productRepo, factory, newPubSub(), silentLogger{},

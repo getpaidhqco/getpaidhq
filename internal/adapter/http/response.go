@@ -441,17 +441,23 @@ func NewProrationDetailsFromEntity(details domain.ProrationDetails) ProrationDet
 // Gateway / PSP
 // ---------------------------------------------------------------------------
 
+// GatewayResponse deliberately carries only the non-secret Config map —
+// gateway credentials are write-only and never serialized back.
 type GatewayResponse struct {
-	Id        string    `json:"id"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Id        string            `json:"id"`
+	Name      string            `json:"name"`
+	Psp       string            `json:"psp"`
+	Config    map[string]string `json:"config,omitempty"`
+	CreatedAt time.Time         `json:"created_at"`
+	UpdatedAt time.Time         `json:"updated_at"`
 }
 
 func NewGatewayFromEntity(entity domain.PspConfig) GatewayResponse {
 	return GatewayResponse{
 		Id:        entity.Id,
 		Name:      entity.Name,
+		Psp:       string(entity.PspId),
+		Config:    entity.Config,
 		UpdatedAt: entity.UpdatedAt,
 		CreatedAt: entity.CreatedAt,
 	}

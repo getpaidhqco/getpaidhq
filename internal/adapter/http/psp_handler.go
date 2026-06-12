@@ -33,12 +33,12 @@ func (s *PspHandler) Create(c fuego.ContextWithBody[CreateGatewayRequest]) (Gate
 	if err != nil {
 		return GatewayResponse{}, err
 	}
-	s.logger.Debug("Creating PSP", "input", input)
 	psp, err := s.gatewayService.CreateGateway(c.Context(), port.CreateGatewayInput{
-		OrgId:    authUser.OrgId,
-		PspId:    domain.Gateway(input.PspId),
-		Name:     input.Name,
-		Settings: input.Settings,
+		OrgId:       authUser.OrgId,
+		PspId:       domain.Gateway(input.PspId),
+		Name:        input.Name,
+		Config:      input.Config,
+		Credentials: input.Credentials,
 	})
 	if err != nil {
 		return GatewayResponse{}, NewApiErrorFromError(err)

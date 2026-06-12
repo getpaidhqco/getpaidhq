@@ -3,6 +3,7 @@ package handler
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -782,6 +783,22 @@ func (r *fakeSettingRepo) Create(_ context.Context, s domain.Setting) (domain.Se
 	}
 	r.created = append(r.created, s)
 	return s, nil
+}
+
+// fakeSecretCipher is a reversible stand-in for port.SecretCipher that still
+// enforces the (orgId, id) binding the real AES-GCM AAD provides.
+type fakeSecretCipher struct{}
+
+func (fakeSecretCipher) Encrypt(orgId, id string, plaintext []byte) (string, error) {
+	return "enc[" + orgId + ":" + id + "]" + string(plaintext), nil
+}
+
+func (fakeSecretCipher) Decrypt(orgId, id string, envelope string) ([]byte, error) {
+	prefix := "enc[" + orgId + ":" + id + "]"
+	if !strings.HasPrefix(envelope, prefix) {
+		return nil, errors.New("envelope failed authentication")
+	}
+	return []byte(strings.TrimPrefix(envelope, prefix)), nil
 }
 
 // fakeApiKeyRepo satisfies port.ApiKeyRepository.

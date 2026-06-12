@@ -372,10 +372,15 @@ func decimalOrZero(s string) (decimal.Decimal, error) {
 // PSP requests
 // ---------------------------------------------------------------------------
 
+// CreateGatewayRequest configures a payment gateway. The caller splits the
+// PSP's settings by sensitivity: config is readable back through the API
+// (themes, processing channel ids); credentials (secret/API keys) are
+// encrypted at rest and never returned by any endpoint.
 type CreateGatewayRequest struct {
-	Name     string            `json:"name" validate:"required"`
-	PspId    string            `json:"psp" validate:"required"`
-	Settings map[string]string `json:"settings" validate:"required"`
+	Name        string                   `json:"name" validate:"required"`
+	PspId       string                   `json:"psp" validate:"required"`
+	Config      map[string]string        `json:"config"`
+	Credentials map[string]domain.Secret `json:"credentials" validate:"required"`
 }
 
 // ---------------------------------------------------------------------------

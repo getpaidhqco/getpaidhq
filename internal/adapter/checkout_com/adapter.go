@@ -1,7 +1,6 @@
 package checkout_com
 
 import (
-	"encoding/json"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
@@ -20,15 +19,12 @@ func NewAdapter(logger port.Logger, webhookSecret string) *Adapter {
 	return &Adapter{logger: logger, webhookSecret: webhookSecret}
 }
 
-func (a *Adapter) CreateGateway(settingsJSON string) (domain.GatewayProvider, error) {
-	var config CheckoutDotComConfig
-	if err := json.Unmarshal([]byte(settingsJSON), &config); err != nil {
-		return nil, err
-	}
-	if err := config.Validate(); err != nil {
+func (a *Adapter) CreateGateway(config map[string]string, credentials map[string]domain.Secret) (domain.GatewayProvider, error) {
+	c, err := ParseConfig(config, credentials)
+	if err != nil {
 		return nil, lib.NewCustomError(lib.ValidationError, "invalid config for CheckoutDotCom", err)
 	}
-	return NewCheckoutDotComGateway(a.logger, config), nil
+	return NewCheckoutDotComGateway(a.logger, c), nil
 }
 
 func (a *Adapter) CreateWebhookParser() domain.WebhookParser {

@@ -78,9 +78,11 @@ func buildSubscriptionService(t *testing.T, db *gorm.DB) *service.SubscriptionSe
 	pspRepo := NewPspRepo(db)
 	settingRepo := NewSettingRepo(db)
 	memoryAdapter := memory.NewGatewayAdapter(logger)
+	// nil cipher: the memory gateway row stores no credentials, and the
+	// factory only opens the cipher when an envelope is present.
 	gatewayFactory := service.NewGatewayFactory(
 		pspRepo,
-		settingRepo,
+		nil,
 		logger,
 		map[domain.Gateway]port.GatewayAdapter{domain.Memory: memoryAdapter},
 	)
@@ -112,12 +114,11 @@ func buildSubscriptionService(t *testing.T, db *gorm.DB) *service.SubscriptionSe
 }
 
 // seedMemoryPsp configures the org so the GatewayFactory resolves to the memory
-// gateway. The factory reads gateways.FindById(orgId, id) then
-// settings.FindById(orgId, gateway.Id, "settings"); it dispatches on the
-// gateway row's PspId. We give the gateway row id `pspConfigId` and PspId
-// domain.Memory, and a (content-irrelevant) settings row hanging off it. The
-// subscription's PspId must equal `pspConfigId` so ChargeForBillingPeriod's
-// NewGateway(orgId, string(sub.PspId)) lookup hits this row.
+// gateway. The factory reads gateways.FindById(orgId, id) and dispatches on the
+// row's PspId; the memory gateway needs no credentials, so the credentials
+// column stays empty. The subscription's PspId must equal `pspConfigId` so
+// ChargeForBillingPeriod's NewGateway(orgId, string(sub.PspId)) lookup hits
+// this row.
 func seedMemoryPsp(t *testing.T, db *gorm.DB, orgId string) string {
 	t.Helper()
 	now := time.Now().UTC().Truncate(time.Microsecond)
@@ -129,16 +130,6 @@ func seedMemoryPsp(t *testing.T, db *gorm.DB, orgId string) string {
 		PspId:     domain.Memory,
 		Name:      "Memory (test)",
 		Active:    true,
-		CreatedAt: now,
-		UpdatedAt: now,
-	})).Error)
-
-	require.NoError(t, db.Create(settingRowFromDomain(domain.Setting{
-		OrgId:     orgId,
-		ParentId:  pspConfigId,
-		Id:        "settings",
-		Type:      "json",
-		Value:     "{}",
 		CreatedAt: now,
 		UpdatedAt: now,
 	})).Error)

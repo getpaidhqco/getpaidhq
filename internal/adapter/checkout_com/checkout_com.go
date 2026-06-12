@@ -25,12 +25,30 @@ type CheckoutDotCom struct {
 	client *cnas.Api
 }
 
+// CheckoutDotComConfig mirrors the stored gateway settings split: SecretKey
+// arrives Secret-typed from the credentials map — logging or marshaling this
+// struct prints "[redacted]"; Reveal() only at SDK client construction.
+// ProcessingChannelId is non-secret config.
 type CheckoutDotComConfig struct {
-	SecretKey           string `json:"secret_key"`
-	ProcessingChannelId string `json:"processing_channel_id"`
+	SecretKey           domain.Secret
+	ProcessingChannelId string
+}
+
+// ParseConfig builds a CheckoutDotComConfig from the stored config/credentials
+// maps. A secret mis-filed under config is NOT picked up — the gateway fails
+// validation loudly instead of silently using a readable secret.
+func ParseConfig(config map[string]string, credentials map[string]domain.Secret) (CheckoutDotComConfig, error) {
+	c := CheckoutDotComConfig{
+		SecretKey:           credentials["secret_key"],
+		ProcessingChannelId: config["processing_channel_id"],
+	}
+	return c, c.Validate()
 }
 
 func (c CheckoutDotComConfig) Validate() error {
+	if c.SecretKey.IsZero() {
+		return errors.New("secret_key is required in credentials")
+	}
 	return nil
 }
 
@@ -38,7 +56,7 @@ func NewCheckoutDotComGateway(logger port.Logger, config CheckoutDotComConfig) d
 	api, _ := checkout.
 		Builder().
 		StaticKeys().
-		WithSecretKey(config.SecretKey).
+		WithSecretKey(config.SecretKey.Reveal()).
 		WithEnvironment(configuration.Sandbox()). // or Env.PRODUCTION
 		Build()
 
@@ -182,7 +200,7 @@ func (p CheckoutDotCom) ChargePayment(ctx context.Context, input domain.ChargePa
 	api, err := checkout.
 		Builder().
 		StaticKeys().
-		WithSecretKey(p.config.SecretKey).
+		WithSecretKey(p.config.SecretKey.Reveal()).
 		WithEnvironment(configuration.Sandbox()). // or Env.PRODUCTION
 		Build()
 	if err != nil {

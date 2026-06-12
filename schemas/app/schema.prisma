@@ -146,6 +146,11 @@ model Gateway {
   name   String
   pspId  String  @map("psp_id")
   active Boolean @default(false)
+  /// Non-secret, UI-readable gateway settings (themes, channel ids), JSON object.
+  config String @default("")
+  /// AES-256-GCM envelope of the gateway's secret credentials (see
+  /// internal/adapter/crypto). Write-only: never returned by any endpoint.
+  credentials String @default("")
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt

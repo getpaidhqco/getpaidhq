@@ -95,7 +95,7 @@ func (p stubParser) ParseWebhook(context.Context, []byte) (domain.PaymentWebhook
 // factoryWithParser builds a real GatewayFactory whose Paystack adapter returns
 // the given parser (the factory dependency on WebhookService is a concrete type).
 func factoryWithParser(parser domain.WebhookParser) *GatewayFactory {
-	return NewGatewayFactory(&fakePspRepo{}, &fakeSettingRepoRW{}, silentLogger{}, map[domain.Gateway]port.GatewayAdapter{
+	return NewGatewayFactory(&fakePspRepo{}, &fakeSecretCipher{}, silentLogger{}, map[domain.Gateway]port.GatewayAdapter{
 		domain.Paystack: &fakeGatewayAdapter{webhookParser: parser},
 	})
 }

@@ -256,11 +256,15 @@ type MetadataStoreRepository interface {
 }
 
 // CreateGatewayInput is the input for creating a PSP gateway configuration.
+// Config is readable back through the API; Credentials are sealed by the
+// SecretCipher at creation and never readable again. The caller (dashboard
+// form) decides which map a field belongs in.
 type CreateGatewayInput struct {
-	OrgId    string            `json:"org_id" validate:"required"`
-	PspId    domain.Gateway    `json:"psp" validate:"required"`
-	Name     string            `json:"name"`
-	Settings map[string]string `json:"settings" validate:"required"`
+	OrgId       string                   `json:"org_id" validate:"required"`
+	PspId       domain.Gateway           `json:"psp" validate:"required"`
+	Name        string                   `json:"name"`
+	Config      map[string]string        `json:"config"`
+	Credentials map[string]domain.Secret `json:"credentials" validate:"required"`
 }
 
 // CreateOrgInput is the input for creating an organization.

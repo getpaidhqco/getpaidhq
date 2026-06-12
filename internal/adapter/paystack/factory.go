@@ -2,27 +2,32 @@ package paystack
 
 import (
 	"context"
-	"encoding/json"
+
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/core/service"
 	"getpaidhq/internal/lib"
 )
 
+// PaystackFactory builds a Paystack gateway for an org from its stored PSP
+// row — the webhook-side twin of service.GatewayFactory. Credentials are
+// decrypted via the shared service helper and stay Secret-typed inside
+// PaystackConfig.
 type PaystackFactory struct {
-	pspRepository     port.PspRepository
-	settingRepository port.SettingRepository
-	logger            port.Logger
+	pspRepository port.PspRepository
+	cipher        port.SecretCipher
+	logger        port.Logger
 }
 
 func NewPaystackFactory(
 	pspRepository port.PspRepository,
-	settingRepository port.SettingRepository,
+	cipher port.SecretCipher,
 	logger port.Logger,
 ) PaystackFactory {
 	return PaystackFactory{
-		pspRepository:     pspRepository,
-		settingRepository: settingRepository,
-		logger:            logger,
+		pspRepository: pspRepository,
+		cipher:        cipher,
+		logger:        logger,
 	}
 }
 
@@ -33,22 +38,16 @@ func (s PaystackFactory) New(ctx context.Context, orgId string) (domain.GatewayP
 		return nil, err
 	}
 
-	setting, err := s.settingRepository.FindById(ctx, orgId, psp.Id, "settings")
+	creds, err := service.DecryptGatewayCredentials(s.cipher, psp)
 	if err != nil {
+		s.logger.Error("Failed to open gateway credentials", "error", err)
 		return nil, err
 	}
-	var config PaystackConfig
-	err = json.Unmarshal([]byte(setting.Value), &config)
-	if err != nil {
-		s.logger.Error("Failed to unmarshal setting value", "error", err)
-		return nil, err
-	}
-	err = config.Validate()
+
+	config, err := ParseConfig(psp.Config, creds)
 	if err != nil {
 		return nil, lib.NewCustomError(lib.ValidationError, "invalid Config", err)
 	}
 
-	gw := NewPaystackGateway(s.logger, config)
-
-	return gw, nil
+	return NewPaystackGateway(s.logger, config), nil
 }

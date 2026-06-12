@@ -166,7 +166,7 @@ func (p WebhookParser) ParseWebhook(ctx context.Context, data []byte) (domain.Pa
 			}
 
 			paystackClient := paystacklib.NewPaystackApi(paystacklib.Options{
-				ApiKey:    paystack.Config.ApiKey,
+				ApiKey:    paystack.Config.ApiKey.Reveal(),
 				ConnectId: paystack.Config.ConnectId,
 			})
 			refund, err := paystackClient.Refund.Fetch(ctx, webhook.ID)
