@@ -56,6 +56,12 @@ type Env struct {
 	// (a separate compromise) to use the leaked hashes.
 	ApiKeyPepper string `mapstructure:"API_KEY_PEPPER"`
 
+	// SecretsEncryptionKey is a base64-encoded 32-byte key used to
+	// AES-256-GCM-encrypt stored PSP credentials. Like the pepper, it
+	// keeps a DB compromise from yielding usable gateway secrets: the
+	// attacker also needs this key. Generate with `openssl rand -base64 32`.
+	SecretsEncryptionKey string `mapstructure:"SECRETS_ENCRYPTION_KEY"`
+
 	// NatsURL is the external NATS server the pubsub adapter connects to.
 	NatsURL string `mapstructure:"NATS_URL"`
 
@@ -139,6 +145,7 @@ func NewEnv() Env {
 	viper.BindEnv("PAYSTACK_SECRET")
 	viper.BindEnv("CHECKOUT_WEBHOOK_SECRET")
 	viper.BindEnv("API_KEY_PEPPER")
+	viper.BindEnv("SECRETS_ENCRYPTION_KEY")
 	viper.BindEnv("COGNITO_CLIENT_ID")
 	viper.BindEnv("COGNITO_POOL_ID")
 	viper.BindEnv("COGNITO_REGION")
@@ -170,6 +177,7 @@ func NewEnv() Env {
 		env.Env = viper.GetString("ENV")
 		env.LogLevel = viper.GetString("GETPAIDHQ_LOG_LEVEL")
 		env.ClerkSecretKey = viper.GetString("CLERK_SECRET")
+		env.SecretsEncryptionKey = viper.GetString("SECRETS_ENCRYPTION_KEY")
 		env.WorkflowEngine = viper.GetString("WORKFLOW_ENGINE")
 		env.HatchetClientToken = viper.GetString("HATCHET_CLIENT_TOKEN")
 		env.HatchetHostPort = viper.GetString("HATCHET_CLIENT_HOST_PORT")

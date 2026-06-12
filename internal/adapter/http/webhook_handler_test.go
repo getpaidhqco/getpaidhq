@@ -29,7 +29,7 @@ type fakeGatewayAdapter struct {
 	parser *fakeWebhookParser
 }
 
-func (a *fakeGatewayAdapter) CreateGateway(string) (domain.GatewayProvider, error) {
+func (a *fakeGatewayAdapter) CreateGateway(map[string]string, map[string]domain.Secret) (domain.GatewayProvider, error) {
 	return nil, nil
 }
 
@@ -70,7 +70,7 @@ func newWebhookHandlerForTest(
 ) *WebhookHandler {
 	t.Helper()
 	adapters := map[domain.Gateway]port.GatewayAdapter{pspName: &fakeGatewayAdapter{parser: parser}}
-	factory := service.NewGatewayFactory(&fakePspRepo{}, &fakeSettingRepo{}, silentLogger{}, adapters)
+	factory := service.NewGatewayFactory(&fakePspRepo{}, fakeSecretCipher{}, silentLogger{}, adapters)
 	svc := service.NewWebhookService(silentLogger{}, factory, engine, idemp, &fakeSubRepo{})
 	return NewWebhookHandler(svc, silentLogger{})
 }

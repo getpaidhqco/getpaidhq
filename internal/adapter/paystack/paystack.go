@@ -2,7 +2,6 @@ package paystack
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
@@ -19,15 +18,33 @@ type Paystack struct {
 	Config PaystackConfig
 }
 
+// PaystackConfig mirrors the stored gateway settings split: ApiKey is the
+// merchant SECRET key and arrives Secret-typed from the credentials map —
+// logging or marshaling this struct prints "[redacted]"; Reveal() only at
+// SDK client construction. ConnectId/Type are non-secret config.
 type PaystackConfig struct {
-	Type      string `json:"type"`
-	ApiKey    string `json:"api_key"`
-	ConnectId string `json:"connect_id"`
+	Type      string
+	ApiKey    domain.Secret
+	ConnectId string
+}
+
+// ParseConfig builds a PaystackConfig from the stored config/credentials
+// maps. Shared by the GatewayFactory path (adapter.CreateGateway) and the
+// webhook-side PaystackFactory so the field mapping lives in one place.
+// A secret mis-filed under config is NOT picked up — the gateway fails
+// validation loudly instead of silently using a readable secret.
+func ParseConfig(config map[string]string, credentials map[string]domain.Secret) (PaystackConfig, error) {
+	c := PaystackConfig{
+		Type:      config["type"],
+		ApiKey:    credentials["api_key"],
+		ConnectId: config["connect_id"],
+	}
+	return c, c.Validate()
 }
 
 func (c PaystackConfig) Validate() error {
-	if c.ApiKey == "" {
-		return errors.New("api_key is required")
+	if c.ApiKey.IsZero() {
+		return errors.New("api_key is required in credentials")
 	}
 	return nil
 }
@@ -46,7 +63,7 @@ func (p Paystack) InitPayment(ctx context.Context, input domain.InitPaymentComma
 	email := input.Customer.Email
 
 	client := paystacklib.NewPaystackApi(paystacklib.Options{
-		ApiKey:    p.Config.ApiKey,
+		ApiKey:    p.Config.ApiKey.Reveal(),
 		ConnectId: p.Config.ConnectId,
 	})
 
@@ -80,7 +97,7 @@ func (p Paystack) InitPayment(ctx context.Context, input domain.InitPaymentComma
 
 func (p Paystack) ChargePayment(ctx context.Context, input domain.ChargePaymentCommand) domain.ChargePaymentResponse {
 	client := paystacklib.NewPaystackApi(paystacklib.Options{
-		ApiKey:    p.Config.ApiKey,
+		ApiKey:    p.Config.ApiKey.Reveal(),
 		ConnectId: p.Config.ConnectId,
 	})
 	p.logger.Infof("charging payment for connect account %s", p.Config.ConnectId)
@@ -102,8 +119,10 @@ func (p Paystack) ChargePayment(ctx context.Context, input domain.ChargePaymentC
 		},
 	}
 
-	jsonR, _ := json.Marshal(request)
-	p.logger.Debugf("ChargeAuthorization: %s", jsonR)
+	// Never log the marshaled request — AuthorizationCode is the customer's
+	// reusable card charge token and Email is PII; logging them would put
+	// the log aggregator inside PCI scope. Correlation fields only.
+	p.logger.Debugf("ChargeAuthorization reference=%s currency=%s amount=%d", request.Reference, request.Currency, request.Amount)
 
 	response, err := client.Transaction.ChargeAuthorization(ctx, request)
 	if err != nil {

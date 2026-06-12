@@ -33,7 +33,7 @@ func newDunningHandlerForTest(
 	dunEngine *recordingDunningEngine,
 ) *DunningHandler {
 	t.Helper()
-	factory := service.NewGatewayFactory(&fakePspRepo{}, &fakeSettingRepo{}, silentLogger{}, map[domain.Gateway]port.GatewayAdapter{})
+	factory := service.NewGatewayFactory(&fakePspRepo{}, fakeSecretCipher{}, silentLogger{}, map[domain.Gateway]port.GatewayAdapter{})
 
 	subSvc, err := service.NewSubscriptionService(
 		&fakeSessionRepo{}, &fakeSettingRepo{}, &fakeCartRepo{},

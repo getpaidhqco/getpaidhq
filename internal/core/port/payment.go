@@ -144,8 +144,14 @@ func ParsePaymentWebhookContext(data any) (PaymentWebhookContext, error) {
 // GatewayAdapter is a port that payment adapter packages implement.
 // The GatewayFactory uses this to create gateway/webhook parser instances
 // without importing adapter packages directly.
+//
+// CreateGateway receives the org's stored gateway settings already split:
+// config carries the non-secret fields, credentials the secret ones — kept
+// Secret-typed so an adapter that logs or marshals its config emits
+// "[redacted]" instead of key material. Adapters call Reveal() only when
+// constructing their PSP SDK client.
 type GatewayAdapter interface {
-	CreateGateway(settingsJSON string) (domain.GatewayProvider, error)
+	CreateGateway(config map[string]string, credentials map[string]domain.Secret) (domain.GatewayProvider, error)
 	CreateWebhookParser() domain.WebhookParser
 }
 

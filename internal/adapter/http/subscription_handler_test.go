@@ -27,7 +27,7 @@ func newSubscriptionHandlerForTest(
 		subRepo, &fakeCustomerRepo{}, &fakeOrderRepo{}, payRepo, nil,
 		// no gateway factory needed for the handler-level cases (they don't
 		// trigger charge attempts).
-		service.NewGatewayFactory(&fakePspRepo{}, &fakeSettingRepo{}, silentLogger{}, map[domain.Gateway]port.GatewayAdapter{}),
+		service.NewGatewayFactory(&fakePspRepo{}, fakeSecretCipher{}, silentLogger{}, map[domain.Gateway]port.GatewayAdapter{}),
 		nil, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{}, nil,
 	)
 	if err != nil {
