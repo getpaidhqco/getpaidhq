@@ -144,6 +144,10 @@ func TestReadData(t *testing.T) {
 		if err == nil {
 			t.Fatal("expected error for missing file")
 		}
+		var usageErr *UsageError
+		if !errors.As(err, &usageErr) {
+			t.Fatalf("expected UsageError, got %T: %v", err, err)
+		}
 		if !strings.Contains(err.Error(), "reading --data") {
 			t.Errorf("error = %q", err.Error())
 		}

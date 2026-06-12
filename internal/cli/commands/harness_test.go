@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 
 	"getpaidhq/internal/cli"
@@ -37,15 +38,18 @@ func runCase(t *testing.T, tc cmdCase) {
 	t.Setenv("GPHQ_API_KEY", "")
 	t.Setenv("GPHQ_BASE_URL", "")
 	t.Setenv("GPHQ_OUTPUT", "")
+	var mu sync.Mutex
 	var gotMethod, gotPath, gotBody, gotKey string
 	var gotQuery url.Values
 	requests := 0
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
 		requests++
 		gotMethod, gotPath, gotQuery = r.Method, r.URL.Path, r.URL.Query()
 		gotKey = r.Header.Get("x-api-key")
 		b, _ := io.ReadAll(r.Body)
 		gotBody = string(b)
+		mu.Unlock()
 		if tc.respStatus != 0 {
 			w.WriteHeader(tc.respStatus)
 		}
@@ -56,6 +60,9 @@ func runCase(t *testing.T, tc cmdCase) {
 	args := append(append([]string{}, tc.args...), "--base-url", srv.URL, "--api-key", "sk_test_123")
 	var out, errOut bytes.Buffer
 	code := cli.Run(args, strings.NewReader(tc.stdin), &out, &errOut)
+
+	mu.Lock()
+	defer mu.Unlock()
 
 	if code != tc.wantCode {
 		t.Fatalf("exit=%d want %d\nstdout: %s\nstderr: %s", code, tc.wantCode, out.String(), errOut.String())

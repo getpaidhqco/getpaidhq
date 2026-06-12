@@ -21,6 +21,9 @@ type UsageError struct{ msg string }
 
 func (e *UsageError) Error() string { return e.msg }
 
+// Usagef returns a UsageError (exit code 2) formatted like fmt.Sprintf.
+// Use for invalid flags, missing required arguments, or other invocation
+// mistakes that the user can fix by re-running with correct input.
 func Usagef(format string, a ...any) error {
 	return &UsageError{msg: fmt.Sprintf(format, a...)}
 }
@@ -65,7 +68,7 @@ func readData(stdin io.Reader, val string) (json.RawMessage, error) {
 		b = []byte(val)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("reading --data: %w", err)
+		return nil, Usagef("reading --data: %v", err)
 	}
 	if !json.Valid(b) {
 		return nil, Usagef("--data is not valid JSON")
@@ -152,6 +155,19 @@ func render(app *App, raw []byte, table func(raw []byte) error) error {
 		return output.JSON(app.Out, raw)
 	}
 	return table(raw)
+}
+
+// renderOne renders a single resource of type T: raw JSON in json mode,
+// otherwise a one-row table built by headers/row.
+func renderOne[T any](app *App, raw []byte, headers []string, row func(T) []string) error {
+	if app.Output == "json" {
+		return output.JSON(app.Out, raw)
+	}
+	var v T
+	if err := json.Unmarshal(raw, &v); err != nil {
+		return fmt.Errorf("decoding response: %w", err)
+	}
+	return output.Table(app.Out, headers, [][]string{row(v)})
 }
 
 // renderJSON is for auxiliary resources without a table shape: pretty

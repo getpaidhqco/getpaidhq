@@ -1,7 +1,6 @@
 package commands
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -10,7 +9,7 @@ import (
 
 	api "getpaidhq/internal/adapter/http"
 	"getpaidhq/internal/cli/output"
-	domain "getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/domain"
 )
 
 var customerHeaders = []string{"ID", "EMAIL", "NAME", "PHONE", "CREATED"}
@@ -22,16 +21,6 @@ func customerRow(c api.CustomerResponse) []string {
 		output.Str(strings.TrimSpace(c.FirstName + " " + c.LastName)),
 		output.Str(c.Phone),
 		output.Time(c.CreatedAt),
-	}
-}
-
-func customerTable(app *App) func([]byte) error {
-	return func(raw []byte) error {
-		var c api.CustomerResponse
-		if err := json.Unmarshal(raw, &c); err != nil {
-			return fmt.Errorf("decoding customer response: %w", err)
-		}
-		return output.Table(app.Out, customerHeaders, [][]string{customerRow(c)})
 	}
 }
 
@@ -87,7 +76,7 @@ func newCustomersCreateCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return render(app, raw, customerTable(app))
+			return renderOne(app, raw, customerHeaders, customerRow)
 		},
 	}
 	f := cmd.Flags()
@@ -131,7 +120,7 @@ func newCustomersGetCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return render(app, raw, customerTable(app))
+			return renderOne(app, raw, customerHeaders, customerRow)
 		},
 	}
 	return annotate(cmd, "GET", "/api/customers/{id}")
@@ -200,7 +189,7 @@ func newPMUpdateCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "update <customerId> <paymentMethodId>",
 		Short:   "Update a customer payment method",
-		Long:    "Update a saved payment method. Only provided flags are sent.",
+		Long:    "Update a saved payment method. Unset flags are sent as empty values, which the server ignores.",
 		Example: "  gphq customers payment-methods update cus_1 pm_1 --name \"Updated Card\"",
 		Args:    exactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
