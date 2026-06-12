@@ -20,6 +20,14 @@ run: ## Start the API server (go run .)
 build: ## Build the server binary (same as the Dockerfile)
 	go build -o $(BIN) .
 
+.PHONY: build-cli
+build-cli: ## Build the gphq CLI binary to bin/gphq
+	go build -o bin/gphq ./cmd/gphq
+
+.PHONY: install-cli
+install-cli: ## go install the gphq CLI
+	go install ./cmd/gphq
+
 .PHONY: clean
 clean: ## Remove build artifacts
 	rm -f $(BIN)
