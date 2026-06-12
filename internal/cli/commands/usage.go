@@ -181,7 +181,7 @@ func newUsageIngestCmd(app *App) *cobra.Command {
 		Long: `Ingest a single usage event (wrapped as a one-element batch).
 
 Exactly one of --customer or --external-customer should identify the customer.
-The event timestamp defaults to the zero time when omitted; pass an RFC3339
+The event timestamp defaults to the ingestion time when omitted; pass an RFC3339
 value to set an explicit time (e.g. 2026-06-12T10:00:00Z).
 
 To ingest multiple events in one request pass --data with a full
