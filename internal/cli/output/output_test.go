@@ -2,6 +2,7 @@ package output_test
 
 import (
 	"bytes"
+	"strings"
 	"testing"
 	"time"
 
@@ -10,13 +11,30 @@ import (
 
 func TestTableAligns(t *testing.T) {
 	var buf bytes.Buffer
-	output.Table(&buf, []string{"ID", "EMAIL"}, [][]string{
+	if err := output.Table(&buf, []string{"ID", "EMAIL"}, [][]string{
 		{"cus_1", "a@b.c"},
 		{"cus_22", "long.email@example.com"},
-	})
+	}); err != nil {
+		t.Fatal(err)
+	}
 	want := "ID      EMAIL\ncus_1   a@b.c\ncus_22  long.email@example.com\n"
 	if buf.String() != want {
 		t.Fatalf("got:\n%q\nwant:\n%q", buf.String(), want)
+	}
+}
+
+func TestTableSanitizesCells(t *testing.T) {
+	var buf bytes.Buffer
+	if err := output.Table(&buf, []string{"NAME"}, [][]string{
+		{"a\tb\nc"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	got := buf.String()
+	// The cell should have had its tab and newline replaced with spaces.
+	const wantCell = "a b c"
+	if !strings.Contains(got, wantCell) {
+		t.Fatalf("expected cell %q in output %q", wantCell, got)
 	}
 }
 
@@ -27,6 +45,26 @@ func TestJSONPrettyPrints(t *testing.T) {
 	}
 	if buf.String() != "{\n  \"a\": 1\n}\n" {
 		t.Fatalf("%q", buf.String())
+	}
+}
+
+func TestJSONPassthrough(t *testing.T) {
+	var buf bytes.Buffer
+	if err := output.JSON(&buf, []byte("bad gateway")); err != nil {
+		t.Fatal(err)
+	}
+	if got := buf.String(); got != "bad gateway\n" {
+		t.Fatalf("got %q", got)
+	}
+}
+
+func TestJSONEmptyInput(t *testing.T) {
+	var buf bytes.Buffer
+	if err := output.JSON(&buf, nil); err != nil {
+		t.Fatal(err)
+	}
+	if buf.Len() != 0 {
+		t.Fatalf("expected empty buffer, got %q", buf.String())
 	}
 }
 

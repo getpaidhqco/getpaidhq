@@ -11,13 +11,24 @@ import (
 	"time"
 )
 
-func Table(w io.Writer, headers []string, rows [][]string) {
-	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
-	fmt.Fprintln(tw, strings.Join(headers, "\t"))
-	for _, r := range rows {
-		fmt.Fprintln(tw, strings.Join(r, "\t"))
+// Table writes a tab-aligned table to w. Headers and cells are sanitized so
+// that embedded tabs or newlines do not corrupt tabwriter columns. It returns
+// any error surfaced by Flush.
+func Table(w io.Writer, headers []string, rows [][]string) error {
+	san := strings.NewReplacer("\t", " ", "\n", " ")
+	sanitize := func(cols []string) []string {
+		out := make([]string, len(cols))
+		for i, c := range cols {
+			out[i] = san.Replace(c)
+		}
+		return out
 	}
-	tw.Flush()
+	tw := tabwriter.NewWriter(w, 0, 4, 2, ' ', 0)
+	fmt.Fprintln(tw, strings.Join(sanitize(headers), "\t"))
+	for _, r := range rows {
+		fmt.Fprintln(tw, strings.Join(sanitize(r), "\t"))
+	}
+	return tw.Flush()
 }
 
 // JSON pretty-prints a raw API response body.
