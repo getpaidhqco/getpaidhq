@@ -17,9 +17,10 @@ func TestProductsCmd(t *testing.T) {
 			wantMethod: "POST",
 			wantPath:   "/api/products",
 			wantBody:   `{"name":"Acme Pro","variants":[{"name":"Standard","prices":[{"category":"subscription","scheme":"fixed","currency":"USD","unit_price":999,"billing_interval":"month","billing_interval_qty":1}]}]}`,
-			respBody:   `{"id":"prod_1","name":"Acme Pro","status":"active","variants":[{"id":"var_1","name":"Standard","prices":[],"created_at":"2026-06-12T09:00:00Z","updated_at":"2026-06-12T09:00:00Z"}],"created_at":"2026-06-12T09:00:00Z","updated_at":"2026-06-12T09:00:00Z"}`,
-			wantOut:    []string{"prod_1", "Acme Pro", "active", "1"},
-			wantCode:   0,
+			// prod_1 contains no digit "3", so "3" in wantOut uniquely identifies the VARIANTS count column.
+			respBody: `{"id":"prod_1","name":"Acme Pro","status":"active","variants":[{"id":"var_1","name":"Standard","prices":[],"created_at":"2026-06-12T09:00:00Z","updated_at":"2026-06-12T09:00:00Z"},{"id":"var_2","name":"Plus","prices":[],"created_at":"2026-06-12T09:00:00Z","updated_at":"2026-06-12T09:00:00Z"},{"id":"var_4","name":"Pro","prices":[],"created_at":"2026-06-12T09:00:00Z","updated_at":"2026-06-12T09:00:00Z"}],"created_at":"2026-06-12T09:00:00Z","updated_at":"2026-06-12T09:00:00Z"}`,
+			wantOut:  []string{"prod_1", "Acme Pro", "active", "3"},
+			wantCode: 0,
 		},
 		// create missing --name → exit 2 (server would also reject, but CLI validates first)
 		{
@@ -131,9 +132,10 @@ func TestProductsCmd(t *testing.T) {
 			args:       []string{"products", "variants", "list", "prod_1"},
 			wantMethod: "GET",
 			wantPath:   "/api/products/prod_1/variants",
-			respBody:   `{"data":[{"id":"var_1","name":"Standard","prices":[],"created_at":"2026-06-12T09:00:00Z","updated_at":"2026-06-12T09:00:00Z"}],"meta":{"total":1,"page":0,"limit":10}}`,
-			wantOut:    []string{"var_1", "Standard", "0"},
-			wantCode:   0,
+			// var_b has 3 prices; "var_b" contains no digit, so "3" uniquely identifies the PRICES count column.
+			respBody: `{"data":[{"id":"var_b","name":"Standard","prices":[{"id":"pri_a"},{"id":"pri_b"},{"id":"pri_c"}],"created_at":"2026-06-12T09:00:00Z","updated_at":"2026-06-12T09:00:00Z"}],"meta":{"total":1,"page":0,"limit":10}}`,
+			wantOut:  []string{"var_b", "Standard", "3"},
+			wantCode: 0,
 		},
 
 		// ---- products variants add ----
@@ -275,8 +277,19 @@ func TestPricesCmd(t *testing.T) {
 			wantCode:   0,
 		},
 
+		// ---- prices get with empty billing_interval → INTERVAL column shows "-" ----
+
+		{
+			name:       "prices get one_time no interval",
+			args:       []string{"prices", "get", "pri_2"},
+			wantMethod: "GET",
+			wantPath:   "/api/prices/pri_2",
+			respBody:   `{"id":"pri_2","variant_id":"var_1","label":"One-off","category":"one_time","scheme":"fixed","cycles":0,"currency":"USD","unit_price":500,"unit_count":0,"min_price":0,"suggested_price":0,"billing_interval":"","billing_interval_qty":0,"trial_interval":"","trial_interval_qty":0,"tax_code":"","billable_metric_id":"","tiers":[],"filter_field":"","filter_value":"","prorate_on_increase":false,"credit_on_decrease":false,"metadata":null,"created_at":"2026-06-12T09:00:00Z","updated_at":"2026-06-12T09:00:00Z"}`,
+			wantOut:    []string{"pri_2", "One-off", "one_time", "fixed", "USD", "500", "-"},
+			wantCode:   0,
+		},
+
 		// ---- prices update ----
-		// Uses PATCH; body should NOT contain variant_id
 
 		{
 			name: "prices update",

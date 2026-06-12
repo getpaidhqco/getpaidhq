@@ -3,7 +3,6 @@ package commands
 import (
 	"fmt"
 	"net/http"
-	"net/url"
 	"strconv"
 
 	"github.com/spf13/cobra"
@@ -112,9 +111,6 @@ func newProductsListCmd(app *App) *cobra.Command {
 			q := listQuery(cmd)
 			status, _ := cmd.Flags().GetString("status")
 			if status != "" {
-				if q == nil {
-					q = url.Values{}
-				}
 				q.Set("status", status)
 			}
 			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/products", q, nil)

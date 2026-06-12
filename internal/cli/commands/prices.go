@@ -3,6 +3,7 @@ package commands
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/spf13/cobra"
 
@@ -15,7 +16,7 @@ var priceHeaders = []string{"ID", "LABEL", "CATEGORY", "SCHEME", "CURRENCY", "UN
 
 func priceRow(p api.PriceResponse) []string {
 	interval := "-"
-	if p.BillingInterval != "" && string(p.BillingInterval) != "none" {
+	if p.BillingInterval != "" && p.BillingInterval != domain.BillingIntervalNone {
 		interval = fmt.Sprintf("%d %s", p.BillingIntervalQty, p.BillingInterval)
 	}
 	return []string{
@@ -24,7 +25,7 @@ func priceRow(p api.PriceResponse) []string {
 		string(p.Category),
 		string(p.Scheme),
 		string(p.Currency),
-		fmt.Sprintf("%d", p.UnitPrice),
+		strconv.FormatInt(p.UnitPrice, 10),
 		interval,
 		output.Time(p.CreatedAt),
 	}
@@ -45,6 +46,45 @@ func newPricesCmd(app *App) *cobra.Command {
 	return cmd
 }
 
+// priceRequestFromFlags reads price flags from cmd and returns a populated
+// CreatePriceRequest. --variant, --category, --scheme, and --currency are
+// always required.
+func priceRequestFromFlags(cmd *cobra.Command) (any, error) {
+	variantID, _ := cmd.Flags().GetString("variant")
+	category, _ := cmd.Flags().GetString("category")
+	scheme, _ := cmd.Flags().GetString("scheme")
+	currency, _ := cmd.Flags().GetString("currency")
+	if variantID == "" || category == "" || scheme == "" || currency == "" {
+		return nil, Usagef("--variant, --category, --scheme and --currency are required (or use --data)")
+	}
+	label, _ := cmd.Flags().GetString("label")
+	unitPrice, _ := cmd.Flags().GetInt64("unit-price")
+	interval, _ := cmd.Flags().GetString("interval")
+	intervalQty, _ := cmd.Flags().GetInt("interval-qty")
+	trialInterval, _ := cmd.Flags().GetString("trial-interval")
+	trialQty, _ := cmd.Flags().GetInt("trial-qty")
+	cycles, _ := cmd.Flags().GetInt("cycles")
+	metaPairs, _ := cmd.Flags().GetStringArray("metadata")
+	meta, err := parseKV(metaPairs, "metadata")
+	if err != nil {
+		return nil, err
+	}
+	return api.CreatePriceRequest{
+		VariantId:          variantID,
+		Category:           domain.PriceCategory(category),
+		Scheme:             domain.PriceScheme(scheme),
+		Currency:           currency,
+		Label:              label,
+		UnitPrice:          unitPrice,
+		BillingInterval:    domain.BillingInterval(interval),
+		BillingIntervalQty: intervalQty,
+		TrialInterval:      domain.BillingInterval(trialInterval),
+		TrialIntervalQty:   trialQty,
+		Cycles:             cycles,
+		Metadata:           meta,
+	}, nil
+}
+
 func newPricesCreateCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "create",
@@ -55,39 +95,7 @@ func newPricesCreateCmd(app *App) *cobra.Command {
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			body, err := bodyOrData(cmd, func() (any, error) {
-				variantID, _ := cmd.Flags().GetString("variant")
-				category, _ := cmd.Flags().GetString("category")
-				scheme, _ := cmd.Flags().GetString("scheme")
-				currency, _ := cmd.Flags().GetString("currency")
-				if variantID == "" || category == "" || scheme == "" || currency == "" {
-					return nil, Usagef("--variant, --category, --scheme and --currency are required (or use --data)")
-				}
-				label, _ := cmd.Flags().GetString("label")
-				unitPrice, _ := cmd.Flags().GetInt64("unit-price")
-				interval, _ := cmd.Flags().GetString("interval")
-				intervalQty, _ := cmd.Flags().GetInt("interval-qty")
-				trialInterval, _ := cmd.Flags().GetString("trial-interval")
-				trialQty, _ := cmd.Flags().GetInt("trial-qty")
-				cycles, _ := cmd.Flags().GetInt("cycles")
-				metaPairs, _ := cmd.Flags().GetStringArray("metadata")
-				meta, err := parseKV(metaPairs, "metadata")
-				if err != nil {
-					return nil, err
-				}
-				return api.CreatePriceRequest{
-					VariantId:          variantID,
-					Category:           domain.PriceCategory(category),
-					Scheme:             domain.PriceScheme(scheme),
-					Currency:           currency,
-					Label:              label,
-					UnitPrice:          unitPrice,
-					BillingInterval:    domain.BillingInterval(interval),
-					BillingIntervalQty: intervalQty,
-					TrialInterval:      domain.BillingInterval(trialInterval),
-					TrialIntervalQty:   trialQty,
-					Cycles:             cycles,
-					Metadata:           meta,
-				}, nil
+				return priceRequestFromFlags(cmd)
 			})
 			if err != nil {
 				return err
@@ -99,7 +107,7 @@ func newPricesCreateCmd(app *App) *cobra.Command {
 			return renderOne(app, raw, priceHeaders, priceRow)
 		},
 	}
-	addPriceFlags(cmd, true)
+	addPriceFlags(cmd)
 	return annotate(cmd, "POST", "/api/prices")
 }
 
@@ -132,39 +140,7 @@ func newPricesUpdateCmd(app *App) *cobra.Command {
 		Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			body, err := bodyOrData(cmd, func() (any, error) {
-				variantID, _ := cmd.Flags().GetString("variant")
-				category, _ := cmd.Flags().GetString("category")
-				scheme, _ := cmd.Flags().GetString("scheme")
-				currency, _ := cmd.Flags().GetString("currency")
-				if variantID == "" || category == "" || scheme == "" || currency == "" {
-					return nil, Usagef("--variant, --category, --scheme and --currency are required (or use --data)")
-				}
-				label, _ := cmd.Flags().GetString("label")
-				unitPrice, _ := cmd.Flags().GetInt64("unit-price")
-				interval, _ := cmd.Flags().GetString("interval")
-				intervalQty, _ := cmd.Flags().GetInt("interval-qty")
-				trialInterval, _ := cmd.Flags().GetString("trial-interval")
-				trialQty, _ := cmd.Flags().GetInt("trial-qty")
-				cycles, _ := cmd.Flags().GetInt("cycles")
-				metaPairs, _ := cmd.Flags().GetStringArray("metadata")
-				meta, err := parseKV(metaPairs, "metadata")
-				if err != nil {
-					return nil, err
-				}
-				return api.CreatePriceRequest{
-					VariantId:          variantID,
-					Category:           domain.PriceCategory(category),
-					Scheme:             domain.PriceScheme(scheme),
-					Currency:           currency,
-					Label:              label,
-					UnitPrice:          unitPrice,
-					BillingInterval:    domain.BillingInterval(interval),
-					BillingIntervalQty: intervalQty,
-					TrialInterval:      domain.BillingInterval(trialInterval),
-					TrialIntervalQty:   trialQty,
-					Cycles:             cycles,
-					Metadata:           meta,
-				}, nil
+				return priceRequestFromFlags(cmd)
 			})
 			if err != nil {
 				return err
@@ -176,7 +152,7 @@ func newPricesUpdateCmd(app *App) *cobra.Command {
 			return renderOne(app, raw, priceHeaders, priceRow)
 		},
 	}
-	addPriceFlags(cmd, true)
+	addPriceFlags(cmd)
 	return annotate(cmd, "PATCH", "/api/prices/{priceId}")
 }
 
@@ -199,12 +175,9 @@ func newPricesDeleteCmd(app *App) *cobra.Command {
 }
 
 // addPriceFlags adds shared flags to a prices create/update command.
-// withVariant controls whether --variant is included (only for create).
-func addPriceFlags(cmd *cobra.Command, withVariant bool) {
+func addPriceFlags(cmd *cobra.Command) {
 	f := cmd.Flags()
-	if withVariant {
-		f.String("variant", "", "variant ID (required)")
-	}
+	f.String("variant", "", "variant ID (required)")
 	f.String("category", "", "price category: one_time, subscription, free, variable (required)")
 	f.String("scheme", "", "price scheme: fixed, tiered, volume, graduated, package (required)")
 	f.String("currency", "", "ISO 4217 currency code, e.g. USD (required)")
