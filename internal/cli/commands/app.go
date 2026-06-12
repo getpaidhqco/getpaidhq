@@ -28,6 +28,7 @@ func AddAll(root *cobra.Command, app *App) {
 		newPricesCmd(app),
 		newProductsCmd(app),
 		newSessionsCmd(app),
+		newSubscriptionsCmd(app),
 		newVariantsCmd(app),
 	)
 }
