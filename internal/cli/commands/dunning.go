@@ -48,17 +48,13 @@ func renderDunningList[T any](app *App, raw []byte, headers []string, row func(T
 var campaignHeaders = []string{"ID", "SUBSCRIPTION", "STATUS", "FAILED", "ATTEMPTS", "NEXT ATTEMPT", "CREATED"}
 
 func campaignRow(c api.DunningCampaignResponse) []string {
-	var nextAttempt string
-	if !c.NextAttemptAt.IsZero() {
-		nextAttempt = output.Time(c.NextAttemptAt)
-	}
 	return []string{
 		c.ID,
 		c.SubscriptionID,
 		c.Status,
 		strconv.FormatInt(c.FailedAmount, 10),
 		strconv.Itoa(c.TotalAttempts),
-		nextAttempt,
+		output.Time(c.NextAttemptAt),
 		output.Time(c.CreatedAt),
 	}
 }
@@ -67,9 +63,9 @@ func campaignRow(c api.DunningCampaignResponse) []string {
 // config table
 // ---------------------------------------------------------------------------
 
-var configHeaders = []string{"ID", "NAME", "STATUS", "PRIORITY", "APPLIES TO", "CREATED"}
+var dunningConfigHeaders = []string{"ID", "NAME", "STATUS", "PRIORITY", "APPLIES TO", "CREATED"}
 
-func configRow(c api.DunningConfigurationResponse) []string {
+func dunningConfigRow(c api.DunningConfigurationResponse) []string {
 	return []string{
 		c.ID,
 		c.Name,
@@ -200,16 +196,17 @@ func newCampaignsAttemptsCmd(app *App) *cobra.Command {
 		Use:     "attempts <id>",
 		Short:   "List attempts for a dunning campaign",
 		Long:    "List all retry attempts for a dunning campaign.",
-		Example: "  gphq dunning campaigns attempts dc_1",
+		Example: "  gphq dunning campaigns attempts dc_1\n  gphq dunning campaigns attempts dc_1 --limit 50",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/dunning/campaigns/"+args[0]+"/attempts", nil, nil)
+			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/dunning/campaigns/"+args[0]+"/attempts", listQuery(cmd), nil)
 			if err != nil {
 				return err
 			}
 			return renderJSON(app, raw)
 		},
 	}
+	addListFlags(cmd)
 	return annotate(cmd, "GET", "/api/dunning/campaigns/{id}/attempts")
 }
 
@@ -251,16 +248,17 @@ func newCampaignsCommunicationsCmd(app *App) *cobra.Command {
 		Use:     "communications <id>",
 		Short:   "List communications for a dunning campaign",
 		Long:    "List all customer communications (emails, SMS, etc.) sent for a dunning campaign.",
-		Example: "  gphq dunning campaigns communications dc_1",
+		Example: "  gphq dunning campaigns communications dc_1\n  gphq dunning campaigns communications dc_1 --limit 50",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/dunning/campaigns/"+args[0]+"/communications", nil, nil)
+			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/dunning/campaigns/"+args[0]+"/communications", listQuery(cmd), nil)
 			if err != nil {
 				return err
 			}
 			return renderJSON(app, raw)
 		},
 	}
+	addListFlags(cmd)
 	return annotate(cmd, "GET", "/api/dunning/campaigns/{id}/communications")
 }
 
@@ -295,7 +293,7 @@ func newConfigsListCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return renderDunningList(app, raw, configHeaders, configRow)
+			return renderDunningList(app, raw, dunningConfigHeaders, dunningConfigRow)
 		},
 	}
 	addListFlags(cmd)
@@ -314,7 +312,7 @@ func newConfigsGetCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, configHeaders, configRow)
+			return renderOne(app, raw, dunningConfigHeaders, dunningConfigRow)
 		},
 	}
 	return annotate(cmd, "GET", "/api/dunning/configurations/{id}")
@@ -371,7 +369,7 @@ Example --data payload:
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, configHeaders, configRow)
+			return renderOne(app, raw, dunningConfigHeaders, dunningConfigRow)
 		},
 	}
 	f := cmd.Flags()
@@ -387,7 +385,7 @@ func newConfigsUpdateCmd(app *App) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "update <id>",
 		Short:   "Update a dunning configuration",
-		Long:    "Update fields on a dunning configuration. Only provided flags are sent; pointer fields absent from --data remain null in the request.",
+		Long:    "Update fields on a dunning configuration. Unset flags are sent as empty values, which the server ignores. Note: priority 0 cannot be set via flags (the server treats 0 as unset); use --data.",
 		Example: "  gphq dunning configs update dcfg_1 --name \"Updated name\" --status active\n  gphq dunning configs update dcfg_1 --data '{\"name\":\"New name\",\"status\":\"active\"}'",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -411,7 +409,7 @@ func newConfigsUpdateCmd(app *App) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, configHeaders, configRow)
+			return renderOne(app, raw, dunningConfigHeaders, dunningConfigRow)
 		},
 	}
 	f := cmd.Flags()

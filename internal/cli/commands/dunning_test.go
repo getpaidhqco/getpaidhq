@@ -1,6 +1,7 @@
 package commands_test
 
 import (
+	"net/url"
 	"testing"
 )
 
@@ -46,7 +47,7 @@ func TestDunningCmd(t *testing.T) {
 				"data": [` + campaignResp + `],
 				"total": 1
 			}`,
-			wantOut:  []string{"dc_1", "sub_1", "active", "9900", "2", "total 1"},
+			wantOut:  []string{"dc_1", "sub_1", "active", "9900", "2", "-", "total 1"},
 			wantCode: 0,
 		},
 		// campaigns list -o json
@@ -116,6 +117,17 @@ func TestDunningCmd(t *testing.T) {
 			args:       []string{"dunning", "campaigns", "attempts", "dc_1"},
 			wantMethod: "GET",
 			wantPath:   "/api/dunning/campaigns/dc_1/attempts",
+			wantQuery:  url.Values{"limit": {"10"}, "page": {"0"}},
+			respBody:   `{"data":[],"total":0}`,
+			wantOut:    []string{`"data"`},
+			wantCode:   0,
+		},
+		{
+			name:       "campaigns attempts --limit 50",
+			args:       []string{"dunning", "campaigns", "attempts", "dc_1", "--limit", "50"},
+			wantMethod: "GET",
+			wantPath:   "/api/dunning/campaigns/dc_1/attempts",
+			wantQuery:  url.Values{"limit": {"50"}},
 			respBody:   `{"data":[],"total":0}`,
 			wantOut:    []string{`"data"`},
 			wantCode:   0,
@@ -151,6 +163,17 @@ func TestDunningCmd(t *testing.T) {
 			args:       []string{"dunning", "campaigns", "communications", "dc_1"},
 			wantMethod: "GET",
 			wantPath:   "/api/dunning/campaigns/dc_1/communications",
+			wantQuery:  url.Values{"limit": {"10"}, "page": {"0"}},
+			respBody:   `{"data":[],"total":0}`,
+			wantOut:    []string{`"data"`},
+			wantCode:   0,
+		},
+		{
+			name:       "campaigns communications --limit 50",
+			args:       []string{"dunning", "campaigns", "communications", "dc_1", "--limit", "50"},
+			wantMethod: "GET",
+			wantPath:   "/api/dunning/campaigns/dc_1/communications",
+			wantQuery:  url.Values{"limit": {"50"}},
 			respBody:   `{"data":[],"total":0}`,
 			wantOut:    []string{`"data"`},
 			wantCode:   0,
