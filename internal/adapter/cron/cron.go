@@ -4,7 +4,6 @@ import (
 	"time"
 
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 
 	"github.com/robfig/cron/v3"
 )
@@ -14,7 +13,7 @@ type CronScheduler struct {
 	logger port.Logger
 }
 
-func NewCronScheduler(logger port.Logger, env lib.Env) port.Scheduler {
+func NewCronScheduler(logger port.Logger) port.Scheduler {
 	c := cron.New()
 	return &CronScheduler{
 		logger: logger,

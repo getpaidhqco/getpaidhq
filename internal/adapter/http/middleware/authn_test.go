@@ -8,7 +8,6 @@ import (
 	"testing"
 
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -59,7 +58,7 @@ func (n *nextRecorder) ServeHTTP(_ http.ResponseWriter, r *http.Request) {
 }
 
 func newMiddleware(authns ...port.Authenticator) AuthnWrapperMiddleware {
-	return NewAuthnWrapperMiddleware(authns, noopLogger{}, lib.Env{})
+	return NewAuthnWrapperMiddleware(authns, noopLogger{})
 }
 
 func TestAuthnWrapperMiddleware_Handler(t *testing.T) {

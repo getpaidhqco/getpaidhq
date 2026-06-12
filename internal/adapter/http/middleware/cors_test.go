@@ -7,8 +7,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"getpaidhq/internal/lib"
 )
 
 // noopMwLogger satisfies the package's logger interface without producing output.
@@ -68,7 +66,7 @@ func TestContains(t *testing.T) {
 }
 
 func TestCorsMiddleware_Wildcard_AllowsAnyOrigin(t *testing.T) {
-	m := NewCorsMiddleware(noopMwLogger{}, lib.Env{AllowedOrigins: "*"})
+	m := NewCorsMiddleware(noopMwLogger{}, "*")
 	h := m.Handler()(okHandler())
 
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
@@ -85,7 +83,7 @@ func TestCorsMiddleware_Wildcard_AllowsAnyOrigin(t *testing.T) {
 }
 
 func TestCorsMiddleware_Allowlist_AllowsListedDeniesOther(t *testing.T) {
-	m := NewCorsMiddleware(noopMwLogger{}, lib.Env{AllowedOrigins: "https://app.example.com"})
+	m := NewCorsMiddleware(noopMwLogger{}, "https://app.example.com")
 	h := m.Handler()(okHandler())
 
 	// Listed origin: gets the echo.
@@ -106,7 +104,7 @@ func TestCorsMiddleware_Allowlist_AllowsListedDeniesOther(t *testing.T) {
 }
 
 func TestCorsMiddleware_Empty_BlocksAllCrossOrigin(t *testing.T) {
-	m := NewCorsMiddleware(noopMwLogger{}, lib.Env{AllowedOrigins: ""})
+	m := NewCorsMiddleware(noopMwLogger{}, "")
 	h := m.Handler()(okHandler())
 
 	req := httptest.NewRequest(http.MethodOptions, "/", nil)

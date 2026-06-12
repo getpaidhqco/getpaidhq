@@ -24,18 +24,15 @@ const AuthUserKey ctxKey = 1
 type AuthnWrapperMiddleware struct {
 	authnList []port.Authenticator
 	logger    port.Logger
-	env       lib.Env
 }
 
 func NewAuthnWrapperMiddleware(
 	authenticators []port.Authenticator,
 	logger port.Logger,
-	env lib.Env,
 ) AuthnWrapperMiddleware {
 	return AuthnWrapperMiddleware{
 		authnList: authenticators,
 		logger:    logger,
-		env:       env,
 	}
 }
 

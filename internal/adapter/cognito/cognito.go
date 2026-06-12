@@ -11,13 +11,20 @@ import (
 	"time"
 
 	"github.com/dgrijalva/jwt-go"
-
-	"getpaidhq/internal/lib"
 )
 
 var (
 	ErrInvalidParam = errors.New("invalid param")
 )
+
+// Config carries the Cognito adapter's settings (COGNITO_CLIENT_ID,
+// COGNITO_REGION, COGNITO_POOL_ID). The composition root maps env vars onto
+// this struct; the adapter never sees the global env.
+type Config struct {
+	ClientId   string
+	Region     string
+	UserPoolId string
+}
 
 type Cognito struct {
 	// AWS App Client Id
@@ -42,11 +49,11 @@ type PublicKey struct {
 
 type PublicKeys map[string]PublicKey
 
-func NewCognitoClient(env lib.Env) (Cognito, error) {
+func NewCognitoClient(cfg Config) (Cognito, error) {
 
-	clientId := env.CognitoClientId
-	region := env.CognitoRegion
-	usePoolId := env.CognitoPoolId
+	clientId := cfg.ClientId
+	region := cfg.Region
+	usePoolId := cfg.UserPoolId
 
 	// validate region and usePoolId, make sure they are present
 	if region == "" || usePoolId == "" {

@@ -9,7 +9,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // ClerkClient implements port.AuthProvider against the Clerk Backend API
@@ -19,8 +18,11 @@ type ClerkClient struct {
 	metadataRepository port.MetadataStoreRepository
 }
 
-func NewClerkClient(env lib.Env, logger port.Logger, metadataRepository port.MetadataStoreRepository) port.AuthProvider {
-	clerk.SetKey(env.ClerkSecretKey)
+// NewClerkClient builds the port.AuthProvider against the Clerk Backend API.
+// secretKey is the Clerk backend API key (CLERK_SECRET), set process-wide
+// (clerk-sdk-go v2 global-key style).
+func NewClerkClient(secretKey string, logger port.Logger, metadataRepository port.MetadataStoreRepository) port.AuthProvider {
+	clerk.SetKey(secretKey)
 	return ClerkClient{
 		logger:             logger,
 		metadataRepository: metadataRepository,

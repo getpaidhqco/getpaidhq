@@ -17,6 +17,17 @@ import (
 	"getpaidhq/internal/lib"
 )
 
+// Config carries the Temporal adapter's settings. The composition root
+// (internal/config/app.go) maps env vars onto this struct; the adapter never
+// sees the global env.
+type Config struct {
+	HostPort  string
+	Namespace string
+	// TaskQueue the worker polls and workflows are started on. Empty
+	// defaults to "getpaidhq-events".
+	TaskQueue string
+}
+
 // Temporal implements port.Engine and port.DunningEngine.
 //
 // All workflow ids are deterministic (workflows/keys.go) so the engine can
@@ -33,17 +44,17 @@ type Temporal struct {
 
 func NewTemporalEngine(
 	logger port.Logger,
-	env lib.Env,
+	cfg Config,
 	orderActivities activities.OrderActivities,
 	webhookActivities activities.OutgoingWebhookActivities,
 	dunningActivities activities.DunningActivities,
 	errorReporter lib.ErrorReporter,
 ) *Temporal {
-	logger.Infof("Initializing Temporal engine [host=%s][namespace=%s][taskQueue=%s]", env.TemporalHost, env.TemporalNamespace, env.TemporalTaskQueue)
+	logger.Infof("Initializing Temporal engine [host=%s][namespace=%s][taskQueue=%s]", cfg.HostPort, cfg.Namespace, cfg.TaskQueue)
 
 	c, err := client.NewLazyClient(client.Options{
-		HostPort:  env.TemporalHost,
-		Namespace: env.TemporalNamespace,
+		HostPort:  cfg.HostPort,
+		Namespace: cfg.Namespace,
 		Logger:    temporallog.NewStructuredLogger(lib.GetSlogLogger()),
 	})
 	if err != nil {
@@ -51,7 +62,7 @@ func NewTemporalEngine(
 		panic(err)
 	}
 
-	taskQueue := env.TemporalTaskQueue
+	taskQueue := cfg.TaskQueue
 	if taskQueue == "" {
 		taskQueue = "getpaidhq-events"
 	}

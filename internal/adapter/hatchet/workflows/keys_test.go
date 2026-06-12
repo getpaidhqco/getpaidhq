@@ -46,3 +46,31 @@ func TestBillingRunKey(t *testing.T) {
 		t.Errorf("BillingRunKey: got %q", got)
 	}
 }
+
+func TestOrgBillingRunKey(t *testing.T) {
+	bucket := time.Date(2026, time.May, 11, 12, 35, 0, 0, time.UTC)
+	if got := OrgBillingRunKey("org_1", bucket); got != "orgbilling_org_1_202605111235" {
+		t.Errorf("OrgBillingRunKey: got %q", got)
+	}
+}
+
+func TestSweepCadence(t *testing.T) {
+	cases := []struct {
+		in       time.Duration
+		wantTick time.Duration
+		wantCron string
+	}{
+		{5 * time.Minute, 5 * time.Minute, "*/5 * * * *"},
+		{0, time.Minute, "*/1 * * * *"},                    // unset/zero clamps up
+		{20 * time.Second, time.Minute, "*/1 * * * *"},     // sub-minute clamps up
+		{90 * time.Second, 2 * time.Minute, "*/2 * * * *"}, // rounds to whole minutes
+		{time.Hour, time.Hour, "0 * * * *"},
+		{3 * time.Hour, time.Hour, "0 * * * *"}, // >1h clamps down
+	}
+	for _, c := range cases {
+		tick, cron := SweepCadence(c.in)
+		if tick != c.wantTick || cron != c.wantCron {
+			t.Errorf("SweepCadence(%v): got (%v, %q), want (%v, %q)", c.in, tick, cron, c.wantTick, c.wantCron)
+		}
+	}
+}

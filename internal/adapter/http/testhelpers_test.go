@@ -61,7 +61,7 @@ func repoRootPolicyPath(t *testing.T) string {
 // real policy.cedar so authz behaves exactly like production.
 func newRealAuthz(t *testing.T) port.Authz {
 	t.Helper()
-	return cedar.NewCedarAuthz(silentLogger{}, lib.Env{CedarPolicyFile: repoRootPolicyPath(t)})
+	return cedar.NewCedarAuthz(silentLogger{}, repoRootPolicyPath(t))
 }
 
 // ---- AuthUser helpers ----

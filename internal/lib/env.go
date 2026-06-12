@@ -2,6 +2,7 @@ package lib
 
 import (
 	"log"
+	"time"
 
 	"github.com/joho/godotenv"
 	"github.com/spf13/viper"
@@ -78,6 +79,8 @@ type Env struct {
 	HatchetNamespace   string `mapstructure:"HATCHET_CLIENT_NAMESPACE"`
 	HatchetTLSStrategy string `mapstructure:"HATCHET_CLIENT_TLS_STRATEGY"`
 
+	HatchetBillingSweepInterval time.Duration `mapstructure:"HATCHET_BILLING_SWEEP_INTERVAL"`
+
 	TemporalHost      string `mapstructure:"TEMPORAL_HOST"`
 	TemporalNamespace string `mapstructure:"TEMPORAL_NAMESPACE"`
 	TemporalTaskQueue string `mapstructure:"TEMPORAL_TASK_QUEUE"`
@@ -119,6 +122,7 @@ func NewEnv() Env {
 	var env Env
 
 	viper.SetDefault("WORKFLOW_ENGINE", "hatchet")
+	viper.SetDefault("HATCHET_BILLING_SWEEP_INTERVAL", "5m")
 	viper.SetDefault("HATCHET_CLIENT_HOST_PORT", "localhost:7077")
 	viper.SetDefault("HATCHET_CLIENT_NAMESPACE", "getpaidhq")
 	viper.SetDefault("HATCHET_CLIENT_TLS_STRATEGY", "none")
@@ -155,6 +159,7 @@ func NewEnv() Env {
 	viper.BindEnv("HATCHET_CLIENT_HOST_PORT")
 	viper.BindEnv("HATCHET_CLIENT_NAMESPACE")
 	viper.BindEnv("HATCHET_CLIENT_TLS_STRATEGY")
+	viper.BindEnv("HATCHET_BILLING_SWEEP_INTERVAL")
 	viper.BindEnv("TEMPORAL_HOST")
 	viper.BindEnv("TEMPORAL_NAMESPACE")
 	viper.BindEnv("TEMPORAL_TASK_QUEUE")
@@ -183,6 +188,7 @@ func NewEnv() Env {
 		env.HatchetHostPort = viper.GetString("HATCHET_CLIENT_HOST_PORT")
 		env.HatchetNamespace = viper.GetString("HATCHET_CLIENT_NAMESPACE")
 		env.HatchetTLSStrategy = viper.GetString("HATCHET_CLIENT_TLS_STRATEGY")
+		env.HatchetBillingSweepInterval = viper.GetDuration("HATCHET_BILLING_SWEEP_INTERVAL")
 		env.TemporalHost = viper.GetString("TEMPORAL_HOST")
 		env.TemporalNamespace = viper.GetString("TEMPORAL_NAMESPACE")
 		env.TemporalTaskQueue = viper.GetString("TEMPORAL_TASK_QUEUE")

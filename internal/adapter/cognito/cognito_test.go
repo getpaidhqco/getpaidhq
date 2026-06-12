@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 
 	"github.com/dgrijalva/jwt-go"
 	"github.com/stretchr/testify/assert"
@@ -137,7 +136,7 @@ func TestCognito_VerifyToken(t *testing.T) {
 
 func TestCognitoMiddleware_Authenticate(t *testing.T) {
 	h := newHarness(t)
-	mw := CognitoMiddleware{logger: noopLogger{}, env: lib.Env{}, client: h.client}
+	mw := CognitoMiddleware{logger: noopLogger{}, client: h.client}
 
 	t.Run("valid token maps claims to AuthUser with lowercased roles", func(t *testing.T) {
 		user, err := mw.Authenticate(t.Context(), h.signToken(t, validClaims()))
@@ -168,7 +167,7 @@ func TestCognitoMiddleware_Authenticate(t *testing.T) {
 
 func TestNewCognitoClient_Validation(t *testing.T) {
 	t.Run("missing region and pool id returns ErrInvalidParam without network call", func(t *testing.T) {
-		_, err := NewCognitoClient(lib.Env{CognitoClientId: "x"})
+		_, err := NewCognitoClient(Config{ClientId: "x"})
 		require.ErrorIs(t, err, ErrInvalidParam)
 	})
 }

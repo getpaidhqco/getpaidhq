@@ -10,18 +10,20 @@ import (
 type ApiKeyMiddleware struct {
 	apiKeyRepository port.ApiKeyRepository
 	logger           port.Logger
-	env              lib.Env
+	pepper           string
 }
 
+// NewApiKeyMiddleware authenticates x-api-key tokens. pepper is the
+// server-side HMAC secret (API_KEY_PEPPER).
 func NewApiKeyMiddleware(
 	logger port.Logger,
-	env lib.Env,
+	pepper string,
 	apiKeyRepository port.ApiKeyRepository,
 ) port.Authenticator {
 	return ApiKeyMiddleware{
 		apiKeyRepository: apiKeyRepository,
 		logger:           logger,
-		env:              env,
+		pepper:           pepper,
 	}
 }
 
@@ -37,7 +39,7 @@ func (m ApiKeyMiddleware) Authenticate(ctx context.Context, token string) (port.
 		return port.AuthUser{}, lib.NewCustomError(lib.AuthenticationError, "not allowed", nil)
 	}
 
-	keyHash, err := lib.HashApiKey(token, m.env.ApiKeyPepper)
+	keyHash, err := lib.HashApiKey(token, m.pepper)
 	if err != nil {
 		// Missing pepper is a server-config error, not a credential
 		// problem — but surface as a generic authn failure so the

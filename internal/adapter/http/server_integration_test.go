@@ -33,7 +33,7 @@ func (f fixedAuthenticator) Authenticate(_ context.Context, _ string) (port.Auth
 // handler ever runs.
 func TestAuthnMiddleware_RejectsUnauthenticated(t *testing.T) {
 	authn := fixedAuthenticator{err: lib.NewCustomError(lib.AuthenticationError, "no token", nil)}
-	wrap := middleware.NewAuthnWrapperMiddleware([]port.Authenticator{authn}, silentLogger{}, lib.Env{}).Handler()
+	wrap := middleware.NewAuthnWrapperMiddleware([]port.Authenticator{authn}, silentLogger{}).Handler()
 
 	ts := newTestServer(wrap)
 	NewHealthHandler(silentLogger{}).RegisterRoutes(ts.api())
@@ -50,7 +50,7 @@ func TestAuthnMiddleware_RejectsUnauthenticated(t *testing.T) {
 
 func TestAuthnMiddleware_AcceptsValidToken(t *testing.T) {
 	authn := fixedAuthenticator{user: ownerUser()}
-	wrap := middleware.NewAuthnWrapperMiddleware([]port.Authenticator{authn}, silentLogger{}, lib.Env{}).Handler()
+	wrap := middleware.NewAuthnWrapperMiddleware([]port.Authenticator{authn}, silentLogger{}).Handler()
 
 	ts := newTestServer(wrap)
 	NewHealthHandler(silentLogger{}).RegisterRoutes(ts.api())
@@ -70,7 +70,7 @@ func TestAuthnMiddleware_AcceptsValidToken(t *testing.T) {
 func TestOnboardingBypass(t *testing.T) {
 	partial := port.AuthUser{Id: "user_new", Email: "new@example.com"}
 	authn := fixedAuthenticator{user: partial, err: port.ErrOnboardingRequired}
-	wrap := middleware.NewAuthnWrapperMiddleware([]port.Authenticator{authn}, silentLogger{}, lib.Env{}).Handler()
+	wrap := middleware.NewAuthnWrapperMiddleware([]port.Authenticator{authn}, silentLogger{}).Handler()
 
 	orgRepo := &fakeOrgRepo{}
 	h := newOrgHandlerForTest(orgRepo, &fakeCustomerRepo{}, &fakeApiKeyRepo{})
@@ -95,7 +95,7 @@ func TestOnboardingBypass(t *testing.T) {
 func TestOnboardingBypass_NotAppliedElsewhere(t *testing.T) {
 	partial := port.AuthUser{Id: "user_new"}
 	authn := fixedAuthenticator{user: partial, err: port.ErrOnboardingRequired}
-	wrap := middleware.NewAuthnWrapperMiddleware([]port.Authenticator{authn}, silentLogger{}, lib.Env{}).Handler()
+	wrap := middleware.NewAuthnWrapperMiddleware([]port.Authenticator{authn}, silentLogger{}).Handler()
 
 	ts := newTestServer(wrap)
 	NewHealthHandler(silentLogger{}).RegisterRoutes(ts.api())
