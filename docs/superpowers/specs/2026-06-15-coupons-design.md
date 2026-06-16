@@ -2,16 +2,19 @@
 
 **Date:** 2026-06-15
 **Status:** Draft for review
-**Area:** Billing — subscription & one-time order discounting
-**Engines affected:** Both (Hatchet + Temporal) — by construction, see [Engine parity](#8-engine-parity)
+**Area:** Billing — coupon definitions, codes, and applied discounts
+
+**Scope.** This spec covers the **data model** (`Coupon`, `CouponCode`, `Discount` + supporting
+DB schema), the **discount calculation**, and the **service methods** for validation and
+redemption. It deliberately does **not** specify the downstream *flows* that call these methods
+(order-completion, billing-invoice, etc.) — where they get called is out of scope. The methods
+here are building blocks those flows consume.
 
 ---
 
 ## 1. Summary
 
-Add merchant-defined **coupons** that customers redeem (by code or programmatically) to
-receive **discounts** on subscription invoices and one-time orders. The model follows Stripe's
-separation of concerns:
+Merchant-defined **coupons** produce **discounts** on bills, following Stripe's separation:
 
 | Aggregate    | Role                                                                                         |
 | ------------ | ------------------------------------------------------------------------------------------- |
@@ -19,44 +22,39 @@ separation of concerns:
 | `CouponCode` | A **redeemable code**, N per coupon (1‑N). Carries all redemption-gating: string, active toggle, customer lock, expiry, its own cap, restrictions. (Stripe's *PromotionCode*.) |
 | `Discount`   | The **applied instance** — recorded against a subscription/order, shown on invoices.         |
 
-The `Coupon` is *only* the discount definition and never the code. The `CouponCode` is the
-customer-facing string plus every "can this be redeemed right now?" concern. The `Discount` is
-the redeemed result, attached to a specific subscription or order, and is what reduces an
-invoice. Discounts come off **before tax**, allocated across matching invoice lines.
-
 **Two load-bearing invariants, mutually reinforcing:**
 
-- **The Coupon is immutable** — only `name` and `metadata` may change after creation, enforced
-  strictly (domain has no economic setters → repo writes only those columns → a Postgres
-  trigger is the un-bypassable backstop). This matches Stripe, whose Coupon is likewise
-  editable only in `name`/`metadata`.
+- **The Coupon is immutable** — only `Name`, `Active`, and `Metadata` may change after creation,
+  enforced strictly (domain has no economic setters → repo writes only those columns → a
+  Postgres trigger is the un-bypassable backstop). The discount **terms** never change. This
+  matches Stripe, whose Coupon is likewise editable only in `name`/`metadata`.
 - **The Discount holds no snapshot** — because the Coupon can never change its terms, a
-  `Discount` safely reads its math from the live `Coupon` at apply time. (The previous
-  snapshot design existed only to defend against mutable coupons; immutability removes the
-  need.) A consequence: a Coupon referenced by any Discount can never be hard-deleted.
+  `Discount` safely reads its math from the live `Coupon`. (A snapshot would only defend against
+  mutable coupons; immutability removes the need.) Consequence: a Coupon referenced by any
+  Discount can never be hard-deleted.
+
+Discounts come off **before tax**, allocated across matching invoice lines.
 
 ---
 
-## 2. Goals (traceability)
+## 2. Capabilities (traceability)
 
-| #  | User story / use case                                              | Where satisfied                                       |
-| -- | ------------------------------------------------------------------ | ----------------------------------------------------- |
-| D1 | Create a coupon as flat amount **or** percentage off               | `Coupon.DiscountType` + DB mutual-exclusion check     |
-| D2 | Duration: one payment, N payments, or forever                      | `Coupon.Duration` + `DurationInCycles`                |
+| #  | Capability                                                         | Provided by                                       |
+| -- | ------------------------------------------------------------------ | ------------------------------------------------- |
+| D1 | Flat amount **or** percentage off                                  | `Coupon.DiscountType` + DB mutual-exclusion check |
+| D2 | Duration: one payment, N payments, or forever                      | `Coupon.Duration` + `DurationInCycles`            |
 | D3 | A redeem-by calendar date                                          | `Coupon.RedeemBy` (global) + `CouponCode.ExpiresAt` (per-code) |
-| D4 | Limit a coupon to specific plans/charges                           | `Coupon.AppliesToProducts` (Product IDs)              |
+| D4 | Limit to specific plans/charges                                    | `Coupon.AppliesToProducts` (Product IDs)          |
 | D5 | Cap total redemptions across all customers                         | `Coupon.MaxRedemptions` (global) + `CouponCode.MaxRedemptions` (per-code) |
-| D6 | Reusable, or one-time per customer                                 | `Coupon.OncePerCustomer`                              |
-| R1 | Enter a code at checkout and see the discount before confirming    | `POST /api/carts/{id}/coupon` (validate + recompute cart total) |
-| R2 | Discount attaches to the subscription and counts from its start    | `Discount.SubscriptionId` + `StartCycle`              |
-| A1 | Comes off each bill before tax, for the duration, then stops       | `InvoiceService.BuildForBillingPeriod` + cycle math   |
-| A2 | Targeted coupon discounts only matching plan/charge; rest in full  | `domain.ApplyDiscounts` per-line allocation           |
-| L1 | Refused when expired, cap hit, or already used (one-time)          | Two-layer redemption validation (§5.3)                |
-| L2 | Cancel mid-discount → remaining discount simply ends               | Subscription stops billing; discount → `completed`    |
+| D6 | Reusable, or one-time per customer                                 | `Coupon.OncePerCustomer`                          |
+| V1 | Validate a code against given lines, with the resulting discount   | `CouponService.Validate` (§5.1)                   |
+| A1 | Discount math: before tax, per matching line, for the duration     | `domain.ApplyDiscounts` + duration cycle math (§4) |
+| A2 | Targeted coupon discounts only matching lines; rest in full        | `domain.ApplyDiscounts` per-line allocation        |
+| L1 | Refused when inactive, expired, cap hit, or already used           | Two-layer validation (§5.3)                       |
+| L2 | Discount simply ends (e.g. on cancellation)                        | `Discount.Status` = `completed`; cycle math stops it |
 
-**Added by the code layer (beyond original stories):** lock a code to one customer
-(`CouponCode.CustomerId`), per-code expiry and cap, and `Restrictions` —
-`FirstTimeTransaction` (no prior payments) and `MinimumAmount` (min spend to qualify).
+**Code-layer extras:** lock a code to one customer (`CouponCode.CustomerId`), per-code expiry
+and cap, and `Restrictions` — `FirstTimeTransaction` and `MinimumAmount`.
 
 **Dropped (non-goal):** flat amount larger than the invoice carrying forward. See §9.
 
@@ -66,7 +64,7 @@ invoice. Discounts come off **before tax**, allocated across matching invoice li
 
 IDs are `<prefix>_` + KSUID (`domain.GenerateId`). Money is `int64` minor units; currency is
 ISO‑4217; percentages are `decimal.Decimal`. **Every aggregate carries `Metadata
-map[string]string`** (stored as a JSON column).
+map[string]string`** (JSON column).
 
 ### 3.1 `Coupon` — immutable definition (`internal/core/domain/coupon.go`)
 
@@ -77,8 +75,8 @@ type Coupon struct {
 
     // --- mutable: the ONLY editable fields ---
     Name     string
-    Metadata map[string]string
     Active   bool // disable the coupon (blocks new redemptions); does NOT change terms
+    Metadata map[string]string
     // -----------------------------------------
 
     // --- immutable after creation (economic + global policy) ---
@@ -105,15 +103,14 @@ type Duration     string // "once" | "repeating" | "forever"
 ```
 
 Notes:
-- **`Active` disables the coupon** — when `false`, no new redemptions are accepted (checked at
-  the coupon layer, §5.3). It is a non-economic availability switch: it never changes discount
-  terms, so existing `Discount`s keep applying. This is the lever for retiring a coupon
-  (including code-less/programmatic ones) without a hard delete.
-- The constructor `NewCoupon` enforces the percentage-vs-fixed exclusion, `repeating ⇒
-  DurationInCycles >= 1`, and `percent_off` range, returning an `ApiError` before the row hits
-  Postgres. The DB `CHECK` + immutability trigger (§7.2) are the backstops.
-- The struct exposes **no setters** for immutable fields — only `Rename(string)`,
-  `SetMetadata(map[string]string)`, and `SetActive(bool)`.
+- **`Active` disables the coupon** — a non-economic availability switch; when `false` validation
+  refuses new redemptions (§5.3). It never changes terms, so existing `Discount`s keep applying.
+  It is the lever for retiring a coupon (including code-less ones) without a hard delete.
+- `NewCoupon` enforces the percentage-vs-fixed exclusion, `repeating ⇒ DurationInCycles >= 1`,
+  and `percent_off` range, returning an `ApiError` before the row hits Postgres. The DB `CHECK`
+  + immutability trigger (§7.2) are the backstops.
+- The struct exposes **no setters** for immutable fields — only `Rename`, `SetActive`,
+  `SetMetadata`.
 
 ### 3.2 `CouponCode` — redeemable code & redemption gating (`internal/core/domain/coupon_code.go`)
 
@@ -127,7 +124,7 @@ type CouponCode struct {
     Code     string // customer-facing, unique per org, matched case-insensitively (stored upper-cased)
 
     // --- mutable ---
-    Active   bool              // toggle off without deleting
+    Active   bool
     Metadata map[string]string
     // ---------------
 
@@ -151,10 +148,9 @@ type Restrictions struct {
 }
 ```
 
-`Restrictions` is stored as a JSON column (`serializer:json`), like `Metadata`. A coupon may
-have **zero** codes (redeemed programmatically against the Coupon directly) or **many**.
-`TimesRedeemed` is a redemption-time counter (incremented once per `Discount` creation) — not a
-per-billing-cycle counter, so it has no dunning-retry hazard.
+`Restrictions` is a JSON column. A coupon may have **zero** codes (redeemed programmatically
+against the Coupon) or **many**. `TimesRedeemed` increments once per `Discount` creation — a
+redemption-time counter, not a per-cycle one.
 
 ### 3.3 `Discount` — the applied instance (`internal/core/domain/discount.go`)
 
@@ -170,7 +166,7 @@ type Discount struct {
     SubscriptionId string // recurring discount
     OrderId        string // one-time order discount
 
-    StartCycle int            // subscription.CyclesProcessed at redemption (0 for orders)
+    StartCycle int            // subscription cycle at redemption (0 for orders)
     Status     DiscountStatus // active | completed | cancelled
     RedeemedAt time.Time
     EndedAt    time.Time // nullable
@@ -183,46 +179,35 @@ type Discount struct {
 type DiscountStatus string // "active" | "completed" | "cancelled"
 ```
 
-**No snapshot.** Economic terms are read from the referenced `Coupon` at apply time; safe
-because the Coupon is immutable. The cycle window (§4.4) uses `Discount.StartCycle` together
-with the Coupon's `Duration`/`DurationInCycles`.
+**No snapshot** — economic terms are read from the referenced immutable `Coupon`. The cycle
+window (§4.3) uses `Discount.StartCycle` with the Coupon's `Duration`/`DurationInCycles`.
 
-### 3.4 Invoice changes (`internal/core/domain/invoice.go`, `invoice_line_item.go`)
+### 3.4 Discount fields on invoices/orders
 
-```go
-// InvoiceLineItem
-DiscountTotal int64 // >= 0, <= Total; amount discounted from this line
+To make a discount visible on the bill and keep totals honest:
 
-// Invoice
-DiscountTotal int64 // sum of line DiscountTotal
-```
+- `InvoiceLineItem.DiscountTotal int64` (new; `>= 0`, `<= Total`)
+- `Invoice.DiscountTotal int64` (new; sum of line discounts; `Total = Subtotal − DiscountTotal`)
+- `OrderItem.DiscountTotal int64` — **already exists**, reused.
 
-`Invoice.recalculate()`:
-
-```
-Subtotal      = Σ line.Total                 // gross, unchanged
-DiscountTotal = Σ line.DiscountTotal
-Total         = Subtotal − DiscountTotal     // tax, when implemented, applies on Total here
-```
-
-One-time orders reuse the **already-present** `OrderItem.DiscountTotal` column.
+(How and when these get populated is the consuming flow's concern, out of scope here.)
 
 ---
 
-## 4. Discount application (the load-bearing seam)
+## 4. Discount calculation
 
 ### 4.1 Pure domain function
 
 `internal/core/domain/discount_apply.go`:
 
 ```go
-// Resolved by the caller (InvoiceService): a Discount paired with its (immutable) Coupon.
+// AppliedDiscount: a Discount paired with its (immutable) Coupon. The caller resolves both.
 type AppliedDiscount struct {
     Discount Discount
     Coupon   Coupon
 }
 
-// DiscountableLine: the minimal line view, with its resolved Product.
+// DiscountableLine: a line with its resolved Product.
 type DiscountableLine struct {
     LineId    string
     ProductId string // resolved Price → Variant → Product
@@ -231,122 +216,110 @@ type DiscountableLine struct {
 
 // ApplyDiscounts returns the discount amount to record per line id.
 // Pure, deterministic, side-effect free.
-func ApplyDiscounts(lines []DiscountableLine, applied []AppliedDiscount, invoiceCycle int, currency string) map[string]int64
+func ApplyDiscounts(lines []DiscountableLine, applied []AppliedDiscount, cycle int, currency string) map[string]int64
 ```
 
 Algorithm:
 
-1. Keep only **in-window** discounts for `invoiceCycle` (§4.4) and matching `currency` for
-   fixed coupons.
-2. Order them by `RedeemedAt` ascending (stable; deterministic stacking).
+1. Keep only **in-window** discounts for `cycle` (§4.3) and matching `currency` for fixed coupons.
+2. Order by `RedeemedAt` ascending (stable; deterministic stacking).
 3. Track a per-line **running net**, initialised to `line.Total`.
-4. For each applied discount, in order, using its Coupon's economics:
-   - **Base** = sum of running nets of lines matching the Coupon's scope
-     (`AppliesToProducts` contains `line.ProductId`; empty scope = all lines).
+4. For each applied discount, using its Coupon's economics:
+   - **Base** = sum of running nets of lines matching the Coupon's scope (`AppliesToProducts`
+     contains `line.ProductId`; empty scope = all lines).
    - **Raw** = percentage: `round(base × percentOff/100)`; fixed: `min(amountOff, base)`
-     (leftover is **not** carried — §9).
-   - **Allocate** the raw amount across matching lines in proportion to each line's running net
-     (largest-remainder rounding → parts sum exactly to raw).
-   - Subtract each allocation from that line's running net; accumulate into the line's
-     `DiscountTotal`.
-5. **Clamp invariant:** a line's cumulative `DiscountTotal` can never exceed its `Total`
-   (running net floored at 0) — holds automatically because each step works off the running net.
+     (leftover not carried — §9).
+   - **Allocate** raw across matching lines in proportion to running net (largest-remainder
+     rounding → parts sum exactly to raw); subtract from each running net; accumulate into the
+     line's `DiscountTotal`.
+5. **Clamp invariant:** a line's cumulative `DiscountTotal` can never exceed its `Total` (running
+   net floored at 0) — automatic, since each step works off the running net.
 
 Stacking is well-defined and order-deterministic; no line can be discounted below zero.
 
-### 4.2 Where it's invoked — subscriptions
+### 4.2 Resolving a line's Product
 
-`InvoiceService.BuildForBillingPeriod` (`internal/core/service/invoice.go`), **after** lines are
-built and **before** `recalculate()`:
+`ApplyDiscounts` needs each line's `ProductId` (Price → Variant → Product). The caller resolves
+it (via the price repo) before calling; the function itself stays pure.
 
-1. Build gross lines (today's behaviour).
-2. Resolve each line's `ProductId` (Price → Variant → Product) via the price repo.
-3. Load **active** `Discount`s for the subscription (`DiscountReader`), and load each one's
-   `Coupon` (immutable; cacheable). Pair into `[]AppliedDiscount`.
-4. `domain.ApplyDiscounts(lines, applied, invoice.Cycle, sub.Currency)` → write each
-   `line.DiscountTotal`.
-5. `recalculate()` → `Total = Subtotal − DiscountTotal`.
-
-All in `core/` → both engines charge the discounted `Invoice.Total` with **zero adapter code**.
-
-### 4.3 Where it's invoked — one-time orders
-
-Same pure function once at checkout/order completion (`OrderService.CompleteOrder`), writing
-`OrderItem.DiscountTotal`. Duration is irrelevant for a single charge (`once`).
-
-### 4.4 Duration is derived, not counted
+### 4.3 Duration is derived, not counted
 
 A discount applies to cycle *N* iff `StartCycle ≤ N < StartCycle + DurationInCycles`
 (`once` = 1, `forever` = unbounded). **No mutable per-cycle counter.**
 
-- **Dunning-idempotent:** the same cycle's invoice can be rebuilt/retried any number of times
-  and yields the identical discount — no per-application decrement to double-count.
-- **Parity-safe:** derived from the deterministic cycle index → stable under Temporal
-  replay/`ContinueAsNew`; a stored counter would be extra state both engines must keep in sync.
+- **Idempotent:** rebuilding the same cycle's invoice yields the identical discount — no
+  per-application decrement to double-count (matters under dunning retries).
+- **Replay-safe:** derived from the deterministic cycle index → stable under workflow replay.
 
-**Known semantic:** "N payments" is realised as "N billing **cycles**" (= N paid invoices when
-every covered cycle is paid; pauses correctly wait, since `CyclesProcessed` doesn't advance).
-Strict "N successful payments" is out of scope (§9). A discount is lazily marked `completed`
-(status + `EndedAt`) once its window passes or on subscription cancellation — for
+"N payments" = "N billing cycles" (= N paid invoices when every covered cycle is paid; pauses
+correctly wait, since the cycle counter doesn't advance). Strict "N successful payments" is out
+of scope (§9). A discount is lazily marked `completed` once its window passes — for
 query/display only; correctness comes from the cycle math.
 
-> Note: `CouponCode.TimesRedeemed` (§3.2) *is* a stored counter, but it increments once per
-> **redemption**, not per billing cycle — so it carries none of the duration counter's
-> retry/parity hazards. Different lifecycle, different decision.
+> `CouponCode.TimesRedeemed` is a stored counter, but increments once per **redemption**, not per
+> billing cycle — none of the duration counter's retry/replay hazards.
 
 ---
 
-## 5. Redemption
+## 5. Validation & redemption methods
 
-Redemption is **not** a standalone endpoint. A code is applied to a **cart** (validated, total
-recomputed), travels on that cart, and is only **redeemed** as a side-effect of the order
-succeeding. There is no preview/redeem API surface of its own.
+These are `CouponService` methods. **Callers (checkout/order/billing flows) are out of scope.**
 
-### 5.1 Apply a code to a cart (validate + compute, no redemption)
+### 5.1 `Validate` — check a code, compute the discount, write nothing
 
-The coupon code is applied as a cart mutation, alongside the existing `/carts/{id}/add` and
-`/carts/{id}/remove`:
+```go
+type DiscountPreview struct {
+    Valid         bool
+    Reason        string // set when !Valid (see §5.3)
+    DiscountTotal int64
+    PerLine       map[string]int64 // lineId → discount
+}
 
+func (s *CouponService) Validate(
+    ctx context.Context, orgId, code, customerId string, lines []domain.DiscountableLine,
+) (DiscountPreview, error)
 ```
-POST   /api/carts/{id}/coupon   body { code }
-DELETE /api/carts/{id}/coupon
+
+Resolves the code (org-scoped, case-insensitive) → `CouponCode` → `Coupon`, runs §5.3
+validation, and computes the discount over `lines` via `domain.ApplyDiscounts`. **No writes.**
+Used wherever a caller needs to validate/preview a code (e.g. before confirming a purchase).
+
+### 5.2 `Redeem` — create the applied Discount
+
+```go
+type RedeemInput struct {
+    OrgId          string
+    Code           string // empty ⇒ programmatic; resolve CouponId directly
+    CouponId       string // used when Code is empty
+    CustomerId     string
+    SubscriptionId string // exactly one target
+    OrderId        string //   (subscription or order)
+    StartCycle     int    // subscription cycle at redemption (0 for orders)
+}
+
+func (s *CouponService) Redeem(ctx context.Context, in RedeemInput) (domain.Discount, error)
 ```
 
-The cart handler delegates to `CouponService.ValidateForCart(orgId, code, customerId, lines)`,
-which resolves the code (org-scoped, case-insensitive) → `CouponCode` → `Coupon`, runs §5.3
-validation **against the current cart contents** (so an empty cart, or one with no matching
-products, is rejected), and on success returns the per-line discount. The handler stores the
-accepted code on the cart and recomputes `CartData.DiscountTotal` (and each
-`CartLineItem.DiscountTotal`) via the same `domain.ApplyDiscounts` function. **No `Discount`
-row is created.** Removing the code clears the stored code and recomputes.
-
-### 5.2 Redemption — inside the order-success flow
-
-When `OrderService.CompleteOrder` succeeds, for each code carried on the cart/order it creates
-the `Discount`: linked to the subscription (or the order for one-time), `StartCycle =
-subscription.CyclesProcessed` (0 for orders), `CouponCodeId` recorded, and
-`CouponCode.TimesRedeemed` incremented. This is the **only** place a `Discount` is created.
-
-It runs **inside `CompleteOrder`'s existing transaction**, so the Discount insert and the
-`TimesRedeemed` bump commit atomically with the order/subscription. The §5.3 checks are
-re-run at this point (cap/expiry/active may have changed since the code was added to the cart);
-a now-invalid code fails order completion rather than silently dropping the discount. Global
-redemption counts derive from `Discount` rows (source of truth).
+Re-runs §5.3 validation, then creates the `Discount` (no snapshot — references the Coupon),
+records `CouponCodeId` (if any), and increments `CouponCode.TimesRedeemed`. Wraps both writes in
+`port.TxManager` so they commit atomically; supports being called inside a caller's existing
+transaction via the ctx-propagated tx. Global redemption counts derive from `Discount` rows
+(source of truth). **This spec does not prescribe who calls `Redeem` or when** — that is the
+order/purchase flow's concern.
 
 ### 5.3 Validation / refusal — two layers
 
-Run both at cart-apply (§5.1) and again at redemption (§5.2). Refused with a specific reason
-when any check fails.
+Run by both `Validate` and `Redeem`. Refused with a specific reason when any check fails.
 
 **Coupon layer (global):**
 
-| Reason            | Check                                                                |
-| ----------------- | -------------------------------------------------------------------- |
-| `coupon_inactive` | `Coupon.Active == false`.                                            |
-| `expired`         | `Coupon.RedeemBy` set and `now > RedeemBy`.                          |
-| `cap_reached`     | `MaxRedemptions > 0` and `count(Discount where couponId) >= cap`.    |
-| `already_used`    | `OncePerCustomer` and a `Discount` exists for (couponId, customerId).|
-| `currency_mismatch` | Fixed coupon `Currency != ` target currency.                      |
+| Reason              | Check                                                                |
+| ------------------- | -------------------------------------------------------------------- |
+| `coupon_inactive`   | `Coupon.Active == false`.                                            |
+| `expired`           | `Coupon.RedeemBy` set and `now > RedeemBy`.                          |
+| `cap_reached`       | `MaxRedemptions > 0` and `count(Discount where couponId) >= cap`.    |
+| `already_used`      | `OncePerCustomer` and a `Discount` exists for (couponId, customerId).|
+| `currency_mismatch` | Fixed coupon `Currency != ` target currency.                        |
 
 **Code layer (per `CouponCode`):**
 
@@ -354,14 +327,13 @@ when any check fails.
 | ------------------- | ----------------------------------------------------------------- |
 | `code_not_found`    | No `CouponCode` matches the string.                               |
 | `inactive`          | `CouponCode.Active == false`.                                     |
-| `code_expired`      | `ExpiresAt` set and `now > ExpiresAt`.                            |
+| `code_expired`      | `ExpiresAt` set and `now > ExpiresAt`.                           |
 | `code_cap_reached`  | `MaxRedemptions > 0` and `TimesRedeemed >= MaxRedemptions`.       |
-| `wrong_customer`    | `CustomerId` set and `!= ` redeeming customer.                   |
+| `wrong_customer`    | `CustomerId` set and `!= ` redeeming customer.                  |
 | `not_first_time`    | `Restrictions.FirstTimeTransaction` and customer has a prior successful payment. |
-| `below_minimum`     | `Restrictions.MinimumAmount > 0` and cart/invoice subtotal `< MinimumAmount` (currency-checked). |
+| `below_minimum`     | `Restrictions.MinimumAmount > 0` and line subtotal `< MinimumAmount` (currency-checked). |
 
-Programmatic (code-less) redemption runs only the **Coupon layer** checks. A DB unique index
-prevents the same coupon being redeemed twice on one subscription (§7.1).
+Programmatic (code-less) redemption runs only the **Coupon layer** checks.
 
 ---
 
@@ -369,12 +341,12 @@ prevents the same coupon being redeemed twice on one subscription (§7.1).
 
 | Layer              | Additions                                                                                                   |
 | ------------------ | ---------------------------------------------------------------------------------------------------------- |
-| `core/domain`      | `coupon.go`, `coupon_code.go` (+`Restrictions`), `discount.go`, `discount_apply.go` (pure); invoice fields  |
-| `core/port`        | `CouponRepository`, `CouponCodeRepository`, `DiscountRepository`; **`DiscountReader`** (narrow read port for `InvoiceService`) |
-| `core/service`     | `CouponService` — coupon/code CRUD (respecting immutability), `ValidateForCart`, `Redeem` (called by `OrderService`). **Narrow**, no engine. `CartService` + `OrderService` gain a `CouponService` dep |
+| `core/domain`      | `coupon.go`, `coupon_code.go` (+`Restrictions`), `discount.go`, `discount_apply.go` (pure); invoice/order discount fields |
+| `core/port`        | `CouponRepository`, `CouponCodeRepository`, `DiscountRepository`                                            |
+| `core/service`     | `CouponService` — coupon/code CRUD (immutability-respecting), `Validate`, `Redeem`. **Narrow**, no engine   |
 | `adapter/postgres` | `coupon_row.go`+`_repo.go`, `coupon_code_row.go`+`_repo.go`, `discount_row.go`+`_repo.go`; `discount_total` columns |
-| `adapter/http`     | `coupon_handler.go` — coupon/code CRUD + discount reads; `cart_handler.go` gains apply/remove-coupon; Cedar authz; routes in `config/server.go` |
-| `config/app.go`    | repos → `CouponService` → inject `DiscountReader` into `InvoiceService`, `CouponService` into `CartService`/`OrderService` → register handlers |
+| `adapter/http`     | `coupon_handler.go` — coupon/code CRUD + discount reads; Cedar authz; routes in `config/server.go`          |
+| `config/app.go`    | repos → `CouponService` → register `CouponHandler`                                                          |
 | `schemas/app`      | `Coupon`, `CouponCode`, `Discount` Prisma models; `discountTotal` on invoice models; `constraints.sql`      |
 
 ### 6.1 Ports
@@ -400,27 +372,23 @@ type DiscountRepository interface {
     Create(ctx, domain.Discount) (domain.Discount, error)
     Update(ctx, domain.Discount) (domain.Discount, error)
     FindById(ctx, orgId, id string) (domain.Discount, error)
+    ActiveForSubscription(ctx, orgId, subscriptionId string) ([]domain.Discount, error)
+    ActiveForOrder(ctx, orgId, orderId string) ([]domain.Discount, error)
     CountByCoupon(ctx, orgId, couponId string) (int, error)
     CountByCouponAndCustomer(ctx, orgId, couponId, customerId string) (int, error)
 }
-
-// Narrow read port for InvoiceService — never holds the full CouponService.
-type DiscountReader interface {
-    ActiveForSubscription(ctx, orgId, subscriptionId string) ([]domain.Discount, error)
-    ActiveForOrder(ctx, orgId, orderId string) ([]domain.Discount, error)
-}
 ```
 
-`CouponRepository` exposes **no general `Update`** — only `UpdateMutable` (name + metadata),
-making immutability structural at the port boundary as well as the DB.
+`CouponRepository` exposes **no general `Update`** — only `UpdateMutable` (name + active +
+metadata), making immutability structural at the port boundary as well as the DB.
 
 ### 6.2 Authz (Cedar)
 
 New actions: `ActionCreateCoupon`, `ActionUpdateCoupon` (name/active/metadata only),
-`ActionDeleteCoupon`, `ActionReadCoupon`, `ActionManageCouponCode`. Cart coupon apply/remove
-reuses the existing cart authz. Handlers enforce before mutating, matching existing handlers.
+`ActionDeleteCoupon`, `ActionReadCoupon`, `ActionManageCouponCode`. Handlers enforce before
+mutating, matching existing handlers.
 
-### 6.3 HTTP surface
+### 6.3 HTTP surface (coupon resource only)
 
 ```
 POST   /api/coupons                  create coupon                         (merchant)
@@ -431,16 +399,12 @@ DELETE /api/coupons/{id}             delete (only if unreferenced)         (merc
 POST   /api/coupons/{id}/codes       create a redeemable code              (merchant)
 GET    /api/coupons/{id}/codes       list codes                            (merchant)
 PATCH  /api/coupon-codes/{id}        update active/metadata                (merchant)
-POST   /api/carts/{id}/coupon        apply a code: validate + recompute    (checkout)
-DELETE /api/carts/{id}/coupon        remove the applied code               (checkout)
-GET    /api/subscriptions/{id}/discounts   list a sub's discounts
-GET    /api/discounts/{id}           get a discount
+GET    /api/discounts/{id}           get a discount                        (merchant)
 ```
 
-Redemption has **no endpoint** — it happens inside `OrderService.CompleteOrder` (§5.2).
-
-`PATCH` (not `PUT`) on coupon reflects partial, restricted-field updates. DTOs use
-`validate:"..."` off the single `lib.NewValidator`; handlers return `ApiError`.
+DTOs use `validate:"..."` off the single `lib.NewValidator`; handlers return `ApiError`.
+`Validate`/`Redeem` are **service methods**, not endpoints — exposed by whatever flow consumes
+them.
 
 ---
 
@@ -501,7 +465,7 @@ model CouponCode {
   code   String
   active Boolean @default(true)
 
-  customerId     String? @map("customer_id")
+  customerId     String?   @map("customer_id")
   expiresAt      DateTime? @map("expires_at")
   maxRedemptions Int       @default(0) @map("max_redemptions")
   timesRedeemed  Int       @default(0) @map("times_redeemed")
@@ -573,7 +537,7 @@ ALTER TABLE coupon_codes ADD CONSTRAINT codes_max_redemptions_nn CHECK (max_rede
 ALTER TABLE coupon_codes ADD CONSTRAINT codes_times_redeemed_nn  CHECK (times_redeemed >= 0);
 
 -- discounts: exactly one target
-ALTER TABLE discounts ADD CONSTRAINT discounts_target_xor   CHECK (
+ALTER TABLE discounts ADD CONSTRAINT discounts_target_xor    CHECK (
   (subscription_id IS NOT NULL AND order_id IS NULL) OR
   (subscription_id IS NULL     AND order_id IS NOT NULL));
 ALTER TABLE discounts ADD CONSTRAINT discounts_start_cycle_nn CHECK (start_cycle >= 0);
@@ -583,7 +547,7 @@ ALTER TABLE invoice_line_items ADD CONSTRAINT ili_discount_nn  CHECK (discount_t
 ALTER TABLE invoice_line_items ADD CONSTRAINT ili_discount_cap CHECK (discount_total <= total);
 ALTER TABLE invoices          ADD CONSTRAINT inv_discount_nn   CHECK (discount_total >= 0);
 
--- coupon immutability: only name, metadata, active, updated_at may change
+-- coupon immutability: only name, active, metadata, updated_at may change
 CREATE OR REPLACE FUNCTION coupons_block_term_update() RETURNS trigger AS $$
 BEGIN
   IF (NEW.discount_type, NEW.amount_off, NEW.currency, NEW.percent_off,
@@ -593,7 +557,7 @@ BEGIN
      (OLD.discount_type, OLD.amount_off, OLD.currency, OLD.percent_off,
       OLD.duration, OLD.duration_in_cycles, OLD.applies_to_products,
       OLD.redeem_by, OLD.max_redemptions, OLD.once_per_customer)
-  THEN RAISE EXCEPTION 'coupon terms are immutable (only name/metadata may change)';
+  THEN RAISE EXCEPTION 'coupon terms are immutable (only name/active/metadata may change)';
   END IF;
   RETURN NEW;
 END; $$ LANGUAGE plpgsql;
@@ -603,34 +567,34 @@ CREATE TRIGGER coupons_immutable BEFORE UPDATE ON coupons
   FOR EACH ROW EXECUTE FUNCTION coupons_block_term_update();
 ```
 
-Each `ADD CONSTRAINT` is wrapped for idempotency (e.g. a `DO $$ … EXCEPTION WHEN
-duplicate_object … $$` block). The `make db-constraints` target is chained after `db-push` in
-the `Makefile` and documented as a required re-run after column-rewriting pushes.
+Each `ADD CONSTRAINT` is wrapped for idempotency (`DO $$ … EXCEPTION WHEN duplicate_object … $$`).
+The `make db-constraints` target is chained after `db-push` and documented as a required re-run
+after column-rewriting pushes.
 
-> Web/checkout Prisma schemas are physically duplicated and **out of scope** here — mirroring is
-> a follow-up.
+> Web/checkout Prisma schemas are physically duplicated and **out of scope** — mirroring is a
+> follow-up.
 
 ---
 
 ## 8. Engine parity
 
-All discount behaviour — window selection, `ApplyDiscounts`, and total recomputation — lives in
-`core/` (`domain` + `InvoiceService`/`OrderService`). Hatchet (cron + per-org fan-out) and
-Temporal (long-lived workflow + `ContinueAsNew`) both bill through `ChargeForBillingPeriod` →
-`BuildForBillingPeriod`, so both produce the **identical discounted invoice with no
-adapter-specific code**. Duration derives from the deterministic cycle index → stable under
-replay. Redemption is an HTTP/service concern, engine-agnostic. No new workflow, signal, or
-topic is introduced.
+The discount math (`domain.ApplyDiscounts`) and duration derivation are pure `core/domain` code
+with no engine awareness; duration derives from the deterministic cycle index, so it is stable
+under workflow replay. Wherever a billing flow invokes them, both Hatchet and Temporal get the
+identical result. (Those invocation flows are out of scope here, but the building blocks are
+parity-safe by construction.)
 
 ---
 
-## 9. Non-goals (v1)
+## 9. Non-goals
 
 - **Carry-forward of an over-large flat amount** (leftover lost; no customer credit balance).
-- **Strict "N successful payments" counting** — duration is N billing cycles (§4.4).
-- **Editing coupon terms** — terms are immutable by design; "change" = create a new coupon.
-- **Coupons on usage/metered overages beyond product targeting** — product-scope only.
-- **Mirroring to web/checkout Prisma schemas** — follow-up.
+- **Strict "N successful payments" counting** — duration is N billing cycles (§4.3).
+- **Editing coupon terms** — immutable by design; "change" = create a new coupon.
+- **Any downstream flow that consumes these methods** (order-completion, billing-invoice, etc.)
+  — this spec provides the model and methods; wiring them in is separate work.
+- **Coupons on usage/metered overages beyond product targeting.**
+- **Mirroring to web/checkout Prisma schemas.**
 
 ---
 
@@ -640,14 +604,11 @@ topic is introduced.
   fixed-larger-than-base (clamp, no carry), product-targeted, **stacking** (order-dependence +
   cumulative clamp to zero), proportional-allocation rounding, in/out-of-window across
   `once`/`repeating`/`forever`. `NewCoupon` invariant tests; `Coupon` exposes no term setters.
-- **`service`:** two-layer refusal matrix (§5.3); `ValidateForCart` rejects an empty/non-matching
-  cart; `CompleteOrder` redemption creates the `Discount` + increments `TimesRedeemed` atomically
-  and re-validates (now-invalid code fails completion); `UpdateMutable` rejects term changes;
-  `BuildForBillingPeriod` applies in-window and skips out-of-window discounts; dunning re-build
-  idempotency (same cycle → same discount).
-- **`adapter/http`:** httptest harness (Cedar authz + authn) for coupon/code CRUD,
-  cart apply/remove-coupon (validation + recomputed total), refusal codes; `PATCH` coupon
-  ignores/rejects term fields.
+- **`service`:** `Validate` two-layer refusal matrix (§5.3) and computed discount; `Redeem`
+  creates the `Discount` + increments `TimesRedeemed` atomically and re-validates;
+  `UpdateMutable` rejects term changes.
+- **`adapter/http`:** httptest harness (Cedar authz + authn) for coupon/code CRUD; `PATCH`
+  coupon ignores/rejects term fields; `DELETE` blocked when referenced.
 - **Integration (`//go:build integration`, `testDB(t)`):** repo round-trips; `constraints.sql`
   rejects invalid rows (both `amount_off` and `percent_off` set → `23514`); the **immutability
   trigger** raises on a term UPDATE; the unique index blocks a second redemption per sub.
@@ -658,16 +619,14 @@ topic is introduced.
 
 | Decision                         | Choice                                                                | Rationale |
 | -------------------------------- | --------------------------------------------------------------------- | --------- |
-| Coupon mutability                | **Immutable except name + metadata + active**, enforced at domain, port, and DB-trigger layers | Terms frozen (matches Stripe, lets us drop the snapshot); `active` is a non-economic disable switch. |
-| Discount snapshot                | **Removed** — reads terms from the live, immutable Coupon              | Snapshot only defended against mutable coupons; immutability removes the need. |
+| Coupon mutability                | **Immutable except name + active + metadata**, enforced at domain, port, and DB-trigger layers | Terms frozen (matches Stripe, lets us drop the snapshot); `active` is a non-economic disable switch. |
+| Discount snapshot                | **Removed** — reads terms from the live, immutable Coupon              | Snapshot only defended against mutable coupons. |
 | Field placement                  | Economic + global policy on **Coupon**; redemption gating on **CouponCode** | Mirrors Stripe Coupon vs PromotionCode. |
-| Code layer                       | Stripe-shaped: `Active`, `CustomerId`, `ExpiresAt`, `MaxRedemptions`, `TimesRedeemed`, `Restrictions`, `Metadata` | Per request. |
 | `Restrictions`                   | `FirstTimeTransaction`, `MinimumAmount` (+`MinimumAmountCurrency`)     | Min-spend needs a currency to compare. |
 | Metadata                         | On **all three** aggregates                                           | Per request. |
 | Scope targeting unit             | **Product** (`AppliesToProducts`)                                     | Matches Stripe `applies_to.products`. |
-| Over-large flat amount           | **Don't carry**                                                       | User choice; avoids a credit ledger. |
-| Apply scope                      | **Subscriptions + one-time orders**                                   | Orders reuse existing `OrderItem.DiscountTotal`. |
-| Duration mechanism               | **Derived from cycle math**                                           | Dunning-idempotent + deterministic under replay. |
+| Over-large flat amount           | **Don't carry**                                                       | Avoids a credit ledger. |
+| Duration mechanism               | **Derived from cycle math**                                           | Idempotent + replay-safe. |
 | Stacking                         | **Allowed**, ordered by `RedeemedAt`, per-line running-net clamp      | Deterministic; no architectural barrier. |
 | `CHECK` + immutability trigger   | **`constraints.sql` + `make db-constraints`** + domain validation     | Prisma can't express `CHECK`/triggers; DB is the backstop. |
 
@@ -675,6 +634,6 @@ topic is introduced.
 
 ## 12. Open questions
 
-1. **"N payments" semantics** — realised as N billing cycles (§4.4), not N strictly-paid
+1. **"N payments" semantics** — realised as N billing cycles (§4.3), not N strictly-paid
    invoices. Flag if that must change before implementation.
 ```
