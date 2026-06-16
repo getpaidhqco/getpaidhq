@@ -47,7 +47,7 @@ invoice. Discounts come off **before tax**, allocated across matching invoice li
 | D4 | Limit a coupon to specific plans/charges                           | `Coupon.AppliesToProducts` (Product IDs)              |
 | D5 | Cap total redemptions across all customers                         | `Coupon.MaxRedemptions` (global) + `CouponCode.MaxRedemptions` (per-code) |
 | D6 | Reusable, or one-time per customer                                 | `Coupon.OncePerCustomer`                              |
-| R1 | Enter a code at checkout and see the discount before confirming    | `POST /api/coupons/preview`                            |
+| R1 | Enter a code at checkout and see the discount before confirming    | `POST /api/carts/{id}/coupon` (validate + recompute cart total) |
 | R2 | Discount attaches to the subscription and counts from its start    | `Discount.SubscriptionId` + `StartCycle`              |
 | A1 | Comes off each bill before tax, for the duration, then stops       | `InvoiceService.BuildForBillingPeriod` + cycle math   |
 | A2 | Targeted coupon discounts only matching plan/charge; rest in full  | `domain.ApplyDiscounts` per-line allocation           |
@@ -298,30 +298,45 @@ query/display only; correctness comes from the cycle math.
 
 ## 5. Redemption
 
-### 5.1 Preview (checkout, no writes)
+Redemption is **not** a standalone endpoint. A code is applied to a **cart** (validated, total
+recomputed), travels on that cart, and is only **redeemed** as a side-effect of the order
+succeeding. There is no preview/redeem API surface of its own.
 
-`POST /api/coupons/preview`
+### 5.1 Apply a code to a cart (validate + compute, no redemption)
+
+The coupon code is applied as a cart mutation, alongside the existing `/carts/{id}/add` and
+`/carts/{id}/remove`:
 
 ```
-Request:  { code: string, customerId?: string, orderId?: string, lines?: [{ priceId, quantity }] }
-Response: { valid: bool, reason?: string, discountTotal: int64, perLine: [{ priceId, discount }] }
+POST   /api/carts/{id}/coupon   body { code }
+DELETE /api/carts/{id}/coupon
 ```
 
-Resolves the code (org-scoped, case-insensitive) → `CouponCode` → `Coupon`, runs §5.3
-validation, and computes the discount over the prospective lines with the same `ApplyDiscounts`
-function. Shows the amount the customer sees **before** confirming.
+The cart handler delegates to `CouponService.ValidateForCart(orgId, code, customerId, lines)`,
+which resolves the code (org-scoped, case-insensitive) → `CouponCode` → `Coupon`, runs §5.3
+validation **against the current cart contents** (so an empty cart, or one with no matching
+products, is rejected), and on success returns the per-line discount. The handler stores the
+accepted code on the cart and recomputes `CartData.DiscountTotal` (and each
+`CartLineItem.DiscountTotal`) via the same `domain.ApplyDiscounts` function. **No `Discount`
+row is created.** Removing the code clears the stored code and recomputes.
 
-### 5.2 Redeem (on confirm)
+### 5.2 Redemption — inside the order-success flow
 
-Creates a `Discount` linked to the subscription (or order) with `StartCycle =
-subscription.CyclesProcessed` (0 for orders), records `CouponCodeId` (if any), and increments
-`CouponCode.TimesRedeemed`. Redeem runs inside `port.TxManager` so the Discount insert and the
-`TimesRedeemed` increment commit atomically; post-commit side-effects follow the existing
-pattern. Global redemption counts derive from `Discount` rows (source of truth).
+When `OrderService.CompleteOrder` succeeds, for each code carried on the cart/order it creates
+the `Discount`: linked to the subscription (or the order for one-time), `StartCycle =
+subscription.CyclesProcessed` (0 for orders), `CouponCodeId` recorded, and
+`CouponCode.TimesRedeemed` incremented. This is the **only** place a `Discount` is created.
+
+It runs **inside `CompleteOrder`'s existing transaction**, so the Discount insert and the
+`TimesRedeemed` bump commit atomically with the order/subscription. The §5.3 checks are
+re-run at this point (cap/expiry/active may have changed since the code was added to the cart);
+a now-invalid code fails order completion rather than silently dropping the discount. Global
+redemption counts derive from `Discount` rows (source of truth).
 
 ### 5.3 Validation / refusal — two layers
 
-A redemption (and preview) is refused with a specific reason when any check fails.
+Run both at cart-apply (§5.1) and again at redemption (§5.2). Refused with a specific reason
+when any check fails.
 
 **Coupon layer (global):**
 
@@ -356,10 +371,10 @@ prevents the same coupon being redeemed twice on one subscription (§7.1).
 | ------------------ | ---------------------------------------------------------------------------------------------------------- |
 | `core/domain`      | `coupon.go`, `coupon_code.go` (+`Restrictions`), `discount.go`, `discount_apply.go` (pure); invoice fields  |
 | `core/port`        | `CouponRepository`, `CouponCodeRepository`, `DiscountRepository`; **`DiscountReader`** (narrow read port for `InvoiceService`) |
-| `core/service`     | `CouponService` — coupon/code CRUD (respecting immutability), `ValidateAndPreview`, `Redeem`. **Narrow**, no engine |
+| `core/service`     | `CouponService` — coupon/code CRUD (respecting immutability), `ValidateForCart`, `Redeem` (called by `OrderService`). **Narrow**, no engine. `CartService` + `OrderService` gain a `CouponService` dep |
 | `adapter/postgres` | `coupon_row.go`+`_repo.go`, `coupon_code_row.go`+`_repo.go`, `discount_row.go`+`_repo.go`; `discount_total` columns |
-| `adapter/http`     | `coupon_handler.go` — coupon/code CRUD, `:preview`, discount reads; Cedar authz; routes in `config/server.go` |
-| `config/app.go`    | repos → `CouponService` → inject `DiscountReader` into `InvoiceService` → register `CouponHandler`           |
+| `adapter/http`     | `coupon_handler.go` — coupon/code CRUD + discount reads; `cart_handler.go` gains apply/remove-coupon; Cedar authz; routes in `config/server.go` |
+| `config/app.go`    | repos → `CouponService` → inject `DiscountReader` into `InvoiceService`, `CouponService` into `CartService`/`OrderService` → register handlers |
 | `schemas/app`      | `Coupon`, `CouponCode`, `Discount` Prisma models; `discountTotal` on invoice models; `constraints.sql`      |
 
 ### 6.1 Ports
@@ -401,9 +416,9 @@ making immutability structural at the port boundary as well as the DB.
 
 ### 6.2 Authz (Cedar)
 
-New actions: `ActionCreateCoupon`, `ActionUpdateCoupon` (name/metadata only),
-`ActionDeleteCoupon`, `ActionReadCoupon`, `ActionManageCouponCode`, `ActionRedeemCoupon`.
-Handlers enforce before mutating, matching existing handlers.
+New actions: `ActionCreateCoupon`, `ActionUpdateCoupon` (name/active/metadata only),
+`ActionDeleteCoupon`, `ActionReadCoupon`, `ActionManageCouponCode`. Cart coupon apply/remove
+reuses the existing cart authz. Handlers enforce before mutating, matching existing handlers.
 
 ### 6.3 HTTP surface
 
@@ -416,10 +431,13 @@ DELETE /api/coupons/{id}             delete (only if unreferenced)         (merc
 POST   /api/coupons/{id}/codes       create a redeemable code              (merchant)
 GET    /api/coupons/{id}/codes       list codes                            (merchant)
 PATCH  /api/coupon-codes/{id}        update active/metadata                (merchant)
-POST   /api/coupons/preview          validate + preview                    (checkout)
+POST   /api/carts/{id}/coupon        apply a code: validate + recompute    (checkout)
+DELETE /api/carts/{id}/coupon        remove the applied code               (checkout)
 GET    /api/subscriptions/{id}/discounts   list a sub's discounts
 GET    /api/discounts/{id}           get a discount
 ```
+
+Redemption has **no endpoint** — it happens inside `OrderService.CompleteOrder` (§5.2).
 
 `PATCH` (not `PUT`) on coupon reflects partial, restricted-field updates. DTOs use
 `validate:"..."` off the single `lib.NewValidator`; handlers return `ApiError`.
@@ -622,11 +640,14 @@ topic is introduced.
   fixed-larger-than-base (clamp, no carry), product-targeted, **stacking** (order-dependence +
   cumulative clamp to zero), proportional-allocation rounding, in/out-of-window across
   `once`/`repeating`/`forever`. `NewCoupon` invariant tests; `Coupon` exposes no term setters.
-- **`service`:** two-layer refusal matrix (§5.3); `Redeem` increments `TimesRedeemed` atomically;
-  `UpdateMutable` rejects term changes; `BuildForBillingPeriod` applies in-window and skips
-  out-of-window discounts; dunning re-build idempotency (same cycle → same discount).
-- **`adapter/http`:** httptest harness (Cedar authz + authn) for CRUD, `:preview`, refusal codes;
-  `PATCH` coupon ignores/rejects term fields.
+- **`service`:** two-layer refusal matrix (§5.3); `ValidateForCart` rejects an empty/non-matching
+  cart; `CompleteOrder` redemption creates the `Discount` + increments `TimesRedeemed` atomically
+  and re-validates (now-invalid code fails completion); `UpdateMutable` rejects term changes;
+  `BuildForBillingPeriod` applies in-window and skips out-of-window discounts; dunning re-build
+  idempotency (same cycle → same discount).
+- **`adapter/http`:** httptest harness (Cedar authz + authn) for coupon/code CRUD,
+  cart apply/remove-coupon (validation + recomputed total), refusal codes; `PATCH` coupon
+  ignores/rejects term fields.
 - **Integration (`//go:build integration`, `testDB(t)`):** repo round-trips; `constraints.sql`
   rejects invalid rows (both `amount_off` and `percent_off` set → `23514`); the **immutability
   trigger** raises on a term UPDATE; the unique index blocks a second redemption per sub.
