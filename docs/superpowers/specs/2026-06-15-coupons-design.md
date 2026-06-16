@@ -47,7 +47,7 @@ invoice. Discounts come off **before tax**, allocated across matching invoice li
 | D4 | Limit a coupon to specific plans/charges                           | `Coupon.AppliesToProducts` (Product IDs)              |
 | D5 | Cap total redemptions across all customers                         | `Coupon.MaxRedemptions` (global) + `CouponCode.MaxRedemptions` (per-code) |
 | D6 | Reusable, or one-time per customer                                 | `Coupon.OncePerCustomer`                              |
-| R1 | Enter a code at checkout and see the discount before confirming    | `POST /api/coupons:preview`                            |
+| R1 | Enter a code at checkout and see the discount before confirming    | `POST /api/coupons/preview`                            |
 | R2 | Discount attaches to the subscription and counts from its start    | `Discount.SubscriptionId` + `StartCycle`              |
 | A1 | Comes off each bill before tax, for the duration, then stops       | `InvoiceService.BuildForBillingPeriod` + cycle math   |
 | A2 | Targeted coupon discounts only matching plan/charge; rest in full  | `domain.ApplyDiscounts` per-line allocation           |
@@ -300,7 +300,7 @@ query/display only; correctness comes from the cycle math.
 
 ### 5.1 Preview (checkout, no writes)
 
-`POST /api/coupons:preview`
+`POST /api/coupons/preview`
 
 ```
 Request:  { code: string, customerId?: string, orderId?: string, lines?: [{ priceId, quantity }] }
@@ -416,7 +416,7 @@ DELETE /api/coupons/{id}             delete (only if unreferenced)         (merc
 POST   /api/coupons/{id}/codes       create a redeemable code              (merchant)
 GET    /api/coupons/{id}/codes       list codes                            (merchant)
 PATCH  /api/coupon-codes/{id}        update active/metadata                (merchant)
-POST   /api/coupons:preview          validate + preview                    (checkout)
+POST   /api/coupons/preview          validate + preview                    (checkout)
 GET    /api/subscriptions/{id}/discounts   list a sub's discounts
 GET    /api/discounts/{id}           get a discount
 ```
