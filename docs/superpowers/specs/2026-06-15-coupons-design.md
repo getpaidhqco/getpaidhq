@@ -134,7 +134,6 @@ type CouponCode struct {
     ExpiresAt      time.Time    // nullable — redeem-by cutoff at the code layer
     MaxRedemptions int          // per-code cap; 0 = unlimited
     Restrictions   Restrictions // additional eligibility gates
-    LiveMode       bool         // see §12 open question
     // ------------------------------------
 
     TimesRedeemed int // system-managed running count, incremented on redeem
@@ -485,7 +484,6 @@ model CouponCode {
   maxRedemptions Int       @default(0) @map("max_redemptions")
   timesRedeemed  Int       @default(0) @map("times_redeemed")
   restrictions   Json?     // { firstTimeTransaction, minimumAmount, minimumAmountCurrency }
-  liveMode       Boolean   @default(true) @map("live_mode")
 
   metadata  Json?
   createdAt DateTime @default(now()) @map("created_at")
@@ -638,7 +636,7 @@ topic is introduced.
 | Coupon mutability                | **Immutable except name + metadata**, enforced at domain, port, and DB-trigger layers | Matches Stripe; stabilises live discounts; lets us drop the snapshot. |
 | Discount snapshot                | **Removed** — reads terms from the live, immutable Coupon              | Snapshot only defended against mutable coupons; immutability removes the need. |
 | Field placement                  | Economic + global policy on **Coupon**; redemption gating on **CouponCode** | Mirrors Stripe Coupon vs PromotionCode. |
-| Code layer                       | Stripe-shaped: `Active`, `CustomerId`, `ExpiresAt`, `MaxRedemptions`, `TimesRedeemed`, `Restrictions`, `LiveMode`, `Metadata` | Per request. |
+| Code layer                       | Stripe-shaped: `Active`, `CustomerId`, `ExpiresAt`, `MaxRedemptions`, `TimesRedeemed`, `Restrictions`, `Metadata` | Per request. |
 | `Restrictions`                   | `FirstTimeTransaction`, `MinimumAmount` (+`MinimumAmountCurrency`)     | Min-spend needs a currency to compare. |
 | Metadata                         | On **all three** aggregates                                           | Per request. |
 | Scope targeting unit             | **Product** (`AppliesToProducts`)                                     | Matches Stripe `applies_to.products`. |
@@ -659,10 +657,6 @@ topic is introduced.
    mutable, **non-economic** `Active`/`Archived` flag on the Coupon as a deliberate exception to
    "name+metadata only"; (c) accept "set a short `RedeemBy` at creation" as the only lever.
    **Recommendation: (b)** — one availability flag that doesn't change discount terms.
-2. **`LiveMode`.** The codebase has no existing test/live-mode concept. Keep it on `CouponCode`
-   only (as given), thread it through other entities, or drop it in favour of `metadata`?
-   **Recommendation:** keep on `CouponCode` only for now; revisit if a platform-wide live/test
-   split lands.
-3. **"N payments" semantics** — confirmed as N billing cycles (§4.4), not N strictly-paid
+2. **"N payments" semantics** — confirmed as N billing cycles (§4.4), not N strictly-paid
    invoices. Flag if that must change before implementation.
 ```
