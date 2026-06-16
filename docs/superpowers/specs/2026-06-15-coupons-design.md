@@ -409,13 +409,13 @@ them.
 
 ## 7. Database
 
-Prisma is schema source-of-truth (`db push`, no migrations). **Prisma cannot express `CHECK`
-constraints or triggers**, so invariants live in two complementary places:
+Prisma defines the tables. **Prisma's schema language can't express `CHECK` constraints or
+triggers**, so those invariants live in raw SQL alongside it:
 
 1. **Prisma models** — tables, columns, types, indexes, FKs.
 2. **`schemas/app/constraints.sql`** — `CHECK`/exclusion constraints **and** the coupon
-   immutability trigger, applied by a new `make db-constraints` step run **after** `db push`
-   (idempotent; re-run after any push that rewrites these columns).
+   immutability trigger, applied after the schema is in place (via the build/migration step,
+   or `make db-constraints` for a quick `db push`). Idempotent, so re-running is safe.
 
 Domain constructors + `UpdateMutable` ports enforce the same invariants first (clean
 `ApiError`); the DB objects are the un-bypassable backstop.

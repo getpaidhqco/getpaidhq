@@ -15,7 +15,7 @@ Everything runs through the **Makefile** — `make help` lists all targets. Esse
 - `make test` — unit tests; `make test-integration` — incl. Postgres/Testcontainers e2e
 - `make ci` — `go vet` + race tests (mirrors GitHub Actions)
 - `make up` / `make down` — local stack (Postgres, Redis, Hatchet, NATS)
-- `make db-push-all` — push all three Prisma schemas (`db push`, no migrations)
+- `make db-push-all` — push all three Prisma schemas (`db push`)
 
 Local stack details and the Hatchet token bootstrap: `docs/internal/local-dev-hatchet.md`. Workflow engine selection: `WORKFLOW_ENGINE=hatchet|temporal` (see parity rule below).
 
