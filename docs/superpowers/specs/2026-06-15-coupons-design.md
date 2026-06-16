@@ -1,7 +1,7 @@
 # Coupons & Discounts — Design Spec
 
 **Date:** 2026-06-15
-**Status:** Draft for review
+**Status:** Settled — ready for implementation planning
 **Area:** Billing — coupon definitions, codes, and applied discounts
 
 **Scope.** This spec covers the **data model** (`Coupon`, `CouponCode`, `Discount` + supporting
@@ -251,10 +251,9 @@ A discount applies to cycle *N* iff `StartCycle ≤ N < StartCycle + DurationInC
   per-application decrement to double-count (matters under dunning retries).
 - **Replay-safe:** derived from the deterministic cycle index → stable under workflow replay.
 
-"N payments" = "N billing cycles" (= N paid invoices when every covered cycle is paid; pauses
-correctly wait, since the cycle counter doesn't advance). Strict "N successful payments" is out
-of scope (§9). A discount is lazily marked `completed` once its window passes — for
-query/display only; correctness comes from the cycle math.
+"N payments" means **N billing cycles**. Pauses correctly wait, since the cycle counter doesn't
+advance. A discount is lazily marked `completed` once its window passes — for query/display
+only; correctness comes from the cycle math.
 
 > `CouponCode.TimesRedeemed` is a stored counter, but increments once per **redemption**, not per
 > billing cycle — none of the duration counter's retry/replay hazards.
@@ -589,7 +588,6 @@ parity-safe by construction.)
 ## 9. Non-goals
 
 - **Carry-forward of an over-large flat amount** (leftover lost; no customer credit balance).
-- **Strict "N successful payments" counting** — duration is N billing cycles (§4.3).
 - **Editing coupon terms** — immutable by design; "change" = create a new coupon.
 - **Any downstream flow that consumes these methods** (order-completion, billing-invoice, etc.)
   — this spec provides the model and methods; wiring them in is separate work.
@@ -629,11 +627,4 @@ parity-safe by construction.)
 | Duration mechanism               | **Derived from cycle math**                                           | Idempotent + replay-safe. |
 | Stacking                         | **Allowed**, ordered by `RedeemedAt`, per-line running-net clamp      | Deterministic; no architectural barrier. |
 | `CHECK` + immutability trigger   | **`constraints.sql` + `make db-constraints`** + domain validation     | Prisma can't express `CHECK`/triggers; DB is the backstop. |
-
----
-
-## 12. Open questions
-
-1. **"N payments" semantics** — realised as N billing cycles (§4.3), not N strictly-paid
-   invoices. Flag if that must change before implementation.
-```
+| Duration unit                    | **N billing cycles**                                                  | The only sensible reading; not configurable. |
