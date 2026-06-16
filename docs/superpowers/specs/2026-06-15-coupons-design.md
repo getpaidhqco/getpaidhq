@@ -78,6 +78,7 @@ type Coupon struct {
     // --- mutable: the ONLY editable fields ---
     Name     string
     Metadata map[string]string
+    Active   bool // disable the coupon (blocks new redemptions); does NOT change terms
     // -----------------------------------------
 
     // --- immutable after creation (economic + global policy) ---
@@ -104,14 +105,15 @@ type Duration     string // "once" | "repeating" | "forever"
 ```
 
 Notes:
-- **No `Active` field on the Coupon.** Availability is controlled at the code layer
-  (`CouponCode.Active`/`ExpiresAt`). The Coupon's terms are frozen for life. (See open question
-  on retiring code-less coupons, §12.)
+- **`Active` disables the coupon** — when `false`, no new redemptions are accepted (checked at
+  the coupon layer, §5.3). It is a non-economic availability switch: it never changes discount
+  terms, so existing `Discount`s keep applying. This is the lever for retiring a coupon
+  (including code-less/programmatic ones) without a hard delete.
 - The constructor `NewCoupon` enforces the percentage-vs-fixed exclusion, `repeating ⇒
   DurationInCycles >= 1`, and `percent_off` range, returning an `ApiError` before the row hits
   Postgres. The DB `CHECK` + immutability trigger (§7.2) are the backstops.
-- The struct exposes **no setters** for immutable fields — only `Rename(string)` and
-  `SetMetadata(map[string]string)`.
+- The struct exposes **no setters** for immutable fields — only `Rename(string)`,
+  `SetMetadata(map[string]string)`, and `SetActive(bool)`.
 
 ### 3.2 `CouponCode` — redeemable code & redemption gating (`internal/core/domain/coupon_code.go`)
 
@@ -325,6 +327,7 @@ A redemption (and preview) is refused with a specific reason when any check fail
 
 | Reason            | Check                                                                |
 | ----------------- | -------------------------------------------------------------------- |
+| `coupon_inactive` | `Coupon.Active == false`.                                            |
 | `expired`         | `Coupon.RedeemBy` set and `now > RedeemBy`.                          |
 | `cap_reached`     | `MaxRedemptions > 0` and `count(Discount where couponId) >= cap`.    |
 | `already_used`    | `OncePerCustomer` and a `Discount` exists for (couponId, customerId).|
@@ -364,7 +367,7 @@ prevents the same coupon being redeemed twice on one subscription (§7.1).
 ```go
 type CouponRepository interface {
     Create(ctx, domain.Coupon) (domain.Coupon, error)
-    UpdateMutable(ctx, orgId, id, name string, metadata map[string]string) (domain.Coupon, error) // name + metadata ONLY
+    UpdateMutable(ctx, orgId, id, name string, active bool, metadata map[string]string) (domain.Coupon, error) // name + active + metadata ONLY
     FindById(ctx, orgId, id string) (domain.Coupon, error)
     Find(ctx, orgId string, p domain.Pagination) ([]domain.Coupon, int, error)
     DeleteIfUnreferenced(ctx, orgId, id string) error // errors if any Discount references it
@@ -408,7 +411,7 @@ Handlers enforce before mutating, matching existing handlers.
 POST   /api/coupons                  create coupon                         (merchant)
 GET    /api/coupons                  list                                  (merchant)
 GET    /api/coupons/{id}             get                                   (merchant)
-PATCH  /api/coupons/{id}             update name/metadata ONLY             (merchant)
+PATCH  /api/coupons/{id}             update name/active/metadata ONLY      (merchant)
 DELETE /api/coupons/{id}             delete (only if unreferenced)         (merchant)
 POST   /api/coupons/{id}/codes       create a redeemable code              (merchant)
 GET    /api/coupons/{id}/codes       list codes                            (merchant)
@@ -445,6 +448,7 @@ model Coupon {
 
   name     String
   metadata Json?
+  active   Boolean @default(true)
 
   discountType DiscountType @map("discount_type")
   amountOff    Int?         @map("amount_off")
@@ -561,7 +565,7 @@ ALTER TABLE invoice_line_items ADD CONSTRAINT ili_discount_nn  CHECK (discount_t
 ALTER TABLE invoice_line_items ADD CONSTRAINT ili_discount_cap CHECK (discount_total <= total);
 ALTER TABLE invoices          ADD CONSTRAINT inv_discount_nn   CHECK (discount_total >= 0);
 
--- coupon immutability: only name, metadata, updated_at may change
+-- coupon immutability: only name, metadata, active, updated_at may change
 CREATE OR REPLACE FUNCTION coupons_block_term_update() RETURNS trigger AS $$
 BEGIN
   IF (NEW.discount_type, NEW.amount_off, NEW.currency, NEW.percent_off,
@@ -633,7 +637,7 @@ topic is introduced.
 
 | Decision                         | Choice                                                                | Rationale |
 | -------------------------------- | --------------------------------------------------------------------- | --------- |
-| Coupon mutability                | **Immutable except name + metadata**, enforced at domain, port, and DB-trigger layers | Matches Stripe; stabilises live discounts; lets us drop the snapshot. |
+| Coupon mutability                | **Immutable except name + metadata + active**, enforced at domain, port, and DB-trigger layers | Terms frozen (matches Stripe, lets us drop the snapshot); `active` is a non-economic disable switch. |
 | Discount snapshot                | **Removed** — reads terms from the live, immutable Coupon              | Snapshot only defended against mutable coupons; immutability removes the need. |
 | Field placement                  | Economic + global policy on **Coupon**; redemption gating on **CouponCode** | Mirrors Stripe Coupon vs PromotionCode. |
 | Code layer                       | Stripe-shaped: `Active`, `CustomerId`, `ExpiresAt`, `MaxRedemptions`, `TimesRedeemed`, `Restrictions`, `Metadata` | Per request. |
@@ -650,13 +654,6 @@ topic is introduced.
 
 ## 12. Open questions
 
-1. **Retiring a code-less coupon.** With no `Active` on the immutable Coupon and `RedeemBy`
-   frozen at creation, a *programmatic* (code-less) coupon can only be stopped by deleting it —
-   but it can't be hard-deleted while any `Discount` references it. Options: (a) require every
-   coupon to have at least one code (so `Active` toggling always works); (b) add a single
-   mutable, **non-economic** `Active`/`Archived` flag on the Coupon as a deliberate exception to
-   "name+metadata only"; (c) accept "set a short `RedeemBy` at creation" as the only lever.
-   **Recommendation: (b)** — one availability flag that doesn't change discount terms.
-2. **"N payments" semantics** — confirmed as N billing cycles (§4.4), not N strictly-paid
+1. **"N payments" semantics** — realised as N billing cycles (§4.4), not N strictly-paid
    invoices. Flag if that must change before implementation.
 ```
