@@ -56,6 +56,7 @@ func main() {
 		Logger:    logger,
 		Validator: lib.NewValidator(),
 	}, handlers)
+	defer server.Server.Close()
 
 	// OutputOpenAPISpec computes tags and validates the spec. DisableLocalSave
 	// is set in BuildServer, so this does not write any file itself.
