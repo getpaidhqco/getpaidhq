@@ -78,10 +78,11 @@ model Invoice {
   customerId     String @map("customer_id")
   orderId        String @map("order_id")
 
-  status   InvoiceStatus
-  currency String
-  subtotal Int           @default(0)
-  total    Int           @default(0)
+  status        InvoiceStatus
+  currency      String
+  subtotal      Int           @default(0)
+  total         Int           @default(0)
+  discountTotal Int           @default(0) @map("discount_total")
 
   cycle       Int
   periodStart DateTime? @map("period_start")
@@ -120,9 +121,10 @@ model InvoiceLineItem {
   kind        InvoiceLineItemKind
   description String              @default("")
 
-  quantity   Decimal @db.Decimal(38, 9)
-  unitAmount Decimal @map("unit_amount") @db.Decimal(38, 9)
-  total      Int     @default(0)
+  quantity      Decimal @db.Decimal(38, 9)
+  unitAmount    Decimal @map("unit_amount") @db.Decimal(38, 9)
+  total         Int     @default(0)
+  discountTotal Int     @default(0) @map("discount_total")
 
   metadata Json?
 
@@ -141,16 +143,16 @@ enum InvoiceLineItemKind {
 }
 
 model Gateway {
-  orgId  String  @map("org_id")
-  id     String
-  name   String
-  pspId  String  @map("psp_id")
-  active Boolean @default(false)
+  orgId       String  @map("org_id")
+  id          String
+  name        String
+  pspId       String  @map("psp_id")
+  active      Boolean @default(false)
   /// Non-secret, UI-readable gateway settings (themes, channel ids), JSON object.
-  config String @default("")
+  config      String  @default("")
   /// AES-256-GCM envelope of the gateway's secret credentials (see
   /// internal/adapter/crypto). Write-only: never returned by any endpoint.
-  credentials String @default("")
+  credentials String  @default("")
 
   created_at DateTime @default(now())
   updated_at DateTime @updatedAt
@@ -1028,3 +1030,104 @@ model BillableMetric {
 // NOTE: MeterEvent (meter_events) lives in the SEPARATE usage database —
 // see schemas/usage/schema.prisma (USAGE_DATABASE_URL). Only meter definitions
 // (billable_metrics) stay here in the operational DB.
+
+model Coupon {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  name     String
+  metadata Json?
+  active   Boolean @default(true)
+
+  discountType DiscountType @map("discount_type")
+  amountOff    Int?         @map("amount_off")
+  currency     String?
+  percentOff   Decimal?     @map("percent_off") @db.Decimal(5, 2)
+
+  duration         Duration
+  durationInCycles Int?     @map("duration_in_cycles")
+
+  redeemBy          DateTime? @map("redeem_by")
+  appliesToProducts String[]  @map("applies_to_products")
+  maxRedemptions    Int       @default(0) @map("max_redemptions")
+  oncePerCustomer   Boolean   @default(false) @map("once_per_customer")
+
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  codes     CouponCode[]
+  discounts Discount[]
+
+  @@id([orgId, id])
+  @@map("coupons")
+}
+
+model CouponCode {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  couponId String @map("coupon_id")
+  coupon   Coupon @relation(fields: [orgId, couponId], references: [orgId, id], onDelete: Cascade)
+
+  code   String
+  active Boolean @default(true)
+
+  customerId     String?   @map("customer_id")
+  expiresAt      DateTime? @map("expires_at")
+  maxRedemptions Int       @default(0) @map("max_redemptions")
+  timesRedeemed  Int       @default(0) @map("times_redeemed")
+  restrictions   Json?
+
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([orgId, id])
+  @@unique([orgId, code])
+  @@map("coupon_codes")
+}
+
+model Discount {
+  orgId String @map("org_id")
+  id    String @default(cuid())
+
+  couponId     String  @map("coupon_id")
+  coupon       Coupon  @relation(fields: [orgId, couponId], references: [orgId, id])
+  couponCodeId String? @map("coupon_code_id")
+  customerId   String  @map("customer_id")
+
+  subscriptionId String? @map("subscription_id")
+  orderId        String? @map("order_id")
+
+  startCycle Int            @default(0) @map("start_cycle")
+  status     DiscountStatus @default(active)
+  redeemedAt DateTime       @default(now()) @map("redeemed_at")
+  endedAt    DateTime?      @map("ended_at")
+
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([orgId, id])
+  @@unique([orgId, couponId, subscriptionId])
+  @@index([orgId, couponId])
+  @@index([orgId, subscriptionId])
+  @@map("discounts")
+}
+
+enum DiscountType {
+  percentage
+  fixed
+}
+
+enum Duration {
+  once
+  repeating
+  forever
+}
+
+enum DiscountStatus {
+  active
+  completed
+  cancelled
+}
