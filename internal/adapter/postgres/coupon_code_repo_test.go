@@ -20,8 +20,10 @@ func TestCouponCodeRepo(t *testing.T) {
 	orgId := uniqueOrg(t)
 	cleanupOrg(t, db, orgId)
 
+	coupon := seedCoupon(t, db, orgId)
+
 	cc, err := domain.NewCouponCode(domain.NewCouponCodeInput{
-		OrgId: orgId, CouponId: "coupon_1", Code: "summer25",
+		OrgId: orgId, CouponId: coupon.Id, Code: "summer25",
 		Restrictions: domain.Restrictions{FirstTimeTransaction: true},
 	})
 	require.NoError(t, err)

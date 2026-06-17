@@ -27,6 +27,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -290,4 +291,20 @@ func seedOrder(t *testing.T, db *gorm.DB, orgId, customerId string) domain.Order
 	row := orderRowFromDomain(o)
 	require.NoError(t, db.Omit("Customer", "Items").Create(&row).Error)
 	return o
+}
+
+// seedCoupon inserts a valid percentage coupon for orgId and returns it.
+func seedCoupon(t *testing.T, db *gorm.DB, orgId string) domain.Coupon {
+	t.Helper()
+	in, err := domain.NewCoupon(domain.NewCouponInput{
+		OrgId:        orgId,
+		Name:         "Seed Coupon",
+		DiscountType: domain.DiscountTypePercentage,
+		PercentOff:   decimal.NewFromInt(25),
+		Duration:     domain.DurationForever,
+	})
+	require.NoError(t, err)
+	c, err := NewCouponRepo(db).Create(context.Background(), in)
+	require.NoError(t, err)
+	return c
 }
