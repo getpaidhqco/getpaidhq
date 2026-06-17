@@ -25,7 +25,8 @@ type InvoiceLineItem struct {
 	Description string
 	Quantity    decimal.Decimal
 	UnitAmount  decimal.Decimal // cents (may be fractional)
-	Total       int64           // cents
+	Total         int64           // cents
+	DiscountTotal int64           // cents — coupon/discount applied to this line
 	Metadata    map[string]string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time

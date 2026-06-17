@@ -88,6 +88,10 @@ db-push-usage: ## Push usage-event-store schema -> USAGE_DATABASE_URL
 .PHONY: db-push-all
 db-push-all: db-push db-push-reporting db-push-usage ## Push all three schemas
 
+.PHONY: db-constraints
+db-constraints: ## Apply raw CHECK constraints + triggers (run after db-push)
+	psql "$(DATABASE_URL)" -f schemas/app/constraints.sql
+
 .PHONY: db-format
 db-format: ## Format all Prisma schemas
 	pnpm prisma:format && pnpm prisma:reporting:format && pnpm prisma:usage:format

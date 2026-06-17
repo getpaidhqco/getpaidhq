@@ -23,7 +23,8 @@ type Invoice struct {
 	Status         InvoiceStatus
 	Currency       string
 	Subtotal       int64 // cents — sum of line Totals
-	Total          int64 // cents — amount a Payment attempts to settle
+	DiscountTotal  int64 // cents — total coupon/discount across all lines
+	Total          int64 // cents — amount a Payment attempts to settle (Subtotal - DiscountTotal)
 	LineItems      []InvoiceLineItem
 	Cycle          int // the subscription cycle this invoice bills (CyclesProcessed at build time)
 	PeriodStart    time.Time

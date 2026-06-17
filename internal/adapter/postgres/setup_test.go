@@ -27,6 +27,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -76,6 +77,9 @@ func allModels() []any {
 		&meterEventRow{},
 		&invoiceRow{},
 		&invoiceLineItemRow{},
+		&couponRow{},
+		&couponCodeRow{},
+		&discountRow{},
 	}
 }
 
@@ -111,7 +115,7 @@ func testDB(t *testing.T) *gorm.DB {
 			return
 		}
 
-		db, err := NewDatabase(connStr, nil)
+		db, err := NewDatabase(connStr, nil, "")
 		if err != nil {
 			sharedErr = fmt.Errorf("failed to open gorm connection: %w", err)
 			return
@@ -122,6 +126,22 @@ func testDB(t *testing.T) *gorm.DB {
 			sharedErr = fmt.Errorf("auto-migrate failed: %w", err)
 			return
 		}
+
+		constraintsSQL, err := os.ReadFile("../../../schemas/app/constraints.sql")
+		if err != nil {
+			sharedErr = fmt.Errorf("read constraints.sql: %w", err)
+			return
+		}
+		sqlDB, err := db.DB()
+		if err != nil {
+			sharedErr = fmt.Errorf("access sql.DB for constraints: %w", err)
+			return
+		}
+		if _, err := sqlDB.Exec(string(constraintsSQL)); err != nil {
+			sharedErr = fmt.Errorf("apply constraints.sql: %w", err)
+			return
+		}
+
 		sharedDB = db
 	})
 
@@ -141,6 +161,9 @@ func cleanupOrg(t *testing.T, db *gorm.DB, orgId string) {
 	t.Helper()
 	t.Cleanup(func() {
 		ordered := []any{
+			&discountRow{},
+			&couponCodeRow{},
+			&couponRow{},
 			&dunningCommunicationRow{},
 			&paymentUpdateTokenRow{},
 			&dunningAttemptRow{},

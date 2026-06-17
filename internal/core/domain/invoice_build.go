@@ -98,10 +98,12 @@ func (inv *Invoice) AddLine(l InvoiceLineItem) {
 }
 
 func (inv *Invoice) recalculate() {
-	var subtotal int64
+	var subtotal, discount int64
 	for _, l := range inv.LineItems {
 		subtotal += l.Total
+		discount += l.DiscountTotal
 	}
 	inv.Subtotal = subtotal
-	inv.Total = subtotal
+	inv.DiscountTotal = discount
+	inv.Total = subtotal - discount
 }

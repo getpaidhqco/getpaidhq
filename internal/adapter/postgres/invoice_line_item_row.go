@@ -18,8 +18,9 @@ type invoiceLineItemRow struct {
 	Description string                     `gorm:"column:description"`
 	Quantity    decimal.Decimal            `gorm:"column:quantity;type:numeric"`
 	UnitAmount  decimal.Decimal            `gorm:"column:unit_amount;type:numeric"`
-	Total       int64                      `gorm:"column:total"`
-	Metadata    map[string]string          `gorm:"column:metadata;serializer:json"`
+	Total         int64                      `gorm:"column:total"`
+	DiscountTotal int64                      `gorm:"column:discount_total"`
+	Metadata      map[string]string          `gorm:"column:metadata;serializer:json"`
 	CreatedAt   time.Time                  `gorm:"column:created_at"`
 	UpdatedAt   time.Time                  `gorm:"column:updated_at"`
 }
@@ -35,9 +36,10 @@ func (r invoiceLineItemRow) toDomain() domain.InvoiceLineItem {
 		Kind:        r.Kind,
 		Description: r.Description,
 		Quantity:    r.Quantity,
-		UnitAmount:  r.UnitAmount,
-		Total:       r.Total,
-		Metadata:    r.Metadata,
+		UnitAmount:    r.UnitAmount,
+		Total:         r.Total,
+		DiscountTotal: r.DiscountTotal,
+		Metadata:      r.Metadata,
 		CreatedAt:   r.CreatedAt,
 		UpdatedAt:   r.UpdatedAt,
 	}
@@ -52,9 +54,10 @@ func invoiceLineItemRowFromDomain(l domain.InvoiceLineItem) invoiceLineItemRow {
 		Kind:        l.Kind,
 		Description: l.Description,
 		Quantity:    l.Quantity,
-		UnitAmount:  l.UnitAmount,
-		Total:       l.Total,
-		Metadata:    l.Metadata,
+		UnitAmount:    l.UnitAmount,
+		Total:         l.Total,
+		DiscountTotal: l.DiscountTotal,
+		Metadata:      l.Metadata,
 		CreatedAt:   l.CreatedAt,
 		UpdatedAt:   l.UpdatedAt,
 	}
