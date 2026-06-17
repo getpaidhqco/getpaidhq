@@ -1,6 +1,8 @@
 -- +goose Up
--- Baseline generated from schemas/app/schema.prisma via 'prisma migrate diff'.
--- Reproduces the operational schema exactly as of the Prisma->Goose cutover.
+-- Baseline for the operational (app) database. Prisma-managed DDL generated via
+-- 'prisma migrate diff', plus the coupon/discount invariants (CHECK constraints +
+-- coupon-immutability trigger) Prisma can't express, folded in from the former
+-- schemas/app/constraints.sql.
 
 -- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
@@ -62,6 +64,15 @@ CREATE TYPE "DunningConfigScope" AS ENUM ('organization', 'customer_segment', 's
 -- CreateEnum
 CREATE TYPE "DunningConfigStatus" AS ENUM ('active', 'inactive', 'archived');
 
+-- CreateEnum
+CREATE TYPE "DiscountType" AS ENUM ('percentage', 'fixed');
+
+-- CreateEnum
+CREATE TYPE "Duration" AS ENUM ('once', 'repeating', 'forever');
+
+-- CreateEnum
+CREATE TYPE "DiscountStatus" AS ENUM ('active', 'completed', 'cancelled');
+
 -- CreateTable
 CREATE TABLE "api_keys" (
     "org_id" TEXT NOT NULL,
@@ -99,6 +110,7 @@ CREATE TABLE "invoices" (
     "currency" TEXT NOT NULL,
     "subtotal" INTEGER NOT NULL DEFAULT 0,
     "total" INTEGER NOT NULL DEFAULT 0,
+    "discount_total" INTEGER NOT NULL DEFAULT 0,
     "cycle" INTEGER NOT NULL,
     "period_start" TIMESTAMP(3),
     "period_end" TIMESTAMP(3),
@@ -120,6 +132,7 @@ CREATE TABLE "invoice_line_items" (
     "quantity" DECIMAL(38,9) NOT NULL,
     "unit_amount" DECIMAL(38,9) NOT NULL,
     "total" INTEGER NOT NULL DEFAULT 0,
+    "discount_total" INTEGER NOT NULL DEFAULT 0,
     "metadata" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
@@ -656,6 +669,68 @@ CREATE TABLE "billable_metrics" (
     CONSTRAINT "billable_metrics_pkey" PRIMARY KEY ("org_id","id")
 );
 
+-- CreateTable
+CREATE TABLE "coupons" (
+    "org_id" TEXT NOT NULL,
+    "id" TEXT NOT NULL,
+    "name" TEXT NOT NULL,
+    "metadata" JSONB,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "discount_type" "DiscountType" NOT NULL,
+    "amount_off" INTEGER,
+    "currency" TEXT,
+    "percent_off" DECIMAL(5,2),
+    "duration" "Duration" NOT NULL,
+    "duration_in_cycles" INTEGER,
+    "redeem_by" TIMESTAMP(3),
+    "applies_to_products" TEXT[],
+    "max_redemptions" INTEGER NOT NULL DEFAULT 0,
+    "once_per_customer" BOOLEAN NOT NULL DEFAULT false,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "coupons_pkey" PRIMARY KEY ("org_id","id")
+);
+
+-- CreateTable
+CREATE TABLE "coupon_codes" (
+    "org_id" TEXT NOT NULL,
+    "id" TEXT NOT NULL,
+    "coupon_id" TEXT NOT NULL,
+    "code" TEXT NOT NULL,
+    "active" BOOLEAN NOT NULL DEFAULT true,
+    "customer_id" TEXT,
+    "expires_at" TIMESTAMP(3),
+    "max_redemptions" INTEGER NOT NULL DEFAULT 0,
+    "times_redeemed" INTEGER NOT NULL DEFAULT 0,
+    "restrictions" JSONB,
+    "metadata" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "coupon_codes_pkey" PRIMARY KEY ("org_id","id")
+);
+
+-- CreateTable
+CREATE TABLE "discounts" (
+    "org_id" TEXT NOT NULL,
+    "id" TEXT NOT NULL,
+    "coupon_id" TEXT NOT NULL,
+    "coupon_code_id" TEXT,
+    "customer_id" TEXT NOT NULL,
+    "subscription_id" TEXT,
+    "order_id" TEXT,
+    "start_cycle" INTEGER NOT NULL DEFAULT 0,
+    "status" "DiscountStatus" NOT NULL DEFAULT 'active',
+    "redeemed_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "ended_at" TIMESTAMP(3),
+    "metadata" JSONB,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "discounts_pkey" PRIMARY KEY ("org_id","id")
+);
+
 -- CreateIndex
 CREATE UNIQUE INDEX "api_keys_key_hash_key" ON "api_keys"("key_hash");
 
@@ -718,6 +793,18 @@ CREATE INDEX "dunning_configurations_org_id_status_priority_idx" ON "dunning_con
 
 -- CreateIndex
 CREATE UNIQUE INDEX "billable_metrics_org_id_code_key" ON "billable_metrics"("org_id", "code");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "coupon_codes_org_id_code_key" ON "coupon_codes"("org_id", "code");
+
+-- CreateIndex
+CREATE INDEX "discounts_org_id_coupon_id_idx" ON "discounts"("org_id", "coupon_id");
+
+-- CreateIndex
+CREATE INDEX "discounts_org_id_subscription_id_idx" ON "discounts"("org_id", "subscription_id");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "discounts_org_id_coupon_id_subscription_id_key" ON "discounts"("org_id", "coupon_id", "subscription_id");
 
 -- AddForeignKey
 ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
@@ -827,8 +914,73 @@ ALTER TABLE "dunning_communications" ADD CONSTRAINT "dunning_communications_org_
 -- AddForeignKey
 ALTER TABLE "billable_metrics" ADD CONSTRAINT "billable_metrics_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
+-- AddForeignKey
+ALTER TABLE "coupon_codes" ADD CONSTRAINT "coupon_codes_org_id_coupon_id_fkey" FOREIGN KEY ("org_id", "coupon_id") REFERENCES "coupons"("org_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "discounts" ADD CONSTRAINT "discounts_org_id_coupon_id_fkey" FOREIGN KEY ("org_id", "coupon_id") REFERENCES "coupons"("org_id", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+
+-- ---- Invariants Prisma can't express (CHECK constraints + coupon immutability) ----
+
+-- Coupon/discount invariants Prisma can't express. Idempotent: safe to re-run.
+-- +goose StatementBegin
+DO $$
+BEGIN
+  -- coupons
+  BEGIN ALTER TABLE coupons ADD CONSTRAINT coupons_amount_off_pos CHECK (amount_off > 0); EXCEPTION WHEN duplicate_object THEN END;
+  BEGIN ALTER TABLE coupons ADD CONSTRAINT coupons_currency_len CHECK (currency IS NULL OR char_length(currency) = 3); EXCEPTION WHEN duplicate_object THEN END;
+  BEGIN ALTER TABLE coupons ADD CONSTRAINT coupons_percent_off_range CHECK (percent_off > 0 AND percent_off <= 100); EXCEPTION WHEN duplicate_object THEN END;
+  BEGIN ALTER TABLE coupons ADD CONSTRAINT coupons_max_redemptions_nn CHECK (max_redemptions >= 0); EXCEPTION WHEN duplicate_object THEN END;
+  BEGIN ALTER TABLE coupons ADD CONSTRAINT coupons_discount_type_xor CHECK (
+    (amount_off IS NOT NULL AND currency IS NOT NULL AND percent_off IS NULL) OR
+    (amount_off IS NULL AND currency IS NULL AND percent_off IS NOT NULL)); EXCEPTION WHEN duplicate_object THEN END;
+  BEGIN ALTER TABLE coupons ADD CONSTRAINT coupons_repeating_cycles CHECK (
+    (duration = 'repeating' AND duration_in_cycles >= 1) OR
+    (duration <> 'repeating' AND duration_in_cycles IS NULL)); EXCEPTION WHEN duplicate_object THEN END;
+
+  -- coupon_codes
+  BEGIN ALTER TABLE coupon_codes ADD CONSTRAINT codes_max_redemptions_nn CHECK (max_redemptions >= 0); EXCEPTION WHEN duplicate_object THEN END;
+  BEGIN ALTER TABLE coupon_codes ADD CONSTRAINT codes_times_redeemed_nn CHECK (times_redeemed >= 0); EXCEPTION WHEN duplicate_object THEN END;
+
+  -- discounts
+  BEGIN ALTER TABLE discounts ADD CONSTRAINT discounts_target_xor CHECK (
+    (subscription_id IS NOT NULL AND order_id IS NULL) OR
+    (subscription_id IS NULL AND order_id IS NOT NULL)); EXCEPTION WHEN duplicate_object THEN END;
+  BEGIN ALTER TABLE discounts ADD CONSTRAINT discounts_start_cycle_nn CHECK (start_cycle >= 0); EXCEPTION WHEN duplicate_object THEN END;
+
+  -- invoice line discount sanity
+  BEGIN ALTER TABLE invoice_line_items ADD CONSTRAINT ili_discount_nn CHECK (discount_total >= 0); EXCEPTION WHEN duplicate_object THEN END;
+  BEGIN ALTER TABLE invoice_line_items ADD CONSTRAINT ili_discount_cap CHECK (discount_total <= total); EXCEPTION WHEN duplicate_object THEN END;
+  BEGIN ALTER TABLE invoices ADD CONSTRAINT inv_discount_nn CHECK (discount_total >= 0); EXCEPTION WHEN duplicate_object THEN END;
+END $$;
+-- +goose StatementEnd
+
+-- Coupon immutability: only name, active, metadata, updated_at may change.
+-- +goose StatementBegin
+CREATE OR REPLACE FUNCTION coupons_block_term_update() RETURNS trigger AS $$
+BEGIN
+  IF (NEW.discount_type, NEW.amount_off, NEW.currency, NEW.percent_off,
+      NEW.duration, NEW.duration_in_cycles, NEW.applies_to_products,
+      NEW.redeem_by, NEW.max_redemptions, NEW.once_per_customer)
+   IS DISTINCT FROM
+     (OLD.discount_type, OLD.amount_off, OLD.currency, OLD.percent_off,
+      OLD.duration, OLD.duration_in_cycles, OLD.applies_to_products,
+      OLD.redeem_by, OLD.max_redemptions, OLD.once_per_customer)
+  THEN RAISE EXCEPTION 'coupon terms are immutable (only name/active/metadata may change)';
+  END IF;
+  RETURN NEW;
+END; $$ LANGUAGE plpgsql;
+-- +goose StatementEnd
+
+DROP TRIGGER IF EXISTS coupons_immutable ON coupons;
+CREATE TRIGGER coupons_immutable BEFORE UPDATE ON coupons
+  FOR EACH ROW EXECUTE FUNCTION coupons_block_term_update();
 
 -- +goose Down
+
+DROP TRIGGER IF EXISTS coupons_immutable ON coupons;
+DROP FUNCTION IF EXISTS coupons_block_term_update();
 
 -- DropForeignKey
 ALTER TABLE "public"."api_keys" DROP CONSTRAINT "api_keys_org_id_fkey";
@@ -938,6 +1090,12 @@ ALTER TABLE "public"."dunning_communications" DROP CONSTRAINT "dunning_communica
 -- DropForeignKey
 ALTER TABLE "public"."billable_metrics" DROP CONSTRAINT "billable_metrics_org_id_fkey";
 
+-- DropForeignKey
+ALTER TABLE "public"."coupon_codes" DROP CONSTRAINT "coupon_codes_org_id_coupon_id_fkey";
+
+-- DropForeignKey
+ALTER TABLE "public"."discounts" DROP CONSTRAINT "discounts_org_id_coupon_id_fkey";
+
 -- DropTable
 DROP TABLE "public"."api_keys";
 
@@ -1034,6 +1192,15 @@ DROP TABLE "public"."customer_dunning_history";
 -- DropTable
 DROP TABLE "public"."billable_metrics";
 
+-- DropTable
+DROP TABLE "public"."coupons";
+
+-- DropTable
+DROP TABLE "public"."coupon_codes";
+
+-- DropTable
+DROP TABLE "public"."discounts";
+
 -- DropEnum
 DROP TYPE "public"."OrgStatus";
 
@@ -1090,4 +1257,13 @@ DROP TYPE "public"."DunningConfigScope";
 
 -- DropEnum
 DROP TYPE "public"."DunningConfigStatus";
+
+-- DropEnum
+DROP TYPE "public"."DiscountType";
+
+-- DropEnum
+DROP TYPE "public"."Duration";
+
+-- DropEnum
+DROP TYPE "public"."DiscountStatus";
 
