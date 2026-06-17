@@ -49,7 +49,7 @@ func seedUsageFixture(t *testing.T, db *gorm.DB, orgId string, meter domain.Bill
 		UpdatedAt:  now,
 	}
 	custRow := customerRowFromDomain(cust)
-	require.NoError(t, db.Create(&custRow).Error)
+	require.NoError(t, db.Omit("DefaultPaymentMethodId").Create(&custRow).Error)
 
 	meter.OrgId = orgId
 	meter.Id = lib.GenerateId("met")
@@ -59,10 +59,12 @@ func seedUsageFixture(t *testing.T, db *gorm.DB, orgId string, meter domain.Bill
 
 	price.OrgId = orgId
 	price.Id = lib.GenerateId("price")
+	price.VariantId = seedVariantChain(t, db, orgId)
 	price.Category = domain.PriceCategorySubscription
 	price.Currency = domain.USD
 	price.BillingInterval = domain.BillingIntervalMonth
 	price.BillingIntervalQty = 1
+	price.TrialInterval = domain.BillingIntervalNone
 	price.BillableMetricId = meter.Id
 	price.CreatedAt, price.UpdatedAt = now, now
 	priceRow := priceRowFromDomain(price)
@@ -74,23 +76,27 @@ func seedUsageFixture(t *testing.T, db *gorm.DB, orgId string, meter domain.Bill
 	sub := domain.Subscription{
 		OrgId:              orgId,
 		Id:                 lib.GenerateId("sub"),
+		PspId:              domain.Paystack,
 		OrderId:            order.Id,
 		CustomerId:         cust.Id,
 		Status:             domain.SubscriptionStatusActive,
 		Currency:           "USD",
 		BillingInterval:    domain.BillingIntervalMonth,
 		BillingIntervalQty: 1,
+		TrialInterval:      domain.BillingIntervalNone,
 		Cycles:             12,
 		CyclesProcessed:    0,
 		StartDate:          periodStart,
 		CurrentPeriodStart: periodStart,
 		CurrentPeriodEnd:   periodEnd,
 		RenewsAt:           periodEnd,
+		Metadata:           map[string]string{},
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
 	subRow := subscriptionRowFromDomain(sub)
-	require.NoError(t, db.Create(&subRow).Error)
+	// payment_method_id is nullable with FK; omit when empty to avoid FK violation.
+	require.NoError(t, db.Omit("PaymentMethodId").Create(&subRow).Error)
 	require.NoError(t, db.Model(&orderItemRow{}).
 		Where("org_id = ? AND id = ?", orgId, item.Id).
 		Update("subscription_id", sub.Id).Error)

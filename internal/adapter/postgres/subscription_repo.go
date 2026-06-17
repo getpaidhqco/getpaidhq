@@ -51,7 +51,13 @@ func (r *SubscriptionRepo) FindByIdForUpdate(ctx context.Context, orgId string, 
 func (r *SubscriptionRepo) Create(ctx context.Context, entity domain.Subscription) (domain.Subscription, error) {
 	entity.Metadata = emptyIfNil(entity.Metadata)
 	row := subscriptionRowFromDomain(entity)
-	if err := dbFromCtx(ctx, r.db).Omit("Customer", "OrderItem").Create(&row).Error; err != nil {
+	omits := []string{"Customer", "OrderItem"}
+	// payment_method_id is nullable with a FK constraint; omit the column (→ NULL)
+	// when no payment method is set so that an empty string is not sent to postgres.
+	if entity.PaymentMethodId == "" {
+		omits = append(omits, "payment_method_id")
+	}
+	if err := dbFromCtx(ctx, r.db).Omit(omits...).Create(&row).Error; err != nil {
 		return domain.Subscription{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
@@ -59,7 +65,13 @@ func (r *SubscriptionRepo) Create(ctx context.Context, entity domain.Subscriptio
 
 func (r *SubscriptionRepo) Update(ctx context.Context, entity domain.Subscription) (domain.Subscription, error) {
 	row := subscriptionRowFromDomain(entity)
-	if err := dbFromCtx(ctx, r.db).Omit("Customer", "OrderItem").Save(&row).Error; err != nil {
+	omits := []string{"Customer", "OrderItem"}
+	// payment_method_id is nullable with a FK constraint; omit the column (→ NULL)
+	// when no payment method is set so that an empty string is not sent to postgres.
+	if entity.PaymentMethodId == "" {
+		omits = append(omits, "payment_method_id")
+	}
+	if err := dbFromCtx(ctx, r.db).Omit(omits...).Save(&row).Error; err != nil {
 		return domain.Subscription{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)

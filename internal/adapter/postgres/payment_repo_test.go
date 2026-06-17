@@ -12,16 +12,18 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"gorm.io/gorm"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/lib"
 )
 
-func newPayment(orgId string) domain.Payment {
+func newPayment(orgId, orderId string) domain.Payment {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	return domain.Payment{
 		OrgId:       orgId,
 		Id:          lib.GenerateId("pay"),
+		OrderId:     orderId,
 		Psp:         domain.Paystack,
 		PspId:       lib.GenerateId("psp"),
 		Reference:   "REF-" + lib.GenerateId("r"),
@@ -38,6 +40,15 @@ func newPayment(orgId string) domain.Payment {
 	}
 }
 
+// seedPaymentParent seeds the minimal parent chain (customer → order) needed
+// by payment FK constraints and returns the orderId.
+func seedPaymentParent(t *testing.T, db *gorm.DB, orgId string) string {
+	t.Helper()
+	cust := seedCustomer(t, db, orgId)
+	order := seedOrder(t, db, orgId, cust.Id)
+	return order.Id
+}
+
 func TestPaymentRepo(t *testing.T) {
 	db := testDB(t)
 	repo := NewPaymentRepo(db)
@@ -46,7 +57,7 @@ func TestPaymentRepo(t *testing.T) {
 	t.Run("Create then FindById round-trips", func(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
-		p := newPayment(orgId)
+		p := newPayment(orgId, seedPaymentParent(t, db, orgId))
 
 		created, err := repo.Create(ctx, p)
 		require.NoError(t, err)
@@ -63,7 +74,7 @@ func TestPaymentRepo(t *testing.T) {
 	t.Run("Update mutates status", func(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
-		created, err := repo.Create(ctx, newPayment(orgId))
+		created, err := repo.Create(ctx, newPayment(orgId, seedPaymentParent(t, db, orgId)))
 		require.NoError(t, err)
 
 		created.Status = domain.PaymentStatusRefunded
@@ -86,7 +97,7 @@ func TestPaymentRepo(t *testing.T) {
 	t.Run("FindByPspId finds by psp id within org", func(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
-		created, err := repo.Create(ctx, newPayment(orgId))
+		created, err := repo.Create(ctx, newPayment(orgId, seedPaymentParent(t, db, orgId)))
 		require.NoError(t, err)
 
 		got, err := repo.FindByPspId(ctx, orgId, created.PspId)
@@ -97,7 +108,7 @@ func TestPaymentRepo(t *testing.T) {
 	t.Run("ListByPspId matches psp + psp_id across orgs", func(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
-		p := newPayment(orgId)
+		p := newPayment(orgId, seedPaymentParent(t, db, orgId))
 		_, err := repo.Create(ctx, p)
 		require.NoError(t, err)
 
@@ -110,33 +121,45 @@ func TestPaymentRepo(t *testing.T) {
 	t.Run("FindBySubscriptionId paginates and counts", func(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
-		subId := lib.GenerateId("sub")
+		// payments.subscription_id is a nullable FK to subscriptions; seed real
+		// subscriptions so the FK constraint is satisfied.
+		fx := seedSubFixture(t, db, orgId)
+		subRepo := NewSubscriptionRepo(db)
+		sub1, err := subRepo.Create(ctx, fx.sub)
+		require.NoError(t, err)
+
+		// A second subscription on the same order for the "other" payment.
+		otherSub := newSubscription(orgId, fx.customer.Id, fx.order.Id)
+		createdOther, err := subRepo.Create(ctx, otherSub)
+		require.NoError(t, err)
+
+		orderId := fx.order.Id
 		for range 3 {
-			p := newPayment(orgId)
-			p.SubscriptionId = subId
+			p := newPayment(orgId, orderId)
+			p.SubscriptionId = sub1.Id
 			_, err := repo.Create(ctx, p)
 			require.NoError(t, err)
 		}
 		// One payment on a different subscription must be excluded.
-		other := newPayment(orgId)
-		other.SubscriptionId = lib.GenerateId("sub")
-		_, err := repo.Create(ctx, other)
+		other := newPayment(orgId, orderId)
+		other.SubscriptionId = createdOther.Id
+		_, err = repo.Create(ctx, other)
 		require.NoError(t, err)
 
-		p := domain.Pagination{Limit: 2, SortBy: "created_at", SortDirection: "asc"}
-		payments, count, err := repo.FindBySubscriptionId(ctx, orgId, subId, p)
+		pg := domain.Pagination{Limit: 2, SortBy: "created_at", SortDirection: "asc"}
+		payments, count, err := repo.FindBySubscriptionId(ctx, orgId, sub1.Id, pg)
 		require.NoError(t, err)
 		assert.Equal(t, 3, count)
 		assert.Len(t, payments, 2)
 		for _, pay := range payments {
-			assert.Equal(t, subId, pay.SubscriptionId)
+			assert.Equal(t, sub1.Id, pay.SubscriptionId)
 		}
 	})
 
 	t.Run("CreateRefund round-trips", func(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
-		pay, err := repo.Create(ctx, newPayment(orgId))
+		pay, err := repo.Create(ctx, newPayment(orgId, seedPaymentParent(t, db, orgId)))
 		require.NoError(t, err)
 
 		refund := domain.Refund{
@@ -163,7 +186,7 @@ func TestPaymentRepo(t *testing.T) {
 		orgB := uniqueOrg(t)
 		cleanupOrg(t, db, orgA)
 		cleanupOrg(t, db, orgB)
-		created, err := repo.Create(ctx, newPayment(orgA))
+		created, err := repo.Create(ctx, newPayment(orgA, seedPaymentParent(t, db, orgA)))
 		require.NoError(t, err)
 
 		_, err = repo.FindById(ctx, orgB, created.Id)

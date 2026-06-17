@@ -15,11 +15,11 @@ Everything runs through the **Makefile** — `make help` lists all targets. Esse
 - `make test` — unit tests; `make test-integration` — incl. Postgres/Testcontainers e2e
 - `make ci` — `go vet` + race tests (mirrors GitHub Actions)
 - `make up` / `make down` — local stack (Postgres, Redis, Hatchet, NATS)
-- `make db-push-all` — push all three Prisma schemas (`db push`)
+- `make db-migrate-all` — apply Goose migrations to all three databases
 
 Local stack details and the Hatchet token bootstrap: `docs/internal/local-dev-hatchet.md`. Workflow engine selection: `WORKFLOW_ENGINE=hatchet|temporal` (see parity rule below).
 
-### Test database isolation 
+### Test database isolation (load-bearing)
 
 **Tests MUST NEVER touch the developer's local docker-compose database** — it carries hand-seeded data. Enforced by construction:
 
@@ -34,7 +34,7 @@ Ports-and-adapters (hexagonal): `internal/core/{domain,port,service}` at the cen
 
 **Wiring is manual DI** in `internal/config/app.go` (`NewApp()`) — every repo/service/handler constructed by hand. Add a service by editing `app.go`.
 
-### Narrow-vs-orchestration service pattern
+### Narrow-vs-orchestration service pattern (load-bearing)
 
 There is a deliberate construction-order cycle: workflow steps call services, but the engine dispatches those steps — so a service can't depend on the engine. The fix (documented in `internal/core/service/subscription_orchestration.go`):
 
@@ -44,7 +44,7 @@ There is a deliberate construction-order cycle: workflow steps call services, bu
 
 The cycle is broken at the type level by embedding — preserve that. Don't give a narrow service a back-pointer to the engine.
 
-### Workflow engine — parity rule 
+### Workflow engine — parity rule (load-bearing)
 
 Two interchangeable engines: **Hatchet** (`internal/adapter/hatchet/`) and **Temporal** (`internal/adapter/temporal/`), selected by `WORKFLOW_ENGINE` in `app.go`. Only one runs at a time.
 
@@ -73,13 +73,13 @@ Metered billing records `meter_events` into a dedicated store, scaled/retained i
 
 - **Event store** `USAGE_EVENT_STORE`: `postgres` (default) | `clickhouse`.
 - **Ingestion** `USAGE_INGEST_MODE`: `sync` (default) | `jetstream` (NATS JetStream + background batch consumer). Behind the `EventIngestor` port.
-- Endpoints: `POST /api/usage/events`; meters under `/api/meters`. Meter-event ids are `NULL` when absent (never `""`); dedup index is Prisma-owned.
+- Endpoints: `POST /api/usage/events`; meters under `/api/meters`. Meter-event ids are `NULL` when absent (never `""`); dedup index is defined in the Goose baseline (`schemas/usage/migrations/00001_baseline.sql`).
 
 ### Databases the app opens
 
 - `DATABASE_URL` → `getpaidhq` (operational) — always opened.
 - `USAGE_DATABASE_URL` → `getpaidhq_usage` — separate pool when set; falls back to `DATABASE_URL` when empty.
-- `REPORTING_DATABASE_URL` is **not** opened — reporting is not wired. `internal/adapter/postgres/report_repo.go` is a stub (logs once, returns zero). To enable it: rewrite each method against `schemas/reporting/schema.prisma`, add a service + handler, wire in `app.go`, register routes in `internal/config/server.go`.
+- `REPORTING_DATABASE_URL` is **not** opened — reporting is not wired. `internal/adapter/postgres/report_repo.go` is a stub (logs once, returns zero). To enable it: rewrite each method against `schemas/reporting/migrations/00001_baseline.sql` (the reporting schema baseline), add a service + handler, wire in `app.go`, register routes in `internal/config/server.go`.
 
 ## Conventions and gotchas
 

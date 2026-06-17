@@ -27,17 +27,25 @@ func TestOrderRepo(t *testing.T) {
 		cleanupOrg(t, db, orgId)
 		cust := seedCustomer(t, db, orgId)
 
+		// orders.cart_id is NOT NULL with FK; seed a cart row first.
+		now := time.Now().UTC().Truncate(time.Microsecond)
+		cartId := lib.GenerateId("cart")
+		require.NoError(t, db.Create(&cartRow{
+			OrgId: orgId, Id: cartId, CreatedAt: now, UpdatedAt: now,
+		}).Error)
+
 		o := domain.Order{
 			OrgId:      orgId,
 			Id:         lib.GenerateId("ord"),
 			CustomerId: cust.Id,
+			CartId:     cartId,
 			Reference:  "REF-1",
 			Status:     domain.OrderStatusPending,
 			Currency:   "USD",
 			Total:      4999,
 			Metadata:   map[string]string{"source": "web"},
-			CreatedAt:  time.Now().UTC().Truncate(time.Microsecond),
-			UpdatedAt:  time.Now().UTC().Truncate(time.Microsecond),
+			CreatedAt:  now,
+			UpdatedAt:  now,
 		}
 		created, err := repo.Create(ctx, o)
 		require.NoError(t, err)
@@ -56,8 +64,7 @@ func TestOrderRepo(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
 		cust := seedCustomer(t, db, orgId)
-		created, err := repo.Create(ctx, seedOrderModel(orgId, cust.Id))
-		require.NoError(t, err)
+		created := seedOrder(t, db, orgId, cust.Id)
 
 		created.Status = domain.OrderStatusCompleted
 		updated, err := repo.Update(ctx, created)
@@ -129,8 +136,7 @@ func TestOrderRepo(t *testing.T) {
 		cleanupOrg(t, db, orgId)
 		cust := seedCustomer(t, db, orgId)
 		for range 3 {
-			_, err := repo.Create(ctx, seedOrderModel(orgId, cust.Id))
-			require.NoError(t, err)
+			seedOrder(t, db, orgId, cust.Id)
 		}
 		p := domain.Pagination{Limit: 2, SortBy: "created_at", SortDirection: "asc"}
 		orders, count, err := repo.Find(ctx, orgId, p)
@@ -145,24 +151,10 @@ func TestOrderRepo(t *testing.T) {
 		cleanupOrg(t, db, orgA)
 		cleanupOrg(t, db, orgB)
 		cust := seedCustomer(t, db, orgA)
-		created, err := repo.Create(ctx, seedOrderModel(orgA, cust.Id))
-		require.NoError(t, err)
+		created := seedOrder(t, db, orgA, cust.Id)
 
-		_, err = repo.FindById(ctx, orgB, created.Id)
+		_, err := repo.FindById(ctx, orgB, created.Id)
 		assert.True(t, errors.Is(err, port.ErrNotFound))
 	})
 }
 
-func seedOrderModel(orgId, customerId string) domain.Order {
-	return domain.Order{
-		OrgId:      orgId,
-		Id:         lib.GenerateId("ord"),
-		CustomerId: customerId,
-		Reference:  "REF-" + lib.GenerateId("r"),
-		Status:     domain.OrderStatusPending,
-		Currency:   "USD",
-		Total:      1999,
-		CreatedAt:  time.Now().UTC().Truncate(time.Microsecond),
-		UpdatedAt:  time.Now().UTC().Truncate(time.Microsecond),
-	}
-}

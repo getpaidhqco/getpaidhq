@@ -19,8 +19,10 @@ func TestDiscountRepo(t *testing.T) {
 	orgId := uniqueOrg(t)
 	cleanupOrg(t, db, orgId)
 
+	coupon := seedCoupon(t, db, orgId)
+
 	d, err := domain.NewDiscount(domain.NewDiscountInput{
-		OrgId: orgId, CouponId: "coupon_1", CustomerId: "cus_1", SubscriptionId: "sub_1",
+		OrgId: orgId, CouponId: coupon.Id, CustomerId: "cus_1", SubscriptionId: "sub_1",
 	})
 	require.NoError(t, err)
 	_, err = repo.Create(ctx, d)
@@ -34,10 +36,10 @@ func TestDiscountRepo(t *testing.T) {
 	})
 
 	t.Run("counts", func(t *testing.T) {
-		byCoupon, err := repo.CountByCoupon(ctx, orgId, "coupon_1")
+		byCoupon, err := repo.CountByCoupon(ctx, orgId, coupon.Id)
 		require.NoError(t, err)
 		assert.Equal(t, 1, byCoupon)
-		byCust, err := repo.CountByCouponAndCustomer(ctx, orgId, "coupon_1", "cus_1")
+		byCust, err := repo.CountByCouponAndCustomer(ctx, orgId, coupon.Id, "cus_1")
 		require.NoError(t, err)
 		assert.Equal(t, 1, byCust)
 	})

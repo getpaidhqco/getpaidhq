@@ -208,10 +208,12 @@ func TestTrialSubscription_FlatFeeWaived_E2E(t *testing.T) {
 	// Add the flat fee the trial must waive.
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	flat := domain.Price{
-		OrgId: orgId, Id: lib.GenerateId("price"), Label: "Platform fee",
+		OrgId: orgId, Id: lib.GenerateId("price"), VariantId: seedVariantChain(t, db, orgId),
+		Label: "Platform fee",
 		Category: domain.PriceCategorySubscription, Scheme: domain.Fixed,
 		Currency: domain.USD, UnitPrice: 2900,
 		BillingInterval: domain.BillingIntervalMonth, BillingIntervalQty: 1,
+		TrialInterval: domain.BillingIntervalNone,
 		CreatedAt: now, UpdatedAt: now,
 	}
 	flatRow := priceRowFromDomain(flat)
@@ -256,7 +258,7 @@ func TestCreateSubscriptionsForOrder_MeteredCadenceClamp_E2E(t *testing.T) {
 		Email: lib.GenerateId("cad") + "@example.com", CreatedAt: now, UpdatedAt: now,
 	}
 	custRow := customerRowFromDomain(cust)
-	require.NoError(t, db.Create(&custRow).Error)
+	require.NoError(t, db.Omit("DefaultPaymentMethodId").Create(&custRow).Error)
 
 	meter := domain.BillableMetric{
 		OrgId: orgId, Id: lib.GenerateId("met"), Code: "annual_usage", Name: "Usage",
@@ -266,10 +268,12 @@ func TestCreateSubscriptionsForOrder_MeteredCadenceClamp_E2E(t *testing.T) {
 	require.NoError(t, db.Create(&meterRow).Error)
 
 	price := domain.Price{
-		OrgId: orgId, Id: lib.GenerateId("price"), Label: "Annual metered",
+		OrgId: orgId, Id: lib.GenerateId("price"), VariantId: seedVariantChain(t, db, orgId),
+		Label: "Annual metered",
 		Category: domain.PriceCategorySubscription, Scheme: domain.Fixed,
 		Currency: domain.USD, UnitPrice: 10,
 		BillingInterval: domain.BillingIntervalYear, BillingIntervalQty: 1,
+		TrialInterval: domain.BillingIntervalNone,
 		BillableMetricId: meter.Id, CreatedAt: now, UpdatedAt: now,
 	}
 	priceRow := priceRowFromDomain(price)

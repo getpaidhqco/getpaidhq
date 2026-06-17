@@ -17,17 +17,17 @@ const (
 // lines, fractional for usage lines); UnitAmount is decimal cents (sub-cent rates are
 // possible for usage); Total is int64 cents, the actually-charged amount, rounded once.
 type InvoiceLineItem struct {
-	OrgId       string
-	Id          string
-	InvoiceId   string
-	PriceId     string
-	Kind        InvoiceLineItemKind
-	Description string
-	Quantity    decimal.Decimal
-	UnitAmount  decimal.Decimal // cents (may be fractional)
+	OrgId         string
+	Id            string
+	InvoiceId     string
+	PriceId       string
+	Kind          InvoiceLineItemKind
+	Description   string
+	Quantity      decimal.Decimal
+	UnitAmount    decimal.Decimal // cents (may be fractional)
 	Total         int64           // cents
 	DiscountTotal int64           // cents — coupon/discount applied to this line
-	Metadata    map[string]string
-	CreatedAt   time.Time
-	UpdatedAt   time.Time
+	Metadata      map[string]string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }

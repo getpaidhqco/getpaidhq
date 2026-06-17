@@ -11,13 +11,9 @@
 //   - Every run starts a fresh, isolated PostgreSQL container via Testcontainers.
 //   - Cleanup is handled automatically by the container lifecycle.
 //
-// Schema: the Prisma schema is the source of truth, but Prisma can't be run
-// from a Go test. Instead we GORM-AutoMigrate the *Row types each repo
-// persists. AutoMigrate is driven off the same gorm tags + TableName() the
-// production code uses, so the table/column shapes match what the repos query.
-// Caveat: AutoMigrate does NOT reproduce Prisma-specific constraints,
-// defaults, enum types, or indexes — it only guarantees the columns the repos
-// read/write exist. That is sufficient for round-trip repo tests.
+// Schema: each container has the real operational baseline applied via Goose
+// (schemas/app/migrations), so enums, FK constraints, defaults, and indexes
+// match production exactly.
 //
 // Isolation: every test uses a freshly generated unique org id, so rows from
 // one test are invisible to another even though they share tables. Created
@@ -27,11 +23,11 @@ package postgres
 import (
 	"context"
 	"fmt"
-	"os"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/require"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/postgres"
@@ -49,39 +45,6 @@ var (
 	sharedErr  error
 	container  *postgres.PostgresContainer
 )
-
-func allModels() []any {
-	return []any{
-		&orgRow{},
-		&customerRow{},
-		&cohortRow{},
-		&customerCohortRow{},
-		&productRow{},
-		&priceRow{},
-		&orderRow{},
-		&orderItemRow{},
-		&subscriptionRow{},
-		&paymentRow{},
-		&refundRow{},
-		&paymentMethodRow{},
-		&pspConfigRow{},
-		&settingRow{},
-		&dunningCampaignRow{},
-		&dunningAttemptRow{},
-		&dunningCommunicationRow{},
-		&paymentUpdateTokenRow{},
-		&dunningConfigurationRow{},
-		&customerDunningHistoryRow{},
-		&apiKeyRow{},
-		&billableMetricRow{},
-		&meterEventRow{},
-		&invoiceRow{},
-		&invoiceLineItemRow{},
-		&couponRow{},
-		&couponCodeRow{},
-		&discountRow{},
-	}
-}
 
 // testDB starts a Postgres container once per package run and returns a GORM handle.
 func testDB(t *testing.T) *gorm.DB {
@@ -115,33 +78,22 @@ func testDB(t *testing.T) *gorm.DB {
 			return
 		}
 
-		db, err := NewDatabase(connStr, nil, "")
+		db, err := NewDatabase(connStr, nil, "silent")
 		if err != nil {
 			sharedErr = fmt.Errorf("failed to open gorm connection: %w", err)
 			return
 		}
 		db.Logger = db.Logger.LogMode(gormlogger.Silent)
 
-		if err := db.AutoMigrate(allModels()...); err != nil {
-			sharedErr = fmt.Errorf("auto-migrate failed: %w", err)
-			return
-		}
-
-		constraintsSQL, err := os.ReadFile("../../../schemas/app/constraints.sql")
-		if err != nil {
-			sharedErr = fmt.Errorf("read constraints.sql: %w", err)
-			return
-		}
 		sqlDB, err := db.DB()
 		if err != nil {
-			sharedErr = fmt.Errorf("access sql.DB for constraints: %w", err)
+			sharedErr = fmt.Errorf("failed to get *sql.DB: %w", err)
 			return
 		}
-		if _, err := sqlDB.Exec(string(constraintsSQL)); err != nil {
-			sharedErr = fmt.Errorf("apply constraints.sql: %w", err)
+		if err := applyBaseline(sqlDB); err != nil {
+			sharedErr = fmt.Errorf("failed to apply baseline migrations: %w", err)
 			return
 		}
-
 		sharedDB = db
 	})
 
@@ -152,18 +104,62 @@ func testDB(t *testing.T) *gorm.DB {
 	return sharedDB
 }
 
+// seedVariantChain seeds a product + variant (required parent chain for prices)
+// and returns the variant id. Callers must set price.VariantId to the returned value.
+func seedVariantChain(t *testing.T, db *gorm.DB, orgId string) string {
+	t.Helper()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	productId := lib.GenerateId("prod")
+	require.NoError(t, db.Create(&productRow{
+		OrgId:     orgId,
+		Id:        productId,
+		Name:      "Test Product",
+		Status:    domain.ProductStatusActive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}).Error)
+	variantId := lib.GenerateId("var")
+	require.NoError(t, db.Create(&variantRow{
+		OrgId:     orgId,
+		Id:        variantId,
+		ProductId: productId,
+		Name:      "Default",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}).Error)
+	return variantId
+}
+
+// seedOrg inserts a minimal org row so FK constraints on child tables are satisfied.
+func seedOrg(t *testing.T, db *gorm.DB, orgId string) {
+	t.Helper()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	row := orgRow{
+		Id:        orgId,
+		Name:      "Test Org " + orgId,
+		Country:   "US",
+		Timezone:  "UTC",
+		Status:    domain.OrgStatusActive,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	require.NoError(t, db.Create(&row).Error)
+}
+
+// uniqueOrg generates a unique org ID and seeds the matching org row so that
+// FK constraints on all child tables (customers, orders, api_keys, …) are satisfied.
 func uniqueOrg(t *testing.T) string {
 	t.Helper()
-	return lib.GenerateId("org_test")
+	db := testDB(t)
+	orgId := lib.GenerateId("org_test")
+	seedOrg(t, db, orgId)
+	return orgId
 }
 
 func cleanupOrg(t *testing.T, db *gorm.DB, orgId string) {
 	t.Helper()
 	t.Cleanup(func() {
 		ordered := []any{
-			&discountRow{},
-			&couponCodeRow{},
-			&couponRow{},
 			&dunningCommunicationRow{},
 			&paymentUpdateTokenRow{},
 			&dunningAttemptRow{},
@@ -175,6 +171,7 @@ func cleanupOrg(t *testing.T, db *gorm.DB, orgId string) {
 			&subscriptionRow{},
 			&orderItemRow{},
 			&orderRow{},
+			&cartRow{},
 			&priceRow{},
 			&productRow{},
 			&paymentMethodRow{},
@@ -212,23 +209,31 @@ func seedCustomer(t *testing.T, db *gorm.DB, orgId string) domain.Customer {
 		UpdatedAt: time.Now().UTC().Truncate(time.Microsecond),
 	}
 	row := customerRowFromDomain(c)
-	require.NoError(t, db.Create(&row).Error)
+	// default_payment_method_id has a FK constraint: omit the column (→ NULL)
+	// when no payment method is set, otherwise postgres rejects the empty string.
+	require.NoError(t, db.Omit("DefaultPaymentMethodId").Create(&row).Error)
 	return c
 }
 
 func seedPrice(t *testing.T, db *gorm.DB, orgId string) domain.Price {
 	t.Helper()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	// prices.variant_id is NOT NULL with a FK to variants → products → orgs.
+	variantId := seedVariantChain(t, db, orgId)
 	p := domain.Price{
 		OrgId:              orgId,
 		Id:                 lib.GenerateId("price"),
+		VariantId:          variantId,
 		Label:              "Monthly Pro",
+		Category:           domain.PriceCategorySubscription,
+		Scheme:             domain.Fixed,
 		Currency:           domain.USD,
 		UnitPrice:          1999,
 		BillingInterval:    domain.BillingIntervalMonth,
 		BillingIntervalQty: 1,
 		TrialInterval:      domain.BillingIntervalNone,
-		CreatedAt:          time.Now().UTC().Truncate(time.Microsecond),
-		UpdatedAt:          time.Now().UTC().Truncate(time.Microsecond),
+		CreatedAt:          now,
+		UpdatedAt:          now,
 	}
 	row := priceRowFromDomain(p)
 	require.NoError(t, db.Create(&row).Error)
@@ -246,28 +251,60 @@ func seedOrderItem(t *testing.T, db *gorm.DB, orgId, orderId, priceId string) do
 		Quantity:    1,
 		Subtotal:    1999,
 		Total:       1999,
-		CreatedAt:   time.Now().UTC().Truncate(time.Microsecond),
-		UpdatedAt:   time.Now().UTC().Truncate(time.Microsecond),
+		// metadata is NOT NULL in the DB; product_id is NOT NULL but has no FK.
+		Metadata:  map[string]string{},
+		ProductId: "test-product",
+		CreatedAt: time.Now().UTC().Truncate(time.Microsecond),
+		UpdatedAt: time.Now().UTC().Truncate(time.Microsecond),
 	}
 	row := orderItemRowFromDomain(item)
-	require.NoError(t, db.Omit("Price").Create(&row).Error)
+	// variant_id is nullable with a FK to variants; omit it (→ NULL) when not set
+	// so the FK constraint is satisfied without needing a real variant parent.
+	require.NoError(t, db.Omit("Price", "VariantId").Create(&row).Error)
 	return item
 }
 
 func seedOrder(t *testing.T, db *gorm.DB, orgId, customerId string) domain.Order {
 	t.Helper()
+	now := time.Now().UTC().Truncate(time.Microsecond)
+	// orders.cart_id is NOT NULL with a FK to carts(org_id, id). Seed a minimal cart.
+	cartId := lib.GenerateId("cart")
+	require.NoError(t, db.Create(&cartRow{
+		OrgId:     orgId,
+		Id:        cartId,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}).Error)
 	o := domain.Order{
 		OrgId:      orgId,
 		Id:         lib.GenerateId("ord"),
 		CustomerId: customerId,
+		CartId:     cartId,
 		Reference:  "REF-" + lib.GenerateId("r"),
 		Status:     domain.OrderStatusPending,
 		Currency:   "USD",
 		Total:      1999,
-		CreatedAt:  time.Now().UTC().Truncate(time.Microsecond),
-		UpdatedAt:  time.Now().UTC().Truncate(time.Microsecond),
+		Metadata:   map[string]string{},
+		CreatedAt:  now,
+		UpdatedAt:  now,
 	}
 	row := orderRowFromDomain(o)
 	require.NoError(t, db.Omit("Customer", "Items").Create(&row).Error)
 	return o
+}
+
+// seedCoupon inserts a valid percentage coupon for orgId and returns it.
+func seedCoupon(t *testing.T, db *gorm.DB, orgId string) domain.Coupon {
+	t.Helper()
+	in, err := domain.NewCoupon(domain.NewCouponInput{
+		OrgId:        orgId,
+		Name:         "Seed Coupon",
+		DiscountType: domain.DiscountTypePercentage,
+		PercentOff:   decimal.NewFromInt(25),
+		Duration:     domain.DurationForever,
+	})
+	require.NoError(t, err)
+	c, err := NewCouponRepo(db).Create(context.Background(), in)
+	require.NoError(t, err)
+	return c
 }

@@ -13,8 +13,10 @@ VALUES ('mollie', 'Paystack', 'settings', '{
 ON CONFLICT DO NOTHING;
 
 
-INSERT INTO api_keys (org_id, id, key, created_at, updated_at)
-VALUES ('mollie', 'apikey-101', 'sk_23456789' , NOW(), NOW())ON CONFLICT DO NOTHING;
+-- API keys are intentionally not seeded: api_keys stores key_hash =
+-- HMAC-SHA256(pepper, raw key), and the pepper is environment-specific, so a
+-- static hash can't be a working credential. Create dev keys through the app
+-- (which hashes with your configured pepper) instead.
 
 
 INSERT INTO gateways (org_id, id, name,psp_id,active, created_at, updated_at)

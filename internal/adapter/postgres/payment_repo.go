@@ -89,7 +89,7 @@ func (r *PaymentRepo) FindBySubscriptionId(ctx context.Context, orgId string, id
 
 func (r *PaymentRepo) Create(ctx context.Context, entity domain.Payment) (domain.Payment, error) {
 	row := paymentRowFromDomain(entity)
-	if err := dbFromCtx(ctx, r.db).Create(&row).Error; err != nil {
+	if err := r.writeRow(ctx, &row, false).Error; err != nil {
 		return domain.Payment{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
@@ -97,10 +97,31 @@ func (r *PaymentRepo) Create(ctx context.Context, entity domain.Payment) (domain
 
 func (r *PaymentRepo) Update(ctx context.Context, entity domain.Payment) (domain.Payment, error) {
 	row := paymentRowFromDomain(entity)
-	if err := dbFromCtx(ctx, r.db).Save(&row).Error; err != nil {
+	if err := r.writeRow(ctx, &row, true).Error; err != nil {
 		return domain.Payment{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
+}
+
+// writeRow omits nullable FK columns when they are empty, mirroring the pattern
+// used by CustomerRepo.writeRow. subscription_id and invoice_id are nullable FKs;
+// writing "" would violate the constraint, so omit them → NULL.
+func (r *PaymentRepo) writeRow(ctx context.Context, row *paymentRow, update bool) *gorm.DB {
+	db := dbFromCtx(ctx, r.db)
+	var omits []string
+	if row.SubscriptionId == "" {
+		omits = append(omits, "subscription_id")
+	}
+	if row.InvoiceId == "" {
+		omits = append(omits, "invoice_id")
+	}
+	if len(omits) > 0 {
+		db = db.Omit(omits...)
+	}
+	if update {
+		return db.Save(row)
+	}
+	return db.Create(row)
 }
 
 func (r *PaymentRepo) CreateRefund(ctx context.Context, refund domain.Refund) (domain.Refund, error) {

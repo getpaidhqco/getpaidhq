@@ -14,7 +14,7 @@ import (
 // ReportRepo is a deliberate tombstone.
 //
 // The previous implementation read and wrote a reporting schema that does
-// not match schemas/reporting/schema.prisma:
+// not match the reporting schema (schemas/reporting/migrations/):
 //
 //   - Upserts targeted report_subscriptions / report_payments /
 //     report_customers / report_refunds / report_customer_cohorts. The real
@@ -29,7 +29,7 @@ import (
 // The reporting layer is no longer wired in NewApp; the HTTP routes have
 // been removed and the daily cron / NATS event bridge are gone. This file
 // is kept as a marker for whoever revives reports: rewrite each method
-// against the actual Prisma schema, restore a service + handler, and
+// against the actual schema, restore a service + handler, and
 // re-register the routes in internal/config/server.go.
 //
 // Every method is a no-op that logs "report repo not implemented" once per

@@ -48,6 +48,7 @@ func newSubscription(orgId, customerId, orderId string) domain.Subscription {
 		StartDate:          now,
 		BillingInterval:    domain.BillingIntervalMonth,
 		BillingIntervalQty: 1,
+		TrialInterval:      domain.BillingIntervalNone,
 		Cycles:             12,
 		Currency:           "USD",
 		Metadata:           map[string]string{"plan": "pro"},
@@ -184,8 +185,8 @@ func TestSubscriptionRepo_FindDueForBilling(t *testing.T) {
 
 	now := time.Now().UTC()
 	mk := func(id string, status domain.SubscriptionStatus, renews time.Time) {
-		// Seed the FK parent chain (customer/order/order_item) AutoMigrate
-		// created constraints for; reuse the fixture but pin the sub fields.
+		// Seed the FK parent chain (customer/order/order_item) whose FK constraints
+		// the Goose baseline creates; reuse the fixture but pin the sub fields.
 		f := seedSubFixture(t, db, orgId)
 		f.sub.Id = id
 		f.sub.Status = status
