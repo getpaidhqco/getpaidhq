@@ -209,12 +209,12 @@ func TestTrialSubscription_FlatFeeWaived_E2E(t *testing.T) {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	flat := domain.Price{
 		OrgId: orgId, Id: lib.GenerateId("price"), VariantId: seedVariantChain(t, db, orgId),
-		Label: "Platform fee",
+		Label:    "Platform fee",
 		Category: domain.PriceCategorySubscription, Scheme: domain.Fixed,
 		Currency: domain.USD, UnitPrice: 2900,
 		BillingInterval: domain.BillingIntervalMonth, BillingIntervalQty: 1,
 		TrialInterval: domain.BillingIntervalNone,
-		CreatedAt: now, UpdatedAt: now,
+		CreatedAt:     now, UpdatedAt: now,
 	}
 	flatRow := priceRowFromDomain(flat)
 	require.NoError(t, db.Create(&flatRow).Error)
@@ -269,11 +269,11 @@ func TestCreateSubscriptionsForOrder_MeteredCadenceClamp_E2E(t *testing.T) {
 
 	price := domain.Price{
 		OrgId: orgId, Id: lib.GenerateId("price"), VariantId: seedVariantChain(t, db, orgId),
-		Label: "Annual metered",
+		Label:    "Annual metered",
 		Category: domain.PriceCategorySubscription, Scheme: domain.Fixed,
 		Currency: domain.USD, UnitPrice: 10,
 		BillingInterval: domain.BillingIntervalYear, BillingIntervalQty: 1,
-		TrialInterval: domain.BillingIntervalNone,
+		TrialInterval:    domain.BillingIntervalNone,
 		BillableMetricId: meter.Id, CreatedAt: now, UpdatedAt: now,
 	}
 	priceRow := priceRowFromDomain(price)

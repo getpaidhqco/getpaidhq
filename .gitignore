@@ -17,6 +17,7 @@
 
 # Output of the go build tool
 _build/
+bin/
 
 # Go workspace file
 go.work
