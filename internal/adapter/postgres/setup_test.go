@@ -76,6 +76,9 @@ func allModels() []any {
 		&meterEventRow{},
 		&invoiceRow{},
 		&invoiceLineItemRow{},
+		&couponRow{},
+		&couponCodeRow{},
+		&discountRow{},
 	}
 }
 
@@ -141,6 +144,9 @@ func cleanupOrg(t *testing.T, db *gorm.DB, orgId string) {
 	t.Helper()
 	t.Cleanup(func() {
 		ordered := []any{
+			&discountRow{},
+			&couponCodeRow{},
+			&couponRow{},
 			&dunningCommunicationRow{},
 			&paymentUpdateTokenRow{},
 			&dunningAttemptRow{},
