@@ -18,15 +18,16 @@ Everything is multi-tenant — every entity is scoped to an organization — and
 
 ## Getting started
 
-You'll need Docker, Go 1.24+, pnpm, and make. From the repo root:
+You'll need Docker, Go 1.26+, and make. From the repo root:
 
 ```bash
-pnpm install         # install Prisma tooling
 cp .env.example .env # then fill in provider secrets as needed
 make up              # start Postgres, Redis, NATS, and hatchet-lite
-make db-push-all     # push the Prisma schemas
+make db-migrate-all  # apply the Goose schema migrations to all three databases
 make run             # start the API
 ```
+
+The database schema is managed with [Goose](https://github.com/pressly/goose) migrations under `schemas/<db>/migrations/` (operational, reporting, usage); create new ones with `make db-migrate-create name=...`. For a database that already has the schema, stamp it instead of re-running the baseline — see the migration notes via `make help`.
 
 Hatchet needs a token minted before the first run — the full bootstrap is in [docs/internal/local-dev-hatchet.md](docs/internal/local-dev-hatchet.md). Run `make help` to see every available target.
 
