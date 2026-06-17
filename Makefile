@@ -1,7 +1,7 @@
 # Makefile — single entry point over the three underlying runners:
 #   go            (build / run / test)
 #   docker compose (local infra: docker/docker-compose.yml)
-#   pnpm scripts  (Prisma schema push, tunnels, deploy — see package.json)
+#   pnpm scripts  (tunnels, deploy — see package.json)
 #
 # Run `make` or `make help` to list targets.
 
@@ -71,26 +71,46 @@ down: ## Stop the local stack
 logs: ## Tail local stack logs
 	$(COMPOSE) logs -f
 
-## ---- Database schema (Prisma db push — no migrations) ----------------------
+## ---- Database schema (Goose migrations) ------------------------------------
 
-.PHONY: db-push
-db-push: ## Push operational schema -> DATABASE_URL
-	pnpm prisma:push
+GOOSE        := go tool goose
+GOOSE_DRIVER := postgres
 
-.PHONY: db-push-reporting
-db-push-reporting: ## Push reporting schema -> REPORTING_DATABASE_URL
-	pnpm prisma:reporting:push
+# $(call goose,<migration-dir>,<dbstring>,<args...>)
+define goose
+	GOOSE_DRIVER=$(GOOSE_DRIVER) GOOSE_DBSTRING="$(2)" GOOSE_MIGRATION_DIR=$(1) $(GOOSE) $(3)
+endef
 
-.PHONY: db-push-usage
-db-push-usage: ## Push usage-event-store schema -> USAGE_DATABASE_URL
-	pnpm prisma:usage:push
+.PHONY: db-migrate
+db-migrate: ## Apply operational migrations -> DATABASE_URL
+	$(call goose,schemas/app/migrations,$(DATABASE_URL),up)
 
-.PHONY: db-push-all
-db-push-all: db-push db-push-reporting db-push-usage ## Push all three schemas
+.PHONY: db-migrate-reporting
+db-migrate-reporting: ## Apply reporting migrations -> REPORTING_DATABASE_URL
+	$(call goose,schemas/reporting/migrations,$(REPORTING_DATABASE_URL),up)
 
-.PHONY: db-format
-db-format: ## Format all Prisma schemas
-	pnpm prisma:format && pnpm prisma:reporting:format && pnpm prisma:usage:format
+.PHONY: db-migrate-usage
+db-migrate-usage: ## Apply usage-store migrations -> USAGE_DATABASE_URL
+	$(call goose,schemas/usage/migrations,$(USAGE_DATABASE_URL),up)
+
+.PHONY: db-migrate-all
+db-migrate-all: db-migrate db-migrate-reporting db-migrate-usage ## Apply all three schemas
+
+.PHONY: db-migrate-status
+db-migrate-status: ## Show operational migration status
+	$(call goose,schemas/app/migrations,$(DATABASE_URL),status)
+
+.PHONY: db-migrate-down
+db-migrate-down: ## Roll back the last operational migration
+	$(call goose,schemas/app/migrations,$(DATABASE_URL),down)
+
+.PHONY: db-migrate-create
+db-migrate-create: ## Scaffold a new operational migration: make db-migrate-create name=add_foo
+	$(call goose,schemas/app/migrations,$(DATABASE_URL),create $(name) sql)
+
+.PHONY: db-seed
+db-seed: ## Seed the operational DB from schemas/app/seed.sql
+	psql "$(DATABASE_URL)" -f schemas/app/seed.sql
 
 ## ---- Tunnels / deploy (AWS profiles + bastion PEM required) ----------------
 
