@@ -90,7 +90,7 @@ func testDB(t *testing.T) *gorm.DB {
 			sharedErr = fmt.Errorf("failed to get *sql.DB: %w", err)
 			return
 		}
-		applyBaseline(tCaptured, sqlDB) // applies schemas/app/migrations baseline
+		applyBaseline(tCaptured, sqlDB) // applies schemas/app + schemas/usage baselines
 		sharedDB = db
 	})
 

@@ -81,13 +81,13 @@ func (r *OrderRepo) FindOrderItemById(ctx context.Context, orgId string, id stri
 func (r *OrderRepo) CreateOrderItem(ctx context.Context, entity domain.OrderItem) (domain.OrderItem, error) {
 	entity.Metadata = emptyIfNil(entity.Metadata)
 	row := orderItemRowFromDomain(entity)
-	q := dbFromCtx(ctx, r.db).Omit("Price")
+	omits := []string{"Price"}
 	// variant_id is nullable with a FK constraint; omit the column (→ NULL) when
 	// no variant is set so that an empty string is not sent to postgres.
 	if entity.VariantId == "" {
-		q = q.Omit("VariantId")
+		omits = append(omits, "VariantId")
 	}
-	if err := q.Create(&row).Error; err != nil {
+	if err := dbFromCtx(ctx, r.db).Omit(omits...).Create(&row).Error; err != nil {
 		return domain.OrderItem{}, err
 	}
 	return r.FindOrderItemById(ctx, entity.OrgId, entity.Id)
@@ -95,13 +95,13 @@ func (r *OrderRepo) CreateOrderItem(ctx context.Context, entity domain.OrderItem
 
 func (r *OrderRepo) UpdateOrderItem(ctx context.Context, entity domain.OrderItem) (domain.OrderItem, error) {
 	row := orderItemRowFromDomain(entity)
-	q := dbFromCtx(ctx, r.db).Omit("Price")
+	omits := []string{"Price"}
 	// variant_id is nullable with a FK constraint; omit the column (→ NULL) when
 	// no variant is set so that an empty string is not sent to postgres.
 	if entity.VariantId == "" {
-		q = q.Omit("VariantId")
+		omits = append(omits, "VariantId")
 	}
-	if err := q.Save(&row).Error; err != nil {
+	if err := dbFromCtx(ctx, r.db).Omit(omits...).Save(&row).Error; err != nil {
 		return domain.OrderItem{}, err
 	}
 	return r.FindOrderItemById(ctx, entity.OrgId, entity.Id)
