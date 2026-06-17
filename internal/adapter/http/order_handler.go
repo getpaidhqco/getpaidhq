@@ -158,11 +158,7 @@ func (o *OrderHandler) CompleteOrder(c fuego.ContextWithBody[CompleteOrderReques
 	return NewOrderResponseFromDetails(details), nil
 }
 
-type OrderSubscriptionsResponse struct {
-	Subscriptions []domain.Subscription `json:"subscriptions"`
-}
-
-func (o *OrderHandler) ListSubscriptions(c fuego.ContextNoBody) ([]domain.Subscription, error) {
+func (o *OrderHandler) ListSubscriptions(c fuego.ContextNoBody) ([]SubscriptionResponse, error) {
 	authUser := AuthUserFrom(c)
 	id := c.PathParam("id")
 
@@ -170,11 +166,25 @@ func (o *OrderHandler) ListSubscriptions(c fuego.ContextNoBody) ([]domain.Subscr
 		return nil, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 
-	rsp, err := o.service.ListOrderSubscriptions(c.Context(), authUser.OrgId, id)
+	subs, err := o.service.ListOrderSubscriptions(c.Context(), authUser.OrgId, id)
 	if err != nil {
 		return nil, NewApiErrorFromError(err)
 	}
 
+	// Map through the snake_case DTO — returning raw domain.Subscription leaked
+	// PascalCase JSON, unlike every other subscription endpoint. All of an
+	// order's subscriptions share the order's customer, so fetch it once.
+	details, err := o.service.GetDetails(c.Context(), authUser.OrgId, id)
+	if err != nil {
+		return nil, NewApiErrorFromError(err)
+	}
+	rsp := make([]SubscriptionResponse, len(subs))
+	for i, sub := range subs {
+		rsp[i] = NewSubscriptionResponseFromDetails(service.SubscriptionDetails{
+			Subscription: sub,
+			Customer:     details.Customer,
+		})
+	}
 	return rsp, nil
 }
 

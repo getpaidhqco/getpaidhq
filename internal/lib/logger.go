@@ -6,9 +6,12 @@ import (
 	"log"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
+
+	"github.com/lmittmann/tint"
 )
 
 var (
@@ -114,6 +117,10 @@ func (l MyLogger) Warnf(template string, args ...any) {
 }
 
 // newLogger sets up the structured logger backed by log/slog.
+//
+// Format is picked by LOG_FORMAT: "pretty" (colored, single-line, for
+// humans), "text" (logfmt) or "json". When unset it defaults to pretty for
+// local work (ENV=development or ENV=local) and json everywhere else.
 func newLogger(env Env) Logger {
 	level := parseLogLevel(env.LogLevel)
 	output := resolveLogOutput(env)
@@ -123,10 +130,36 @@ func newLogger(env Env) Logger {
 		AddSource: true,
 	}
 
+	format := env.LogFormat
+	if format == "" {
+		if env.Env == "development" || env.Env == "local" {
+			format = "pretty"
+		} else {
+			format = "json"
+		}
+	}
+
 	var handler slog.Handler
-	if env.Env == "development" {
+	switch format {
+	case "pretty":
+		handler = tint.NewHandler(output, &tint.Options{
+			Level:      level,
+			AddSource:  true,
+			TimeFormat: "15:04:05.000",
+			// Trim source to pkg/file.go:line — the absolute module path is
+			// noise at a glance and pretty mode is for glancing.
+			ReplaceAttr: func(groups []string, a slog.Attr) slog.Attr {
+				if len(groups) == 0 && a.Key == slog.SourceKey {
+					if src, ok := a.Value.Any().(*slog.Source); ok && src != nil {
+						src.File = filepath.Join(filepath.Base(filepath.Dir(src.File)), filepath.Base(src.File))
+					}
+				}
+				return a
+			},
+		})
+	case "text":
 		handler = slog.NewTextHandler(output, withoutTime(handlerOpts))
-	} else {
+	default:
 		handler = slog.NewJSONHandler(output, handlerOpts)
 	}
 
@@ -154,8 +187,9 @@ func parseLogLevel(level string) slog.Level {
 		// interface still terminates via the stdlib log package.
 		return slog.LevelError
 	default:
-		// Unknown level → silence everything below panic.
-		return slog.LevelError + 4
+		// Unset or unknown → info. The previous behavior (silence everything)
+		// made a missing GETPAIDHQ_LOG_LEVEL look like a broken logger.
+		return slog.LevelInfo
 	}
 }
 
