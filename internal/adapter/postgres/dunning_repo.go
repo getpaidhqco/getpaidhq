@@ -301,7 +301,7 @@ func (r *DunningRepo) UpsertCustomerDunningHistory(ctx context.Context, h domain
 	// most_responsive_channel is a nullable enum; omit when empty so that an empty
 	// string is not sent to postgres instead of NULL.
 	if h.MostResponsiveChannel == "" {
-		q = q.Omit("MostResponsiveChannel")
+		q = q.Omit("most_responsive_channel")
 	}
 	if err := q.Save(&row).Error; err != nil {
 		return domain.CustomerDunningHistory{}, err

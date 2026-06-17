@@ -108,9 +108,7 @@ func (r *PaymentRepo) Update(ctx context.Context, entity domain.Payment) (domain
 // writing "" would violate the constraint, so omit them → NULL.
 func (r *PaymentRepo) writeRow(ctx context.Context, row *paymentRow, update bool) *gorm.DB {
 	db := dbFromCtx(ctx, r.db)
-	// subscription_id and invoice_id are nullable FKs; omit them when empty so
-	// that GORM sends NULL instead of "" which would violate the FK constraint.
-	omits := []string{}
+	var omits []string
 	if row.SubscriptionId == "" {
 		omits = append(omits, "subscription_id")
 	}

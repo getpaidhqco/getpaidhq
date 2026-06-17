@@ -49,7 +49,6 @@ var (
 func testDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
-	tCaptured := t
 	sharedOnce.Do(func() {
 		ctx := context.Background()
 		dbName := "getpaidhq"
@@ -90,7 +89,10 @@ func testDB(t *testing.T) *gorm.DB {
 			sharedErr = fmt.Errorf("failed to get *sql.DB: %w", err)
 			return
 		}
-		applyBaseline(tCaptured, sqlDB) // applies schemas/app + schemas/usage baselines
+		if err := applyBaseline(sqlDB); err != nil {
+			sharedErr = fmt.Errorf("failed to apply baseline migrations: %w", err)
+			return
+		}
 		sharedDB = db
 	})
 
@@ -168,6 +170,7 @@ func cleanupOrg(t *testing.T, db *gorm.DB, orgId string) {
 			&subscriptionRow{},
 			&orderItemRow{},
 			&orderRow{},
+			&cartRow{},
 			&priceRow{},
 			&productRow{},
 			&paymentMethodRow{},

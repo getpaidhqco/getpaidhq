@@ -4,50 +4,51 @@ package postgres
 
 import (
 	"database/sql"
+	"fmt"
 	"os"
 	"path/filepath"
-	"testing"
 
 	"github.com/pressly/goose/v3"
-	"github.com/stretchr/testify/require"
 )
 
-// repoRoot walks up from the current working directory until it finds go.mod,
-// returning the module root. Integration tests run from the package dir, so the
-// migrations live at <root>/schemas/app/migrations.
-func repoRoot(t *testing.T) string {
-	t.Helper()
+// repoRoot walks up from the working directory to the module root (where go.mod lives).
+func repoRoot() (string, error) {
 	dir, err := os.Getwd()
-	require.NoError(t, err)
+	if err != nil {
+		return "", err
+	}
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return dir
+			return dir, nil
 		}
 		parent := filepath.Dir(dir)
-		require.NotEqual(t, parent, dir, "reached filesystem root without finding go.mod")
+		if parent == dir {
+			return "", fmt.Errorf("reached filesystem root without finding go.mod")
+		}
 		dir = parent
 	}
 }
 
-// applyBaseline runs the operational Goose migrations against db.
-// It applies both the app schema (schemas/app/migrations) and the usage schema
-// (schemas/usage/migrations), using separate goose version-tracking tables so
-// the two migration sequences do not collide.
-func applyBaseline(t *testing.T, db *sql.DB) {
-	t.Helper()
-	require.NoError(t, goose.SetDialect("postgres"))
-	root := repoRoot(t)
-
-	// Apply the main app schema.
-	goose.SetTableName("goose_db_version_app")
-	appDir := filepath.Join(root, "schemas", "app", "migrations")
-	require.NoError(t, goose.Up(db, appDir))
-
-	// Apply the usage schema (meter_events lives here).
-	goose.SetTableName("goose_db_version_usage")
-	usageDir := filepath.Join(root, "schemas", "usage", "migrations")
-	require.NoError(t, goose.Up(db, usageDir))
-
+// applyBaseline applies the operational (app) and usage Goose baselines to db,
+// each tracked in its own goose version table so they don't collide.
+func applyBaseline(db *sql.DB) error {
+	if err := goose.SetDialect("postgres"); err != nil {
+		return err
+	}
+	root, err := repoRoot()
+	if err != nil {
+		return err
+	}
+	for _, m := range []struct{ table, dir string }{
+		{"goose_db_version_app", filepath.Join(root, "schemas", "app", "migrations")},
+		{"goose_db_version_usage", filepath.Join(root, "schemas", "usage", "migrations")},
+	} {
+		goose.SetTableName(m.table)
+		if err := goose.Up(db, m.dir); err != nil {
+			return fmt.Errorf("goose up %s: %w", m.dir, err)
+		}
+	}
 	// Restore the default table name so any other goose usage is unaffected.
 	goose.SetTableName("goose_db_version")
+	return nil
 }
