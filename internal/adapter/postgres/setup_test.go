@@ -27,6 +27,7 @@ package postgres
 import (
 	"context"
 	"fmt"
+	"os"
 	"sync"
 	"testing"
 	"time"
@@ -125,6 +126,22 @@ func testDB(t *testing.T) *gorm.DB {
 			sharedErr = fmt.Errorf("auto-migrate failed: %w", err)
 			return
 		}
+
+		constraintsSQL, err := os.ReadFile("../../../schemas/app/constraints.sql")
+		if err != nil {
+			sharedErr = fmt.Errorf("read constraints.sql: %w", err)
+			return
+		}
+		sqlDB, err := db.DB()
+		if err != nil {
+			sharedErr = fmt.Errorf("access sql.DB for constraints: %w", err)
+			return
+		}
+		if _, err := sqlDB.Exec(string(constraintsSQL)); err != nil {
+			sharedErr = fmt.Errorf("apply constraints.sql: %w", err)
+			return
+		}
+
 		sharedDB = db
 	})
 
