@@ -19,7 +19,7 @@ Everything runs through the **Makefile** — `make help` lists all targets. Esse
 
 Local stack details and the Hatchet token bootstrap: `docs/internal/local-dev-hatchet.md`. Workflow engine selection: `WORKFLOW_ENGINE=hatchet|temporal` (see parity rule below).
 
-### Test database isolation (load-bearing)
+### Test database isolation 
 
 **Tests MUST NEVER touch the developer's local docker-compose database** — it carries hand-seeded data. Enforced by construction:
 
@@ -34,7 +34,7 @@ Ports-and-adapters (hexagonal): `internal/core/{domain,port,service}` at the cen
 
 **Wiring is manual DI** in `internal/config/app.go` (`NewApp()`) — every repo/service/handler constructed by hand. Add a service by editing `app.go`.
 
-### Narrow-vs-orchestration service pattern (load-bearing)
+### Narrow-vs-orchestration service pattern
 
 There is a deliberate construction-order cycle: workflow steps call services, but the engine dispatches those steps — so a service can't depend on the engine. The fix (documented in `internal/core/service/subscription_orchestration.go`):
 
@@ -44,7 +44,7 @@ There is a deliberate construction-order cycle: workflow steps call services, bu
 
 The cycle is broken at the type level by embedding — preserve that. Don't give a narrow service a back-pointer to the engine.
 
-### Workflow engine — parity rule (load-bearing)
+### Workflow engine — parity rule 
 
 Two interchangeable engines: **Hatchet** (`internal/adapter/hatchet/`) and **Temporal** (`internal/adapter/temporal/`), selected by `WORKFLOW_ENGINE` in `app.go`. Only one runs at a time.
 

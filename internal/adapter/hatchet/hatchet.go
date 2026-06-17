@@ -12,6 +12,7 @@ import (
 
 	hatchetclient "github.com/hatchet-dev/hatchet/pkg/client"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
+	hatchetotel "github.com/hatchet-dev/hatchet/sdks/go/opentelemetry"
 )
 
 // Hatchet implements port.Engine and port.DunningEngine using Hatchet as the
@@ -29,6 +30,9 @@ type Hatchet struct {
 	worker *hatchet.Worker
 	cancel context.CancelFunc
 	done   chan struct{}
+	// instrumentor is the SDK's OTel tracer setup; non-nil only when
+	// cfg.TracingEnabled. Shut down (flushing pending spans) in Close.
+	instrumentor *hatchetotel.Instrumentor
 }
 
 func NewHatchetEngine(
@@ -50,9 +54,9 @@ func NewHatchetEngine(
 	// — the Config values above are loaded from the same vars and are kept here
 	// for visibility / future programmatic overrides.
 	// Bridge Hatchet's zerolog output into the app logger so the client's
-	// heartbeat/connection chatter shares our slog format and level instead of
-	// writing its own JSON to stderr.
-	hatchetLog := newZerologToSlog(logger)
+	// heartbeat/connection chatter shares our slog format instead of writing
+	// its own JSON to stderr. Filtered by cfg.LogLevel, not the app level.
+	hatchetLog := newZerologToSlog(logger, cfg.LogLevel)
 	c, err := hatchet.NewClient(hatchetclient.WithLogger(&hatchetLog))
 	if err != nil {
 		logger.Error("Unable to create Hatchet client", "err", err.Error())
@@ -105,6 +109,21 @@ func NewHatchetEngine(
 	}
 	h.worker = w
 
+	// Worker task tracing: the instrumentor registers a global OTel tracer
+	// provider whose spans are exported to the Hatchet engine's collector
+	// (dashboard trace view). Best-effort — a tracing setup failure must not
+	// take billing down with it.
+	if cfg.TracingEnabled {
+		instrumentor, err := hatchetotel.NewInstrumentor()
+		if err != nil {
+			logger.Warn("Hatchet tracing requested but instrumentor setup failed; continuing without traces", "err", err.Error())
+		} else {
+			w.Use(instrumentor.Middleware())
+			h.instrumentor = instrumentor
+			logger.Info("Hatchet tracing enabled (spans exported to the engine collector)")
+		}
+	}
+
 	// Run the worker under a cancellable context so Close() can stop it.
 	workerCtx, cancel := context.WithCancel(context.Background())
 	h.cancel = cancel
@@ -132,6 +151,14 @@ func (h *Hatchet) Close() error {
 		case <-h.done:
 		case <-time.After(10 * time.Second):
 			h.logger.Warn("Hatchet worker did not stop within 10s")
+		}
+	}
+	// After the worker stops: flush any buffered spans.
+	if h.instrumentor != nil {
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		if err := h.instrumentor.Shutdown(ctx); err != nil {
+			h.logger.Warn("Hatchet tracing shutdown failed", "err", err.Error())
 		}
 	}
 	return nil

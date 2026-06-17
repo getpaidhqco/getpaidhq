@@ -90,6 +90,10 @@ services:
       SERVER_AUTH_COOKIE_SECRETS: "4c80d6088447fa589280176d001f3447 dbecb521b4213fd1fe003650c4cbb6ad"
       SERVER_DEFAULT_ENGINE_VERSION: "V1"
       SERVER_URL: "http://localhost:10888"
+      # Trace collection: the engine runs an OTel collector (gRPC TraceService)
+      # that receives spans from SDK workers and powers the dashboard's trace
+      # view. Pair with HATCHET_TRACING_ENABLED=true in the app's .env.
+      SERVER_OBSERVABILITY_ENABLED: "true"
     networks:
       - getpaidhq-network
     ports:
