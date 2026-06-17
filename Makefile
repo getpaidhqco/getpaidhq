@@ -8,6 +8,8 @@
 COMPOSE := docker compose -f docker/docker-compose.yml
 BIN     := main
 
+DATABASE_URL ?= $(shell grep -E '^DATABASE_URL=' .env | cut -d= -f2-)
+
 .DEFAULT_GOAL := help
 
 ## ---- Build / run -----------------------------------------------------------
