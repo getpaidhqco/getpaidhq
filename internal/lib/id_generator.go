@@ -28,6 +28,8 @@ func GenerateId(resource string) string {
 		return "dcfg_" + ksuid.New().String()
 	case "payment_update_token":
 		return "tok_" + ksuid.New().String()
+	case "coupon":
+		return "coup_" + ksuid.New().String()
 	default:
 		return resource + "_" + ksuid.New().String()
 	}
