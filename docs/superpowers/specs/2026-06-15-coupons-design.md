@@ -14,20 +14,20 @@ here are building blocks those flows consume.
 
 ## 1. Summary
 
-Merchant-defined **coupons** produce **discounts** on bills, following Stripe's separation:
+Merchant-defined **coupons** produce **discounts** on bills, with a clean separation of concerns:
 
 | Aggregate    | Role                                                                                         |
 | ------------ | ------------------------------------------------------------------------------------------- |
 | `Coupon`     | The **definition** — the discount math (type, amount/percent, duration). **Immutable.**     |
-| `CouponCode` | A **redeemable code**, N per coupon (1‑N). Carries all redemption-gating: string, active toggle, customer lock, expiry, its own cap, restrictions. (Stripe's *PromotionCode*.) |
+| `CouponCode` | A **redeemable code**, N per coupon (1‑N). Carries all redemption-gating: string, active toggle, customer lock, expiry, its own cap, restrictions. |
 | `Discount`   | The **applied instance** — recorded against a subscription/order, shown on invoices.         |
 
 **Two load-bearing invariants, mutually reinforcing:**
 
 - **The Coupon is immutable** — only `Name`, `Active`, and `Metadata` may change after creation,
   enforced strictly (domain has no economic setters → repo writes only those columns → a
-  Postgres trigger is the un-bypassable backstop). The discount **terms** never change. This
-  matches Stripe, whose Coupon is likewise editable only in `name`/`metadata`.
+  Postgres trigger is the un-bypassable backstop). The discount **terms** never change after
+  creation.
 - **The Discount holds no snapshot** — because the Coupon can never change its terms, a
   `Discount` safely reads its math from the live `Coupon`. (A snapshot would only defend against
   mutable coupons; immutability removes the need.) Consequence: a Coupon referenced by any
@@ -114,7 +114,7 @@ Notes:
 
 ### 3.2 `CouponCode` — redeemable code & redemption gating (`internal/core/domain/coupon_code.go`)
 
-Stripe's PromotionCode, mapped to our naming.
+The redeemable-code layer — the customer-facing string plus its redemption gates.
 
 ```go
 type CouponCode struct {
@@ -617,12 +617,12 @@ parity-safe by construction.)
 
 | Decision                         | Choice                                                                | Rationale |
 | -------------------------------- | --------------------------------------------------------------------- | --------- |
-| Coupon mutability                | **Immutable except name + active + metadata**, enforced at domain, port, and DB-trigger layers | Terms frozen (matches Stripe, lets us drop the snapshot); `active` is a non-economic disable switch. |
+| Coupon mutability                | **Immutable except name + active + metadata**, enforced at domain, port, and DB-trigger layers | Terms frozen (lets us drop the snapshot); `active` is a non-economic disable switch. |
 | Discount snapshot                | **Removed** — reads terms from the live, immutable Coupon              | Snapshot only defended against mutable coupons. |
-| Field placement                  | Economic + global policy on **Coupon**; redemption gating on **CouponCode** | Mirrors Stripe Coupon vs PromotionCode. |
+| Field placement                  | Economic + global policy on **Coupon**; redemption gating on **CouponCode** | Definition vs redeemable-code separation. |
 | `Restrictions`                   | `FirstTimeTransaction`, `MinimumAmount` (+`MinimumAmountCurrency`)     | Min-spend needs a currency to compare. |
 | Metadata                         | On **all three** aggregates                                           | Per request. |
-| Scope targeting unit             | **Product** (`AppliesToProducts`)                                     | Matches Stripe `applies_to.products`. |
+| Scope targeting unit             | **Product** (`AppliesToProducts`)                                     | Product-level scoping; coarse but simple. |
 | Over-large flat amount           | **Don't carry**                                                       | Avoids a credit ledger. |
 | Duration mechanism               | **Derived from cycle math**                                           | Idempotent + replay-safe. |
 | Stacking                         | **Allowed**, ordered by `RedeemedAt`, per-line running-net clamp      | Deterministic; no architectural barrier. |
