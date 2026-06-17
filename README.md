@@ -145,7 +145,9 @@ To add a new migration: `make db-migrate-create name=add_foo`, hand-write the SQ
 
 ### Existing databases (already schema-synced)
 
-A fresh database (local, CI) just runs `make db-migrate-all`. A database that already has the schema (created before the Goose cutover by the old `prisma db push`) must NOT re-run the baseline — stamp it as already applied instead:
+A fresh database (local, CI) just runs `make db-migrate-all`. A database that already has the schema (created before the Goose cutover by the old `prisma db push`) must NOT re-run the baseline — stamp it as already applied instead.
+
+Each of the three databases has its own connection string and its own `goose_db_version` table, so run the stamp **in every database you've already synced** — connect to each of `DATABASE_URL`, `REPORTING_DATABASE_URL`, and `USAGE_DATABASE_URL` in turn and execute:
 
 ```sql
 CREATE TABLE IF NOT EXISTS goose_db_version (
@@ -157,7 +159,7 @@ CREATE TABLE IF NOT EXISTS goose_db_version (
 INSERT INTO goose_db_version (version_id, is_applied) VALUES (0, true), (1, true);
 ```
 
-Then `make db-migrate-status` shows the baseline as applied and future migrations run normally.
+Then `make db-migrate-status` (and `db-migrate-status-reporting` / `db-migrate-status-usage`) shows the baseline as applied and future migrations run normally.
 
 ## Development
 

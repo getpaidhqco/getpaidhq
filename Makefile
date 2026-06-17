@@ -100,13 +100,29 @@ db-migrate-all: db-migrate db-migrate-reporting db-migrate-usage ## Apply all th
 db-migrate-status: ## Show operational migration status
 	$(call goose,schemas/app/migrations,$(DATABASE_URL),status)
 
+.PHONY: db-migrate-status-reporting
+db-migrate-status-reporting: ## Show reporting migration status
+	$(call goose,schemas/reporting/migrations,$(REPORTING_DATABASE_URL),status)
+
+.PHONY: db-migrate-status-usage
+db-migrate-status-usage: ## Show usage-store migration status
+	$(call goose,schemas/usage/migrations,$(USAGE_DATABASE_URL),status)
+
 .PHONY: db-migrate-down
 db-migrate-down: ## Roll back the last operational migration
 	$(call goose,schemas/app/migrations,$(DATABASE_URL),down)
 
+.PHONY: db-migrate-down-reporting
+db-migrate-down-reporting: ## Roll back the last reporting migration
+	$(call goose,schemas/reporting/migrations,$(REPORTING_DATABASE_URL),down)
+
+.PHONY: db-migrate-down-usage
+db-migrate-down-usage: ## Roll back the last usage-store migration
+	$(call goose,schemas/usage/migrations,$(USAGE_DATABASE_URL),down)
+
 .PHONY: db-migrate-create
 db-migrate-create: ## Scaffold a new operational migration: make db-migrate-create name=add_foo
-	$(call goose,schemas/app/migrations,$(DATABASE_URL),create $(name) sql)
+	$(call goose,schemas/app/migrations,$(DATABASE_URL),-s create $(name) sql)
 
 .PHONY: db-seed
 db-seed: ## Seed the operational DB from schemas/app/seed.sql
