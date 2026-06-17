@@ -17,7 +17,7 @@ import (
 
 // TestEventStore_Aggregations exercises the REAL Postgres SQL (the unit-level parity
 // harness only compares in-memory references). It pins write-time dedup (the unique
-// index AutoMigrate creates from the row's gorm tag), the half-open [from,to) window,
+// index the Goose baseline creates), the half-open [from,to) window,
 // the customer match, and subscription attribution incl. IncludeUnattributed.
 func TestEventStore_Aggregations(t *testing.T) {
 	db := testDB(t)

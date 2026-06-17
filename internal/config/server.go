@@ -38,6 +38,7 @@ type Handlers struct {
 	Invoice        *handler.InvoiceHandler
 	Payment        *handler.PaymentHandler
 	Setting        *handler.SettingHandler
+	Coupon         *handler.CouponHandler
 }
 
 // ServerDeps groups the cross-cutting wiring the server needs that is
@@ -225,5 +226,8 @@ func registerAll(api *fuego.Server, h Handlers) {
 	}
 	if h.Setting != nil {
 		h.Setting.RegisterRoutes(api)
+	}
+	if h.Coupon != nil {
+		h.Coupon.RegisterRoutes(api)
 	}
 }

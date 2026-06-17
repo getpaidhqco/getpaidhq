@@ -19,4 +19,15 @@ type Config struct {
 	// (HATCHET_BILLING_SWEEP_INTERVAL). Normalized by workflows.SweepCadence
 	// to whole minutes in [1m, 60m].
 	BillingSweepInterval time.Duration
+
+	// LogLevel is the minimum level for Hatchet SDK client/worker logs
+	// (HATCHET_LOG_LEVEL): "debug" | "info" | "warn" (default) | "error".
+	// Independent of the app log level — see newZerologToSlog.
+	LogLevel string
+
+	// TracingEnabled (HATCHET_TRACING_ENABLED) registers the SDK's OTel
+	// instrumentor: worker task spans are exported back to the Hatchet
+	// engine's collector and show up in the dashboard's trace view. The
+	// engine side must run with SERVER_OBSERVABILITY_ENABLED=true.
+	TracingEnabled bool
 }

@@ -127,11 +127,13 @@ func TestHybridPlan_FlatPlusMetered_Invoice_E2E(t *testing.T) {
 	// item owned by the same subscription.
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	flat := domain.Price{
-		OrgId: orgId, Id: lib.GenerateId("price"), Label: "Platform fee",
+		OrgId: orgId, Id: lib.GenerateId("price"), VariantId: seedVariantChain(t, db, orgId),
+		Label:    "Platform fee",
 		Category: domain.PriceCategorySubscription, Scheme: domain.Fixed,
 		Currency: domain.USD, UnitPrice: 2900,
 		BillingInterval: domain.BillingIntervalMonth, BillingIntervalQty: 1,
-		CreatedAt: now, UpdatedAt: now,
+		TrialInterval: domain.BillingIntervalNone,
+		CreatedAt:     now, UpdatedAt: now,
 	}
 	flatRow := priceRowFromDomain(flat)
 	require.NoError(t, db.Create(&flatRow).Error)

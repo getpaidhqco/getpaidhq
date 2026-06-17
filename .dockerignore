@@ -5,7 +5,6 @@ docker/
 
 # Vendor directory
 vendor/
-prisma/
 
 # Go build cache
 *.cache

@@ -20,7 +20,7 @@ type meterEventRow struct {
 	MetricCode         string  `gorm:"column:metric_code"`
 	SubscriptionId     *string `gorm:"column:subscription_id"`
 	// external_id is the dedup key; NULL when absent (never ""). The composite unique
-	// index (matches the Prisma @@unique) dedups real ids; NULLs are distinct in
+	// index (matches the schema @@unique) dedups real ids; NULLs are distinct in
 	// Postgres, so absent-id events are never deduped.
 	ExternalId *string           `gorm:"column:external_id;uniqueIndex:meter_events_org_external_id,priority:2"`
 	Metadata   map[string]string `gorm:"column:metadata;serializer:json;type:jsonb"`

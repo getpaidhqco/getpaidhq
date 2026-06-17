@@ -49,12 +49,12 @@ func errUnsupportedEngine(name string) error {
 // USAGE_DATABASE_URL is set it opens a SEPARATE connection so usage events can scale
 // (and be retained/expired) independently of the operational DB; otherwise it reuses
 // the operational handle (the v1 default — events live alongside the rest). The schema
-// (incl. the dedup unique index) is owned by Prisma; nothing is created at runtime.
+// (incl. the dedup unique index) is managed via Goose migrations; nothing is created at runtime.
 func usageDB(env lib.Env, operational *gorm.DB, logger lib.Logger) (*gorm.DB, error) {
 	if env.UsageDatabaseURL == "" {
 		return operational, nil
 	}
-	separate, err := postgres.NewDatabase(env.UsageDatabaseURL, logger)
+	separate, err := postgres.NewDatabase(env.UsageDatabaseURL, logger, env.GormLogLevel)
 	if err != nil {
 		return nil, fmt.Errorf("open usage database: %w", err)
 	}
@@ -145,13 +145,13 @@ func NewApp() (*App, error) {
 	// ---------------------------------------------------------------------------
 	// Database
 	// ---------------------------------------------------------------------------
-	db, err := postgres.NewDatabase(env.Get("DATABASE_URL"), logger)
+	db, err := postgres.NewDatabase(env.Get("DATABASE_URL"), logger, env.GormLogLevel)
 	if err != nil {
 		return nil, err
 	}
 
 	// Reporting persistence has been intentionally torn down — the
-	// previous implementation was incoherent with the Prisma reporting
+	// previous implementation was incoherent with the reporting
 	// schema (see internal/adapter/postgres/report_repo.go). When it is
 	// revived, open REPORTING_DATABASE_URL here and wire NewReportRepo
 	// into the new service / handler.
@@ -182,6 +182,10 @@ func NewApp() (*App, error) {
 	dunningRepo := postgres.NewDunningRepo(db)
 	invoiceRepo := postgres.NewInvoiceRepo(db)
 	meterRepo := postgres.NewMeterRepo(db)
+	couponRepo := postgres.NewCouponRepo(db)
+	couponCodeRepo := postgres.NewCouponCodeRepo(db)
+	discountRepo := postgres.NewDiscountRepo(db)
+	priorPaymentChecker := postgres.NewPriorPaymentChecker(db)
 	eventStore, err := buildEventStore(env, db, logger)
 	if err != nil {
 		return nil, err
@@ -258,6 +262,7 @@ func NewApp() (*App, error) {
 	usageService := service.NewUsageService(meterRepo, customerRepo, subRepo, orderRepo, priceRepo, ingestor, eventStore, pubsub, logger)
 	meterService := service.NewMeterService(meterRepo, pubsub, logger)
 	invoiceService := service.NewInvoiceService(invoiceRepo, orderRepo, priceRepo, usageService, txManager, logger)
+	couponService := service.NewCouponService(couponRepo, couponCodeRepo, discountRepo, priorPaymentChecker, txManager, logger)
 	subService, err := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, priceRepo, gatewayFactory, invoiceService, pubsub, reporter, logger, txManager)
 	if err != nil {
 		return nil, err
@@ -302,6 +307,8 @@ func NewApp() (*App, error) {
 			HostPort:             env.HatchetHostPort,
 			Namespace:            env.HatchetNamespace,
 			BillingSweepInterval: env.HatchetBillingSweepInterval,
+			LogLevel:             env.HatchetLogLevel,
+			TracingEnabled:       env.HatchetTracingEnabled,
 		}, orderWorkflowService, subService, paymentService, subRepo, orgRepo, reminderConfigService, webhookSteps, dunningSteps)
 		engine = h
 		dunningEngine = h
@@ -370,6 +377,7 @@ func NewApp() (*App, error) {
 		Usage:          handler.NewUsageHandler(usageService, logger, authzEngine),
 		Meter:          handler.NewMeterHandler(meterService, logger, authzEngine),
 		Invoice:        handler.NewInvoiceHandler(invoiceService, logger, authzEngine),
+		Coupon:         handler.NewCouponHandler(couponService, logger, authzEngine),
 		Payment:        handler.NewPaymentHandler(paymentService, logger, authzEngine),
 		Setting:        handler.NewSettingHandler(settingService, logger, authzEngine),
 	}

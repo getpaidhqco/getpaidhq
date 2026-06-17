@@ -11,13 +11,16 @@ import (
 // service.OrderItemDetails and PriceRepository.FindByIds for the read-model
 // path.
 type orderItemRow struct {
-	OrgId          string            `gorm:"column:org_id;primaryKey"`
-	Id             string            `gorm:"column:id;primaryKey"`
-	OrderId        string            `gorm:"column:order_id"`
-	ProductId      string            `gorm:"column:product_id"`
-	VariantId      string            `gorm:"column:variant_id"`
-	PriceId        string            `gorm:"column:price_id"`
-	SubscriptionId string            `gorm:"column:subscription_id"`
+	OrgId     string `gorm:"column:org_id;primaryKey"`
+	Id        string `gorm:"column:id;primaryKey"`
+	OrderId   string `gorm:"column:order_id"`
+	ProductId string `gorm:"column:product_id"`
+	VariantId string `gorm:"column:variant_id"`
+	PriceId   string `gorm:"column:price_id"`
+	// subscription_id is a nullable FK to subscriptions; NULL when absent
+	// (never "") — items have no subscription until the order completes, and
+	// writing "" would violate the FK.
+	SubscriptionId *string           `gorm:"column:subscription_id"`
 	Description    string            `gorm:"column:description"`
 	Quantity       int               `gorm:"column:quantity"`
 	TaxTotal       int64             `gorm:"column:tax_total"`
@@ -39,7 +42,7 @@ func (r orderItemRow) toDomain() domain.OrderItem {
 		ProductId:      r.ProductId,
 		VariantId:      r.VariantId,
 		PriceId:        r.PriceId,
-		SubscriptionId: r.SubscriptionId,
+		SubscriptionId: strOrEmpty(r.SubscriptionId),
 		Description:    r.Description,
 		Quantity:       r.Quantity,
 		TaxTotal:       r.TaxTotal,
@@ -60,7 +63,7 @@ func orderItemRowFromDomain(i domain.OrderItem) orderItemRow {
 		ProductId:      i.ProductId,
 		VariantId:      i.VariantId,
 		PriceId:        i.PriceId,
-		SubscriptionId: i.SubscriptionId,
+		SubscriptionId: nilIfEmpty(i.SubscriptionId),
 		Description:    i.Description,
 		Quantity:       i.Quantity,
 		TaxTotal:       i.TaxTotal,

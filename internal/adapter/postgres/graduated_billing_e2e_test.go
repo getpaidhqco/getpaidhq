@@ -82,7 +82,7 @@ func seedGraduatedEmailFixture(t *testing.T, db *gorm.DB, orgId string, periodSt
 		UpdatedAt:  now,
 	}
 	custRow := customerRowFromDomain(cust)
-	require.NoError(t, db.Create(&custRow).Error)
+	require.NoError(t, db.Omit("DefaultPaymentMethodId").Create(&custRow).Error)
 
 	// SUM meter: each event reports a batch of emails via metadata["emails"]; the
 	// period quantity is the sum of those batches.
@@ -99,18 +99,21 @@ func seedGraduatedEmailFixture(t *testing.T, db *gorm.DB, orgId string, periodSt
 	meterRow := billableMetricRowFromDomain(meter)
 	require.NoError(t, db.Create(&meterRow).Error)
 
+	variantId := seedVariantChain(t, db, orgId)
 	// Graduated price. UnitPrice is intentionally left zero — PriceUsage switches on
 	// Scheme=Graduated and prices purely from Tiers; a non-zero UnitPrice here would
 	// be ignored, and asserting $85.00 proves the tier path (not the flat path) ran.
 	price := domain.Price{
 		OrgId:              orgId,
 		Id:                 lib.GenerateId("price"),
+		VariantId:          variantId,
 		Label:              "Transactional Email",
 		Category:           domain.PriceCategorySubscription,
 		Scheme:             domain.Graduated,
 		Currency:           domain.USD,
 		BillingInterval:    domain.BillingIntervalMonth,
 		BillingIntervalQty: 1,
+		TrialInterval:      domain.BillingIntervalNone,
 		BillableMetricId:   meter.Id, // <- makes the price metered
 		Tiers:              emailTiers(),
 		CreatedAt:          now,
@@ -125,23 +128,27 @@ func seedGraduatedEmailFixture(t *testing.T, db *gorm.DB, orgId string, periodSt
 	sub := domain.Subscription{
 		OrgId:              orgId,
 		Id:                 lib.GenerateId("sub"),
+		PspId:              domain.Paystack,
 		OrderId:            order.Id,
 		CustomerId:         cust.Id,
 		Status:             domain.SubscriptionStatusActive,
 		Currency:           "USD",
 		BillingInterval:    domain.BillingIntervalMonth,
 		BillingIntervalQty: 1,
+		TrialInterval:      domain.BillingIntervalNone,
 		Cycles:             12,
 		CyclesProcessed:    0,
 		StartDate:          periodStart,
 		CurrentPeriodStart: periodStart,
 		CurrentPeriodEnd:   periodEnd,
 		RenewsAt:           periodEnd,
+		Metadata:           map[string]string{},
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
 	subRow := subscriptionRowFromDomain(sub)
-	require.NoError(t, db.Create(&subRow).Error)
+	// payment_method_id is nullable with FK; omit when empty to avoid FK violation.
+	require.NoError(t, db.Omit("PaymentMethodId").Create(&subRow).Error)
 	// The subscription owns its metered line.
 	require.NoError(t, db.Model(&orderItemRow{}).
 		Where("org_id = ? AND id = ?", orgId, item.Id).
