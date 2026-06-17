@@ -54,7 +54,7 @@ func usageDB(env lib.Env, operational *gorm.DB, logger lib.Logger) (*gorm.DB, er
 	if env.UsageDatabaseURL == "" {
 		return operational, nil
 	}
-	separate, err := postgres.NewDatabase(env.UsageDatabaseURL, logger)
+	separate, err := postgres.NewDatabase(env.UsageDatabaseURL, logger, env.GormLogLevel)
 	if err != nil {
 		return nil, fmt.Errorf("open usage database: %w", err)
 	}
@@ -145,7 +145,7 @@ func NewApp() (*App, error) {
 	// ---------------------------------------------------------------------------
 	// Database
 	// ---------------------------------------------------------------------------
-	db, err := postgres.NewDatabase(env.Get("DATABASE_URL"), logger)
+	db, err := postgres.NewDatabase(env.Get("DATABASE_URL"), logger, env.GormLogLevel)
 	if err != nil {
 		return nil, err
 	}
@@ -182,6 +182,10 @@ func NewApp() (*App, error) {
 	dunningRepo := postgres.NewDunningRepo(db)
 	invoiceRepo := postgres.NewInvoiceRepo(db)
 	meterRepo := postgres.NewMeterRepo(db)
+	couponRepo := postgres.NewCouponRepo(db)
+	couponCodeRepo := postgres.NewCouponCodeRepo(db)
+	discountRepo := postgres.NewDiscountRepo(db)
+	priorPaymentChecker := postgres.NewPriorPaymentChecker(db)
 	eventStore, err := buildEventStore(env, db, logger)
 	if err != nil {
 		return nil, err
@@ -258,6 +262,7 @@ func NewApp() (*App, error) {
 	usageService := service.NewUsageService(meterRepo, customerRepo, subRepo, orderRepo, priceRepo, ingestor, eventStore, pubsub, logger)
 	meterService := service.NewMeterService(meterRepo, pubsub, logger)
 	invoiceService := service.NewInvoiceService(invoiceRepo, orderRepo, priceRepo, usageService, txManager, logger)
+	couponService := service.NewCouponService(couponRepo, couponCodeRepo, discountRepo, priorPaymentChecker, txManager, logger)
 	subService, err := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, priceRepo, gatewayFactory, invoiceService, pubsub, reporter, logger, txManager)
 	if err != nil {
 		return nil, err
@@ -302,6 +307,8 @@ func NewApp() (*App, error) {
 			HostPort:             env.HatchetHostPort,
 			Namespace:            env.HatchetNamespace,
 			BillingSweepInterval: env.HatchetBillingSweepInterval,
+			LogLevel:             env.HatchetLogLevel,
+			TracingEnabled:       env.HatchetTracingEnabled,
 		}, orderWorkflowService, subService, paymentService, subRepo, orgRepo, reminderConfigService, webhookSteps, dunningSteps)
 		engine = h
 		dunningEngine = h
@@ -370,6 +377,7 @@ func NewApp() (*App, error) {
 		Usage:          handler.NewUsageHandler(usageService, logger, authzEngine),
 		Meter:          handler.NewMeterHandler(meterService, logger, authzEngine),
 		Invoice:        handler.NewInvoiceHandler(invoiceService, logger, authzEngine),
+		Coupon:         handler.NewCouponHandler(couponService, logger, authzEngine),
 		Payment:        handler.NewPaymentHandler(paymentService, logger, authzEngine),
 		Setting:        handler.NewSettingHandler(settingService, logger, authzEngine),
 	}
