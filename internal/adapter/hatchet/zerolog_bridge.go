@@ -9,16 +9,34 @@ import (
 	"getpaidhq/internal/core/port"
 )
 
-// newZerologToSlog builds a zerolog.Logger that forwards every event to the
-// app logger. The Hatchet client and worker only accept a *zerolog.Logger, so
-// instead of letting them write their own JSON straight to stderr
-// (`{"level":"debug","service":"client",...}` heartbeats every few seconds) we
-// hand them a zerolog writing into a bridge that re-emits through slog. This
-// unifies Hatchet's logs with the rest of the app's format and level.
-func newZerologToSlog(log port.Logger) zerolog.Logger {
-	// DebugLevel here just means zerolog forwards everything to the bridge; the
-	// app's slog handler applies the real level filter downstream.
-	return zerolog.New(zerologSlogWriter{log: log}).Level(zerolog.DebugLevel)
+// newZerologToSlog builds a zerolog.Logger that forwards Hatchet SDK events
+// to the app logger. The Hatchet client and worker only accept a
+// *zerolog.Logger, so instead of letting them write their own JSON straight
+// to stderr (`{"level":"debug","service":"client",...}` heartbeats every few
+// seconds) we hand them a zerolog writing into a bridge that re-emits through
+// slog. This unifies Hatchet's logs with the rest of the app's format.
+//
+// minLevel filters the SDK's chatter at the source, INDEPENDENTLY of the app
+// log level (HATCHET_LOG_LEVEL) — so running the app at debug doesn't drown
+// you in heartbeat noise, and you can crank the SDK to debug without touching
+// the app level.
+func newZerologToSlog(log port.Logger, minLevel string) zerolog.Logger {
+	return zerolog.New(zerologSlogWriter{log: log}).Level(parseZerologLevel(minLevel))
+}
+
+// parseZerologLevel maps the HATCHET_LOG_LEVEL string onto zerolog levels.
+// Empty or unknown values fall back to warn.
+func parseZerologLevel(level string) zerolog.Level {
+	switch level {
+	case "debug":
+		return zerolog.DebugLevel
+	case "info":
+		return zerolog.InfoLevel
+	case "error":
+		return zerolog.ErrorLevel
+	default:
+		return zerolog.WarnLevel
+	}
 }
 
 // zerologSlogWriter is the io.Writer zerolog renders each event into. zerolog

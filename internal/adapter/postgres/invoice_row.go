@@ -17,6 +17,7 @@ type invoiceRow struct {
 	Status         domain.InvoiceStatus `gorm:"column:status"`
 	Currency       string               `gorm:"column:currency"`
 	Subtotal       int64                `gorm:"column:subtotal"`
+	DiscountTotal  int64                `gorm:"column:discount_total"`
 	Total          int64                `gorm:"column:total"`
 	LineItems      []invoiceLineItemRow `gorm:"foreignKey:InvoiceId,OrgId;references:Id,OrgId"`
 	Cycle          int                  `gorm:"column:cycle"`
@@ -39,6 +40,7 @@ func (r invoiceRow) toDomain() domain.Invoice {
 		Status:         r.Status,
 		Currency:       r.Currency,
 		Subtotal:       r.Subtotal,
+		DiscountTotal:  r.DiscountTotal,
 		Total:          r.Total,
 		LineItems:      invoiceLineItemRowsToDomain(r.LineItems),
 		Cycle:          r.Cycle,
@@ -68,6 +70,7 @@ func invoiceRowFromDomain(inv domain.Invoice) invoiceRow {
 		Status:         inv.Status,
 		Currency:       inv.Currency,
 		Subtotal:       inv.Subtotal,
+		DiscountTotal:  inv.DiscountTotal,
 		Total:          inv.Total,
 		LineItems:      invoiceLineItemRowsFromDomain(inv.LineItems),
 		Cycle:          inv.Cycle,

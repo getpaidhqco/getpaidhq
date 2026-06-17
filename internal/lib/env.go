@@ -15,6 +15,8 @@ type Env struct {
 	Env             string `mapstructure:"ENV"`
 	LogOutput       string `mapstructure:"LOG_OUTPUT"`
 	LogLevel        string `mapstructure:"GETPAIDHQ_LOG_LEVEL"`
+	LogFormat       string `mapstructure:"LOG_FORMAT"`
+	GormLogLevel    string `mapstructure:"GORM_LOG_LEVEL"`
 	DBUrl           string `mapstructure:"DATABASE_URL"`
 	CedarPolicyFile string `mapstructure:"CEDAR_POLICY"`
 
@@ -80,6 +82,8 @@ type Env struct {
 	HatchetTLSStrategy string `mapstructure:"HATCHET_CLIENT_TLS_STRATEGY"`
 
 	HatchetBillingSweepInterval time.Duration `mapstructure:"HATCHET_BILLING_SWEEP_INTERVAL"`
+	HatchetLogLevel             string        `mapstructure:"HATCHET_LOG_LEVEL"`
+	HatchetTracingEnabled       bool          `mapstructure:"HATCHET_TRACING_ENABLED"`
 
 	TemporalHost      string `mapstructure:"TEMPORAL_HOST"`
 	TemporalNamespace string `mapstructure:"TEMPORAL_NAMESPACE"`
@@ -123,6 +127,8 @@ func NewEnv() Env {
 
 	viper.SetDefault("WORKFLOW_ENGINE", "hatchet")
 	viper.SetDefault("HATCHET_BILLING_SWEEP_INTERVAL", "5m")
+	viper.SetDefault("HATCHET_LOG_LEVEL", "warn")
+	viper.SetDefault("GORM_LOG_LEVEL", "warn")
 	viper.SetDefault("HATCHET_CLIENT_HOST_PORT", "localhost:7077")
 	viper.SetDefault("HATCHET_CLIENT_NAMESPACE", "getpaidhq")
 	viper.SetDefault("HATCHET_CLIENT_TLS_STRATEGY", "none")
@@ -142,7 +148,9 @@ func NewEnv() Env {
 	viper.BindEnv("WORKFLOW_ENGINE")
 	viper.BindEnv("ENV")
 	viper.BindEnv("LOG_OUTPUT")
+	viper.BindEnv("LOG_FORMAT")
 	viper.BindEnv("GETPAIDHQ_LOG_LEVEL")
+	viper.BindEnv("GORM_LOG_LEVEL")
 	viper.BindEnv("DATABASE_URL")
 	viper.BindEnv("CEDAR_POLICY")
 	viper.BindEnv("JWT_SECRET")
@@ -160,6 +168,8 @@ func NewEnv() Env {
 	viper.BindEnv("HATCHET_CLIENT_NAMESPACE")
 	viper.BindEnv("HATCHET_CLIENT_TLS_STRATEGY")
 	viper.BindEnv("HATCHET_BILLING_SWEEP_INTERVAL")
+	viper.BindEnv("HATCHET_LOG_LEVEL")
+	viper.BindEnv("HATCHET_TRACING_ENABLED")
 	viper.BindEnv("TEMPORAL_HOST")
 	viper.BindEnv("TEMPORAL_NAMESPACE")
 	viper.BindEnv("TEMPORAL_TASK_QUEUE")
@@ -181,6 +191,8 @@ func NewEnv() Env {
 		env.ServerPort = viper.GetString("SERVER_PORT")
 		env.Env = viper.GetString("ENV")
 		env.LogLevel = viper.GetString("GETPAIDHQ_LOG_LEVEL")
+		env.LogFormat = viper.GetString("LOG_FORMAT")
+		env.GormLogLevel = viper.GetString("GORM_LOG_LEVEL")
 		env.ClerkSecretKey = viper.GetString("CLERK_SECRET")
 		env.SecretsEncryptionKey = viper.GetString("SECRETS_ENCRYPTION_KEY")
 		env.WorkflowEngine = viper.GetString("WORKFLOW_ENGINE")
@@ -189,6 +201,8 @@ func NewEnv() Env {
 		env.HatchetNamespace = viper.GetString("HATCHET_CLIENT_NAMESPACE")
 		env.HatchetTLSStrategy = viper.GetString("HATCHET_CLIENT_TLS_STRATEGY")
 		env.HatchetBillingSweepInterval = viper.GetDuration("HATCHET_BILLING_SWEEP_INTERVAL")
+		env.HatchetLogLevel = viper.GetString("HATCHET_LOG_LEVEL")
+		env.HatchetTracingEnabled = viper.GetBool("HATCHET_TRACING_ENABLED")
 		env.TemporalHost = viper.GetString("TEMPORAL_HOST")
 		env.TemporalNamespace = viper.GetString("TEMPORAL_NAMESPACE")
 		env.TemporalTaskQueue = viper.GetString("TEMPORAL_TASK_QUEUE")

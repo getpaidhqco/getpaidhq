@@ -24,13 +24,17 @@ import (
 // All four knobs MUST be set together: without ConnMaxLifetime, idle
 // connections accumulate; without ConnMaxIdleTime, the pool stays warm
 // to MaxIdleConns long after demand drops.
-func NewDatabase(dsn string, log port.Logger) (*gorm.DB, error) {
+//
+// logLevel sets how chatty GORM is, independently of the app log level
+// (GORM_LOG_LEVEL): "silent" | "error" | "warn" (slow queries + errors, the
+// default) | "info"/"debug" (every query).
+func NewDatabase(dsn string, log port.Logger, logLevel string) (*gorm.DB, error) {
 	// Route GORM's SQL logs through the app logger so they share our slog
 	// format/level. Tests construct the DB with a nil logger; fall back to a
 	// silent GORM logger there rather than spamming test output.
 	var gormLog logger.Interface
 	if log != nil {
-		gormLog = newGormLogger(log, logger.Info)
+		gormLog = newGormLogger(log, parseGormLogLevel(logLevel))
 	} else {
 		gormLog = logger.Default.LogMode(logger.Silent)
 	}
@@ -52,4 +56,19 @@ func NewDatabase(dsn string, log port.Logger) (*gorm.DB, error) {
 	sqlDB.SetConnMaxIdleTime(1 * time.Minute)
 
 	return db, nil
+}
+
+// parseGormLogLevel maps the GORM_LOG_LEVEL string onto GORM's log levels.
+// Empty or unknown values fall back to warn (slow queries + errors only).
+func parseGormLogLevel(level string) logger.LogLevel {
+	switch level {
+	case "silent":
+		return logger.Silent
+	case "error":
+		return logger.Error
+	case "info", "debug":
+		return logger.Info
+	default:
+		return logger.Warn
+	}
 }
