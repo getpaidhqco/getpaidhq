@@ -110,7 +110,7 @@ db-migrate-create: ## Scaffold a new operational migration: make db-migrate-crea
 
 .PHONY: db-seed
 db-seed: ## Seed the operational DB from schemas/app/seed.sql
-	psql "$(DATABASE_URL)" -f schemas/app/seed.sql
+	psql -v ON_ERROR_STOP=1 "$(DATABASE_URL)" -f schemas/app/seed.sql
 
 ## ---- Tunnels / deploy (AWS profiles + bastion PEM required) ----------------
 
