@@ -111,7 +111,7 @@ func testDB(t *testing.T) *gorm.DB {
 			return
 		}
 
-		db, err := NewDatabase(connStr, nil)
+		db, err := NewDatabase(connStr, nil, "")
 		if err != nil {
 			sharedErr = fmt.Errorf("failed to open gorm connection: %w", err)
 			return
