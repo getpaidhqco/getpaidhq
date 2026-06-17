@@ -48,6 +48,7 @@ func newSubscription(orgId, customerId, orderId string) domain.Subscription {
 		StartDate:          now,
 		BillingInterval:    domain.BillingIntervalMonth,
 		BillingIntervalQty: 1,
+		TrialInterval:      domain.BillingIntervalNone,
 		Cycles:             12,
 		Currency:           "USD",
 		Metadata:           map[string]string{"plan": "pro"},

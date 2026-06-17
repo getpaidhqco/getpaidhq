@@ -68,7 +68,7 @@ func seedMeteredFixture(t *testing.T, db *gorm.DB, orgId string, periodStart, pe
 		UpdatedAt:  now,
 	}
 	custRow := customerRowFromDomain(cust)
-	require.NoError(t, db.Create(&custRow).Error)
+	require.NoError(t, db.Omit("DefaultPaymentMethodId").Create(&custRow).Error)
 
 	meter := domain.BillableMetric{
 		OrgId:       orgId,
@@ -82,9 +82,11 @@ func seedMeteredFixture(t *testing.T, db *gorm.DB, orgId string, periodStart, pe
 	meterRow := billableMetricRowFromDomain(meter)
 	require.NoError(t, db.Create(&meterRow).Error)
 
+	variantId := seedVariantChain(t, db, orgId)
 	price := domain.Price{
 		OrgId:              orgId,
 		Id:                 lib.GenerateId("price"),
+		VariantId:          variantId,
 		Label:              "Metered API",
 		Category:           domain.PriceCategorySubscription,
 		Scheme:             domain.Fixed,
@@ -92,6 +94,7 @@ func seedMeteredFixture(t *testing.T, db *gorm.DB, orgId string, periodStart, pe
 		UnitPrice:          meteredUnitPriceCents,
 		BillingInterval:    domain.BillingIntervalMonth,
 		BillingIntervalQty: 1,
+		TrialInterval:      domain.BillingIntervalNone,
 		BillableMetricId:   meter.Id, // <- makes the price metered
 		CreatedAt:          now,
 		UpdatedAt:          now,
@@ -105,23 +108,27 @@ func seedMeteredFixture(t *testing.T, db *gorm.DB, orgId string, periodStart, pe
 	sub := domain.Subscription{
 		OrgId:              orgId,
 		Id:                 lib.GenerateId("sub"),
+		PspId:              domain.Paystack,
 		OrderId:            order.Id,
 		CustomerId:         cust.Id,
 		Status:             domain.SubscriptionStatusActive,
 		Currency:           "USD",
 		BillingInterval:    domain.BillingIntervalMonth,
 		BillingIntervalQty: 1,
+		TrialInterval:      domain.BillingIntervalNone,
 		Cycles:             12,
 		CyclesProcessed:    0,
 		StartDate:          periodStart,
 		CurrentPeriodStart: periodStart,
 		CurrentPeriodEnd:   periodEnd,
 		RenewsAt:           periodEnd,
+		Metadata:           map[string]string{},
 		CreatedAt:          now,
 		UpdatedAt:          now,
 	}
 	subRow := subscriptionRowFromDomain(sub)
-	require.NoError(t, db.Create(&subRow).Error)
+	// payment_method_id is nullable with FK; omit when empty to avoid FK violation.
+	require.NoError(t, db.Omit("PaymentMethodId").Create(&subRow).Error)
 	// The subscription owns its metered line.
 	require.NoError(t, db.Model(&orderItemRow{}).
 		Where("org_id = ? AND id = ?", orgId, item.Id).

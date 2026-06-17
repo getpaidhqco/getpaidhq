@@ -297,7 +297,13 @@ func (r *DunningRepo) GetCustomerDunningHistory(ctx context.Context, orgId, cust
 
 func (r *DunningRepo) UpsertCustomerDunningHistory(ctx context.Context, h domain.CustomerDunningHistory) (domain.CustomerDunningHistory, error) {
 	row := customerDunningHistoryRowFromDomain(h)
-	if err := dbFromCtx(ctx, r.db).Save(&row).Error; err != nil {
+	q := dbFromCtx(ctx, r.db)
+	// most_responsive_channel is a nullable enum; omit when empty so that an empty
+	// string is not sent to postgres instead of NULL.
+	if h.MostResponsiveChannel == "" {
+		q = q.Omit("MostResponsiveChannel")
+	}
+	if err := q.Save(&row).Error; err != nil {
 		return domain.CustomerDunningHistory{}, err
 	}
 	return r.GetCustomerDunningHistory(ctx, h.OrgId, h.CustomerId)

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/lib"
 
 	"github.com/stretchr/testify/require"
 )
@@ -17,7 +18,9 @@ func TestOrgRepo_ListIds(t *testing.T) {
 	repo := NewOrgRepo(db)
 	ctx := context.Background()
 
-	orgId := uniqueOrg(t)
+	// Generate the ID directly — repo.Create inserts the org row itself, so we
+	// must not pre-seed it via uniqueOrg (which would cause a duplicate PK).
+	orgId := lib.GenerateId("org_test")
 	cleanupOrg(t, db, orgId)
 
 	_, err := repo.Create(ctx, domain.Org{
