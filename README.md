@@ -70,7 +70,7 @@ Multi-tenant — every core entity is scoped to `orgId`.
 - **WebhookSubscription** — outbound event notifications
 - **Psp**, **Setting**, **MetadataStore**, **IdempotencyKey** — integration plumbing
 
-Schemas are Prisma-owned and split by database: `schemas/app/schema.prisma` (operational), `schemas/usage/schema.prisma` (usage events), `schemas/reporting/schema.prisma` (reporting projection — not currently wired).
+Schemas are managed by Goose migrations, split by database: `schemas/app/migrations/` (operational), `schemas/usage/migrations/` (usage events), `schemas/reporting/migrations/` (reporting projection — not currently wired).
 
 ## Integrations
 
@@ -97,15 +97,15 @@ Authorization is policy-based via Cedar. Policies live in `policy.cedar` at the 
 
 - Docker + Docker Compose v2
 - Go 1.24+
-- pnpm (for Prisma scripts) and `make`
+- pnpm (for tunnel/deploy scripts) and `make`
 
 ### Setup
 
-1. Install JS deps (Prisma tooling): `pnpm install`
+1. Install JS deps (for tunnel/deploy scripts): `pnpm install`
 2. Copy `.env.example` to `.env`. Most local defaults work out of the box; fill in provider secrets (Clerk, Paystack, …) as needed.
 3. Start the local stack: `make up`
    This brings up a single Postgres (host port **`10432`**) hosting four databases — `getpaidhq`, `getpaidhq_reports`, `getpaidhq_usage`, `hatchet` — plus Redis (`10379`), NATS (`10422`), and `hatchet-lite` (UI `10888`, gRPC `10707`).
-4. Push the Prisma schemas: `make db-push-all`
+4. Apply the migrations: `make db-migrate-all`
 5. Mint a Hatchet token and put it in `.env` (see [docs/internal/local-dev-hatchet.md](docs/internal/local-dev-hatchet.md) for the full bootstrap):
    ```
    docker exec hatchet-lite /hatchet-admin --config /config token create \
@@ -132,16 +132,32 @@ Important keys:
 
 ## Database schema
 
-Prisma is the schema source of truth, with **no migrations checked in** — local-only uses clean-slate `db push`. Sync with:
+Schema is owned by **Goose SQL migrations** checked in under `schemas/<db>/migrations/`. The migration history is the source of truth; apply with:
 
 ```
-make db-push            # → getpaidhq      (schemas/app)
-make db-push-usage      # → getpaidhq_usage (schemas/usage)
-make db-push-reporting  # → getpaidhq_reports (schemas/reporting)
-make db-push-all        # all three
+make db-migrate            # → getpaidhq      (schemas/app/migrations/)
+make db-migrate-usage      # → getpaidhq_usage (schemas/usage/migrations/)
+make db-migrate-reporting  # → getpaidhq_reports (schemas/reporting/migrations/)
+make db-migrate-all        # all three
 ```
 
-When a deployment pipeline is re-added, migrations will be regenerated from the current base.
+To add a new migration: `make db-migrate-create name=add_foo`, hand-write the SQL with `-- +goose Up` / `-- +goose Down` markers, then `make db-migrate`.
+
+### Existing databases (already schema-synced)
+
+A fresh database (local, CI) just runs `make db-migrate-all`. A database that already has the schema (created before the Goose cutover by the old `prisma db push`) must NOT re-run the baseline — stamp it as already applied instead:
+
+```sql
+CREATE TABLE IF NOT EXISTS goose_db_version (
+  id SERIAL PRIMARY KEY,
+  version_id BIGINT NOT NULL,
+  is_applied BOOLEAN NOT NULL,
+  tstamp TIMESTAMP NULL DEFAULT now()
+);
+INSERT INTO goose_db_version (version_id, is_applied) VALUES (0, true), (1, true);
+```
+
+Then `make db-migrate-status` shows the baseline as applied and future migrations run normally.
 
 ## Development
 
@@ -155,7 +171,9 @@ Everything runs through the **Makefile** — `make help` lists all targets. Comm
 | `make test-integration`| All tests incl. Postgres/Testcontainers integration tests|
 | `make ci`              | `go vet` + race tests (mirrors GitHub Actions)           |
 | `make up` / `make down`| Start / stop the local stack                             |
-| `make db-push-all`     | Push all Prisma schemas                                  |
+| `make db-migrate-all`  | Apply all Goose migrations (all three databases)         |
+| `make db-migrate-create name=...` | Scaffold a new migration file              |
+| `make db-seed`         | Seed the operational DB from `schemas/app/seed.sql`      |
 
 CI (`.github/workflows/go-test.yml`) runs `go vet` and `go test -race`; integration tests (`//go:build integration`) are opt-in and spawn their own Postgres via Testcontainers — they never touch the local stack.
 
