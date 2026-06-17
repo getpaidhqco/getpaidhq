@@ -2,6 +2,8 @@ package service
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
@@ -94,4 +96,127 @@ func (s *CouponService) UpdateCode(ctx context.Context, orgId, id string, in por
 	return s.codes.UpdateMutable(ctx, orgId, id, in.Active, in.Metadata)
 }
 
-// Validate and Redeem are added in the next tasks.
+type DiscountPreview struct {
+	Valid         bool
+	Reason        string // set when !Valid (see §5.3)
+	DiscountTotal int64
+	PerLine       map[string]int64
+}
+
+// gateResult carries the resolved coupon/code and any refusal reason.
+type gateResult struct {
+	coupon  domain.Coupon
+	code    domain.CouponCode
+	hasCode bool
+	reason  string
+}
+
+func (s *CouponService) Validate(ctx context.Context, orgId, code, customerId, currency string, lines []domain.DiscountableLine) (DiscountPreview, error) {
+	gate, err := s.gate(ctx, orgId, code, "", customerId, currency, subtotal(lines))
+	if err != nil {
+		return DiscountPreview{}, err
+	}
+	if gate.reason != "" {
+		return DiscountPreview{Valid: false, Reason: gate.reason}, nil
+	}
+
+	applied := []domain.AppliedDiscount{{
+		Coupon:   gate.coupon,
+		Discount: domain.Discount{StartCycle: 0, RedeemedAt: time.Now().UTC()},
+	}}
+	perLine := domain.ApplyDiscounts(lines, applied, 0, currency)
+	var total int64
+	for _, v := range perLine {
+		total += v
+	}
+	return DiscountPreview{Valid: true, DiscountTotal: total, PerLine: perLine}, nil
+}
+
+// gate runs the two-layer §5.3 checks. When code != "" it resolves the code;
+// otherwise it resolves the coupon directly (programmatic) by couponId.
+func (s *CouponService) gate(ctx context.Context, orgId, code, couponId, customerId, currency string, amount int64) (gateResult, error) {
+	var res gateResult
+
+	if code != "" {
+		code = strings.ToUpper(strings.TrimSpace(code))
+		cc, err := s.codes.FindByCode(ctx, orgId, code)
+		if err != nil {
+			return gateResult{reason: "code_not_found"}, nil
+		}
+		res.code = cc
+		res.hasCode = true
+		couponId = cc.CouponId
+
+		if !cc.Active {
+			return gateResult{reason: "inactive"}, nil
+		}
+		if !cc.ExpiresAt.IsZero() && time.Now().After(cc.ExpiresAt) {
+			return gateResult{reason: "code_expired"}, nil
+		}
+		if cc.MaxRedemptions > 0 && cc.TimesRedeemed >= cc.MaxRedemptions {
+			return gateResult{reason: "code_cap_reached"}, nil
+		}
+		if cc.CustomerId != "" && cc.CustomerId != customerId {
+			return gateResult{reason: "wrong_customer"}, nil
+		}
+		if cc.Restrictions.FirstTimeTransaction {
+			prior, err := s.priorPayments.HasPriorSuccessfulPayment(ctx, orgId, customerId)
+			if err != nil {
+				return gateResult{}, err
+			}
+			if prior {
+				return gateResult{reason: "not_first_time"}, nil
+			}
+		}
+		if cc.Restrictions.MinimumAmount > 0 {
+			if currency != cc.Restrictions.MinimumAmountCurrency || amount < cc.Restrictions.MinimumAmount {
+				return gateResult{reason: "below_minimum"}, nil
+			}
+		}
+	}
+
+	coupon, err := s.coupons.FindById(ctx, orgId, couponId)
+	if err != nil {
+		return gateResult{reason: "code_not_found"}, nil
+	}
+	res.coupon = coupon
+
+	if !coupon.Active {
+		return gateResult{reason: "coupon_inactive"}, nil
+	}
+	if !coupon.RedeemBy.IsZero() && time.Now().After(coupon.RedeemBy) {
+		return gateResult{reason: "expired"}, nil
+	}
+	if coupon.MaxRedemptions > 0 {
+		n, err := s.discounts.CountByCoupon(ctx, orgId, coupon.Id)
+		if err != nil {
+			return gateResult{}, err
+		}
+		if n >= coupon.MaxRedemptions {
+			return gateResult{reason: "cap_reached"}, nil
+		}
+	}
+	if coupon.OncePerCustomer {
+		n, err := s.discounts.CountByCouponAndCustomer(ctx, orgId, coupon.Id, customerId)
+		if err != nil {
+			return gateResult{}, err
+		}
+		if n > 0 {
+			return gateResult{reason: "already_used"}, nil
+		}
+	}
+	if coupon.DiscountType == domain.DiscountTypeFixed && coupon.Currency != currency {
+		return gateResult{reason: "currency_mismatch"}, nil
+	}
+
+	res.reason = ""
+	return res, nil
+}
+
+func subtotal(lines []domain.DiscountableLine) int64 {
+	var t int64
+	for _, l := range lines {
+		t += l.Total
+	}
+	return t
+}
