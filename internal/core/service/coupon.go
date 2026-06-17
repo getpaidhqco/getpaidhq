@@ -220,3 +220,48 @@ func subtotal(lines []domain.DiscountableLine) int64 {
 	}
 	return t
 }
+
+func (s *CouponService) Redeem(ctx context.Context, in port.RedeemCouponInput) (domain.Discount, error) {
+	var out domain.Discount
+	err := s.tx.RunInTx(ctx, func(ctx context.Context) error {
+		gate, err := s.gate(ctx, in.OrgId, in.Code, in.CouponId, in.CustomerId, in.Currency, in.Amount)
+		if err != nil {
+			return err
+		}
+		if gate.reason != "" {
+			return lib.NewCustomError(lib.BadRequestError, "coupon refused: "+gate.reason, nil)
+		}
+
+		couponCodeId := ""
+		if gate.hasCode {
+			couponCodeId = gate.code.Id
+		}
+		discount, err := domain.NewDiscount(domain.NewDiscountInput{
+			OrgId:          in.OrgId,
+			CouponId:       gate.coupon.Id,
+			CouponCodeId:   couponCodeId,
+			CustomerId:     in.CustomerId,
+			SubscriptionId: in.SubscriptionId,
+			OrderId:        in.OrderId,
+			StartCycle:     in.StartCycle,
+		})
+		if err != nil {
+			return err
+		}
+		created, err := s.discounts.Create(ctx, discount)
+		if err != nil {
+			return err
+		}
+		if gate.hasCode {
+			if err := s.codes.IncrementRedeemed(ctx, in.OrgId, gate.code.Id); err != nil {
+				return err
+			}
+		}
+		out = created
+		return nil
+	})
+	if err != nil {
+		return domain.Discount{}, err
+	}
+	return out, nil
+}
