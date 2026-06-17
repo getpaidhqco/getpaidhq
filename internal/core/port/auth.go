@@ -168,6 +168,13 @@ const (
 
 	ActionRecordUsage Action = "RecordUsage"
 	ActionReadUsage   Action = "ReadUsage"
+
+	ActionCreateCoupon     Action = "CreateCoupon"
+	ActionListCoupons      Action = "ListCoupons"
+	ActionGetCoupon        Action = "GetCoupon"
+	ActionUpdateCoupon     Action = "UpdateCoupon"
+	ActionDeleteCoupon     Action = "DeleteCoupon"
+	ActionManageCouponCode Action = "ManageCouponCode"
 )
 
 // Authz enforces authorization policies.
