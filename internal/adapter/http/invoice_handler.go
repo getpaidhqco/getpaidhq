@@ -23,11 +23,11 @@ func NewInvoiceHandler(invoiceService *service.InvoiceService, logger port.Logge
 
 func (h *InvoiceHandler) RegisterRoutes(srv *fuego.Server) {
 	g := fuego.Group(srv, "/invoices", option.Tags("Invoices"))
-	fuego.Get(g, "", h.List, option.Summary("List invoices"))
+	fuego.Get(g, "", h.List, append(PaginationParams(), option.Summary("List invoices"))...)
 	fuego.Get(g, "/{id}", h.Get, option.Summary("Get an invoice"))
 
 	subs := fuego.Group(srv, "/subscriptions", option.Tags("Invoices"))
-	fuego.Get(subs, "/{id}/invoices", h.ListBySubscription, option.Summary("List a subscription's invoices"))
+	fuego.Get(subs, "/{id}/invoices", h.ListBySubscription, append(PaginationParams(), option.Summary("List a subscription's invoices"))...)
 }
 
 func (h *InvoiceHandler) List(c fuego.ContextNoBody) (ListResponse, error) {

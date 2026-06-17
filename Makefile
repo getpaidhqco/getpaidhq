@@ -35,6 +35,10 @@ docs-cli: ## Regenerate the CLI markdown reference (docs/cli/reference)
 	rm -rf docs/cli/reference && mkdir -p docs/cli/reference
 	go run ./cmd/gphq docs --dir docs/cli/reference
 
+.PHONY: openapi
+openapi: ## Regenerate the OpenAPI contract (docs/openapi.yml)
+	go run ./cmd/openapi-export
+
 .PHONY: clean
 clean: ## Remove build artifacts
 	rm -f $(BIN)

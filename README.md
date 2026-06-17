@@ -63,7 +63,7 @@ The database schema is managed with [Goose](https://github.com/pressly/goose) mi
 
 Hatchet needs a token minted before the first run — the full bootstrap is in [docs/internal/local-dev-hatchet.md](docs/internal/local-dev-hatchet.md). Run `make help` to see every available target.
 
-The REST API is mounted under `/api`. The spec is `openapi.json`, regenerated at the repo root on boot, and Swagger UI optionally served at `/swagger/`.
+The REST API is mounted under `/api`. The running server serves its live OpenAPI spec as JSON at `GET /openapi.json`. The committed contract is `docs/openapi.yml`, regenerated on demand with `make openapi` — the server never writes it on boot.
 
 ## CLI
 

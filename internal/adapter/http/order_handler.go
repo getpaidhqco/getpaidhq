@@ -32,7 +32,7 @@ func (o *OrderHandler) RegisterRoutes(s *fuego.Server) {
 	fuego.Post(g, "", o.CreateOrder, option.Summary("Create an order"))
 	fuego.Post(g, "/{id}/complete", o.CompleteOrder, option.Summary("Complete an order"))
 	fuego.Get(g, "/{id}", o.Get, option.Summary("Get an order"))
-	fuego.Get(g, "", o.List, option.Summary("List orders"))
+	fuego.Get(g, "", o.List, append(PaginationParams(), option.Summary("List orders"))...)
 	fuego.Get(g, "/{id}/subscriptions", o.ListSubscriptions, option.Summary("List subscriptions for an order"))
 }
 

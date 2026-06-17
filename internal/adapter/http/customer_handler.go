@@ -25,7 +25,7 @@ func NewCustomerHandler(customerService *service.CustomerService, logger port.Lo
 
 func (cc *CustomerHandler) RegisterRoutes(s *fuego.Server) {
 	g := fuego.Group(s, "/customers", option.Tags("Customers"))
-	fuego.Get(g, "", cc.List, option.Summary("List customers"))
+	fuego.Get(g, "", cc.List, append(PaginationParams(), option.Summary("List customers"))...)
 	fuego.Get(g, "/{id}", cc.Get, option.Summary("Get a customer"))
 	fuego.Post(g, "", cc.Create, option.Summary("Create a customer"))
 	fuego.Post(g, "/{id}/payment-methods", cc.CreateCustomerPaymentMethod, option.Summary("Add a payment method to a customer"))

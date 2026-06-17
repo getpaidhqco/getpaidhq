@@ -23,7 +23,7 @@ func NewCouponHandler(svc *service.CouponService, logger port.Logger, authz port
 func (h *CouponHandler) RegisterRoutes(s *fuego.Server) {
 	g := fuego.Group(s, "/coupons", option.Tags("Coupons"))
 	fuego.Post(g, "", h.Create, option.Summary("Create a coupon"))
-	fuego.Get(g, "", h.List, option.Summary("List coupons"))
+	fuego.Get(g, "", h.List, append(PaginationParams(), option.Summary("List coupons"))...)
 	fuego.Get(g, "/{id}", h.Get, option.Summary("Get a coupon"))
 	fuego.Patch(g, "/{id}", h.Update, option.Summary("Update a coupon (name/active/metadata only)"))
 	fuego.Delete(g, "/{id}", h.Delete, option.Summary("Delete a coupon"))

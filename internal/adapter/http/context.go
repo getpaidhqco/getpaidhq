@@ -2,11 +2,26 @@ package handler
 
 import (
 	"github.com/go-fuego/fuego"
+	"github.com/go-fuego/fuego/option"
+	"github.com/go-fuego/fuego/param"
 
 	"getpaidhq/internal/adapter/http/middleware"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 )
+
+// PaginationParams declares the standard pagination/sorting query parameters
+// in the OpenAPI spec for a list route. Pair it with GetPagination, which
+// reads the same four keys; declaring them here keeps Fuego from logging
+// "query parameter not expected in OpenAPI spec" warnings.
+func PaginationParams() []fuego.RouteOption {
+	return []fuego.RouteOption{
+		option.QueryInt("page", "Page number (0-based)", param.Default(0)),
+		option.QueryInt("limit", "Items per page", param.Default(10)),
+		option.Query("sort_by", "Field to sort by", param.Default("created_at")),
+		option.Query("sort_order", "Sort direction (asc or desc)", param.Default("desc")),
+	}
+}
 
 // AuthUserFrom reads the authenticated user from the Fuego context.
 // AuthnWrapperMiddleware stores it on the request context; this helper

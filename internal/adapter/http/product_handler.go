@@ -27,21 +27,21 @@ func NewProductHandler(productService *service.ProductService, logger port.Logge
 
 func (s *ProductHandler) RegisterRoutes(srv *fuego.Server) {
 	products := fuego.Group(srv, "/products", option.Tags("Products"))
-	fuego.Get(products, "", s.List, option.Summary("List products"))
+	fuego.Get(products, "", s.List, append(PaginationParams(), option.Summary("List products"))...)
 	fuego.Get(products, "/{id}", s.Get, option.Summary("Get a product"))
 	fuego.Post(products, "", s.Create, option.Summary("Create a product"))
 	fuego.Patch(products, "/{id}", s.Update, option.Summary("Update a product"))
 	fuego.Delete(products, "/{id}", s.Delete, option.Summary("Delete a product"))
 	fuego.Post(products, "/{id}/archive", s.Archive, option.Summary("Archive a product"))
 	fuego.Post(products, "/{id}/unarchive", s.Unarchive, option.Summary("Unarchive a product"))
-	fuego.Get(products, "/{id}/variants", s.ListVariants, option.Summary("List variants of a product"))
+	fuego.Get(products, "/{id}/variants", s.ListVariants, append(PaginationParams(), option.Summary("List variants of a product"))...)
 	fuego.Post(products, "/{id}/variants", s.CreateVariant, option.Summary("Add a variant to a product"))
 
 	variants := fuego.Group(srv, "/variants", option.Tags("Variants"))
 	fuego.Get(variants, "/{variantId}", s.GetVariant, option.Summary("Get a variant"))
 	fuego.Put(variants, "/{variantId}", s.UpdateVariant, option.Summary("Update a variant"))
 	fuego.Delete(variants, "/{variantId}", s.DeleteVariant, option.Summary("Delete a variant"))
-	fuego.Get(variants, "/{variantId}/prices", s.ListPrices, option.Summary("List prices of a variant"))
+	fuego.Get(variants, "/{variantId}/prices", s.ListPrices, append(PaginationParams(), option.Summary("List prices of a variant"))...)
 
 	prices := fuego.Group(srv, "/prices", option.Tags("Prices"))
 	fuego.Get(prices, "/{priceId}", s.GetPrice, option.Summary("Get a price"))

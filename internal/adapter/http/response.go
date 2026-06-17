@@ -12,7 +12,6 @@ import (
 // ---------------------------------------------------------------------------
 
 // ListResponse is a generic response for list endpoints.
-// swagger:response listResponse
 type ListResponse struct {
 	Data any  `json:"data"`
 	Meta Meta `json:"meta"`

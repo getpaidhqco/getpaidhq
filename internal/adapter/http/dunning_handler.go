@@ -44,12 +44,12 @@ func NewDunningHandler(
 
 func (h *DunningHandler) RegisterRoutes(s *fuego.Server) {
 	campaigns := fuego.Group(s, "/dunning/campaigns", option.Tags("Dunning Campaigns"))
-	fuego.Get(campaigns, "", h.ListCampaigns, option.Summary("List dunning campaigns"))
+	fuego.Get(campaigns, "", h.ListCampaigns, append(PaginationParams(), option.Summary("List dunning campaigns"))...)
 	fuego.Get(campaigns, "/{id}", h.GetCampaign, option.Summary("Get a dunning campaign"))
 	fuego.Patch(campaigns, "/{id}", h.UpdateCampaign, option.Summary("Update a dunning campaign"))
-	fuego.Get(campaigns, "/{id}/attempts", h.ListCampaignAttempts, option.Summary("List dunning campaign attempts"))
+	fuego.Get(campaigns, "/{id}/attempts", h.ListCampaignAttempts, append(PaginationParams(), option.Summary("List dunning campaign attempts"))...)
 	fuego.Post(campaigns, "/{id}/attempts", h.TriggerManualAttempt, option.Summary("Trigger a manual dunning attempt"))
-	fuego.Get(campaigns, "/{id}/communications", h.ListCampaignCommunications, option.Summary("List dunning campaign communications"))
+	fuego.Get(campaigns, "/{id}/communications", h.ListCampaignCommunications, append(PaginationParams(), option.Summary("List dunning campaign communications"))...)
 
 	tokens := fuego.Group(s, "/payment-tokens", option.Tags("Payment Update Tokens"))
 	fuego.Post(tokens, "/verify", h.VerifyPaymentToken, option.Summary("Verify a payment update token"))
@@ -59,7 +59,7 @@ func (h *DunningHandler) RegisterRoutes(s *fuego.Server) {
 	fuego.Post(adminTokens, "/{id}/payment-tokens", h.CreatePaymentToken, option.Summary("Admin: create a payment update token"))
 
 	configs := fuego.Group(s, "/dunning/configurations", option.Tags("Dunning Configurations"))
-	fuego.Get(configs, "", h.ListConfigurations, option.Summary("List dunning configurations"))
+	fuego.Get(configs, "", h.ListConfigurations, append(PaginationParams(), option.Summary("List dunning configurations"))...)
 	fuego.Get(configs, "/{id}", h.GetConfiguration, option.Summary("Get a dunning configuration"))
 	fuego.Post(configs, "", h.CreateConfiguration, option.Summary("Create a dunning configuration"))
 	fuego.Patch(configs, "/{id}", h.UpdateConfiguration, option.Summary("Update a dunning configuration"))

@@ -12,11 +12,6 @@ import (
 	"getpaidhq/internal/core/port"
 )
 
-// Handlers groups every HTTP handler the application registers. The full
-// app builds these against live services in NewApp. Route registration
-// reads only metadata, so nil services are also safe for spec-only
-// constructions (Fuego writes the OpenAPI spec to openapi.json at the
-// repo root on s.Run() — see opts below).
 type Handlers struct {
 	Health         *handler.HealthHandler
 	Order          *handler.OrderHandler
@@ -41,9 +36,6 @@ type Handlers struct {
 	Coupon         *handler.CouponHandler
 }
 
-// ServerDeps groups the cross-cutting wiring the server needs that is
-// independent of business handlers: middleware, the validator instance,
-// and the listen address.
 type ServerDeps struct {
 	Addr           string
 	Logger         port.Logger
@@ -127,15 +119,15 @@ func BuildServer(deps ServerDeps, h Handlers) *fuego.Server {
 		fuego.WithEngineOptions(fuego.WithErrorHandler(handler.PassThroughApiError)),
 		fuego.WithGlobalMiddlewares(mws...),
 		fuego.WithoutStartupMessages(),
-		// Canonical OpenAPI artifact: ./openapi.json at the repo root.
-		// Fuego writes it on s.Run() (engine.go:OutputOpenAPISpec). The default
-		// would land it at doc/openapi.json; we keep it at the project root
-		// because it is the API contract every other repo in the workspace
-		// consumes (getpaidhq-sdk, gphq-web, gphq-checkout). The same in-
-		// memory spec is also served at runtime from /swagger/openapi.json
-		// for Swagger UI — that endpoint is not read from disk.
+		// OpenAPI: the running server serves the live, in-memory spec as JSON
+		// at GET /openapi.json and nothing else — no Swagger UI, and no file is
+		// ever written to disk (DisableLocalSave). Booting the server therefore
+		// produces zero git churn. The committed contract is generated on demand
+		// by `make openapi` (cmd/openapi-export -> docs/openapi.yml).
 		fuego.WithEngineOptions(fuego.WithOpenAPIConfig(fuego.OpenAPIConfig{
-			JSONFilePath: "openapi.json",
+			SpecURL:          "/openapi.json",
+			DisableLocalSave: true,
+			DisableSwaggerUI: true,
 		})),
 	}
 	if deps.Validator != nil {
