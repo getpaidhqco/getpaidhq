@@ -65,6 +65,10 @@ Hatchet needs a token minted before the first run — the full bootstrap is in [
 
 The REST API is mounted under `/api`. The spec is `openapi.json`, regenerated at the repo root on boot, and Swagger UI optionally served at `/swagger/`.
 
+## CLI
+
+`gphq` is a command-line client for the API, covering every endpoint with table or JSON output. Install it with `make install-cli` (or `make build-cli` for a local `bin/gphq`), then point it at a server with `GPHQ_BASE_URL` and `GPHQ_API_KEY`. See [docs/cli/README.md](docs/cli/README.md) for the guide and command reference.
+
 ## Documentation
 
 - [docs/](docs/README.md) — documentation index
