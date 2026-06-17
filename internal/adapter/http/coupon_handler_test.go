@@ -103,10 +103,25 @@ func (r *hFakeCouponCodeRepo) FindByCode(_ context.Context, _, code string) (dom
 	return c, nil
 }
 
-type hFakeDiscountRepo struct{ port.DiscountRepository }
+type hFakeDiscountRepo struct {
+	port.DiscountRepository
+	byId map[string]domain.Discount
+}
 
 func (r *hFakeDiscountRepo) Create(_ context.Context, d domain.Discount) (domain.Discount, error) {
+	if r.byId == nil {
+		r.byId = map[string]domain.Discount{}
+	}
+	r.byId[d.Id] = d
 	return d, nil
+}
+func (r *hFakeDiscountRepo) FindById(_ context.Context, _, id string) (domain.Discount, error) {
+	if r.byId != nil {
+		if d, ok := r.byId[id]; ok {
+			return d, nil
+		}
+	}
+	return domain.Discount{}, lib.NewCustomError(lib.NotFoundError, "not found", nil)
 }
 func (r *hFakeDiscountRepo) CountByCoupon(_ context.Context, _, _ string) (int, error) {
 	return 0, nil
@@ -281,5 +296,52 @@ func TestCouponHandler_CreateCode(t *testing.T) {
 		assert.Equal(t, "SAVE10", got.Code) // service upcases
 		assert.Equal(t, c.Id, got.CouponId)
 		assert.True(t, got.Active)
+	})
+}
+
+func TestCouponHandler_GetDiscount(t *testing.T) {
+	t.Run("admin gets a discount by id", func(t *testing.T) {
+		cr := newHFakeCouponRepo()
+		ccr := newHFakeCouponCodeRepo()
+		dr := &hFakeDiscountRepo{byId: map[string]domain.Discount{}}
+
+		// Seed a discount directly into the repo.
+		d := domain.Discount{
+			Id:         "disc_test_1",
+			OrgId:      "org_1",
+			CouponId:   "cou_abc",
+			CustomerId: "cus_xyz",
+			OrderId:    "ord_001",
+			Status:     domain.DiscountStatusActive,
+			StartCycle: 0,
+		}
+		dr.byId[d.Id] = d
+
+		svc := service.NewCouponService(cr, ccr, dr, &hFakePriorPayments{}, noopTxManager{}, silentLogger{})
+		h := NewCouponHandler(svc, silentLogger{}, newRealAuthz(t))
+
+		ts := newTestServer(fixedAuthMiddleware(adminUser()))
+		h.RegisterRoutes(ts.api())
+
+		rec := doJSON(t, ts, http.MethodGet, "/api/discounts/disc_test_1", nil)
+
+		require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+		var got DiscountResponse
+		decodeJSON(t, rec, &got)
+		assert.Equal(t, d.Id, got.Id)
+		assert.Equal(t, d.CouponId, got.CouponId)
+		assert.Equal(t, d.CustomerId, got.CustomerId)
+		assert.Equal(t, string(d.Status), got.Status)
+	})
+
+	t.Run("missing discount returns not_found", func(t *testing.T) {
+		h := newCouponHandlerForTest(t, newHFakeCouponRepo(), newHFakeCouponCodeRepo())
+
+		ts := newTestServer(fixedAuthMiddleware(adminUser()))
+		h.RegisterRoutes(ts.api())
+
+		rec := doJSON(t, ts, http.MethodGet, "/api/discounts/no_such_id", nil)
+
+		assertErrorEnvelope(t, rec, http.StatusNotFound, string(lib.NotFoundError))
 	})
 }

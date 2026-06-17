@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"time"
 
@@ -111,6 +112,9 @@ type gateResult struct {
 	reason  string
 }
 
+// Validate previews the discount a code would produce. The preview computes the
+// discount in isolation and assumes no other discounts are already applied to
+// the target; stacking with pre-existing discounts is resolved later at billing time.
 func (s *CouponService) Validate(ctx context.Context, orgId, code, customerId, currency string, lines []domain.DiscountableLine) (DiscountPreview, error) {
 	gate, err := s.gate(ctx, orgId, code, "", customerId, currency, subtotal(lines))
 	if err != nil {
@@ -141,7 +145,10 @@ func (s *CouponService) gate(ctx context.Context, orgId, code, couponId, custome
 		code = strings.ToUpper(strings.TrimSpace(code))
 		cc, err := s.codes.FindByCode(ctx, orgId, code)
 		if err != nil {
-			return gateResult{reason: "code_not_found"}, nil
+			if errors.Is(err, port.ErrNotFound) {
+				return gateResult{reason: "code_not_found"}, nil
+			}
+			return gateResult{}, err
 		}
 		res.code = cc
 		res.hasCode = true
@@ -177,7 +184,10 @@ func (s *CouponService) gate(ctx context.Context, orgId, code, couponId, custome
 
 	coupon, err := s.coupons.FindById(ctx, orgId, couponId)
 	if err != nil {
-		return gateResult{reason: "code_not_found"}, nil
+		if errors.Is(err, port.ErrNotFound) {
+			return gateResult{reason: "code_not_found"}, nil
+		}
+		return gateResult{}, err
 	}
 	res.coupon = coupon
 
@@ -219,6 +229,10 @@ func subtotal(lines []domain.DiscountableLine) int64 {
 		t += l.Total
 	}
 	return t
+}
+
+func (s *CouponService) GetDiscount(ctx context.Context, orgId, id string) (domain.Discount, error) {
+	return s.discounts.FindById(ctx, orgId, id)
 }
 
 func (s *CouponService) Redeem(ctx context.Context, in port.RedeemCouponInput) (domain.Discount, error) {

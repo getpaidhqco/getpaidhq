@@ -32,6 +32,9 @@ func (h *CouponHandler) RegisterRoutes(s *fuego.Server) {
 
 	cg := fuego.Group(s, "/coupon-codes", option.Tags("Coupons"))
 	fuego.Patch(cg, "/{id}", h.UpdateCode, option.Summary("Update a coupon code (active/metadata)"))
+
+	dg := fuego.Group(s, "/discounts", option.Tags("Coupons"))
+	fuego.Get(dg, "/{id}", h.GetDiscount, option.Summary("Get a discount"))
 }
 
 // CouponResponse is the public shape returned for a coupon.
@@ -191,4 +194,39 @@ func (h *CouponHandler) UpdateCode(c fuego.ContextWithBody[port.UpdateCouponCode
 		return CouponCodeResponse{}, NewApiErrorFromError(err)
 	}
 	return couponCodeResponse(code), nil
+}
+
+// DiscountResponse is the public shape returned for a discount.
+type DiscountResponse struct {
+	Id             string `json:"id"`
+	CouponId       string `json:"coupon_id"`
+	CustomerId     string `json:"customer_id"`
+	SubscriptionId string `json:"subscription_id,omitempty"`
+	OrderId        string `json:"order_id,omitempty"`
+	Status         string `json:"status"`
+	StartCycle     int    `json:"start_cycle"`
+}
+
+func discountResponse(d domain.Discount) DiscountResponse {
+	return DiscountResponse{
+		Id:             d.Id,
+		CouponId:       d.CouponId,
+		CustomerId:     d.CustomerId,
+		SubscriptionId: d.SubscriptionId,
+		OrderId:        d.OrderId,
+		Status:         string(d.Status),
+		StartCycle:     d.StartCycle,
+	}
+}
+
+func (h *CouponHandler) GetDiscount(c fuego.ContextNoBody) (DiscountResponse, error) {
+	authUser := AuthUserFrom(c)
+	if !h.authz.Enforce(authUser, port.ActionGetCoupon, c.PathParam("id")) {
+		return DiscountResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+	}
+	d, err := h.service.GetDiscount(c.Context(), authUser.OrgId, c.PathParam("id"))
+	if err != nil {
+		return DiscountResponse{}, NewApiErrorFromError(err)
+	}
+	return discountResponse(d), nil
 }
