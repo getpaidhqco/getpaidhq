@@ -25,40 +25,28 @@ multiple pricing schemes and tiered pricing, across multiple billing intervals a
 with configurable scope, customer communications, payment-update
 tokens so customers can fix their own details, and dunning analytics.
 
-**Discounts** — a discount and redemption system applied across orders and
-subscriptions.
+**Checkouts & Payment links** — hosted checkouts and shareable links with pre-populated customer details and carts.
 
-**Payment links** — shareable links with pre-populated customer details and carts.
+## Why it exists
 
-**Checkout** — carts and sessions backing a hosted checkout flow.
+I built the first version because I needed to process subscription payments using a local payment processor. 
+The processor's native subscription processing was bare bones and lacking modern features like 
+smart retries, dunning, easy details updates etc., and I couldn't find a solution that fit my needs.
+Especially it needed to be easy to deploy and support, and relatively cost-effective to host.
 
-**Webhooks** — outbound webhook subscriptions to react to billing events in your
-own systems.
-
-**Reporting** — built-in reporting endpoints over billing and dunning data.
-
-**Multi-tenant by construction** — every entity is scoped to an organization,
-with users, roles, and API keys per org.
-
-**Durable workflows** — billing, subscription, dunning, and webhook workflows.
+This is the evolution of that first release (which is still running in production) and expanded to 
+include more features like metering and usage based billling, and flexibility to support different technologies and payment processors.
 
 ## How it's built
 
-**Ports and adapters.** easy to swop underlying technologies and add new adapters.
+**Ports and adapters** - Hexagonal architecture makes it easy to add/swap underlying technologies and vendors.
 
-**Pluggable auth.** pluggable user authenticators (Cognito, Clerk)
+**Pluggable auth** makes user authenticators easy to change (Cognito, Clerk)
 
-Authorization is policy-based through Cedar (`policy.cedar`).
+**Durable workflows** ensures scalable and fault-tolerant processing.
 
-**Durable where it counts.** Anything that touches money — billing runs, dunning
-campaigns, webhook delivery — runs as a durable workflow that resumes cleanly
-after a crash or restart.
+**Self-hostable** - Easy to deploy, AGPLv3
 
-**Self-hostable, no lock-in.** AGPLv3, your infrastructure, your processor, your
-data.
-
-Built in Go. See [System architecture](docs/architecture/system-hexagonal.md)
-for the full picture.
 
 ## Getting started
 
@@ -80,10 +68,6 @@ The REST API is mounted under `/api`. The spec is `openapi.json`, regenerated at
 ## Documentation
 
 - [docs/](docs/README.md) — documentation index
-- [System architecture](docs/architecture/system-hexagonal.md) — the ports-and-adapters design
-- [Workflows](docs/workflows/README.md) — every durable workflow, with diagrams
-- [Workflow engine abstraction](docs/workflows/workflow-engine-abstraction.md) — how Hatchet and Temporal stay interchangeable
-- [ADRs](docs/adr/) — accepted architectural decisions
 
 ## License
 
