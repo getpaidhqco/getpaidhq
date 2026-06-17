@@ -49,7 +49,7 @@ func errUnsupportedEngine(name string) error {
 // USAGE_DATABASE_URL is set it opens a SEPARATE connection so usage events can scale
 // (and be retained/expired) independently of the operational DB; otherwise it reuses
 // the operational handle (the v1 default — events live alongside the rest). The schema
-// (incl. the dedup unique index) is owned by Prisma; nothing is created at runtime.
+// (incl. the dedup unique index) is managed via Goose migrations; nothing is created at runtime.
 func usageDB(env lib.Env, operational *gorm.DB, logger lib.Logger) (*gorm.DB, error) {
 	if env.UsageDatabaseURL == "" {
 		return operational, nil
@@ -151,7 +151,7 @@ func NewApp() (*App, error) {
 	}
 
 	// Reporting persistence has been intentionally torn down — the
-	// previous implementation was incoherent with the Prisma reporting
+	// previous implementation was incoherent with the reporting
 	// schema (see internal/adapter/postgres/report_repo.go). When it is
 	// revived, open REPORTING_DATABASE_URL here and wire NewReportRepo
 	// into the new service / handler.

@@ -11,7 +11,7 @@ import (
 // webhookSubscriptionRow is the postgres on-the-wire shape of a
 // WebhookSubscription. Package-internal.
 //
-// Events maps to a native Postgres text[] column (Prisma `events String[]`), so it
+// Events maps to a native Postgres text[] column (schema: `events text[]`), so it
 // must use pq.StringArray. The previous `serializer:json` tag JSON-encoded the slice
 // and wrote `["x"]` into the text[] column, which Postgres rejects with
 // "malformed array literal" — breaking every webhook create.
