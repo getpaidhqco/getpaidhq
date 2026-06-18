@@ -11,13 +11,11 @@ import (
 
 	"github.com/go-fuego/fuego"
 	"github.com/nats-io/nats.go/jetstream"
-	"gorm.io/gorm"
 
 	"getpaidhq/internal/adapter/apikey"
 	"getpaidhq/internal/adapter/cedar"
 	"getpaidhq/internal/adapter/checkout_com"
 	"getpaidhq/internal/adapter/clerk"
-	"getpaidhq/internal/adapter/clickhouse"
 	"getpaidhq/internal/adapter/cron"
 	"getpaidhq/internal/adapter/crypto"
 	"getpaidhq/internal/adapter/hatchet"
@@ -27,7 +25,6 @@ import (
 	"getpaidhq/internal/adapter/memory"
 	"getpaidhq/internal/adapter/nats"
 	"getpaidhq/internal/adapter/paystack"
-	"getpaidhq/internal/adapter/storage/postgresgorm"
 	"getpaidhq/internal/adapter/redis"
 	"getpaidhq/internal/adapter/temporal"
 	temporalact "getpaidhq/internal/adapter/temporal/activities"
@@ -43,46 +40,6 @@ import (
 // startup config error cleanly.
 func errUnsupportedEngine(name string) error {
 	return fmt.Errorf("unsupported WORKFLOW_ENGINE %q (want 'hatchet' or 'temporal')", name)
-}
-
-// usageDB returns the database handle backing the Postgres usage-event store. When
-// USAGE_DATABASE_URL is set it opens a SEPARATE connection so usage events can scale
-// (and be retained/expired) independently of the operational DB; otherwise it reuses
-// the operational handle (the v1 default — events live alongside the rest). The schema
-// (incl. the dedup unique index) is managed via Goose migrations; nothing is created at runtime.
-func usageDB(env lib.Env, operational *gorm.DB, logger lib.Logger) (*gorm.DB, error) {
-	if env.UsageDatabaseURL == "" {
-		return operational, nil
-	}
-	separate, err := postgresgorm.NewDatabase(env.UsageDatabaseURL, logger, env.GormLogLevel)
-	if err != nil {
-		return nil, fmt.Errorf("open usage database: %w", err)
-	}
-	return separate, nil
-}
-
-// buildEventStore selects the usage-event backend from USAGE_EVENT_STORE:
-//   - "postgres" (default): events in the Postgres usage store (separate DB when
-//     USAGE_DATABASE_URL is set, else the operational DB).
-//   - "clickhouse": the ClickHouse adapter (CLICKHOUSE_DSN).
-func buildEventStore(env lib.Env, db *gorm.DB, logger lib.Logger) (port.EventStore, error) {
-	udb, err := usageDB(env, db, logger)
-	if err != nil {
-		return nil, err
-	}
-	pg := postgresgorm.NewEventStore(udb)
-	switch env.UsageEventStore {
-	case "", "postgres":
-		return pg, nil
-	case "clickhouse":
-		ch, err := clickhouse.NewEventStore(env.ClickhouseDSN)
-		if err != nil {
-			return nil, err
-		}
-		return ch, nil
-	default:
-		return nil, fmt.Errorf("unsupported USAGE_EVENT_STORE %q (want 'postgres' or 'clickhouse')", env.UsageEventStore)
-	}
 }
 
 // buildIngestor selects the durable write path from USAGE_INGEST_MODE:
@@ -117,8 +74,10 @@ func buildIngestor(env lib.Env, store port.EventStore, pubsub port.PubSub, logge
 // App holds all wired dependencies for the application.
 type App struct {
 	Server *fuego.Server
-	DB     *gorm.DB
-	Env    lib.Env
+	// DB is the raw operational handle (*gorm.DB or *pgxpool.Pool, per DB_DRIVER),
+	// retained for diagnostics/health; the app talks to storage through ports.
+	DB  any
+	Env lib.Env
 	// closers are long-lived resources (pubsub, workflow engine worker, cron
 	// scheduler) torn down on shutdown, in reverse construction order.
 	closers []io.Closer
@@ -143,53 +102,44 @@ func NewApp() (*App, error) {
 	}
 
 	// ---------------------------------------------------------------------------
-	// Database
+	// Storage adapter (gorm | pgx, selected by DB_DRIVER) — every repo, the tx
+	// manager, the event store and the prior-payment checker come from one
+	// driver-specific builder. Downstream code depends only on the ports.
+	//
+	// Reporting persistence is intentionally not wired (see report_repo.go).
 	// ---------------------------------------------------------------------------
-	db, err := postgresgorm.NewDatabase(env.Get("DATABASE_URL"), logger, env.GormLogLevel)
+	repos, err := newRepoSet(env, logger)
 	if err != nil {
 		return nil, err
 	}
-
-	// Reporting persistence has been intentionally torn down — the
-	// previous implementation was incoherent with the reporting
-	// schema (see internal/adapter/storage/postgresgorm/report_repo.go). When it is
-	// revived, open REPORTING_DATABASE_URL here and wire NewReportRepo
-	// into the new service / handler.
-
-	txManager := postgresgorm.NewTxManager(db)
-
-	// ---------------------------------------------------------------------------
-	// Repositories
-	// ---------------------------------------------------------------------------
-	subRepo := postgresgorm.NewSubscriptionRepo(db)
-	orderRepo := postgresgorm.NewOrderRepo(db)
-	customerRepo := postgresgorm.NewCustomerRepo(db)
-	paymentRepo := postgresgorm.NewPaymentRepo(db)
-	paymentMethodRepo := postgresgorm.NewPaymentMethodRepo(db)
-	productRepo := postgresgorm.NewProductRepo(db)
-	variantRepo := postgresgorm.NewVariantRepo(db)
-	priceRepo := postgresgorm.NewPriceRepo(db)
-	sessionRepo := postgresgorm.NewSessionRepo(db)
-	cartRepo := postgresgorm.NewCartRepo(db)
-	orgRepo := postgresgorm.NewOrgRepo(db)
-	userRepo := postgresgorm.NewUserRepo(db)
-	settingRepo := postgresgorm.NewSettingRepo(db)
-	webhookSubRepo := postgresgorm.NewWebhookSubscriptionRepo(db)
-	apiKeyRepo := postgresgorm.NewApiKeyRepo(db)
-	idempotencyRepo := postgresgorm.NewIdempotencyKeyRepo(db)
-	pspRepo := postgresgorm.NewPspRepo(db)
-	metadataRepo := postgresgorm.NewMetadataStoreRepo(db)
-	dunningRepo := postgresgorm.NewDunningRepo(db)
-	invoiceRepo := postgresgorm.NewInvoiceRepo(db)
-	meterRepo := postgresgorm.NewMeterRepo(db)
-	couponRepo := postgresgorm.NewCouponRepo(db)
-	couponCodeRepo := postgresgorm.NewCouponCodeRepo(db)
-	discountRepo := postgresgorm.NewDiscountRepo(db)
-	priorPaymentChecker := postgresgorm.NewPriorPaymentChecker(db)
-	eventStore, err := buildEventStore(env, db, logger)
-	if err != nil {
-		return nil, err
-	}
+	db := repos.operationalDB
+	txManager := repos.tx
+	subRepo := repos.subscription
+	orderRepo := repos.order
+	customerRepo := repos.customer
+	paymentRepo := repos.payment
+	paymentMethodRepo := repos.paymentMethod
+	productRepo := repos.product
+	variantRepo := repos.variant
+	priceRepo := repos.price
+	sessionRepo := repos.session
+	cartRepo := repos.cart
+	orgRepo := repos.org
+	userRepo := repos.user
+	settingRepo := repos.setting
+	webhookSubRepo := repos.webhookSub
+	apiKeyRepo := repos.apiKey
+	idempotencyRepo := repos.idempotency
+	pspRepo := repos.psp
+	metadataRepo := repos.metadata
+	dunningRepo := repos.dunning
+	invoiceRepo := repos.invoice
+	meterRepo := repos.meter
+	couponRepo := repos.coupon
+	couponCodeRepo := repos.couponCode
+	discountRepo := repos.discount
+	priorPaymentChecker := repos.priorPaymentChecker
+	eventStore := repos.eventStore
 
 	// ---------------------------------------------------------------------------
 	// Infrastructure adapters
@@ -401,7 +351,9 @@ func NewApp() (*App, error) {
 	// Collect resources that own goroutines / connections so Run can tear them
 	// down on shutdown. The workflow engine (Hatchet/Temporal worker) and cron
 	// scheduler expose Close() via io.Closer; pubsub always does.
-	closers := []io.Closer{pubsub}
+	// repos.close (pool/sql.DB teardown) is registered first so LIFO shutdown
+	// closes the database last, after every worker that might still use it.
+	closers := []io.Closer{closerFunc(func() error { repos.close(); return nil }), pubsub}
 	// The jetstream usage consumer shares the NATS connection; register it AFTER
 	// pubsub so LIFO shutdown stops the consume loop before the connection drains.
 	if ingestCloser != nil {
