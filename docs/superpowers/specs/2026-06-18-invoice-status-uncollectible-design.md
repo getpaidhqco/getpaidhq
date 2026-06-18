@@ -1,12 +1,11 @@
-# Invoice status: Stripe-aligned semantics (uncollectible, no invoice-level unpaid)
+# Invoice status: uncollectible, no invoice-level unpaid
 
 **Date:** 2026-06-18
 **Repo:** `gphq-server` (branch `worktree-invoice-uncollectible`, off `origin/main`)
 
 ## Goal
 
-Make the **invoice** status model mirror Stripe and stop conflating "a charge attempt
-failed" with "we gave up collecting":
+Stop conflating "a charge attempt failed" with "we gave up collecting" on the **invoice**:
 
 - Invoice statuses become **`draft`, `open`, `paid`, `uncollectible`, `void`**.
 - **Remove `unpaid` from the invoice** entirely. `unpaid` lives on the **subscription**
