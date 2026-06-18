@@ -85,8 +85,9 @@ cancel is when the subscription is **`past_due`** (dunning in flight, a real fai
 - All go through the domain guards above (not a raw `setStatus`).
 
 ### Charge flow — `internal/core/service/subscription.go`
-- When the **first charge attempt** for a cycle begins, transition the invoice
-  `draft → open` (`MarkOpen`).
+- In `ChargeForBillingPeriod`, after `BuildForBillingPeriod` and before the gateway
+  charge (~line 725), `MarkOpen` the invoice (`draft → open`; no-op on retries since it's
+  already `open`). `draft` is momentary — the build-then-charge happen in one call.
 - In `HandleSubscriptionChargeFailure`: **delete the unconditional `MarkUnpaid` call.**
   - Retries remain → leave the invoice `open` (only the subscription moves to `past_due`).
   - In the exhaustion branch (`nextRetryDate.IsZero()`): for `FailureActionMarkUnpaid`
