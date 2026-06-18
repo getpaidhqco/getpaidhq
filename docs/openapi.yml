@@ -38,6 +38,15 @@ components:
           format: date-time
           type: string
       type: object
+    CancelSubscriptionRequest:
+      description: CancelSubscriptionRequest schema
+      properties:
+        outstanding_invoice:
+          nullable: true
+          type: string
+        reason:
+          type: string
+      type: object
     CartResponse:
       description: CartResponse schema
       properties:
@@ -6876,8 +6885,8 @@ paths:
         content:
           '*/*':
             schema:
-              $ref: '#/components/schemas/PauseSubscriptionRequest'
-        description: Request body for handler.PauseSubscriptionRequest
+              $ref: '#/components/schemas/CancelSubscriptionRequest'
+        description: Request body for handler.CancelSubscriptionRequest
         required: true
       responses:
         "200":
