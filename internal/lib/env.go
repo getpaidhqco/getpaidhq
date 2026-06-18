@@ -10,14 +10,17 @@ import (
 
 // Env has environment stored
 type Env struct {
-	ServerPort      string `mapstructure:"SERVER_PORT"`
-	WorkflowEngine  string `mapstructure:"WORKFLOW_ENGINE"`
-	Env             string `mapstructure:"ENV"`
-	LogOutput       string `mapstructure:"LOG_OUTPUT"`
-	LogLevel        string `mapstructure:"GETPAIDHQ_LOG_LEVEL"`
-	LogFormat       string `mapstructure:"LOG_FORMAT"`
-	GormLogLevel    string `mapstructure:"GORM_LOG_LEVEL"`
-	DBUrl           string `mapstructure:"DATABASE_URL"`
+	ServerPort     string `mapstructure:"SERVER_PORT"`
+	WorkflowEngine string `mapstructure:"WORKFLOW_ENGINE"`
+	Env            string `mapstructure:"ENV"`
+	LogOutput      string `mapstructure:"LOG_OUTPUT"`
+	LogLevel       string `mapstructure:"GETPAIDHQ_LOG_LEVEL"`
+	LogFormat      string `mapstructure:"LOG_FORMAT"`
+	GormLogLevel   string `mapstructure:"GORM_LOG_LEVEL"`
+	DBUrl          string `mapstructure:"DATABASE_URL"`
+	// DBDriver selects the storage adapter implementation: "gorm" (default) or
+	// "pgx". Both open DATABASE_URL/USAGE_DATABASE_URL; only one runs at a time.
+	DBDriver        string `mapstructure:"DB_DRIVER"`
 	CedarPolicyFile string `mapstructure:"CEDAR_POLICY"`
 
 	// UsageEventStore selects the backend for usage events: "postgres"
@@ -129,6 +132,7 @@ func NewEnv() Env {
 	viper.SetDefault("HATCHET_BILLING_SWEEP_INTERVAL", "5m")
 	viper.SetDefault("HATCHET_LOG_LEVEL", "warn")
 	viper.SetDefault("GORM_LOG_LEVEL", "warn")
+	viper.SetDefault("DB_DRIVER", "gorm")
 	viper.SetDefault("HATCHET_CLIENT_HOST_PORT", "localhost:7077")
 	viper.SetDefault("HATCHET_CLIENT_NAMESPACE", "getpaidhq")
 	viper.SetDefault("HATCHET_CLIENT_TLS_STRATEGY", "none")
@@ -151,6 +155,7 @@ func NewEnv() Env {
 	viper.BindEnv("LOG_FORMAT")
 	viper.BindEnv("GETPAIDHQ_LOG_LEVEL")
 	viper.BindEnv("GORM_LOG_LEVEL")
+	viper.BindEnv("DB_DRIVER")
 	viper.BindEnv("DATABASE_URL")
 	viper.BindEnv("CEDAR_POLICY")
 	viper.BindEnv("JWT_SECRET")
@@ -193,6 +198,7 @@ func NewEnv() Env {
 		env.LogLevel = viper.GetString("GETPAIDHQ_LOG_LEVEL")
 		env.LogFormat = viper.GetString("LOG_FORMAT")
 		env.GormLogLevel = viper.GetString("GORM_LOG_LEVEL")
+		env.DBDriver = viper.GetString("DB_DRIVER")
 		env.ClerkSecretKey = viper.GetString("CLERK_SECRET")
 		env.SecretsEncryptionKey = viper.GetString("SECRETS_ENCRYPTION_KEY")
 		env.WorkflowEngine = viper.GetString("WORKFLOW_ENGINE")

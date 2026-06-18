@@ -4,7 +4,7 @@ Everything logs through the injected `port.Logger`, backed by `log/slog`
 (`internal/lib/logger.go`). Third-party output is bridged into the same
 handler so one format and one set of level knobs covers the whole process:
 
-- **GORM** → `internal/adapter/postgres/gorm_logger.go` (implements GORM's
+- **GORM** → `internal/adapter/storage/postgresgorm/gorm_logger.go` (implements GORM's
   `logger.Interface` on top of `port.Logger`)
 - **Hatchet SDK** (client + worker) → `internal/adapter/hatchet/zerolog_bridge.go`
   (a zerolog sink that re-emits through `port.Logger`)
