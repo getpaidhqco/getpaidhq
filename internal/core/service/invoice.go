@@ -128,22 +128,34 @@ func (s *InvoiceService) ListBySubscription(ctx context.Context, orgId, subscrip
 	return s.invoiceRepository.FindBySubscriptionId(ctx, orgId, subscriptionId, p)
 }
 
+// MarkOpen finalizes a draft invoice for collection (draft -> open).
+func (s *InvoiceService) MarkOpen(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
+	return s.transition(ctx, orgId, invoiceId, (*domain.Invoice).MarkOpen)
+}
+
 // MarkSettled flips an invoice to paid after a succeeded Payment.
 func (s *InvoiceService) MarkSettled(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
-	return s.setStatus(ctx, orgId, invoiceId, domain.InvoiceStatusPaid)
+	return s.transition(ctx, orgId, invoiceId, (*domain.Invoice).MarkPaid)
 }
 
-// MarkUnpaid flips an invoice to unpaid after a failed/exhausted settlement.
-func (s *InvoiceService) MarkUnpaid(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
-	return s.setStatus(ctx, orgId, invoiceId, domain.InvoiceStatusUnpaid)
+// MarkUncollectible writes off an invoice after recovery is abandoned.
+func (s *InvoiceService) MarkUncollectible(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
+	return s.transition(ctx, orgId, invoiceId, (*domain.Invoice).MarkUncollectible)
 }
 
-func (s *InvoiceService) setStatus(ctx context.Context, orgId, invoiceId string, status domain.InvoiceStatus) (domain.Invoice, error) {
+// Void cancels an invoice that should not be collected.
+func (s *InvoiceService) Void(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
+	return s.transition(ctx, orgId, invoiceId, (*domain.Invoice).Void)
+}
+
+func (s *InvoiceService) transition(ctx context.Context, orgId, invoiceId string, apply func(*domain.Invoice) error) (domain.Invoice, error) {
 	inv, err := s.invoiceRepository.FindById(ctx, orgId, invoiceId)
 	if err != nil {
 		return domain.Invoice{}, err
 	}
-	inv.Status = status
+	if err := apply(&inv); err != nil {
+		return domain.Invoice{}, err
+	}
 	inv.UpdatedAt = time.Now().UTC()
 	return s.invoiceRepository.Update(ctx, inv)
 }
