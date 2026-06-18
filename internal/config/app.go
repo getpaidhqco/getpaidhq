@@ -269,7 +269,7 @@ func NewApp() (*App, error) {
 	}
 	paymentService := service.NewPaymentService(paymentRepo, logger)
 	orderWorkflowService := service.NewOrderWorkflowService(orderRepo, customerRepo, subRepo, paymentMethodRepo, paymentRepo, priceRepo, pubsub, logger)
-	dunningService := service.NewDunningService(dunningRepo, subRepo, customerRepo, paymentRepo, subService, gatewayFactory, pubsub, reporter, logger)
+	dunningService := service.NewDunningService(dunningRepo, subRepo, customerRepo, paymentRepo, subService, invoiceService, gatewayFactory, pubsub, reporter, logger)
 
 	webhookSubService := service.NewWebhookSubscriptionService(logger, webhookSubRepo, idempotencyRepo, pubsub)
 

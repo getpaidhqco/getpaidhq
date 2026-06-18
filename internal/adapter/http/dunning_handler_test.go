@@ -47,7 +47,7 @@ func newDunningHandlerForTest(
 
 	dunningSvc := service.NewDunningService(
 		dunningRepo, subRepo, custRepo, &fakePaymentRepo{},
-		subSvc, factory, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{},
+		subSvc, nil, factory, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{},
 	)
 	dunningOrch, err := service.NewDunningOrchestrationService(
 		dunningSvc, dunEngine, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{},

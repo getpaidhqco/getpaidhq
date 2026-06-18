@@ -171,7 +171,7 @@ type CancelSubscriptionRequest struct {
 	Reason string `json:"reason"`
 	// OutstandingInvoice: what to do with a still-open invoice when cancelling a
 	// past_due subscription — "uncollectible" (default) | "void" | "keep".
-	OutstandingInvoice string `json:"outstanding_invoice,omitempty"`
+	OutstandingInvoice string `json:"outstanding_invoice,omitempty" validate:"omitempty,oneof=uncollectible void keep"`
 }
 
 type UpdateBillingAnchorRequest struct {

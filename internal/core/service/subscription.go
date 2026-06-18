@@ -757,6 +757,7 @@ func (s *SubscriptionService) ChargeForBillingPeriod(ctx context.Context, curren
 
 	if _, err := s.invoiceService.MarkOpen(ctx, subscription.OrgId, invoice.Id); err != nil {
 		s.logger.Error("Failed to mark invoice open", "err", err.Error())
+		return domain.ChargeResult{}, err
 	}
 
 	gw, err := s.gatewayFactory.NewGateway(ctx, subscription.OrgId, string(subscription.PspId))
