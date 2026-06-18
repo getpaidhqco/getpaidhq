@@ -27,7 +27,7 @@ import (
 	"getpaidhq/internal/adapter/memory"
 	"getpaidhq/internal/adapter/nats"
 	"getpaidhq/internal/adapter/paystack"
-	"getpaidhq/internal/adapter/postgres"
+	"getpaidhq/internal/adapter/storage/postgresgorm"
 	"getpaidhq/internal/adapter/redis"
 	"getpaidhq/internal/adapter/temporal"
 	temporalact "getpaidhq/internal/adapter/temporal/activities"
@@ -54,7 +54,7 @@ func usageDB(env lib.Env, operational *gorm.DB, logger lib.Logger) (*gorm.DB, er
 	if env.UsageDatabaseURL == "" {
 		return operational, nil
 	}
-	separate, err := postgres.NewDatabase(env.UsageDatabaseURL, logger, env.GormLogLevel)
+	separate, err := postgresgorm.NewDatabase(env.UsageDatabaseURL, logger, env.GormLogLevel)
 	if err != nil {
 		return nil, fmt.Errorf("open usage database: %w", err)
 	}
@@ -70,7 +70,7 @@ func buildEventStore(env lib.Env, db *gorm.DB, logger lib.Logger) (port.EventSto
 	if err != nil {
 		return nil, err
 	}
-	pg := postgres.NewEventStore(udb)
+	pg := postgresgorm.NewEventStore(udb)
 	switch env.UsageEventStore {
 	case "", "postgres":
 		return pg, nil
@@ -145,47 +145,47 @@ func NewApp() (*App, error) {
 	// ---------------------------------------------------------------------------
 	// Database
 	// ---------------------------------------------------------------------------
-	db, err := postgres.NewDatabase(env.Get("DATABASE_URL"), logger, env.GormLogLevel)
+	db, err := postgresgorm.NewDatabase(env.Get("DATABASE_URL"), logger, env.GormLogLevel)
 	if err != nil {
 		return nil, err
 	}
 
 	// Reporting persistence has been intentionally torn down — the
 	// previous implementation was incoherent with the reporting
-	// schema (see internal/adapter/postgres/report_repo.go). When it is
+	// schema (see internal/adapter/storage/postgresgorm/report_repo.go). When it is
 	// revived, open REPORTING_DATABASE_URL here and wire NewReportRepo
 	// into the new service / handler.
 
-	txManager := postgres.NewTxManager(db)
+	txManager := postgresgorm.NewTxManager(db)
 
 	// ---------------------------------------------------------------------------
 	// Repositories
 	// ---------------------------------------------------------------------------
-	subRepo := postgres.NewSubscriptionRepo(db)
-	orderRepo := postgres.NewOrderRepo(db)
-	customerRepo := postgres.NewCustomerRepo(db)
-	paymentRepo := postgres.NewPaymentRepo(db)
-	paymentMethodRepo := postgres.NewPaymentMethodRepo(db)
-	productRepo := postgres.NewProductRepo(db)
-	variantRepo := postgres.NewVariantRepo(db)
-	priceRepo := postgres.NewPriceRepo(db)
-	sessionRepo := postgres.NewSessionRepo(db)
-	cartRepo := postgres.NewCartRepo(db)
-	orgRepo := postgres.NewOrgRepo(db)
-	userRepo := postgres.NewUserRepo(db)
-	settingRepo := postgres.NewSettingRepo(db)
-	webhookSubRepo := postgres.NewWebhookSubscriptionRepo(db)
-	apiKeyRepo := postgres.NewApiKeyRepo(db)
-	idempotencyRepo := postgres.NewIdempotencyKeyRepo(db)
-	pspRepo := postgres.NewPspRepo(db)
-	metadataRepo := postgres.NewMetadataStoreRepo(db)
-	dunningRepo := postgres.NewDunningRepo(db)
-	invoiceRepo := postgres.NewInvoiceRepo(db)
-	meterRepo := postgres.NewMeterRepo(db)
-	couponRepo := postgres.NewCouponRepo(db)
-	couponCodeRepo := postgres.NewCouponCodeRepo(db)
-	discountRepo := postgres.NewDiscountRepo(db)
-	priorPaymentChecker := postgres.NewPriorPaymentChecker(db)
+	subRepo := postgresgorm.NewSubscriptionRepo(db)
+	orderRepo := postgresgorm.NewOrderRepo(db)
+	customerRepo := postgresgorm.NewCustomerRepo(db)
+	paymentRepo := postgresgorm.NewPaymentRepo(db)
+	paymentMethodRepo := postgresgorm.NewPaymentMethodRepo(db)
+	productRepo := postgresgorm.NewProductRepo(db)
+	variantRepo := postgresgorm.NewVariantRepo(db)
+	priceRepo := postgresgorm.NewPriceRepo(db)
+	sessionRepo := postgresgorm.NewSessionRepo(db)
+	cartRepo := postgresgorm.NewCartRepo(db)
+	orgRepo := postgresgorm.NewOrgRepo(db)
+	userRepo := postgresgorm.NewUserRepo(db)
+	settingRepo := postgresgorm.NewSettingRepo(db)
+	webhookSubRepo := postgresgorm.NewWebhookSubscriptionRepo(db)
+	apiKeyRepo := postgresgorm.NewApiKeyRepo(db)
+	idempotencyRepo := postgresgorm.NewIdempotencyKeyRepo(db)
+	pspRepo := postgresgorm.NewPspRepo(db)
+	metadataRepo := postgresgorm.NewMetadataStoreRepo(db)
+	dunningRepo := postgresgorm.NewDunningRepo(db)
+	invoiceRepo := postgresgorm.NewInvoiceRepo(db)
+	meterRepo := postgresgorm.NewMeterRepo(db)
+	couponRepo := postgresgorm.NewCouponRepo(db)
+	couponCodeRepo := postgresgorm.NewCouponCodeRepo(db)
+	discountRepo := postgresgorm.NewDiscountRepo(db)
+	priorPaymentChecker := postgresgorm.NewPriorPaymentChecker(db)
 	eventStore, err := buildEventStore(env, db, logger)
 	if err != nil {
 		return nil, err
