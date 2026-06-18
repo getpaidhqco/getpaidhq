@@ -37,32 +37,34 @@ charge succeeds ────────────────────▶ 
 charge fails, retries remain ───────▶ open  (no change; subscription → past_due, dunning runs)
 retries exhausted, policy ends collection (mark_unpaid | cancel) ─▶ uncollectible (terminal)
 retries exhausted, policy = past_due (keep trying) ─▶ open  (no change)
-voluntary/admin cancel, invoice not owed for an in-progress cycle ─▶ void (terminal)
+voluntary/admin cancel, per merchant choice (default uncollectible) ─▶ uncollectible | void | open
 ```
 
 The **subscription** side is unchanged and remains the source of truth for `unpaid`:
 `active → past_due` (failure, retries remain) → `unpaid` (exhausted + `mark_unpaid`) or
 `cancelled` (exhausted + `cancel`).
 
-### `cancel` resolves to two different invoice outcomes, by reason
+### How `cancel` resolves the invoice
 
-| Cancel reason | Invoice outcome | Rationale |
-| --- | --- | --- |
-| **Dunning exhausted** (`FailureActionCancel`) — customer failed to pay | **uncollectible** | collection was attempted and abandoned |
-| **Voluntary / admin cancel** — nothing owed | **void** | the invoice should not be collected at all |
+There are two cancel sources, and they're treated differently:
 
-So `void` ≠ "cancel"; `void` = "cancelled for a non-payment reason while an invoice was
-still collectible but not owed."
+| Cancel source | Invoice outcome |
+| --- | --- |
+| **Dunning exhausted** (`FailureActionCancel`) — the system gave up | **uncollectible** (automatic) |
+| **Voluntary / admin cancel** — merchant-initiated | **merchant's choice** (default `uncollectible`) |
 
-### Void vs. the in-progress cycle (important nuance)
+Voluntary cancel is user-driven, so the outcome is a **parameter** on the cancel command
+(see below), not a hardcoded rule.
 
-`SubscriptionService.CancelSubscription` *continues through the current billing cycle*.
-The invoice for the **in-progress current cycle is still owed** and must NOT be voided —
-it keeps the normal `open → paid | uncollectible` path. Void applies to invoices that
-will no longer be collected because of the cancellation: concretely **`draft` invoices**
-(built but never charged) for the subscription. If an immediate/effective-now cancel
-variant exists that ends the cycle, it also voids the still-`open` invoice; planning
-confirms the exact cancel semantics before wiring this.
+### What `CancelSubscription` actually does (corrects an earlier assumption)
+
+`SubscriptionService.CancelSubscription` flips `status → cancelled` **immediately** and sets
+`CancelAt = RenewsAt` (access runs to the end of the already-paid period; it simply won't
+renew). Billing is **in advance**, so at a normal voluntary cancel the current cycle's
+invoice is already `paid` and the next cycle's invoice does not exist yet — **there is
+nothing to void or write off.** The only time a non-terminal invoice exists at voluntary
+cancel is when the subscription is **`past_due`** (dunning in flight, a real failed-collection
+`open` invoice). That invoice is what the merchant's choice applies to.
 
 ## Components & changes
 
@@ -92,9 +94,19 @@ confirms the exact cancel semantics before wiring this.
     leave the invoice `open`.
 - Success path keeps calling `MarkSettled` (`open → paid`).
 
-### Cancel path — `subscription.go` / `subscription_orchestration.go`
-- Voluntary `CancelSubscription` → `Void` the subscription's `draft` invoice(s) per the
-  nuance above (do not void the owed in-progress `open` invoice).
+### Cancel path — `port.CancelSubscriptionInput`, `subscription.go`, HTTP handler
+- Add `OutstandingInvoice` to `CancelSubscriptionInput` (today `{OrgId, Id, Reason}`): an
+  enum `uncollectible` (default) | `void` | `keep`, applied to the subscription's
+  non-terminal (`draft`/`open`) invoice for the current cycle at voluntary-cancel time:
+  - `uncollectible` → `MarkUncollectible` (default — a cancelled sub has no dunning left to
+    ever resolve an `open` invoice, so writing it off is the honest state)
+  - `void` → `Void` (forgive)
+  - `keep` → leave as-is
+  An empty value defaults to `uncollectible`.
+- Expose it as an optional `outstanding_invoice` field on the cancel HTTP request
+  (`subscription_handler.go:134`); omitted → `uncollectible`.
+- Dunning-exhaustion cancel (`FailureActionCancel`) is unaffected by this parameter — it
+  always sets `uncollectible` in the charge-failure exhaustion branch.
 
 ### Database — Goose migration `schemas/app/migrations/00002_invoice_uncollectible.sql`
 Postgres cannot drop an enum value, so swap the type:
@@ -125,8 +137,9 @@ follow-on, not in this server plan.
 - **Integration (`internal/adapter/postgres`, build tag `integration`):** drive the
   charge-failure flow end-to-end and assert: transient failure leaves invoice `open`
   (subscription `past_due`); exhaustion + `mark_unpaid`/`cancel` → `uncollectible`;
-  exhaustion + `past_due` → still `open`; success → `paid`; voluntary cancel → draft
-  invoice `void`.
+  exhaustion + `past_due` → still `open`; success → `paid`. For voluntary cancel of a
+  `past_due` subscription, assert the `OutstandingInvoice` choice: default/`uncollectible`
+  → `uncollectible`, `void` → `void`, `keep` → unchanged `open`.
 - **Migration:** apply `00002` to a scratch DB, confirm the enum is
   `{draft,open,paid,uncollectible,void}` and an `unpaid` row migrates to `open`.
 - Update/replace existing tests that asserted invoice `unpaid`.
@@ -139,7 +152,8 @@ follow-on, not in this server plan.
 ## Definition of done
 1. Invoice enum/domain/service no longer contain `unpaid`; `uncollectible` present.
 2. Charge-failure flow: invoice stays `open` through dunning; `uncollectible` only on
-   exhausted-and-collection-ended; voluntary cancel voids the draft invoice.
+   exhausted-and-collection-ended; voluntary cancel applies the `OutstandingInvoice`
+   choice to a `past_due` sub's open invoice (default `uncollectible`).
 3. Goose `00002` applies cleanly; `unpaid` rows → `open`; zero drift.
 4. `go build ./...`, `go vet ./...`, unit + postgres-integration suites pass.
 5. `openapi.json` re-exported reflecting the new enum.
