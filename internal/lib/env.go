@@ -155,6 +155,7 @@ func NewEnv() Env {
 	viper.BindEnv("LOG_FORMAT")
 	viper.BindEnv("GETPAIDHQ_LOG_LEVEL")
 	viper.BindEnv("GORM_LOG_LEVEL")
+	viper.BindEnv("DB_DRIVER")
 	viper.BindEnv("DATABASE_URL")
 	viper.BindEnv("CEDAR_POLICY")
 	viper.BindEnv("JWT_SECRET")

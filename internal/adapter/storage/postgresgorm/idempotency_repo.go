@@ -10,9 +10,14 @@ import (
 	"getpaidhq/internal/core/port"
 )
 
+// IdempotencyKeyEntity maps to the idempotency_keys table. The key is stored in
+// the `id` PK column (the schema has no `key` column); `updated_at` is NOT NULL
+// with no DB default, so the field is present for gorm to auto-stamp on write.
+// `created_at` has a DB default and is intentionally omitted.
 type IdempotencyKeyEntity struct {
-	Key       string    `gorm:"primaryKey"`
-	ExpiresAt time.Time `gorm:"index"`
+	Key       string    `gorm:"column:id;primaryKey"`
+	ExpiresAt time.Time `gorm:"column:expires_at;index"`
+	UpdatedAt time.Time `gorm:"column:updated_at"`
 }
 
 func (IdempotencyKeyEntity) TableName() string {
@@ -46,7 +51,7 @@ func (r *IdempotencyKeyRepo) Claim(ctx context.Context, key string, expiresAt ti
 	// expiry; concurrent claimers race here but the outer upsert is the
 	// real arbiter.
 	if err := dbFromCtx(ctx, r.db).
-		Where("key = ? AND expires_at <= ?", key, now).
+		Where("id = ? AND expires_at <= ?", key, now).
 		Delete(&IdempotencyKeyEntity{}).Error; err != nil {
 		return false, err
 	}
@@ -66,6 +71,6 @@ func (r *IdempotencyKeyRepo) Claim(ctx context.Context, key string, expiresAt ti
 // Idempotent — deleting a missing key is not an error.
 func (r *IdempotencyKeyRepo) Release(ctx context.Context, key string) error {
 	return dbFromCtx(ctx, r.db).
-		Where("key = ?", key).
+		Where("id = ?", key).
 		Delete(&IdempotencyKeyEntity{}).Error
 }
