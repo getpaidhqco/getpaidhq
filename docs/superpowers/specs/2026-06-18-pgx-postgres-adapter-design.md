@@ -14,12 +14,14 @@ parity**. Default stays GORM, so the change is zero-risk to current behaviour un
 "Parity" means: for every `port.*Repository` method (and `TxManager`, `EventStore`,
 `PriorPaymentChecker`), both adapters produce the same observable result — same rows,
 same domain values, same errors (`port.ErrNotFound`, unique/FK conflicts), same
-transaction semantics — proven by running one shared integration suite against both.
+transaction semantics — proven by running **one shared conformance suite against both**.
 
 ## Non-goals
 
 - No changes to `internal/core/{domain,port,service}` — the ports already abstract the
-  data layer cleanly; this work must not touch them.
+  data layer cleanly; this work must not touch them. Ports stay in `internal/core/port`;
+  adapters import ports, ports never import adapters (the storage restructure below does
+  not change this dependency direction).
 - No schema/migration work. Prisma→Goose is a separate, imminent PR; the pgx SQL simply
   targets the existing snake_case columns, which the Goose baseline reproduces exactly.
 - No reporting revival. `report_repo.go` stays a stub in both adapters.
@@ -47,7 +49,8 @@ transaction semantics — proven by running one shared integration suite against
 - **Test isolation:** integration tests are `//go:build integration`, get a fresh
   `postgres:17-alpine` testcontainer via `testDB(t)` (`setup_test.go`), apply the schema
   baseline (`applyBaseline`), and scope rows with `uniqueOrg(t)` + `cleanupOrg(t, …)`. They
-  currently live in `package postgres` and seed via **raw GORM** inserts.
+  currently live in `package postgres` and seed via **raw GORM** inserts — i.e. they are
+  welded to the GORM adapter and cannot run against another implementation as-is.
 
 ## Transaction review (explicitly requested)
 
@@ -78,14 +81,27 @@ port, or call-site changes. The pgx implementation mirrors GORM exactly:
 
 ## Architecture
 
-### New package
+### Storage restructure (category-nested layout)
 
-`internal/adapter/postgrespgx/` (package `postgrespgx`), mirroring `postgres/`
-file-for-file. Each repo exposes the **same constructor signature and return type** as the
-GORM one, e.g. `func NewCustomerRepo(pool *pgxpool.Pool) port.CustomerRepository`. The GORM
-package is left untouched.
+The storage adapters move under a category package, with a shared test-helper package
+beside them:
 
-Files:
+```
+internal/adapter/storage/
+  postgresgorm/   ← today's internal/adapter/postgres, renamed (package postgres → postgresgorm)
+  postgrespgx/    ← new pgx adapter (package postgrespgx — not "pgx", which collides with the jackc import)
+  storagetest/    ← test-helper package: exports the conformance suite the adapters call
+```
+
+This is idiomatic Go (`internal/adapter/<category>/<impl>`). The category package gives the
+shared conformance suite a natural home. Nesting does not change dependency direction:
+both adapters import `internal/core/port`; nothing imports the adapters except `app.go` and
+each adapter's own `_test.go`.
+
+Each adapter exposes the **same constructor signatures and return types** as the GORM one
+does today, e.g. `func NewCustomerRepo(pool *pgxpool.Pool) port.CustomerRepository`.
+
+pgx package files (mirroring `postgresgorm/` file-for-file):
 
 - `database.go` — `NewDatabase(dsn, log, logLevel) (*pgxpool.Pool, error)`; pool tuning
   mirrors the four GORM knobs (`MaxConns`/`MinConns`/`MaxConnLifetime`/`MaxConnIdleTime`)
@@ -134,71 +150,105 @@ Files:
   repo returns (`asConflictOnUnique` with the same message), so handler/service behaviour is
   identical.
 
-## Parity test harness (the load-bearing piece)
+## Parity proof — the conformance suite
 
 The existing integration/e2e tests live in `package postgres` and seed via raw GORM, so
-they cannot run unmodified against pgx. Plan:
+they cannot run unmodified against pgx. They become a **driver-agnostic conformance suite**
+in `internal/adapter/storage/storagetest`, which each adapter's own `_test.go` calls with
+its own instances. This is the test-helper-package pattern (not a parent package reaching
+down into its children — that would invert the import direction).
 
-1. Extract the integration + e2e billing tests into a **driver-agnostic conformance
-   suite** under `internal/repotest/` — a top-level package (NOT an adapter, NOT core)
-   that verifies any implementation of the repository ports behaves identically. It
-   receives (a) a `RepoSet` factory and (b) a pool/handle, and contains all assertions.
-   It depends only on `domain` + `port` + the testcontainer setup; adapters import it,
-   never the reverse (the Go "conformance suite beside the contract" pattern, cf.
-   `fstest`/`iotest`). It is kept out of `internal/core/port/` so the testcontainer
-   dependency never lands under the deliberately-pure core.
-2. **Rewrite seed helpers to go through repo `Create` methods** (and `TxManager`) instead
-   of raw row inserts — they already exercise the domain mappers, so this removes the
-   GORM coupling without weakening coverage.
-3. `postgres` and `postgrespgx` each get a thin `*_integration_test.go` that invokes the
-   shared suite with their own factory. Same testcontainer + same schema baseline.
-4. CI grows a driver dimension so `make test-integration` (and the race job) runs the suite
-   under both `gorm` and `pgx`. A `TEST_DB_DRIVER` env (or build matrix) selects which.
+`storagetest` owns:
 
-This shared suite is what actually proves "100% parity" — the same assertions, both
-adapters. It is the largest single chunk of work and is sequenced before the bulk of the
-repo implementations so each repo cluster is verified against it as it lands.
+1. **Infra** — the `postgres:17-alpine` testcontainer + Goose baseline + per-test
+   `uniqueOrg`/`cleanupOrg`, all driver-agnostic (they only need a DSN).
+2. **A `RepoSet`** — a struct of every `port.*Repository` + `TxManager` + `EventStore` +
+   `PriorPaymentChecker`, plus a factory type `func(t *testing.T, dsn string) RepoSet`.
+3. **Seed helpers rewritten to go through `RepoSet` `Create` methods** (and `TxManager`)
+   instead of raw row inserts — they already exercise the domain mappers, so this removes
+   the GORM coupling without weakening coverage.
+4. **The assertions** — exported as `RunConformance(t, factory)` (sub-tests cover every
+   repo method + the e2e billing/usage flows).
+
+Each adapter then has a one-line entrypoint, e.g. in `postgresgorm`:
+
+```go
+//go:build integration
+func TestConformance(t *testing.T) { storagetest.RunConformance(t, postgresgorm.NewRepoSet) }
+```
+
+and the identical thing in `postgrespgx`. No import cycle: `storagetest` imports only
+`domain` + `port`; the adapters import `storagetest` from their test files. CI runs both,
+so the same assertions gate both adapters — this is what actually proves "100% parity".
 
 ## Scope & phasing
 
-Full surface. Implemented and verified in clusters:
+Full surface. Sequenced so the suite exists and is trusted before pgx is written, and each
+pgx cluster is verified against it as it lands.
 
-1. **Foundation** — `database.go` (pool), `tx.go`, `errs.go`, `scopes.go`, scan helpers;
-   `DB_DRIVER` env + `repoSet` refactor in `app.go` with **GORM still default**. App builds
+0. **Restructure** — move `internal/adapter/postgres` → `internal/adapter/storage/postgresgorm`
+   (rename package `postgres` → `postgresgorm`), update `app.go` + imports + the living
+   docs that name the path (atomic with the move; see Documentation updates). GORM remains
+   the only driver and the default. Build + full test suite green. Standalone commit so the
+   diff is obviously a pure relocation.
+1. **Conformance suite** — extract `internal/adapter/storage/storagetest` (infra + `RepoSet`
+   + ports-based seeds + `RunConformance`); repoint `postgresgorm`'s integration tests at
+   it. Get the GORM suite green through it (proves the suite is faithful before pgx exists).
+2. **pgx foundation** — `database.go` (pool), `tx.go`, `errs.go`, `scopes.go`, scan helpers;
+   `DB_DRIVER` env + `repoSet` selection in `app.go` with **GORM still default**. App builds
    and runs exactly as before.
-2. **Harness** — extract the driver-agnostic conformance suite (`internal/repotest/`),
-   reseed via ports, get the GORM suite green through it (proves the harness is faithful
-   before pgx exists).
-3. **Repos, FK-dependency order** — org → customer (+cohort) → product → variant → price →
-   order (+items) → subscription (incl. `FindByIdForUpdate`, `FindDueForBilling`,
+3. **pgx repos, FK-dependency order** — org → customer (+cohort) → product → variant →
+   price → order (+items) → subscription (incl. `FindByIdForUpdate`, `FindDueForBilling`,
    `FindUpcomingRenewals`, `FindActiveMeteredForMeter`) → payment (+refund) → payment_method
    → invoice (+line items, atomic create) → dunning (campaign/attempt/config/communication/
    token/history) → coupon → coupon_code → discount → setting → psp → api_key → idempotency
    (atomic `Claim`/`Release`) → metadata → session → cart → webhook_subscription → meter.
-   Run the shared suite against pgx after each cluster.
-4. **Usage & misc** — `EventStore` (incl. the filter-group query builder — the most complex
-   hand-written SQL) + `PriorPaymentChecker` + `report_repo.go` stub.
-5. **CI** — flip the integration job to the driver matrix; document `DB_DRIVER` in
-   `.env.example` and the relevant CLAUDE.md/docs.
+   Run `RunConformance` against pgx after each cluster.
+4. **pgx usage & misc** — `EventStore` (incl. the filter-group query builder — the most
+   complex hand-written SQL) + `PriorPaymentChecker` + `report_repo.go` stub.
+5. **CI & docs** — add the driver dimension so `make test-integration` (and the race job)
+   runs `RunConformance` under both `gorm` and `pgx`; finalize docs.
+
+## Documentation updates
+
+The restructure changes a live path (`internal/adapter/postgres/…`), so the **living** docs
+that reference it are updated atomically with the phase-0 move:
+
+- `gphq-server/CLAUDE.md` — Architecture section (state the `internal/adapter/<category>/<impl>`
+  layout + the `storagetest` conformance convention + `DB_DRIVER`) and the Test-database
+  isolation section (suite now lives in `storagetest`, runs against both adapters).
+- `docs/internal/hexagonal-mapping-pattern.md` — the layer diagram, the "Postgres row" table
+  row, and the "where to add a new row/repo" steps.
+- `docs/architecture/system-hexagonal.md` — path references.
+- `docs/internal/logging.md` — the `gorm_logger.go` path.
+- `docs/workflows/*` — inline `internal/adapter/postgres/<file>` references.
+
+**Explicitly NOT updated:** `docs/superpowers/plans/*` and `docs/superpowers/specs/*` from
+prior dated work. They are point-in-time records of shipped changes; rewriting their paths
+would falsify history. They keep referencing `internal/adapter/postgres/` as it was when
+written.
 
 ## Risks & mitigations
 
-- **Test-harness refactor churn** (largest piece): mitigated by reseeding through ports
-  (mappers already covered) and landing it in phase 2, before pgx repos, with the GORM
+- **Phase-0 relocation churn**: large mechanical move. Mitigated by doing it as a pure
+  rename in its own commit, GORM-only/default throughout, with the full existing suite green
+  before and after, and living-doc path updates in the same commit.
+- **Conformance-suite extraction**: the second-largest piece. Mitigated by reseeding through
+  ports (mappers already covered) and landing it in phase 1, before pgx repos, with the GORM
   suite as the fidelity check.
 - **JSON/decimal/enum scanning subtleties**: centralised in `row_helpers.go` + `jsonCol[T]`
-  so each repo doesn't re-solve them; verified by the shared suite's round-trip assertions.
+  so each repo doesn't re-solve them; verified by the suite's round-trip assertions.
 - **Nested `RunInTx`**: handled by ctx-tx detection + pgx savepoints to match GORM; covered
-  by a harness test that nests transactions and asserts savepoint rollback behaviour.
+  by a suite test that nests transactions and asserts savepoint rollback behaviour.
 - **`EventStore` filter-group SQL**: the highest-complexity translation; its existing
-  integration tests (`event_store_filter_group_integration_test.go`) move into the shared
-  suite and gate the pgx implementation.
-- **`App.DB` coupling**: audited and replaced with a driver-agnostic seam in phase 1.
+  integration tests (`event_store_filter_group_integration_test.go`) move into the suite and
+  gate the pgx implementation.
+- **`App.DB` coupling**: audited and replaced with a driver-agnostic seam in phase 2.
 
 ## Acceptance criteria
 
 - `DB_DRIVER=pgx` boots the full app (operational + usage paths) with no GORM dependency on
   the request path.
-- The shared integration + e2e suite passes identically under both `gorm` and `pgx` in CI.
+- `storagetest.RunConformance` passes identically under both `gorm` and `pgx` in CI.
 - `DB_DRIVER` unset/`gorm` is byte-for-byte the current behaviour.
 - No changes to `core/{domain,port,service}`.
