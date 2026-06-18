@@ -1,20 +1,19 @@
-# Invoice status: uncollectible, no invoice-level unpaid
+# Simplify Invoice status: uncollectible, no invoice-level unpaid
 
 **Date:** 2026-06-18
 **Repo:** `gphq-server` (branch `worktree-invoice-uncollectible`, off `origin/main`)
 
 ## Goal
 
-Stop conflating "a charge attempt failed" with "we gave up collecting" on the **invoice**:
+Currently unpaid lives on the invoice, it belongs on the subscription:
 
 - Invoice statuses become **`draft`, `open`, `paid`, `uncollectible`, `void`**.
 - **Remove `unpaid` from the invoice** entirely. `unpaid` lives on the **subscription**
-  (it already does: `SubscriptionStatusUnpaid`) and stays there.
 - An invoice is **`open` until it is `paid` or `uncollectible`** — a failed charge with
   retries remaining no longer flips the invoice; it stays `open` while dunning runs.
 - **`uncollectible`** is the new terminal "given up collecting" state.
 
-## Current behaviour (the problem)
+## Current behaviour 
 
 - Enum: `InvoiceStatus AS ENUM ('draft','open','paid','unpaid','void')`
   (`internal/core/domain/invoice.go`; Postgres type in `schemas/app/migrations/00001_baseline.sql`).
@@ -55,7 +54,7 @@ There are two cancel sources, and they're treated differently:
 Voluntary cancel is user-driven, so the outcome is a **parameter** on the cancel command
 (see below), not a hardcoded rule.
 
-### What `CancelSubscription` actually does (corrects an earlier assumption)
+### What `CancelSubscription`  does 
 
 `SubscriptionService.CancelSubscription` flips `status → cancelled` **immediately** and sets
 `CancelAt = RenewsAt` (access runs to the end of the already-paid period; it simply won't
@@ -127,8 +126,7 @@ goose Up applies cleanly on a scratch DB and shows zero drift vs the updated dom
 The status is exposed via the invoice HTTP handler/DTO (`internal/adapter/http/invoice_handler*.go`)
 → `openapi.json`. After the server change: re-export `openapi.json`
 (`go run ./cmd/openapi-export`), then update the SDK and the web invoice-status display
-(remove `unpaid`, add `uncollectible`). Web/SDK changes are tracked as downstream
-follow-on, not in this server plan.
+(remove `unpaid`, add `uncollectible`).
 
 ## Testing
 - **Domain:** table-driven tests for each transition guard, incl. rejected illegal
@@ -144,13 +142,9 @@ follow-on, not in this server plan.
   `{draft,open,paid,uncollectible,void}` and an `unpaid` row migrates to `open`.
 - Update/replace existing tests that asserted invoice `unpaid`.
 
-## Out of scope
-- SDK and web changes (downstream of the regenerated `openapi.json`).
-- Any change to the subscription state machine (`unpaid` stays on the subscription).
-- Reporting-schema or usage-schema changes (unaffected).
 
 ## Definition of done
-1. Invoice enum/domain/service no longer contain `unpaid`; `uncollectible` present.
+1. Invoice enum/domain/service no longer contain `unpaid`;replaced with `uncollectible`.
 2. Charge-failure flow: invoice stays `open` through dunning; `uncollectible` only on
    exhausted-and-collection-ended; voluntary cancel applies the `OutstandingInvoice`
    choice to a `past_due` sub's open invoice (default `uncollectible`).

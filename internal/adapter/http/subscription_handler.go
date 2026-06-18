@@ -122,7 +122,7 @@ func (s *SubscriptionHandler) Resume(c fuego.ContextWithBody[ResumeSubscriptionR
 	return s.renderDetails(c.Context(), authUser.OrgId, c.PathParam("id"))
 }
 
-func (s *SubscriptionHandler) Cancel(c fuego.ContextWithBody[PauseSubscriptionRequest]) (SubscriptionResponse, error) {
+func (s *SubscriptionHandler) Cancel(c fuego.ContextWithBody[CancelSubscriptionRequest]) (SubscriptionResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !s.authz.Enforce(authUser, port.ActionCancelSubscription, c.PathParam("id")) {
 		return SubscriptionResponse{}, s.denied()

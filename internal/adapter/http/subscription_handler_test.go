@@ -158,7 +158,7 @@ func TestSubscriptionHandler_Cancel(t *testing.T) {
 	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
 	h.RegisterRoutes(ts.api())
 
-	rec := doJSON(t, ts, http.MethodPut, "/api/subscriptions/sub_1/cancel", PauseSubscriptionRequest{Reason: "x"})
+	rec := doJSON(t, ts, http.MethodPut, "/api/subscriptions/sub_1/cancel", CancelSubscriptionRequest{Reason: "x"})
 
 	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
 	require.Len(t, subRepo.updated, 1)
@@ -229,7 +229,7 @@ func TestSubscriptionHandler_AuthzDenied(t *testing.T) {
 		{"Update", http.MethodPatch, "/api/subscriptions/sub_1", domain.UpdateSubscriptionRequest{Metadata: map[string]string{"k": "v"}}},
 		{"Pause", http.MethodPut, "/api/subscriptions/sub_1/pause", PauseSubscriptionRequest{}},
 		{"Resume", http.MethodPut, "/api/subscriptions/sub_1/resume", ResumeSubscriptionRequest{ResumeBehavior: domain.StartNewBillingPeriod}},
-		{"Cancel", http.MethodPut, "/api/subscriptions/sub_1/cancel", PauseSubscriptionRequest{Reason: "x"}},
+		{"Cancel", http.MethodPut, "/api/subscriptions/sub_1/cancel", CancelSubscriptionRequest{Reason: "x"}},
 		{"UpdateBillingAnchor", http.MethodPatch, "/api/subscriptions/sub_1/billing-anchor", UpdateBillingAnchorRequest{BillingAnchor: 15, ProrationMode: domain.ProrationModeNone}},
 	}
 	for _, tt := range cases {

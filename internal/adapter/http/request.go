@@ -164,7 +164,13 @@ type ActivateSubscriptionRequest struct {
 }
 
 type PauseSubscriptionRequest struct {
-	Reason             string `json:"reason"`
+	Reason string `json:"reason"`
+}
+
+type CancelSubscriptionRequest struct {
+	Reason string `json:"reason"`
+	// OutstandingInvoice: what to do with a still-open invoice when cancelling a
+	// past_due subscription — "uncollectible" (default) | "void" | "keep".
 	OutstandingInvoice string `json:"outstanding_invoice,omitempty"`
 }
 
