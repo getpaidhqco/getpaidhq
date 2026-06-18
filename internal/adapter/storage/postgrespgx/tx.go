@@ -52,6 +52,36 @@ func dbFromCtx(ctx context.Context, fallback querier) querier {
 	return fallback
 }
 
+// inTx runs fn inside a transaction so a repo that writes multiple rows
+// (invoice + line items, order + items) is atomic regardless of whether a
+// caller already opened a RunInTx. If a tx is already on ctx it joins it via a
+// SAVEPOINT (matching gorm's nested-transaction semantics); otherwise it opens
+// a fresh tx on the pool. fn receives a ctx carrying the (possibly nested) tx.
+func inTx(ctx context.Context, pool *pgxpool.Pool, fn func(context.Context) error) error {
+	var b beginner = pool
+	if existing, ok := ctx.Value(txKey{}).(pgx.Tx); ok && existing != nil {
+		b = existing
+	}
+	tx, err := b.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	committed := false
+	defer func() {
+		if !committed {
+			_ = tx.Rollback(ctx)
+		}
+	}()
+	if err := fn(WithTx(ctx, tx)); err != nil {
+		return err
+	}
+	if err := tx.Commit(ctx); err != nil {
+		return err
+	}
+	committed = true
+	return nil
+}
+
 // TxManager opens a pgx transaction and threads it through ctx for the
 // duration of the callback. Commits on nil return, rolls back on error or
 // panic (the panic propagates after rollback). A RunInTx nested inside another
