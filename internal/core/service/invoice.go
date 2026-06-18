@@ -138,6 +138,12 @@ func (s *InvoiceService) MarkSettled(ctx context.Context, orgId, invoiceId strin
 	return s.transition(ctx, orgId, invoiceId, (*domain.Invoice).MarkPaid)
 }
 
+// FindCurrentCycle returns the invoice built for a subscription's cycle, or
+// port.ErrNotFound if none exists.
+func (s *InvoiceService) FindCurrentCycle(ctx context.Context, orgId, subscriptionId string, cycle int) (domain.Invoice, error) {
+	return s.invoiceRepository.FindBySubscriptionCycle(ctx, orgId, subscriptionId, cycle)
+}
+
 // MarkUncollectible writes off an invoice after recovery is abandoned.
 func (s *InvoiceService) MarkUncollectible(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
 	return s.transition(ctx, orgId, invoiceId, (*domain.Invoice).MarkUncollectible)

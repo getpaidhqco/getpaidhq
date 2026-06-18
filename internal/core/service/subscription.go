@@ -386,7 +386,37 @@ func (s *SubscriptionService) CancelSubscription(ctx context.Context, input port
 		return domain.Subscription{}, txErr
 	}
 
+	s.applyOutstandingInvoiceAction(ctx, subscription, input.OutstandingInvoice)
 	return subscription, nil
+}
+
+// applyOutstandingInvoiceAction resolves the subscription's current-cycle
+// invoice when a voluntary cancel leaves one non-terminal. Billing is in
+// advance, so this only matters when the sub was past_due (a real failed-
+// collection open invoice).
+func (s *SubscriptionService) applyOutstandingInvoiceAction(ctx context.Context, sub domain.Subscription, action port.OutstandingInvoiceAction) {
+	if action == port.OutstandingInvoiceKeep {
+		return
+	}
+	if s.invoiceService == nil {
+		return
+	}
+	inv, err := s.invoiceService.FindCurrentCycle(ctx, sub.OrgId, sub.Id, sub.CyclesProcessed)
+	if err != nil {
+		return // ErrNotFound: no current-cycle invoice — nothing to do
+	}
+	if inv.Status != domain.InvoiceStatusOpen && inv.Status != domain.InvoiceStatusDraft {
+		return // already terminal
+	}
+	switch action {
+	case port.OutstandingInvoiceVoid:
+		_, err = s.invoiceService.Void(ctx, sub.OrgId, inv.Id)
+	default: // "" or uncollectible
+		_, err = s.invoiceService.MarkUncollectible(ctx, sub.OrgId, inv.Id)
+	}
+	if err != nil {
+		s.logger.Error("Failed to apply outstanding-invoice action on cancel", "err", err.Error(), "action", string(action))
+	}
 }
 
 func (s *SubscriptionService) UpdateBillingAnchor(ctx context.Context, input port.UpdateBillingAnchorInput) (domain.ProrationDetails, error) {

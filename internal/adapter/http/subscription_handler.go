@@ -132,9 +132,10 @@ func (s *SubscriptionHandler) Cancel(c fuego.ContextWithBody[PauseSubscriptionRe
 		return SubscriptionResponse{}, err
 	}
 	if _, err := s.subsService.CancelSubscription(c.Context(), port.CancelSubscriptionInput{
-		OrgId:  authUser.OrgId,
-		Id:     c.PathParam("id"),
-		Reason: input.Reason,
+		OrgId:              authUser.OrgId,
+		Id:                 c.PathParam("id"),
+		Reason:             input.Reason,
+		OutstandingInvoice: port.OutstandingInvoiceAction(input.OutstandingInvoice),
 	}); err != nil {
 		return SubscriptionResponse{}, NewApiErrorFromError(err)
 	}

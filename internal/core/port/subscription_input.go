@@ -87,11 +87,22 @@ type ResumeSubscriptionInput struct {
 	ResumeBehavior domain.SubscriptionResumeBehavior
 }
 
+// OutstandingInvoiceAction decides what happens to a still-open invoice when a
+// subscription is voluntarily cancelled. Empty defaults to uncollectible.
+type OutstandingInvoiceAction string
+
+const (
+	OutstandingInvoiceUncollectible OutstandingInvoiceAction = "uncollectible"
+	OutstandingInvoiceVoid          OutstandingInvoiceAction = "void"
+	OutstandingInvoiceKeep          OutstandingInvoiceAction = "keep"
+)
+
 // CancelSubscriptionInput is the command input for SubscriptionService.Cancel.
 type CancelSubscriptionInput struct {
-	OrgId  string
-	Id     string
-	Reason string
+	OrgId              string
+	Id                 string
+	Reason             string
+	OutstandingInvoice OutstandingInvoiceAction // empty => uncollectible
 }
 
 // UpdateBillingAnchorInput is the command input for SubscriptionService.UpdateBillingAnchor.

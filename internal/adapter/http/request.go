@@ -164,7 +164,8 @@ type ActivateSubscriptionRequest struct {
 }
 
 type PauseSubscriptionRequest struct {
-	Reason string `json:"reason"`
+	Reason             string `json:"reason"`
+	OutstandingInvoice string `json:"outstanding_invoice,omitempty"`
 }
 
 type UpdateBillingAnchorRequest struct {
