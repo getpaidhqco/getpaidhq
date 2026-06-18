@@ -28,6 +28,20 @@ func pgxRepoSet(t *testing.T, dsn string) storagetest.RepoSet {
 		Setting:      NewSettingRepo(pool),
 		Idempotency:  NewIdempotencyKeyRepo(pool),
 		Tx:           NewTxManager(pool),
+
+		Invoice:       NewInvoiceRepo(pool),
+		Dunning:       NewDunningRepo(pool),
+		Coupon:        NewCouponRepo(pool),
+		CouponCode:    NewCouponCodeRepo(pool),
+		Discount:      NewDiscountRepo(pool),
+		Meter:         NewMeterRepo(pool),
+		Metadata:      NewMetadataStoreRepo(pool),
+		Psp:           NewPspRepo(pool),
+		ApiKey:        NewApiKeyRepo(pool),
+		Webhook:       NewWebhookSubscriptionRepo(pool),
+		Session:       NewSessionRepo(pool),
+		PaymentMethod: NewPaymentMethodRepo(pool),
+		EventStore:    NewEventStore(pool),
 	}
 }
 

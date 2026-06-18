@@ -27,6 +27,20 @@ func gormRepoSet(t *testing.T, dsn string) storagetest.RepoSet {
 		Setting:      NewSettingRepo(db),
 		Idempotency:  NewIdempotencyKeyRepo(db),
 		Tx:           NewTxManager(db),
+
+		Invoice:       NewInvoiceRepo(db),
+		Dunning:       NewDunningRepo(db),
+		Coupon:        NewCouponRepo(db),
+		CouponCode:    NewCouponCodeRepo(db),
+		Discount:      NewDiscountRepo(db),
+		Meter:         NewMeterRepo(db),
+		Metadata:      NewMetadataStoreRepo(db),
+		Psp:           NewPspRepo(db),
+		ApiKey:        NewApiKeyRepo(db),
+		Webhook:       NewWebhookSubscriptionRepo(db),
+		Session:       NewSessionRepo(db),
+		PaymentMethod: NewPaymentMethodRepo(db),
+		EventStore:    NewEventStore(db),
 	}
 }
 
