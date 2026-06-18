@@ -22,6 +22,7 @@ type DunningService struct {
 	customerRepository     port.CustomerRepository
 	paymentRepository      port.PaymentRepository
 	subscriptionService    port.SubscriptionService
+	invoiceService         *InvoiceService
 	gatewayFactory         port.GatewayFactory
 	pubsub                 port.PubSub
 	errorReporter          lib.ErrorReporter
@@ -34,6 +35,7 @@ func NewDunningService(
 	customerRepository port.CustomerRepository,
 	paymentRepository port.PaymentRepository,
 	subscriptionService port.SubscriptionService,
+	invoiceService *InvoiceService,
 	gatewayFactory port.GatewayFactory,
 	pubsub port.PubSub,
 	errorReporter lib.ErrorReporter,
@@ -45,6 +47,7 @@ func NewDunningService(
 		customerRepository:     customerRepository,
 		paymentRepository:      paymentRepository,
 		subscriptionService:    subscriptionService,
+		invoiceService:         invoiceService,
 		gatewayFactory:         gatewayFactory,
 		pubsub:                 pubsub,
 		errorReporter:          errorReporter,
@@ -236,6 +239,7 @@ func (s *DunningService) FailCampaignAndCancelSubscription(ctx context.Context, 
 				s.logger.Error("Failed to cancel subscription on dunning exhaustion", "err", err.Error())
 			}
 		}
+		s.writeOffCurrentInvoice(ctx, subscription)
 	} else {
 		s.logger.Error("Subscription not found while exhausting dunning", "err", err.Error())
 	}
@@ -436,6 +440,7 @@ func (s *DunningService) UpdateCampaignWithAttemptResult(ctx context.Context, at
 			if _, err := s.subscriptionRepository.Update(ctx, subscription); err != nil {
 				s.logger.Error("Failed to cancel subscription after dunning exhaustion", "err", err.Error())
 			}
+			s.writeOffCurrentInvoice(ctx, subscription)
 		}
 		return s.MarkCampaignFailed(ctx, campaign.OrgId, campaign.Id, "max_attempts_reached")
 	}
@@ -466,6 +471,7 @@ func (s *DunningService) UpdateCampaignWithAttemptResult(ctx context.Context, at
 						OldStatus:      oldStatus,
 						NewStatus:      domain.SubscriptionStatusUnpaid,
 					})
+					s.writeOffCurrentInvoice(ctx, subscription)
 				}
 			}
 		}
@@ -751,6 +757,25 @@ func (s *DunningService) GetCustomerDunningHistory(ctx context.Context, orgId, c
 		return domain.CustomerDunningHistory{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
 	}
 	return s.dunningRepository.GetCustomerDunningHistory(ctx, orgId, customerId)
+}
+
+// writeOffCurrentInvoice marks the subscription's current-cycle invoice
+// uncollectible when dunning ends collection. No-op if absent/terminal or if
+// no invoice service is wired (some unit tests).
+func (s *DunningService) writeOffCurrentInvoice(ctx context.Context, sub domain.Subscription) {
+	if s.invoiceService == nil {
+		return
+	}
+	inv, err := s.invoiceService.FindCurrentCycle(ctx, sub.OrgId, sub.Id, sub.CyclesProcessed)
+	if err != nil {
+		return
+	}
+	if inv.Status != domain.InvoiceStatusOpen && inv.Status != domain.InvoiceStatusDraft {
+		return
+	}
+	if _, err := s.invoiceService.MarkUncollectible(ctx, sub.OrgId, inv.Id); err != nil {
+		s.logger.Error("Failed to mark invoice uncollectible on dunning exhaustion", "err", err.Error())
+	}
 }
 
 // ---- helpers ----

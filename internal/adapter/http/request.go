@@ -167,6 +167,13 @@ type PauseSubscriptionRequest struct {
 	Reason string `json:"reason"`
 }
 
+type CancelSubscriptionRequest struct {
+	Reason string `json:"reason"`
+	// OutstandingInvoice: what to do with a still-open invoice when cancelling a
+	// past_due subscription — "uncollectible" (default) | "void" | "keep".
+	OutstandingInvoice string `json:"outstanding_invoice,omitempty" validate:"omitempty,oneof=uncollectible void keep"`
+}
+
 type UpdateBillingAnchorRequest struct {
 	// BillingAnchor is the new billing anchor as a day between 1 and 31.
 	BillingAnchor int                  `json:"billing_anchor" validate:"required,gte=1,lte=31"`

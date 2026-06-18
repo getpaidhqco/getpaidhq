@@ -4,6 +4,8 @@ import (
 	"context"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 )
@@ -135,4 +137,45 @@ func TestInvoiceService_BuildForBillingPeriod_Metered(t *testing.T) {
 	if inv.Total != 30 {
 		t.Errorf("metered total = %d, want 30 (3 units × 10c)", inv.Total)
 	}
+}
+
+// minimalInvoiceRepo is a minimal InvoiceRepository fake for transition tests.
+// It holds a single invoice that FindById always returns, and Update stores.
+type minimalInvoiceRepo struct {
+	inv domain.Invoice
+}
+
+func (r *minimalInvoiceRepo) Create(_ context.Context, in domain.Invoice) (domain.Invoice, error) {
+	r.inv = in
+	return in, nil
+}
+func (r *minimalInvoiceRepo) Update(_ context.Context, in domain.Invoice) (domain.Invoice, error) {
+	r.inv = in
+	return in, nil
+}
+func (r *minimalInvoiceRepo) FindById(_ context.Context, _, _ string) (domain.Invoice, error) {
+	return r.inv, nil
+}
+func (r *minimalInvoiceRepo) FindBySubscriptionCycle(_ context.Context, _, _ string, _ int) (domain.Invoice, error) {
+	return domain.Invoice{}, port.ErrNotFound
+}
+func (r *minimalInvoiceRepo) FindBySubscriptionId(_ context.Context, _, _ string, _ domain.Pagination) ([]domain.Invoice, int, error) {
+	return nil, 0, nil
+}
+func (r *minimalInvoiceRepo) List(_ context.Context, _ string, _ domain.Pagination) ([]domain.Invoice, int, error) {
+	return nil, 0, nil
+}
+
+func TestInvoiceServiceTransitions(t *testing.T) {
+	repo := &minimalInvoiceRepo{inv: domain.Invoice{Id: "inv_1", Status: domain.InvoiceStatusOpen}}
+	s := &InvoiceService{invoiceRepository: repo}
+	ctx := context.Background()
+
+	got, err := s.MarkUncollectible(ctx, "org", "inv_1")
+	require.NoError(t, err)
+	require.Equal(t, domain.InvoiceStatusUncollectible, got.Status)
+
+	repo.inv = domain.Invoice{Id: "inv_1", Status: domain.InvoiceStatusPaid}
+	_, err = s.MarkUncollectible(ctx, "org", "inv_1")
+	require.ErrorIs(t, err, domain.ErrInvalidInvoiceTransition)
 }

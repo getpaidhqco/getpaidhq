@@ -386,7 +386,37 @@ func (s *SubscriptionService) CancelSubscription(ctx context.Context, input port
 		return domain.Subscription{}, txErr
 	}
 
+	s.applyOutstandingInvoiceAction(ctx, subscription, input.OutstandingInvoice)
 	return subscription, nil
+}
+
+// applyOutstandingInvoiceAction resolves the subscription's current-cycle
+// invoice when a voluntary cancel leaves one non-terminal. Billing is in
+// advance, so this only matters when the sub was past_due (a real failed-
+// collection open invoice).
+func (s *SubscriptionService) applyOutstandingInvoiceAction(ctx context.Context, sub domain.Subscription, action port.OutstandingInvoiceAction) {
+	if action == port.OutstandingInvoiceKeep {
+		return
+	}
+	if s.invoiceService == nil {
+		return
+	}
+	inv, err := s.invoiceService.FindCurrentCycle(ctx, sub.OrgId, sub.Id, sub.CyclesProcessed)
+	if err != nil {
+		return // ErrNotFound: no current-cycle invoice — nothing to do
+	}
+	if inv.Status != domain.InvoiceStatusOpen && inv.Status != domain.InvoiceStatusDraft {
+		return // already terminal
+	}
+	switch action {
+	case port.OutstandingInvoiceVoid:
+		_, err = s.invoiceService.Void(ctx, sub.OrgId, inv.Id)
+	default: // "" or uncollectible
+		_, err = s.invoiceService.MarkUncollectible(ctx, sub.OrgId, inv.Id)
+	}
+	if err != nil {
+		s.logger.Error("Failed to apply outstanding-invoice action on cancel", "err", err.Error(), "action", string(action))
+	}
 }
 
 func (s *SubscriptionService) UpdateBillingAnchor(ctx context.Context, input port.UpdateBillingAnchorInput) (domain.ProrationDetails, error) {
@@ -641,10 +671,6 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 		s.logger.Error("Failed to create payment", err.Error())
 	}
 
-	if _, err := s.invoiceService.MarkUnpaid(ctx, subscription.OrgId, inv.Id); err != nil {
-		s.logger.Error("Failed to mark invoice unpaid", "err", err.Error())
-	}
-
 	s.logger.Debug("Created payment for subscription")
 
 	retryPolicy := s.GetRetryPolicy(ctx, subscription.OrgId)
@@ -665,6 +691,11 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 		if retryPolicy.FailureAction == domain.FailureActionCancel {
 			s.logger.Debugf("Cancelling..")
 			subscription.SetCancelled()
+		}
+		if retryPolicy.FailureAction == domain.FailureActionMarkUnpaid || retryPolicy.FailureAction == domain.FailureActionCancel {
+			if _, err := s.invoiceService.MarkUncollectible(ctx, subscription.OrgId, inv.Id); err != nil {
+				s.logger.Error("Failed to mark invoice uncollectible", "err", err.Error())
+			}
 		}
 	} else {
 		s.logger.Debugf("Subscription [%s] next retry date [%s]", subscription.Id, nextRetryDate)
@@ -723,6 +754,11 @@ func (s *SubscriptionService) ChargeForBillingPeriod(ctx context.Context, curren
 		return domain.ChargeResult{}, err
 	}
 	s.logger.Infof("ChargeForBillingPeriod [%s] invoice=%s total=%d", subscription.Id, invoice.Id, invoice.Total)
+
+	if _, err := s.invoiceService.MarkOpen(ctx, subscription.OrgId, invoice.Id); err != nil {
+		s.logger.Error("Failed to mark invoice open", "err", err.Error())
+		return domain.ChargeResult{}, err
+	}
 
 	gw, err := s.gatewayFactory.NewGateway(ctx, subscription.OrgId, string(subscription.PspId))
 	if err != nil {

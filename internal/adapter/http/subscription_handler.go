@@ -122,7 +122,7 @@ func (s *SubscriptionHandler) Resume(c fuego.ContextWithBody[ResumeSubscriptionR
 	return s.renderDetails(c.Context(), authUser.OrgId, c.PathParam("id"))
 }
 
-func (s *SubscriptionHandler) Cancel(c fuego.ContextWithBody[PauseSubscriptionRequest]) (SubscriptionResponse, error) {
+func (s *SubscriptionHandler) Cancel(c fuego.ContextWithBody[CancelSubscriptionRequest]) (SubscriptionResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !s.authz.Enforce(authUser, port.ActionCancelSubscription, c.PathParam("id")) {
 		return SubscriptionResponse{}, s.denied()
@@ -132,9 +132,10 @@ func (s *SubscriptionHandler) Cancel(c fuego.ContextWithBody[PauseSubscriptionRe
 		return SubscriptionResponse{}, err
 	}
 	if _, err := s.subsService.CancelSubscription(c.Context(), port.CancelSubscriptionInput{
-		OrgId:  authUser.OrgId,
-		Id:     c.PathParam("id"),
-		Reason: input.Reason,
+		OrgId:              authUser.OrgId,
+		Id:                 c.PathParam("id"),
+		Reason:             input.Reason,
+		OutstandingInvoice: port.OutstandingInvoiceAction(input.OutstandingInvoice),
 	}); err != nil {
 		return SubscriptionResponse{}, NewApiErrorFromError(err)
 	}

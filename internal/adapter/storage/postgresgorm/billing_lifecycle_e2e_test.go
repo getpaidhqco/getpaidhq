@@ -65,9 +65,9 @@ func buildInvoiceService(t *testing.T, db *gorm.DB) *service.InvoiceService {
 }
 
 // A declined charge: the charge result is failed (not an error), the failure
-// handler records a failed payment, marks the invoice unpaid, and schedules the
-// first retry — subscription past_due, Retries = 1, NextRetryAt set (default
-// policy: 3 attempts).
+// handler records a failed payment, leaves the invoice open (retries remain),
+// and schedules the first retry — subscription past_due, Retries = 1, NextRetryAt set
+// (default policy: 3 attempts).
 func TestChargeFailure_PastDueWithRetryScheduled_E2E(t *testing.T) {
 	db := testDB(t)
 	ctx := context.Background()
@@ -111,7 +111,7 @@ func TestChargeFailure_PastDueWithRetryScheduled_E2E(t *testing.T) {
 
 	inv, err := NewInvoiceRepo(db).FindBySubscriptionCycle(ctx, orgId, fx.sub.Id, 0)
 	require.NoError(t, err)
-	assert.Equal(t, domain.InvoiceStatusUnpaid, inv.Status)
+	assert.Equal(t, domain.InvoiceStatusOpen, inv.Status) // retries remain → invoice stays open
 
 	payments, total, err := NewPaymentRepo(db).FindBySubscriptionId(ctx, orgId, fx.sub.Id, domain.Pagination{Page: 1, Limit: 10})
 	require.NoError(t, err)

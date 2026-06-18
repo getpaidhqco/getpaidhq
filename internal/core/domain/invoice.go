@@ -1,16 +1,23 @@
 package domain
 
-import "time"
+import (
+	"errors"
+	"time"
+)
 
 type InvoiceStatus string
 
 const (
-	InvoiceStatusDraft  InvoiceStatus = "draft"  // built, not yet settled
-	InvoiceStatusOpen   InvoiceStatus = "open"   // a Payment attempt is outstanding
-	InvoiceStatusPaid   InvoiceStatus = "paid"   // settled by a succeeded Payment
-	InvoiceStatusUnpaid InvoiceStatus = "unpaid" // settlement failed / exhausted
-	InvoiceStatusVoid   InvoiceStatus = "void"   // cancelled before settlement
+	InvoiceStatusDraft         InvoiceStatus = "draft"         // built, not yet charged
+	InvoiceStatusOpen          InvoiceStatus = "open"          // finalized, a charge is outstanding
+	InvoiceStatusPaid          InvoiceStatus = "paid"          // settled by a succeeded Payment
+	InvoiceStatusUncollectible InvoiceStatus = "uncollectible" // collection given up (terminal)
+	InvoiceStatusVoid          InvoiceStatus = "void"          // cancelled, never collected (terminal)
 )
+
+// ErrInvalidInvoiceTransition is returned when a status change is not allowed
+// from the invoice's current state.
+var ErrInvalidInvoiceTransition = errors.New("invalid invoice status transition")
 
 // Invoice is the per-cycle record of what is owed for a subscription's period:
 // the calculated line-item totals a Payment then attempts to settle. One per cycle.
@@ -32,4 +39,48 @@ type Invoice struct {
 	Metadata       map[string]string
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+}
+
+// MarkOpen finalizes a draft invoice for collection. Idempotent from open.
+func (inv *Invoice) MarkOpen() error {
+	switch inv.Status {
+	case InvoiceStatusDraft, InvoiceStatusOpen:
+		inv.Status = InvoiceStatusOpen
+		return nil
+	default:
+		return ErrInvalidInvoiceTransition
+	}
+}
+
+// MarkPaid settles an outstanding invoice.
+func (inv *Invoice) MarkPaid() error {
+	switch inv.Status {
+	case InvoiceStatusDraft, InvoiceStatusOpen:
+		inv.Status = InvoiceStatusPaid
+		return nil
+	default:
+		return ErrInvalidInvoiceTransition
+	}
+}
+
+// MarkUncollectible writes off an outstanding invoice (collection abandoned).
+func (inv *Invoice) MarkUncollectible() error {
+	switch inv.Status {
+	case InvoiceStatusDraft, InvoiceStatusOpen:
+		inv.Status = InvoiceStatusUncollectible
+		return nil
+	default:
+		return ErrInvalidInvoiceTransition
+	}
+}
+
+// Void cancels an invoice that should never be collected.
+func (inv *Invoice) Void() error {
+	switch inv.Status {
+	case InvoiceStatusDraft, InvoiceStatusOpen:
+		inv.Status = InvoiceStatusVoid
+		return nil
+	default:
+		return ErrInvalidInvoiceTransition
+	}
 }
