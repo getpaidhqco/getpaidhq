@@ -10,7 +10,7 @@ in this repo is wrong and should be fixed.
 ┌──────────────────────────────────────────────────────────────────────────┐
 │ Adapters (the outside world)                                             │
 │                                                                          │
-│  internal/adapter/http/     internal/adapter/postgres/                   │
+│  internal/adapter/http/     internal/adapter/storage/postgresgorm/           │
 │   • Request DTOs             • <entity>Row types                         │
 │   • Response DTOs            • Row ↔ domain mappers                      │
 │   • Request → Input maps     • Repo implementations                      │
@@ -51,7 +51,7 @@ in this repo is wrong and should be fixed.
 | **Read Model** (composed query result) | `internal/core/service/` | none | `service.OrderDetails`, `service.SubscriptionDetails` |
 | HTTP Request DTO | `internal/adapter/http/` | `json:""`, `validate:""` | `CreateSubscriptionRequest` |
 | HTTP Response DTO | `internal/adapter/http/` | `json:""` | `SubscriptionResponse` |
-| Postgres row | `internal/adapter/postgres/` | `gorm:""` | `subscriptionRow` |
+| Postgres row | `internal/adapter/storage/postgresgorm/` | `gorm:""` | `subscriptionRow` |
 
 ## Domain layer rules
 
@@ -216,9 +216,9 @@ in this repo is wrong and should be fixed.
 5. If the entity has a nested response shape, define the **read model** in
    `internal/core/service/<entity>_read.go` and the `GetDetails` /
    `ListDetails` query handler methods on the service.
-6. Implement the **postgres row** at `internal/adapter/postgres/<entity>_row.go`
+6. Implement the **postgres row** at `internal/adapter/storage/postgresgorm/<entity>_row.go`
    with `toDomain` and `<entity>RowFromDomain` mappers.
-7. Implement the **repo** at `internal/adapter/postgres/<entity>_repo.go`. Use
+7. Implement the **repo** at `internal/adapter/storage/postgresgorm/<entity>_repo.go`. Use
    the row type internally; translate at the boundary.
 8. Add **HTTP DTOs** in `internal/adapter/http/<entity>_request.go` and
    `internal/adapter/http/<entity>_response.go`.
