@@ -24,7 +24,7 @@ type InvoiceResponse struct {
 	SubscriptionId string                    `json:"subscription_id"`
 	CustomerId     string                    `json:"customer_id"`
 	OrderId        string                    `json:"order_id"`
-	Status         string                    `json:"status"`
+	Status         string                    `json:"status" validate:"oneof=draft open paid uncollectible void"`
 	Currency       string                    `json:"currency"`
 	Subtotal       int64                     `json:"subtotal"`
 	Total          int64                     `json:"total"`

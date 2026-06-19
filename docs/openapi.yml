@@ -42,6 +42,10 @@ components:
       description: CancelSubscriptionRequest schema
       properties:
         outstanding_invoice:
+          enum:
+          - uncollectible
+          - void
+          - keep
           nullable: true
           type: string
         reason:
@@ -196,8 +200,15 @@ components:
         currency:
           type: string
         discount_type:
+          enum:
+          - percentage
+          - fixed
           type: string
         duration:
+          enum:
+          - once
+          - repeating
+          - forever
           type: string
         duration_in_cycles:
           type: integer
@@ -385,6 +396,13 @@ components:
       description: CreateMeterRequest schema
       properties:
         aggregation:
+          enum:
+          - count
+          - sum
+          - max
+          - latest
+          - weighted_sum
+          - unique_count
           type: string
         carry_over:
           type: boolean
@@ -429,6 +447,10 @@ components:
           minLength: 1
           type: string
         rounding_mode:
+          enum:
+          - round
+          - ceil
+          - floor
           type: string
         rounding_scale:
           type: integer
@@ -746,10 +768,23 @@ components:
         billable_metric_id:
           type: string
         billing_interval:
+          enum:
+          - none
+          - minute
+          - hour
+          - day
+          - week
+          - month
+          - year
           type: string
         billing_interval_qty:
           type: integer
         category:
+          enum:
+          - one_time
+          - subscription
+          - free
+          - variable
           type: string
         credit_on_decrease:
           type: boolean
@@ -775,6 +810,12 @@ components:
         prorate_on_increase:
           type: boolean
         scheme:
+          enum:
+          - fixed
+          - tiered
+          - volume
+          - graduated
+          - package
           type: string
         suggested_price:
           format: int64
@@ -796,6 +837,14 @@ components:
             type: object
           type: array
         trial_interval:
+          enum:
+          - none
+          - minute
+          - hour
+          - day
+          - week
+          - month
+          - year
           type: string
         trial_interval_qty:
           type: integer
@@ -840,10 +889,23 @@ components:
                     billable_metric_id:
                       type: string
                     billing_interval:
+                      enum:
+                      - none
+                      - minute
+                      - hour
+                      - day
+                      - week
+                      - month
+                      - year
                       type: string
                     billing_interval_qty:
                       type: integer
                     category:
+                      enum:
+                      - one_time
+                      - subscription
+                      - free
+                      - variable
                       type: string
                     credit_on_decrease:
                       type: boolean
@@ -871,6 +933,12 @@ components:
                     prorate_on_increase:
                       type: boolean
                     scheme:
+                      enum:
+                      - fixed
+                      - tiered
+                      - volume
+                      - graduated
+                      - package
                       type: string
                     suggested_price:
                       format: int64
@@ -892,6 +960,14 @@ components:
                         type: object
                       type: array
                     trial_interval:
+                      enum:
+                      - none
+                      - minute
+                      - hour
+                      - day
+                      - week
+                      - month
+                      - year
                       type: string
                     trial_interval_qty:
                       type: integer
@@ -1450,6 +1526,12 @@ components:
           format: date-time
           type: string
         status:
+          enum:
+          - draft
+          - open
+          - paid
+          - uncollectible
+          - void
           type: string
         subscription_id:
           type: string
@@ -2346,6 +2428,9 @@ components:
         billing_anchor:
           type: integer
         proration_mode:
+          enum:
+          - none
+          - prorate
           type: string
       required:
       - billing_anchor
@@ -2381,6 +2466,10 @@ components:
         reason:
           type: string
         status:
+          enum:
+          - active
+          - paused
+          - cancelled
           type: string
       required:
       - status
