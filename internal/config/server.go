@@ -129,6 +129,9 @@ func BuildServer(deps ServerDeps, h Handlers) *fuego.Server {
 			DisableLocalSave: true,
 			DisableSwaggerUI: true,
 		})),
+		// Render `validate:"oneof=..."` fields as real OpenAPI enums (not opaque
+		// strings) so the spec is constrained and SDK clients get enum types.
+		fuego.WithEngineOptions(fuego.WithOpenAPIGeneratorSchemaCustomizer(handler.EnumSchemaCustomizer)),
 	}
 	if deps.Validator != nil {
 		opts = append(opts, fuego.WithValidator(deps.Validator))
