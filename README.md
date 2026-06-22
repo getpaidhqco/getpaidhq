@@ -45,7 +45,7 @@ include more features like metering and usage based billling, and flexibility to
 
 **Durable workflows** ensures scalable and fault-tolerant processing.
 
-**Self-hostable** - Easy to deploy, AGPLv3
+**Self-hostable** - Easy to deploy, MIT licensed
 
 
 ## Getting started
@@ -75,4 +75,4 @@ The REST API is mounted under `/api`. The running server serves its live OpenAPI
 
 ## License
 
-GetPaidHQ is licensed under the GNU Affero General Public License v3.0 (AGPLv3).
+GetPaidHQ is licensed under the [MIT License](LICENSE).
