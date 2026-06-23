@@ -175,7 +175,12 @@ func (h Hatchet) StartWorkflow(ctx context.Context, id port.WorkflowType, payloa
 			}
 			pc = parsed
 		}
-		_, err := h.client.RunNoWait(ctx, "payment-success", hatchetwf.PaymentSuccessInput{PaymentContext: pc},
+		paymentIdentity, err := paymentRunIdentity(pc)
+		if err != nil {
+			return port.WorkflowResult{}, err
+		}
+		_, err = h.client.RunNoWait(ctx, "payment-success", hatchetwf.PaymentSuccessInput{PaymentContext: pc},
+			hatchet.WithRunKey(hatchetwf.PaymentSuccessRunKey(pc.OrgId, pc.OrderId, pc.Psp, paymentIdentity)),
 			hatchet.WithRunMetadata(map[string]string{
 				"orgId":     pc.OrgId,
 				"orderId":   pc.OrderId,
@@ -197,7 +202,12 @@ func (h Hatchet) StartWorkflow(ctx context.Context, id port.WorkflowType, payloa
 			}
 			pc = parsed
 		}
-		_, err := h.client.RunNoWait(ctx, "payment-refunded", hatchetwf.PaymentRefundedInput{PaymentContext: pc},
+		paymentIdentity, err := paymentRunIdentity(pc)
+		if err != nil {
+			return port.WorkflowResult{}, err
+		}
+		_, err = h.client.RunNoWait(ctx, "payment-refunded", hatchetwf.PaymentRefundedInput{PaymentContext: pc},
+			hatchet.WithRunKey(hatchetwf.PaymentRefundedRunKey(pc.OrgId, pc.OrderId, pc.Psp, paymentIdentity)),
 			hatchet.WithRunMetadata(map[string]string{
 				"orgId":     pc.OrgId,
 				"orderId":   pc.OrderId,
@@ -232,6 +242,16 @@ func (h Hatchet) StartWorkflow(ctx context.Context, id port.WorkflowType, payloa
 		h.logger.Warnf("Unsupported workflow type: %s", id)
 		return port.WorkflowResult{}, nil
 	}
+}
+
+func paymentRunIdentity(pc domain.PaymentWebhookContext) (string, error) {
+	if pc.Payment.PspId != "" {
+		return pc.Payment.PspId, nil
+	}
+	if pc.Payment.Reference != "" {
+		return pc.Payment.Reference, nil
+	}
+	return "", errors.New("payment webhook missing PSP payment identity")
 }
 
 func (h Hatchet) StartSubscriptionWorkflow(ctx context.Context, sub domain.Subscription) error {

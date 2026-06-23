@@ -67,10 +67,12 @@ func (e *recordingEngine) SignalSubscriptionWorkflow(context.Context, string, do
 
 type fakeOrderRepo struct {
 	port.OrderRepository
-	order   domain.Order
-	items   []domain.OrderItem
-	findErr error
-	updated []domain.Order
+	order        domain.Order
+	items        []domain.OrderItem
+	findErr      error
+	updateErr    error
+	updated      []domain.Order
+	forUpdateHit int
 }
 
 func (r *fakeOrderRepo) FindById(_ context.Context, _, _ string) (domain.Order, error) {
@@ -78,6 +80,11 @@ func (r *fakeOrderRepo) FindById(_ context.Context, _, _ string) (domain.Order, 
 		return domain.Order{}, r.findErr
 	}
 	return r.order, nil
+}
+
+func (r *fakeOrderRepo) FindByIdForUpdate(ctx context.Context, orgId string, id string) (domain.Order, error) {
+	r.forUpdateHit++
+	return r.FindById(ctx, orgId, id)
 }
 
 func (r *fakeOrderRepo) FindOrderItemsByOrderId(_ context.Context, _, _ string) ([]domain.OrderItem, error) {
@@ -106,6 +113,9 @@ func (r *fakeOrderRepo) FindOrderItemById(_ context.Context, _, id string) (doma
 }
 
 func (r *fakeOrderRepo) Update(_ context.Context, o domain.Order) (domain.Order, error) {
+	if r.updateErr != nil {
+		return domain.Order{}, r.updateErr
+	}
 	r.updated = append(r.updated, o)
 	r.order = o
 	return o, nil
@@ -139,20 +149,28 @@ func (r *fakeCustomerRepo) FindPaymentMethodById(_ context.Context, _, _ string)
 
 type fakePaymentMethodRepo struct {
 	port.PaymentMethodRepository
-	created []domain.PaymentMethod
+	createErr error
+	created   []domain.PaymentMethod
 }
 
 func (r *fakePaymentMethodRepo) Create(_ context.Context, pm domain.PaymentMethod) (domain.PaymentMethod, error) {
+	if r.createErr != nil {
+		return domain.PaymentMethod{}, r.createErr
+	}
 	r.created = append(r.created, pm)
 	return pm, nil
 }
 
 type fakePaymentRepo struct {
 	port.PaymentRepository
-	created []domain.Payment
+	createErr error
+	created   []domain.Payment
 }
 
 func (r *fakePaymentRepo) Create(_ context.Context, p domain.Payment) (domain.Payment, error) {
+	if r.createErr != nil {
+		return domain.Payment{}, r.createErr
+	}
 	r.created = append(r.created, p)
 	return p, nil
 }

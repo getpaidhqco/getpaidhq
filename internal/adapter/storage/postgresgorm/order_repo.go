@@ -7,6 +7,7 @@ import (
 	"getpaidhq/internal/core/port"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type OrderRepo struct {
@@ -20,6 +21,19 @@ func NewOrderRepo(db *gorm.DB) port.OrderRepository {
 func (r *OrderRepo) FindById(ctx context.Context, orgId string, id string) (domain.Order, error) {
 	var row orderRow
 	err := dbFromCtx(ctx, r.db).
+		Scopes(OrgScope(orgId)).
+		Where("id = ?", id).
+		First(&row).Error
+	if err != nil {
+		return domain.Order{}, translateErr(err)
+	}
+	return row.toDomain(), nil
+}
+
+func (r *OrderRepo) FindByIdForUpdate(ctx context.Context, orgId string, id string) (domain.Order, error) {
+	var row orderRow
+	err := dbFromCtx(ctx, r.db).
+		Clauses(clause.Locking{Strength: "UPDATE"}).
 		Scopes(OrgScope(orgId)).
 		Where("id = ?", id).
 		First(&row).Error

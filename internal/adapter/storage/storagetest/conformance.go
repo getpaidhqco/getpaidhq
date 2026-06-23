@@ -215,6 +215,22 @@ func testCartOrderItem(t *testing.T, ctx context.Context, rs RepoSet) {
 	require.NoError(t, err)
 	assert.Equal(t, order.Id, got.Id)
 
+	err = rs.Tx.RunInTx(ctx, func(ctx context.Context) error {
+		locked, err := rs.Order.FindByIdForUpdate(ctx, orgId, order.Id)
+		if err != nil {
+			return err
+		}
+		assert.Equal(t, order.Id, locked.Id)
+		return nil
+	})
+	require.NoError(t, err)
+
+	err = rs.Tx.RunInTx(ctx, func(ctx context.Context) error {
+		_, err := rs.Order.FindByIdForUpdate(ctx, orgId, "missing_order")
+		return err
+	})
+	assert.ErrorIs(t, err, port.ErrNotFound)
+
 	items, err := rs.Order.FindOrderItemsByOrderId(ctx, orgId, order.Id)
 	require.NoError(t, err)
 	require.Len(t, items, 1)
