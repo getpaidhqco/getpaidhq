@@ -383,3 +383,78 @@ func refusalStatus(reason string) lib.CustomErrorType {
 		return lib.ValidationError
 	}
 }
+
+// isConflict reports whether err is the storage layer's typed conflict (a
+// lib.CustomError of ConflictError type — what asConflictOnUnique produces from
+// a Postgres unique violation).
+func isConflict(err error) bool {
+	var ce lib.CustomError
+	return errors.As(err, &ce) && ce.Type == lib.ConflictError
+}
+
+// ConsumeInput converts an order's reservation into a Discount on the given
+// subscription at payment success.
+type ConsumeInput struct {
+	OrgId, OrderId, SubscriptionId string
+	StartCycle                     int
+}
+
+// Consume turns the order's reservation into an active Discount on the
+// subscription, increments the code's redemption count, and clears the hold —
+// all in one tx. It never re-gates caps (the hold already reserved capacity).
+// No-op when the order has no reservation (coupon-less order, or already
+// consumed). Idempotent under workflow retry: a unique-violation on the
+// (org,coupon,subscription) index means the discount already exists, so the
+// stale reservation is just cleared and nil is returned.
+func (s *CouponService) Consume(ctx context.Context, in ConsumeInput) (domain.Discount, error) {
+	var out domain.Discount
+	err := s.tx.RunInTx(ctx, func(ctx context.Context) error {
+		rs, err := s.reservations.FindByOrder(ctx, in.OrgId, in.OrderId)
+		if err != nil {
+			return err
+		}
+		if len(rs) == 0 {
+			return nil // no coupon on this order, or already consumed
+		}
+		r := rs[0]
+		discount, err := domain.NewDiscount(domain.NewDiscountInput{
+			OrgId:          in.OrgId,
+			CouponId:       r.CouponId,
+			CouponCodeId:   r.CouponCodeId,
+			CustomerId:     r.CustomerId,
+			SubscriptionId: in.SubscriptionId,
+			StartCycle:     in.StartCycle,
+		})
+		if err != nil {
+			return err
+		}
+		created, err := s.discounts.Create(ctx, discount)
+		if err != nil {
+			if isConflict(err) {
+				// Already consumed under a prior retry — just clear the hold.
+				return s.reservations.DeleteByOrder(ctx, in.OrgId, in.OrderId)
+			}
+			return err
+		}
+		if r.CouponCodeId != "" {
+			if err := s.codes.IncrementRedeemed(ctx, in.OrgId, r.CouponCodeId); err != nil {
+				return err
+			}
+		}
+		if err := s.reservations.DeleteByOrder(ctx, in.OrgId, in.OrderId); err != nil {
+			return err
+		}
+		out = created
+		return nil
+	})
+	if err != nil {
+		return domain.Discount{}, err
+	}
+	return out, nil
+}
+
+// Release drops the order's reservation without converting it (order abandoned
+// or failed). Idempotent — deleting a non-existent hold is a no-op.
+func (s *CouponService) Release(ctx context.Context, orgId, orderId string) error {
+	return s.reservations.DeleteByOrder(ctx, orgId, orderId)
+}
