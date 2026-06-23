@@ -23,7 +23,7 @@ func newOrderWorkflowService(
 	if ps == nil {
 		ps = &recordingPubSub{}
 	}
-	return NewOrderWorkflowService(orderRepo, &fakeCustomerRepo{}, subRepo, pmRepo, payRepo, &fakePriceRepo{}, ps, silentLogger{})
+	return NewOrderWorkflowService(orderRepo, &fakeCustomerRepo{}, subRepo, pmRepo, payRepo, &fakePriceRepo{}, &fakeTxManager{}, ps, silentLogger{})
 }
 
 func completeSessionInput() port.CompleteCheckoutSessionInput {
@@ -52,11 +52,12 @@ func TestOrderWorkflowService_CompleteCheckoutSession(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.OrderStatusCompleted, got.Status)
+		assert.Equal(t, 1, orderRepo.forUpdateHit)
 		require.Len(t, pmRepo.created, 1)
 		assert.Equal(t, "tok_1", pmRepo.created[0].Token.Reveal())
-	// Details must not smuggle the token alongside the redacting Token field.
-	detailsJSON, _ := json.Marshal(pmRepo.created[0].Details)
-	assert.NotContains(t, string(detailsJSON), "tok_1")
+		// Details must not smuggle the token alongside the redacting Token field.
+		detailsJSON, _ := json.Marshal(pmRepo.created[0].Details)
+		assert.NotContains(t, string(detailsJSON), "tok_1")
 		require.Len(t, subRepo.updated, 1)
 		assert.Equal(t, domain.SubscriptionStatusActive, subRepo.updated[0].Status)
 		assert.Equal(t, pmRepo.created[0].Id, subRepo.updated[0].PaymentMethodId)
@@ -93,6 +94,39 @@ func TestOrderWorkflowService_CompleteCheckoutSession(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Empty(t, pmRepo.created)
+		assert.Empty(t, ps.published)
+	})
+
+	t.Run("already completed order is an idempotent no-op", func(t *testing.T) {
+		orderRepo := &fakeOrderRepo{order: domain.Order{OrgId: "org_1", Id: "ord_1", CustomerId: "cus_1", Status: domain.OrderStatusCompleted}}
+		pmRepo := &fakePaymentMethodRepo{}
+		payRepo := &fakePaymentRepo{}
+		ps := &recordingPubSub{}
+		svc := newOrderWorkflowService(orderRepo, &fakeSubRepo{byOrderId: []domain.Subscription{{OrgId: "org_1", Id: "sub_1"}}}, pmRepo, payRepo, ps)
+
+		got, err := svc.CompleteCheckoutSession(context.Background(), completeSessionInput())
+
+		require.NoError(t, err)
+		assert.Equal(t, domain.OrderStatusCompleted, got.Status)
+		assert.Equal(t, 1, orderRepo.forUpdateHit)
+		assert.Empty(t, orderRepo.updated)
+		assert.Empty(t, pmRepo.created)
+		assert.Empty(t, payRepo.created)
+		assert.Empty(t, ps.published)
+	})
+
+	t.Run("payment create failure returns error and prevents publish", func(t *testing.T) {
+		orderRepo := &fakeOrderRepo{order: domain.Order{OrgId: "org_1", Id: "ord_1", CustomerId: "cus_1", Status: domain.OrderStatusPending}}
+		subRepo := &fakeSubRepo{byOrderId: []domain.Subscription{{OrgId: "org_1", Id: "sub_1"}}}
+		pmRepo := &fakePaymentMethodRepo{}
+		payRepo := &fakePaymentRepo{createErr: errors.New("db down")}
+		ps := &recordingPubSub{}
+		svc := newOrderWorkflowService(orderRepo, subRepo, pmRepo, payRepo, ps)
+
+		_, err := svc.CompleteCheckoutSession(context.Background(), completeSessionInput())
+
+		require.Error(t, err)
+		assert.Equal(t, 1, orderRepo.forUpdateHit)
 		assert.Empty(t, ps.published)
 	})
 }

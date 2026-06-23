@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"fmt"
+	"getpaidhq/internal/core/domain"
 	"strconv"
 	"time"
 )
@@ -16,6 +17,18 @@ import (
 // durable task. Using WithRunKey(...) makes StartSubscriptionWorkflow idempotent.
 func SubscriptionRunKey(orgId, subscriptionId string) string {
 	return fmt.Sprintf("sub_%s_%s", orgId, subscriptionId)
+}
+
+// PaymentSuccessRunKey de-duplicates successful-payment webhook processing by
+// the parsed PSP payment identity, not by the raw webhook delivery envelope.
+func PaymentSuccessRunKey(orgId, orderId string, psp domain.Gateway, paymentIdentity string) string {
+	return fmt.Sprintf("payment_success_%s_%s_%s_%s", orgId, orderId, psp, paymentIdentity)
+}
+
+// PaymentRefundedRunKey de-duplicates refund webhook processing by the parsed
+// PSP payment identity, mirroring the success workflow's business key.
+func PaymentRefundedRunKey(orgId, orderId string, psp domain.Gateway, paymentIdentity string) string {
+	return fmt.Sprintf("payment_refunded_%s_%s_%s_%s", orgId, orderId, psp, paymentIdentity)
 }
 
 // UpdateEventKey carries a domain.Subscription state change to the durable runner.

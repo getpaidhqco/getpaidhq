@@ -49,6 +49,11 @@ type SubscriptionRepository interface {
 // Also handles order items (merged from OrderItemRepository).
 type OrderRepository interface {
 	FindById(ctx context.Context, orgId string, id string) (domain.Order, error)
+	// FindByIdForUpdate is identical to FindById but acquires a row
+	// lock (SELECT ... FOR UPDATE) on the order. Used inside RunInTx
+	// by completion flows so concurrent retries cannot both observe
+	// the same pending order and apply duplicate side effects.
+	FindByIdForUpdate(ctx context.Context, orgId string, id string) (domain.Order, error)
 	Create(ctx context.Context, entity domain.Order) (domain.Order, error)
 	Update(ctx context.Context, entity domain.Order) (domain.Order, error)
 	Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Order, int, error)

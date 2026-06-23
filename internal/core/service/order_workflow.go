@@ -23,6 +23,7 @@ type OrderWorkflowService struct {
 	paymentMethodRepository port.PaymentMethodRepository
 	paymentRepository       port.PaymentRepository
 	priceRepository         port.PriceRepository
+	tx                      port.TxManager
 	pubsub                  port.PubSub
 	logger                  port.Logger
 }
@@ -34,6 +35,7 @@ func NewOrderWorkflowService(
 	paymentMethodRepository port.PaymentMethodRepository,
 	paymentRepository port.PaymentRepository,
 	priceRepository port.PriceRepository,
+	tx port.TxManager,
 	pubsub port.PubSub,
 	logger port.Logger,
 ) *OrderWorkflowService {
@@ -44,6 +46,7 @@ func NewOrderWorkflowService(
 		paymentMethodRepository: paymentMethodRepository,
 		paymentRepository:       paymentRepository,
 		priceRepository:         priceRepository,
+		tx:                      tx,
 		pubsub:                  pubsub,
 		logger:                  logger,
 	}
@@ -56,115 +59,143 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 	orgId := input.OrgId
 	orderId := input.OrderId
 
-	order, err := s.orderRepository.FindById(ctx, orgId, orderId)
-	if err != nil {
-		return domain.Order{}, errors.New("order not found")
-	}
-
-	order.Status = domain.OrderStatusCompleted
-	order.UpdatedAt = time.Now()
-	_, err = s.orderRepository.Update(ctx, order)
-	if err != nil {
-		s.logger.Error("Failed to update order", err.Error())
-		return domain.Order{}, err
-	}
-
 	paymentCtx := input.PaymentContext
+	var order domain.Order
+	var shouldPublish bool
 
-	customer, err := s.customerRepository.FindById(ctx, orgId, order.CustomerId)
-	if err != nil {
-		s.logger.Error("Failed to find customer for order", "customer_id", order.CustomerId, "err", err.Error())
-		return domain.Order{}, err
-	}
-
-	// Details keeps the PSP's display data but NOT the token — Details is
-	// echoed in API responses and events, and the token already lives in the
-	// dedicated (redacting) Token field.
-	details := paymentCtx.PaymentMethod
-	details.Token = ""
-	paymentMethod, err := s.paymentMethodRepository.Create(ctx, domain.PaymentMethod{
-		OrgId:          orgId,
-		Id:             lib.GenerateId("payment_method"),
-		Psp:            string(paymentCtx.Psp),
-		Token:          domain.Secret(paymentCtx.PaymentMethod.Token),
-		Name:           "Default",
-		CustomerId:     order.CustomerId,
-		BillingAddress: customer.BillingAddress,
-		Type:           domain.PaymentMethodType(paymentCtx.PaymentMethod.Type),
-		Details:        details,
-		CreatedAt:      time.Now().UTC(),
-		UpdatedAt:      time.Now().UTC(),
-	})
-	if err != nil {
-		s.logger.Error("Failed to create payment method", err.Error())
-		return domain.Order{}, err
-	}
-	s.logger.Infof("Created payment method %s for order %s", paymentMethod.Id, order.Id)
-
-	var subscriptionId string
-	subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
-	if err != nil {
-		s.logger.Error("error finding subscriptions", err.Error())
-	}
-
-	recurringPayment := len(subscriptions) > 0 && paymentCtx.Payment.Amount > 0
-	for _, subscription := range subscriptions {
-		// The subscription carries its own cadence + trial (derived from its lines),
-		// so activation needs no price. Revenue is the recurring fixed base for the
-		// first cycle (the subscription stores no amount, ADR 0002).
-		charged := paymentCtx.Payment.Amount > 0 && subscription.StartDate.Sub(time.Now().UTC()) < 0
-		if charged {
-			fixedBase, err := fixedBaseAmount(ctx, s.orderRepository, s.priceRepository, orgId, subscription.Id)
-			if err != nil {
-				s.logger.Error("Failed to resolve subscription base", "subscription_id", subscription.Id, "err", err.Error())
-				return domain.Order{}, err
-			}
-			subscriptionId = subscription.Id
-			subscription.SetActivationDates()
-			subscription.Status = domain.SubscriptionStatusActive
-			subscription.LastCharge = subscription.StartDate
-			subscription.TotalRevenue = fixedBase
-			subscription.CyclesProcessed = 1
-		} else {
-			subscription.SetActivationDates()
-			subscription.Status = domain.SubscriptionStatusTrial
-		}
-		subscription.PaymentMethodId = paymentMethod.Id
-
-		_, err = s.subscriptionRepository.Update(ctx, subscription)
+	err := s.tx.RunInTx(ctx, func(ctx context.Context) error {
+		var err error
+		order, err = s.orderRepository.FindByIdForUpdate(ctx, orgId, orderId)
 		if err != nil {
-			s.logger.Error("Failed to update subscription status", err.Error())
-			return domain.Order{}, err
+			if errors.Is(err, port.ErrNotFound) {
+				return errors.Join(errors.New("order not found"), port.ErrNotFound)
+			}
+			return err
 		}
-	}
 
-	if paymentCtx.Payment.Amount > 0 {
-		payment := domain.Payment{
+		if order.Status == domain.OrderStatusCompleted {
+			return nil
+		}
+		if order.Status != domain.OrderStatusPending {
+			return lib.NewCustomError(lib.ConflictError, "Order is not pending", nil)
+		}
+
+		customer, err := s.customerRepository.FindById(ctx, orgId, order.CustomerId)
+		if err != nil {
+			s.logger.Error("Failed to find customer for order", "customer_id", order.CustomerId, "err", err.Error())
+			return err
+		}
+
+		// Details keeps the PSP's display data but NOT the token — Details is
+		// echoed in API responses and events, and the token already lives in the
+		// dedicated (redacting) Token field.
+		details := paymentCtx.PaymentMethod
+		details.Token = ""
+		paymentMethod, err := s.paymentMethodRepository.Create(ctx, domain.PaymentMethod{
 			OrgId:          orgId,
-			Id:             lib.GenerateId("pmt"),
-			Psp:            paymentCtx.Psp,
-			PspId:          paymentCtx.Payment.PspId,
-			Reference:      paymentCtx.Payment.Reference,
-			OrderId:        orderId,
-			SubscriptionId: subscriptionId,
-			Status:         domain.PaymentStatusSucceeded,
-			Recurring:      recurringPayment,
-			Currency:       paymentCtx.Payment.Currency,
-			Amount:         paymentCtx.Payment.Amount,
-			PspFee:         0,
-			PlatformFee:    0,
-			NetAmount:      paymentCtx.Payment.Amount,
-			Metadata:       nil,
-			CompletedAt:    paymentCtx.Payment.PaidAt,
+			Id:             lib.GenerateId("payment_method"),
+			Psp:            string(paymentCtx.Psp),
+			Token:          domain.Secret(paymentCtx.PaymentMethod.Token),
+			Name:           "Default",
+			CustomerId:     order.CustomerId,
+			BillingAddress: customer.BillingAddress,
+			Type:           domain.PaymentMethodType(paymentCtx.PaymentMethod.Type),
+			Details:        details,
 			CreatedAt:      time.Now().UTC(),
 			UpdatedAt:      time.Now().UTC(),
-		}
-		_, err := s.paymentRepository.Create(ctx, payment)
+		})
 		if err != nil {
-			s.logger.Error("Failed to create payment", err.Error())
+			s.logger.Error("Failed to create payment method", err.Error())
+			return err
+		}
+		s.logger.Infof("Created payment method %s for order %s", paymentMethod.Id, order.Id)
+
+		order.Status = domain.OrderStatusCompleted
+		order.UpdatedAt = time.Now()
+		order, err = s.orderRepository.Update(ctx, order)
+		if err != nil {
+			s.logger.Error("Failed to update order", err.Error())
+			return err
+		}
+
+		var subscriptionId string
+		subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
+		if err != nil {
+			s.logger.Error("error finding subscriptions", err.Error())
+			return err
+		}
+
+		recurringPayment := len(subscriptions) > 0 && paymentCtx.Payment.Amount > 0
+		for _, subscription := range subscriptions {
+			// The subscription carries its own cadence + trial (derived from its lines),
+			// so activation needs no price. Revenue is the recurring fixed base for the
+			// first cycle (the subscription stores no amount, ADR 0002).
+			charged := paymentCtx.Payment.Amount > 0 && subscription.StartDate.Sub(time.Now().UTC()) < 0
+			if charged {
+				fixedBase, err := fixedBaseAmount(ctx, s.orderRepository, s.priceRepository, orgId, subscription.Id)
+				if err != nil {
+					s.logger.Error("Failed to resolve subscription base", "subscription_id", subscription.Id, "err", err.Error())
+					return err
+				}
+				subscriptionId = subscription.Id
+				subscription.SetActivationDates()
+				subscription.Status = domain.SubscriptionStatusActive
+				subscription.LastCharge = subscription.StartDate
+				subscription.TotalRevenue = fixedBase
+				subscription.CyclesProcessed = 1
+			} else {
+				subscription.SetActivationDates()
+				subscription.Status = domain.SubscriptionStatusTrial
+			}
+			subscription.PaymentMethodId = paymentMethod.Id
+
+			_, err = s.subscriptionRepository.Update(ctx, subscription)
+			if err != nil {
+				s.logger.Error("Failed to update subscription status", err.Error())
+				return err
+			}
+		}
+
+		if paymentCtx.Payment.Amount > 0 {
+			payment := domain.Payment{
+				OrgId:          orgId,
+				Id:             lib.GenerateId("pmt"),
+				Psp:            paymentCtx.Psp,
+				PspId:          paymentCtx.Payment.PspId,
+				Reference:      paymentCtx.Payment.Reference,
+				OrderId:        orderId,
+				SubscriptionId: subscriptionId,
+				Status:         domain.PaymentStatusSucceeded,
+				Recurring:      recurringPayment,
+				Currency:       paymentCtx.Payment.Currency,
+				Amount:         paymentCtx.Payment.Amount,
+				PspFee:         0,
+				PlatformFee:    0,
+				NetAmount:      paymentCtx.Payment.Amount,
+				Metadata:       nil,
+				CompletedAt:    paymentCtx.Payment.PaidAt,
+				CreatedAt:      time.Now().UTC(),
+				UpdatedAt:      time.Now().UTC(),
+			}
+			_, err := s.paymentRepository.Create(ctx, payment)
+			if err != nil {
+				s.logger.Error("Failed to create payment", err.Error())
+				return err
+			}
+		}
+
+		shouldPublish = true
+		return nil
+	})
+	if err != nil {
+		return domain.Order{}, err
+	}
+
+	if shouldPublish {
+		if err := s.pubsub.Publish(order.OrgId, port.TopicOrderCompleted, order); err != nil {
+			s.logger.Errorf("Failed to publish %s for order %s: %v", port.TopicOrderCompleted, order.Id, err)
 		}
 	}
 
-	_ = s.pubsub.Publish(order.OrgId, port.TopicOrderCompleted, order)
 	return order, nil
 }
