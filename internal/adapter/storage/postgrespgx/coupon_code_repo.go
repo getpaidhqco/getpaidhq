@@ -63,6 +63,18 @@ func (r *CouponCodeRepo) FindByCode(ctx context.Context, orgId, code string) (do
 	return row.toDomain(), nil
 }
 
+// FindByCodeForUpdate resolves a code case-insensitively and row-locks it.
+func (r *CouponCodeRepo) FindByCodeForUpdate(ctx context.Context, orgId, code string) (domain.CouponCode, error) {
+	q := dbFromCtx(ctx, r.pool)
+	var row couponCodeRow
+	if err := row.scanInto(q.QueryRow(ctx,
+		`SELECT `+couponCodeColumns+` FROM coupon_codes WHERE org_id = $1 AND upper(code) = upper($2) FOR UPDATE`,
+		orgId, code)); err != nil {
+		return domain.CouponCode{}, translateErr(err)
+	}
+	return row.toDomain(), nil
+}
+
 func (r *CouponCodeRepo) FindByCouponId(ctx context.Context, orgId, couponId string) ([]domain.CouponCode, error) {
 	q := dbFromCtx(ctx, r.pool)
 	rows, err := q.Query(ctx,
