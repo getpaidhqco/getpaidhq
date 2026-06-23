@@ -12,7 +12,10 @@ import (
 // one-row table built by row.
 func renderOne[T any](app *App, v T, headers []string, row func(T) []string) error {
 	if app.Output == "json" {
-		b, err := json.Marshal(v)
+		// Marshal &v: the generated types implement MarshalJSON on pointer
+		// receivers, and v (a value) is not addressable, so json.Marshal(v)
+		// would skip it and mis-encode unset optional fields.
+		b, err := json.Marshal(&v)
 		if err != nil {
 			return err
 		}

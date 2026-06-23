@@ -51,6 +51,10 @@ func runCase(t *testing.T, tc cmdCase) {
 		b, _ := io.ReadAll(r.Body)
 		gotBody = string(b)
 		mu.Unlock()
+		// The generated ogen client validates the response Content-Type, so the
+		// canned JSON must be served as application/json (otherwise Go's
+		// http.DetectContentType would label it text/plain and decoding fails).
+		w.Header().Set("Content-Type", "application/json")
 		if tc.respStatus != 0 {
 			w.WriteHeader(tc.respStatus)
 		}
