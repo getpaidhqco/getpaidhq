@@ -1,11 +1,9 @@
-package commands
+package cli
 
 import (
-	"net/http"
-
 	"github.com/spf13/cobra"
 
-	api "getpaidhq/internal/adapter/http"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/apigen"
 )
 
 func newSessionsCmd(app *App) *cobra.Command {
@@ -30,37 +28,39 @@ func newSessionsCreateCmd(app *App) *cobra.Command {
 			"  gphq sessions create --data '{\"currency\":\"USD\",\"country\":\"US\"}'",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
+			body, err := bindBody(cmd, func(in *apigen.CreateSessionRequest) error {
 				currency, _ := cmd.Flags().GetString("currency")
 				country, _ := cmd.Flags().GetString("country")
 				if currency == "" || country == "" {
-					return nil, Usagef("--currency and --country are required (or use --data)")
+					return Usagef("--currency and --country are required (or use --data)")
 				}
+				in.Currency = currency
+				in.Country = country
 				metaPairs, _ := cmd.Flags().GetStringArray("metadata")
 				meta, err := parseKV(metaPairs, "metadata")
 				if err != nil {
-					return nil, err
+					return err
 				}
-				return api.CreateSessionRequest{
-					Currency: currency,
-					Country:  country,
-					Metadata: meta,
-				}, nil
+				if meta != nil {
+					in.Metadata = apigen.NewOptCreateSessionRequestMetadata(apigen.CreateSessionRequestMetadata(meta))
+				}
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, "/api/sessions", nil, body)
+			res, err := app.API.CreateSession(cmd.Context(), body, apigen.CreateSessionParams{})
+			sess, err := expectOK[*apigen.CreateSessionResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, sess)
 		},
 	}
 	f := cmd.Flags()
 	f.String("currency", "", "session currency (required)")
 	f.String("country", "", "session country (required)")
 	f.StringArray("metadata", nil, "metadata key=value pairs (repeatable)")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "POST", "/api/sessions")
 }

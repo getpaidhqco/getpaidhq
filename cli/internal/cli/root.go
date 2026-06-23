@@ -134,6 +134,27 @@ Configuration precedence: flags > GPHQ_* environment variables >
 // addAll registers every resource-group command on the root.
 func addAll(root *cobra.Command, app *App) {
 	root.AddCommand(
+		newHealthCmd(app),
+		newApiKeysCmd(app),
+		newCartsCmd(app),
 		newCustomersCmd(app),
+		newDunningCmd(app),
+		newGatewaysCmd(app),
+		newInvoicesCmd(app),
+		newMetersCmd(app),
+		newOrdersCmd(app),
+		newOrgsCmd(app),
+		newPaymentMethodsCmd(app),
+		newPaymentTokensCmd(app),
+		newPaymentsCmd(app),
+		newPricesCmd(app),
+		newProductsCmd(app),
+		newRemindersCmd(app),
+		newSessionsCmd(app),
+		newSettingsCmd(app),
+		newSubscriptionsCmd(app),
+		newUsageCmd(app),
+		newVariantsCmd(app),
+		newWebhooksCmd(app),
 	)
 }

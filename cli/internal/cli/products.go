@@ -1,36 +1,37 @@
-package commands
+package cli
 
 import (
-	"fmt"
-	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/spf13/cobra"
 
-	api "getpaidhq/internal/adapter/http"
-	"getpaidhq/internal/cli/output"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/apigen"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/cli/output"
 )
 
 var productHeaders = []string{"ID", "NAME", "STATUS", "VARIANTS", "CREATED"}
 
-func productRow(p api.ProductResponse) []string {
+func productRow(p apigen.ProductResponse) []string {
+	variants, _ := p.Variants.Get()
 	return []string{
-		p.Id,
-		p.Name,
-		string(p.Status),
-		strconv.Itoa(len(p.Variants)),
-		output.Time(p.CreatedAt),
+		p.ID.Or(""),
+		p.Name.Or(""),
+		p.Status.Or(""),
+		strconv.Itoa(len(variants)),
+		output.Time(p.CreatedAt.Or(time.Time{})),
 	}
 }
 
 var variantHeaders = []string{"ID", "NAME", "PRICES", "CREATED"}
 
-func variantRow(v api.VariantResponse) []string {
+func variantRow(v apigen.VariantResponse) []string {
+	prices, _ := v.Prices.Get()
 	return []string{
-		v.Id,
-		v.Name,
-		strconv.Itoa(len(v.Prices)),
-		output.Time(v.CreatedAt),
+		v.ID.Or(""),
+		v.Name.Or(""),
+		strconv.Itoa(len(prices)),
+		output.Time(v.CreatedAt.Or(time.Time{})),
 	}
 }
 
@@ -62,41 +63,44 @@ func newProductsCreateCmd(app *App) *cobra.Command {
 		Example: "  gphq products create --name \"Acme Pro\" --description \"My product\"\n  gphq products create --data @product.json",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
+			body, err := bindBody(cmd, func(in *apigen.CreateProductRequest) error {
 				name, _ := cmd.Flags().GetString("name")
 				if name == "" {
-					return nil, Usagef("--name is required (or use --data)")
+					return Usagef("--name is required (or use --data)")
 				}
-				desc, _ := cmd.Flags().GetString("description")
+				in.Name = name
+				if s, _ := cmd.Flags().GetString("description"); s != "" {
+					in.Description = apigen.NewOptString(s)
+				}
 				metaPairs, _ := cmd.Flags().GetStringArray("metadata")
 				meta, err := parseKV(metaPairs, "metadata")
 				if err != nil {
-					return nil, err
+					return err
 				}
-				return api.CreateProductRequest{
-					Name:        name,
-					Description: desc,
-					Metadata:    meta,
-					// Variants is required by server validation; flag-only path
-					// sends an empty slice and will receive a 400 from the server.
-					Variants: []api.CreateProductVariantRequest{},
-				}, nil
+				if meta != nil {
+					in.Metadata = apigen.NewOptCreateProductRequestMetadata(apigen.CreateProductRequestMetadata(meta))
+				}
+				// Variants is required by server validation; flag-only path
+				// sends an empty slice and will receive a 400 from the server.
+				in.Variants = []apigen.CreateProductRequestVariantsItem{}
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, "/api/products", nil, body)
+			res, err := app.API.CreateProduct(cmd.Context(), body, apigen.CreateProductParams{})
+			prod, err := expectOK[*apigen.ProductResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, productHeaders, productRow)
+			return renderOne(app, *prod, productHeaders, productRow)
 		},
 	}
 	f := cmd.Flags()
 	f.String("name", "", "product name")
 	f.String("description", "", "product description")
 	f.StringArray("metadata", nil, "metadata key=value pairs (repeatable)")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "POST", "/api/products")
 }
 
@@ -108,16 +112,18 @@ func newProductsListCmd(app *App) *cobra.Command {
 		Example: "  gphq products list\n  gphq products list --status archived\n  gphq products list --status all --page 2",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			q := listQuery(cmd)
-			status, _ := cmd.Flags().GetString("status")
-			if status != "" {
-				q.Set("status", status)
-			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/products", q, nil)
+			page, limit, sortBy, sortOrder := listArgs(cmd)
+			res, err := app.API.ListProducts(cmd.Context(), apigen.ListProductsParams{
+				Page:      apigen.NewOptInt(page),
+				Limit:     apigen.NewOptInt(limit),
+				SortBy:    apigen.NewOptString(sortBy),
+				SortOrder: apigen.NewOptString(sortOrder),
+			})
+			lr, err := expectOK[*apigen.ListResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderList(app, raw, productHeaders, productRow)
+			return renderList(app, lr, productHeaders, productRow)
 		},
 	}
 	addListFlags(cmd)
@@ -133,11 +139,12 @@ func newProductsGetCmd(app *App) *cobra.Command {
 		Example: "  gphq products get prod_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/products/"+args[0], nil, nil)
+			res, err := app.API.GetProduct(cmd.Context(), apigen.GetProductParams{ID: args[0]})
+			prod, err := expectOK[*apigen.ProductResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, productHeaders, productRow)
+			return renderOne(app, *prod, productHeaders, productRow)
 		},
 	}
 	return annotate(cmd, "GET", "/api/products/{id}")
@@ -151,38 +158,41 @@ func newProductsUpdateCmd(app *App) *cobra.Command {
 		Example: "  gphq products update prod_1 --name \"New Name\"\n  gphq products update prod_1 --data '{\"name\":\"New Name\"}'",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
+			body, err := bindBody(cmd, func(in *apigen.UpdateProductRequest) error {
 				name, _ := cmd.Flags().GetString("name")
 				if name == "" {
-					return nil, Usagef("--name is required (or use --data)")
+					return Usagef("--name is required (or use --data)")
 				}
-				desc, _ := cmd.Flags().GetString("description")
+				in.Name = name
+				if s, _ := cmd.Flags().GetString("description"); s != "" {
+					in.Description = apigen.NewOptString(s)
+				}
 				metaPairs, _ := cmd.Flags().GetStringArray("metadata")
 				meta, err := parseKV(metaPairs, "metadata")
 				if err != nil {
-					return nil, err
+					return err
 				}
-				return api.UpdateProductRequest{
-					Name:        name,
-					Description: desc,
-					Metadata:    meta,
-				}, nil
+				if meta != nil {
+					in.Metadata = apigen.NewOptUpdateProductRequestMetadata(apigen.UpdateProductRequestMetadata(meta))
+				}
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPatch, "/api/products/"+args[0], nil, body)
+			res, err := app.API.UpdateProduct(cmd.Context(), body, apigen.UpdateProductParams{ID: args[0]})
+			prod, err := expectOK[*apigen.ProductResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, productHeaders, productRow)
+			return renderOne(app, *prod, productHeaders, productRow)
 		},
 	}
 	f := cmd.Flags()
 	f.String("name", "", "product name (required)")
 	f.String("description", "", "product description")
 	f.StringArray("metadata", nil, "metadata key=value pairs (repeatable)")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "PATCH", "/api/products/{id}")
 }
 
@@ -194,8 +204,8 @@ func newProductsDeleteCmd(app *App) *cobra.Command {
 		Example: "  gphq products delete prod_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, err := app.Client.Do(cmd.Context(), http.MethodDelete, "/api/products/"+args[0], nil, nil)
-			if err != nil {
+			res, err := app.API.DeleteProduct(cmd.Context(), apigen.DeleteProductParams{ID: args[0]})
+			if _, err := expectOK[*apigen.EmptyResponse](res, err); err != nil {
 				return err
 			}
 			return renderDeleted(app, args[0])
@@ -212,11 +222,12 @@ func newProductsArchiveCmd(app *App) *cobra.Command {
 		Example: "  gphq products archive prod_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, "/api/products/"+args[0]+"/archive", nil, nil)
+			res, err := app.API.ArchiveProduct(cmd.Context(), apigen.ArchiveProductParams{ID: args[0]})
+			prod, err := expectOK[*apigen.ProductResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, productHeaders, productRow)
+			return renderOne(app, *prod, productHeaders, productRow)
 		},
 	}
 	return annotate(cmd, "POST", "/api/products/{id}/archive")
@@ -230,11 +241,12 @@ func newProductsUnarchiveCmd(app *App) *cobra.Command {
 		Example: "  gphq products unarchive prod_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, "/api/products/"+args[0]+"/unarchive", nil, nil)
+			res, err := app.API.UnarchiveProduct(cmd.Context(), apigen.UnarchiveProductParams{ID: args[0]})
+			prod, err := expectOK[*apigen.ProductResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, productHeaders, productRow)
+			return renderOne(app, *prod, productHeaders, productRow)
 		},
 	}
 	return annotate(cmd, "POST", "/api/products/{id}/unarchive")
@@ -262,12 +274,19 @@ func newProductsVariantsListCmd(app *App) *cobra.Command {
 		Example: "  gphq products variants list prod_1",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path := fmt.Sprintf("/api/products/%s/variants", args[0])
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, path, listQuery(cmd), nil)
+			page, limit, sortBy, sortOrder := listArgs(cmd)
+			res, err := app.API.ListProductVariants(cmd.Context(), apigen.ListProductVariantsParams{
+				ID:        args[0],
+				Page:      apigen.NewOptInt(page),
+				Limit:     apigen.NewOptInt(limit),
+				SortBy:    apigen.NewOptString(sortBy),
+				SortOrder: apigen.NewOptString(sortOrder),
+			})
+			lr, err := expectOK[*apigen.ListResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderList(app, raw, variantHeaders, variantRow)
+			return renderList(app, lr, variantHeaders, variantRow)
 		},
 	}
 	addListFlags(cmd)
@@ -282,38 +301,40 @@ func newProductsVariantsAddCmd(app *App) *cobra.Command {
 		Example: "  gphq products variants add prod_1 --name Premium\n  gphq products variants add prod_1 --data @variant.json",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
+			body, err := bindBody(cmd, func(in *apigen.CreateVariantRequest) error {
 				name, _ := cmd.Flags().GetString("name")
 				if name == "" {
-					return nil, Usagef("--name is required (or use --data)")
+					return Usagef("--name is required (or use --data)")
 				}
-				desc, _ := cmd.Flags().GetString("description")
+				in.Name = name
+				if s, _ := cmd.Flags().GetString("description"); s != "" {
+					in.Description = apigen.NewOptString(s)
+				}
 				metaPairs, _ := cmd.Flags().GetStringArray("metadata")
 				meta, err := parseKV(metaPairs, "metadata")
 				if err != nil {
-					return nil, err
+					return err
 				}
-				return api.CreateVariantRequest{
-					Name:        name,
-					Description: desc,
-					Metadata:    meta,
-				}, nil
+				if meta != nil {
+					in.Metadata = apigen.NewOptCreateVariantRequestMetadata(apigen.CreateVariantRequestMetadata(meta))
+				}
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			path := fmt.Sprintf("/api/products/%s/variants", args[0])
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, path, nil, body)
+			res, err := app.API.CreateProductVariant(cmd.Context(), body, apigen.CreateProductVariantParams{ID: args[0]})
+			variant, err := expectOK[*apigen.VariantResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, variantHeaders, variantRow)
+			return renderOne(app, *variant, variantHeaders, variantRow)
 		},
 	}
 	f := cmd.Flags()
 	f.String("name", "", "variant name (required)")
 	f.String("description", "", "variant description")
 	f.StringArray("metadata", nil, "metadata key=value pairs (repeatable)")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "POST", "/api/products/{id}/variants")
 }

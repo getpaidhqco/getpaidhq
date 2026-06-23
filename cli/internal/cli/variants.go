@@ -1,12 +1,9 @@
-package commands
+package cli
 
 import (
-	"fmt"
-	"net/http"
-
 	"github.com/spf13/cobra"
 
-	api "getpaidhq/internal/adapter/http"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/apigen"
 )
 
 func newVariantsCmd(app *App) *cobra.Command {
@@ -32,11 +29,12 @@ func newVariantsGetCmd(app *App) *cobra.Command {
 		Example: "  gphq variants get var_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/variants/"+args[0], nil, nil)
+			res, err := app.API.GetVariant(cmd.Context(), apigen.GetVariantParams{VariantId: args[0]})
+			variant, err := expectOK[*apigen.VariantResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, variantHeaders, variantRow)
+			return renderOne(app, *variant, variantHeaders, variantRow)
 		},
 	}
 	return annotate(cmd, "GET", "/api/variants/{variantId}")
@@ -50,38 +48,41 @@ func newVariantsUpdateCmd(app *App) *cobra.Command {
 		Example: "  gphq variants update var_1 --name \"Premium v2\"\n  gphq variants update var_1 --data @variant.json",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
+			body, err := bindBody(cmd, func(in *apigen.UpdateVariantRequest) error {
 				name, _ := cmd.Flags().GetString("name")
 				if name == "" {
-					return nil, Usagef("--name is required (or use --data)")
+					return Usagef("--name is required (or use --data)")
 				}
-				desc, _ := cmd.Flags().GetString("description")
+				in.Name = name
+				if s, _ := cmd.Flags().GetString("description"); s != "" {
+					in.Description = apigen.NewOptString(s)
+				}
 				metaPairs, _ := cmd.Flags().GetStringArray("metadata")
 				meta, err := parseKV(metaPairs, "metadata")
 				if err != nil {
-					return nil, err
+					return err
 				}
-				return api.UpdateVariantRequest{
-					Name:        name,
-					Description: desc,
-					Metadata:    meta,
-				}, nil
+				if meta != nil {
+					in.Metadata = apigen.NewOptUpdateVariantRequestMetadata(apigen.UpdateVariantRequestMetadata(meta))
+				}
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPut, "/api/variants/"+args[0], nil, body)
+			res, err := app.API.UpdateVariant(cmd.Context(), body, apigen.UpdateVariantParams{VariantId: args[0]})
+			variant, err := expectOK[*apigen.VariantResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, variantHeaders, variantRow)
+			return renderOne(app, *variant, variantHeaders, variantRow)
 		},
 	}
 	f := cmd.Flags()
 	f.String("name", "", "variant name (required)")
 	f.String("description", "", "variant description")
 	f.StringArray("metadata", nil, "metadata key=value pairs (repeatable)")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "PUT", "/api/variants/{variantId}")
 }
 
@@ -93,8 +94,8 @@ func newVariantsDeleteCmd(app *App) *cobra.Command {
 		Example: "  gphq variants delete var_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, err := app.Client.Do(cmd.Context(), http.MethodDelete, "/api/variants/"+args[0], nil, nil)
-			if err != nil {
+			res, err := app.API.DeleteVariant(cmd.Context(), apigen.DeleteVariantParams{VariantId: args[0]})
+			if _, err := expectOK[*apigen.EmptyResponse](res, err); err != nil {
 				return err
 			}
 			return renderDeleted(app, args[0])
@@ -111,12 +112,19 @@ func newVariantsPricesCmd(app *App) *cobra.Command {
 		Example: "  gphq variants prices var_1",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path := fmt.Sprintf("/api/variants/%s/prices", args[0])
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, path, listQuery(cmd), nil)
+			page, limit, sortBy, sortOrder := listArgs(cmd)
+			res, err := app.API.ListVariantPrices(cmd.Context(), apigen.ListVariantPricesParams{
+				VariantId: args[0],
+				Page:      apigen.NewOptInt(page),
+				Limit:     apigen.NewOptInt(limit),
+				SortBy:    apigen.NewOptString(sortBy),
+				SortOrder: apigen.NewOptString(sortOrder),
+			})
+			lr, err := expectOK[*apigen.ListResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderList(app, raw, priceHeaders, priceRow)
+			return renderList(app, lr, priceHeaders, priceRow)
 		},
 	}
 	addListFlags(cmd)

@@ -1,45 +1,45 @@
-package commands
+package cli
 
 import (
-	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/spf13/cobra"
 
-	api "getpaidhq/internal/adapter/http"
-	"getpaidhq/internal/cli/output"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/apigen"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/cli/output"
 )
 
 // paymentHeaders and paymentRow are the canonical table shape for
-// api.PaymentResponse, used by both the top-level payments commands and
+// apigen.PaymentResponse, used by both the top-level payments commands and
 // subscriptions payments sub-command.
 var paymentHeaders = []string{"ID", "STATUS", "CURRENCY", "AMOUNT", "REFERENCE", "CREATED"}
 
-func paymentRow(p api.PaymentResponse) []string {
+func paymentRow(p apigen.PaymentResponse) []string {
 	return []string{
-		p.Id,
-		string(p.Status),
-		p.Currency,
-		strconv.FormatInt(p.Amount, 10),
-		output.Str(p.Reference),
-		output.Time(p.CreatedAt),
+		p.ID.Or(""),
+		p.Status.Or(""),
+		p.Currency.Or(""),
+		strconv.FormatInt(p.Amount.Or(0), 10),
+		output.Str(p.Reference.Or("")),
+		output.Time(p.CreatedAt.Or(time.Time{})),
 	}
 }
 
 // invoiceHeaders and invoiceRow are the canonical table shape for
-// api.InvoiceResponse, used by both the top-level invoices commands and
+// apigen.InvoiceResponse, used by both the top-level invoices commands and
 // subscriptions invoices sub-command.
 var invoiceHeaders = []string{"ID", "STATUS", "CURRENCY", "TOTAL", "CYCLE", "PERIOD END", "CREATED"}
 
-func invoiceRow(i api.InvoiceResponse) []string {
+func invoiceRow(i apigen.InvoiceResponse) []string {
 	return []string{
-		i.Id,
-		i.Status,
-		i.Currency,
-		strconv.FormatInt(i.Total, 10),
-		strconv.Itoa(i.Cycle),
-		output.Time(i.PeriodEnd),
-		output.Time(i.CreatedAt),
+		i.ID.Or(""),
+		string(i.Status.Or("")),
+		i.Currency.Or(""),
+		strconv.FormatInt(i.Total.Or(0), 10),
+		strconv.Itoa(i.Cycle.Or(0)),
+		output.Time(i.PeriodEnd.Or(time.Time{})),
+		output.Time(i.CreatedAt.Or(time.Time{})),
 	}
 }
 
@@ -68,11 +68,18 @@ func newInvoicesListCmd(app *App) *cobra.Command {
 		Example: "  gphq invoices list\n  gphq invoices list --page 2 --limit 5",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/invoices", listQuery(cmd), nil)
+			page, limit, sortBy, sortOrder := listArgs(cmd)
+			res, err := app.API.ListInvoices(cmd.Context(), apigen.ListInvoicesParams{
+				Page:      apigen.NewOptInt(page),
+				Limit:     apigen.NewOptInt(limit),
+				SortBy:    apigen.NewOptString(sortBy),
+				SortOrder: apigen.NewOptString(sortOrder),
+			})
+			lr, err := expectOK[*apigen.ListResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderList(app, raw, invoiceHeaders, invoiceRow)
+			return renderList(app, lr, invoiceHeaders, invoiceRow)
 		},
 	}
 	addListFlags(cmd)
@@ -87,11 +94,12 @@ func newInvoicesGetCmd(app *App) *cobra.Command {
 		Example: "  gphq invoices get inv_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/invoices/"+args[0], nil, nil)
+			res, err := app.API.GetInvoice(cmd.Context(), apigen.GetInvoiceParams{ID: args[0]})
+			inv, err := expectOK[*apigen.InvoiceResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, invoiceHeaders, invoiceRow)
+			return renderOne(app, *inv, invoiceHeaders, invoiceRow)
 		},
 	}
 	return annotate(cmd, "GET", "/api/invoices/{id}")
@@ -122,11 +130,18 @@ func newPaymentsListCmd(app *App) *cobra.Command {
 		Example: "  gphq payments list\n  gphq payments list --page 2 --limit 5",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/payments", listQuery(cmd), nil)
+			page, limit, sortBy, sortOrder := listArgs(cmd)
+			res, err := app.API.ListPayments(cmd.Context(), apigen.ListPaymentsParams{
+				Page:      apigen.NewOptInt(page),
+				Limit:     apigen.NewOptInt(limit),
+				SortBy:    apigen.NewOptString(sortBy),
+				SortOrder: apigen.NewOptString(sortOrder),
+			})
+			lr, err := expectOK[*apigen.ListResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderList(app, raw, paymentHeaders, paymentRow)
+			return renderList(app, lr, paymentHeaders, paymentRow)
 		},
 	}
 	addListFlags(cmd)
@@ -141,11 +156,12 @@ func newPaymentsGetCmd(app *App) *cobra.Command {
 		Example: "  gphq payments get pay_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/payments/"+args[0], nil, nil)
+			res, err := app.API.GetPayment(cmd.Context(), apigen.GetPaymentParams{ID: args[0]})
+			pay, err := expectOK[*apigen.PaymentResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, paymentHeaders, paymentRow)
+			return renderOne(app, *pay, paymentHeaders, paymentRow)
 		},
 	}
 	return annotate(cmd, "GET", "/api/payments/{id}")
@@ -175,11 +191,12 @@ func newPaymentMethodsGetCmd(app *App) *cobra.Command {
 		Example: "  gphq payment-methods get pm_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/payment-methods/"+args[0], nil, nil)
+			res, err := app.API.GetPaymentMethod(cmd.Context(), apigen.GetPaymentMethodParams{ID: args[0]})
+			pm, err := expectOK[*apigen.PaymentMethodResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, pm)
 		},
 	}
 	return annotate(cmd, "GET", "/api/payment-methods/{id}")

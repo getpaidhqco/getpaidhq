@@ -1,84 +1,48 @@
-package commands
+package cli
 
 import (
-	"encoding/json"
-	"fmt"
-	"net/http"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	api "getpaidhq/internal/adapter/http"
-	"getpaidhq/internal/cli/output"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/apigen"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/cli/output"
 )
 
 var orderHeaders = []string{"ID", "REFERENCE", "CUSTOMER", "STATUS", "CURRENCY", "TOTAL", "CREATED"}
 
-func orderRow(o api.OrderResponse) []string {
+func orderRow(o apigen.OrderResponse) []string {
 	return []string{
-		o.Id,
-		output.Str(o.Reference),
-		o.CustomerId,
-		o.Status,
-		o.Currency,
-		strconv.FormatInt(o.Total, 10),
-		output.Time(o.CreatedAt),
+		o.ID.Or(""),
+		output.Str(o.Reference.Or("")),
+		o.CustomerID.Or(""),
+		o.Status.Or(""),
+		o.Currency.Or(""),
+		strconv.FormatInt(o.Total.Or(0), 10),
+		output.Time(o.CreatedAt.Or(time.Time{})),
 	}
 }
 
-// subscriptionHeaders and subscriptionRow are intentionally defined here, not
-// in subscriptions.go. They decode the untagged []domain.Subscription wire shape
-// returned by GET /api/orders/{id}/subscriptions — all JSON field names are
-// capitalised (no json tags on domain.Subscription). subscriptions.go's
-// subHeaders/subRow decode the api.SubscriptionResponse type which uses
-// snake_case json tags; these two shapes are distinct and must not be merged.
-var subscriptionHeaders = []string{"ID", "STATUS", "CURRENCY", "INTERVAL", "RENEWS", "CREATED"}
-
-// domainSubscription mirrors the JSON emitted by ListSubscriptions, which
-// returns []domain.Subscription — a struct with no json tags, so all field
-// names are capitalized in the wire format.
-type domainSubscription struct {
-	Id                 string    `json:"Id"`
-	Status             string    `json:"Status"`
-	Currency           string    `json:"Currency"`
-	BillingInterval    string    `json:"BillingInterval"`
-	BillingIntervalQty int       `json:"BillingIntervalQty"`
-	RenewsAt           time.Time `json:"RenewsAt"`
-	CreatedAt          time.Time `json:"CreatedAt"`
-}
-
-func subscriptionRow(s domainSubscription) []string {
+// createOrderOrderRow renders the order envelope returned by CreateOrder, which
+// nests the order under a distinct generated type.
+func createOrderOrderRow(o apigen.CreateOrderResponseOrder) []string {
 	return []string{
-		s.Id,
-		s.Status,
-		s.Currency,
-		fmt.Sprintf("%d %s", s.BillingIntervalQty, s.BillingInterval),
-		output.Time(s.RenewsAt),
-		output.Time(s.CreatedAt),
+		o.ID.Or(""),
+		output.Str(o.Reference.Or("")),
+		o.CustomerID.Or(""),
+		o.Status.Or(""),
+		o.Currency.Or(""),
+		strconv.FormatInt(o.Total.Or(0), 10),
+		output.Time(o.CreatedAt.Or(time.Time{})),
 	}
-}
-
-// renderCreateOrder unwraps the CreateOrderResponse envelope and renders the
-// inner OrderResponse as a single-row table.
-func renderCreateOrder(app *App, raw []byte) error {
-	if app.Output == "json" {
-		return output.JSON(app.Out, raw)
-	}
-	var env struct {
-		Order api.OrderResponse `json:"order"`
-	}
-	if err := json.Unmarshal(raw, &env); err != nil {
-		return fmt.Errorf("decoding create-order response: %w", err)
-	}
-	return output.Table(app.Out, orderHeaders, [][]string{orderRow(env.Order)})
 }
 
 // parseOrderItems parses repeated --item values of the form
 // "product=<id>,price=<id>[,qty=<n>]".
-func parseOrderItems(vals []string) ([]api.CartItem, error) {
-	items := make([]api.CartItem, 0, len(vals))
+func parseOrderItems(vals []string) ([]apigen.CreateOrderRequestCartItemsItem, error) {
+	items := make([]apigen.CreateOrderRequestCartItemsItem, 0, len(vals))
 	for _, v := range vals {
 		kv, err := parseKV(strings.Split(v, ","), "item")
 		if err != nil {
@@ -91,8 +55,8 @@ func parseOrderItems(vals []string) ([]api.CartItem, error) {
 				return nil, Usagef("--item has unknown key %q (want product=,price=[,qty=])", k)
 			}
 		}
-		item := api.CartItem{ProductId: kv["product"], PriceId: kv["price"], Quantity: 1}
-		if item.ProductId == "" || item.PriceId == "" {
+		item := apigen.CreateOrderRequestCartItemsItem{ProductID: kv["product"], PriceID: kv["price"], Quantity: 1}
+		if item.ProductID == "" || item.PriceID == "" {
 			return nil, Usagef("--item needs product=<id>,price=<id>[,qty=<n>], got %q", v)
 		}
 		if q, ok := kv["qty"]; ok {
@@ -131,15 +95,15 @@ func newOrdersCreateCmd(app *App) *cobra.Command {
 			"  gphq orders create --data '{\"psp_id\":\"paystack\",\"customer\":{\"id\":\"cus_1\"}}'",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
+			body, err := bindBody(cmd, func(in *apigen.CreateOrderRequest) error {
 				psp, _ := cmd.Flags().GetString("psp")
 				if psp == "" {
-					return nil, Usagef("--psp is required (or use --data)")
+					return Usagef("--psp is required (or use --data)")
 				}
 				customerID, _ := cmd.Flags().GetString("customer")
 				email, _ := cmd.Flags().GetString("email")
 				if customerID == "" && email == "" {
-					return nil, Usagef("provide --customer or --email (or use --data)")
+					return Usagef("provide --customer or --email (or use --data)")
 				}
 				firstName, _ := cmd.Flags().GetString("first-name")
 				lastName, _ := cmd.Flags().GetString("last-name")
@@ -152,38 +116,56 @@ func newOrdersCreateCmd(app *App) *cobra.Command {
 
 				items, err := parseOrderItems(itemVals)
 				if err != nil {
-					return nil, err
+					return err
 				}
 				meta, err := parseKV(metaPairs, "metadata")
 				if err != nil {
-					return nil, err
+					return err
 				}
-				return api.CreateOrderRequest{
-					Customer: api.CreateOrderRequestCustomer{
-						ID:        customerID,
-						Email:     email,
-						FirstName: firstName,
-						LastName:  lastName,
-						Phone:     phone,
-					},
-					PaymentMethodId: paymentMethod,
-					SessionId:       sessionID,
-					PspId:           psp,
-					Cart: api.CartInput{
-						Currency: currency,
-						Items:    items,
-					},
-					Metadata: meta,
-				}, nil
+
+				in.PspID = psp
+				customer := apigen.CreateOrderRequestCustomer{}
+				if customerID != "" {
+					customer.ID = apigen.NewOptString(customerID)
+				}
+				if email != "" {
+					customer.Email = apigen.NewOptString(email)
+				}
+				if firstName != "" {
+					customer.FirstName = apigen.NewOptString(firstName)
+				}
+				if lastName != "" {
+					customer.LastName = apigen.NewOptString(lastName)
+				}
+				if phone != "" {
+					customer.Phone = apigen.NewOptString(phone)
+				}
+				in.Customer = customer
+				if paymentMethod != "" {
+					in.PaymentMethodID = apigen.NewOptString(paymentMethod)
+				}
+				if sessionID != "" {
+					in.SessionID = apigen.NewOptString(sessionID)
+				}
+				cart := apigen.CreateOrderRequestCart{Items: items}
+				if currency != "" {
+					cart.Currency = apigen.NewOptString(currency)
+				}
+				in.Cart = apigen.NewOptCreateOrderRequestCart(cart)
+				if meta != nil {
+					in.Metadata = apigen.NewOptCreateOrderRequestMetadata(apigen.CreateOrderRequestMetadata(meta))
+				}
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, "/api/orders", nil, body)
+			res, err := app.API.CreateOrder(cmd.Context(), body, apigen.CreateOrderParams{})
+			env, err := expectOK[*apigen.CreateOrderResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderCreateOrder(app, raw)
+			return renderOne(app, env.Order.Or(apigen.CreateOrderResponseOrder{}), orderHeaders, createOrderOrderRow)
 		},
 	}
 	f := cmd.Flags()
@@ -198,7 +180,7 @@ func newOrdersCreateCmd(app *App) *cobra.Command {
 	f.String("currency", "", "cart currency")
 	f.StringArray("item", nil, "cart item: product=<id>,price=<id>[,qty=<n>] (repeatable)")
 	f.StringArray("metadata", nil, "metadata key=value pairs (repeatable)")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "POST", "/api/orders")
 }
 
@@ -210,26 +192,26 @@ func newOrdersCompleteCmd(app *App) *cobra.Command {
 		Example: "  gphq orders complete ord_1 --payment-method pm_1\n  gphq orders complete ord_1 --data -",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
-				pmID, _ := cmd.Flags().GetString("payment-method")
-				return api.CompleteOrderRequest{
-					PaymentMethodId: pmID,
-				}, nil
+			body, err := bindBody(cmd, func(in *apigen.CompleteOrderRequest) error {
+				if s, _ := cmd.Flags().GetString("payment-method"); s != "" {
+					in.PaymentMethodID = apigen.NewOptString(s)
+				}
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			path := "/api/orders/" + args[0] + "/complete"
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, path, nil, body)
+			res, err := app.API.CompleteOrder(cmd.Context(), body, apigen.CompleteOrderParams{ID: args[0]})
+			order, err := expectOK[*apigen.OrderResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, orderHeaders, orderRow)
+			return renderOne(app, *order, orderHeaders, orderRow)
 		},
 	}
 	f := cmd.Flags()
 	f.String("payment-method", "", "payment method ID to use for completion")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "POST", "/api/orders/{id}/complete")
 }
 
@@ -241,11 +223,12 @@ func newOrdersGetCmd(app *App) *cobra.Command {
 		Example: "  gphq orders get ord_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/orders/"+args[0], nil, nil)
+			res, err := app.API.GetOrder(cmd.Context(), apigen.GetOrderParams{ID: args[0]})
+			order, err := expectOK[*apigen.OrderResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, orderHeaders, orderRow)
+			return renderOne(app, *order, orderHeaders, orderRow)
 		},
 	}
 	return annotate(cmd, "GET", "/api/orders/{id}")
@@ -259,11 +242,18 @@ func newOrdersListCmd(app *App) *cobra.Command {
 		Example: "  gphq orders list\n  gphq orders list --page 2 --limit 5",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/orders", listQuery(cmd), nil)
+			page, limit, sortBy, sortOrder := listArgs(cmd)
+			res, err := app.API.ListOrders(cmd.Context(), apigen.ListOrdersParams{
+				Page:      apigen.NewOptInt(page),
+				Limit:     apigen.NewOptInt(limit),
+				SortBy:    apigen.NewOptString(sortBy),
+				SortOrder: apigen.NewOptString(sortOrder),
+			})
+			lr, err := expectOK[*apigen.ListResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderList(app, raw, orderHeaders, orderRow)
+			return renderList(app, lr, orderHeaders, orderRow)
 		},
 	}
 	addListFlags(cmd)
@@ -278,23 +268,19 @@ func newOrdersSubscriptionsCmd(app *App) *cobra.Command {
 		Example: "  gphq orders subscriptions ord_1",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path := "/api/orders/" + args[0] + "/subscriptions"
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, path, nil, nil)
+			res, err := app.API.ListOrderSubscriptions(cmd.Context(), apigen.ListOrderSubscriptionsParams{ID: args[0]})
+			subs, err := expectOK[*apigen.ListOrderSubscriptionsOKApplicationJSON](res, err)
 			if err != nil {
 				return err
 			}
 			if app.Output == "json" {
-				return output.JSON(app.Out, raw)
+				return renderValue(app, subs)
 			}
-			var subs []domainSubscription
-			if err := json.Unmarshal(raw, &subs); err != nil {
-				return fmt.Errorf("decoding subscriptions response: %w", err)
+			rows := make([][]string, len(*subs))
+			for i, s := range *subs {
+				rows[i] = subRow(s)
 			}
-			rows := make([][]string, len(subs))
-			for i, s := range subs {
-				rows[i] = subscriptionRow(s)
-			}
-			return output.Table(app.Out, subscriptionHeaders, rows)
+			return output.Table(app.Out, subHeaders, rows)
 		},
 	}
 	return annotate(cmd, "GET", "/api/orders/{id}/subscriptions")

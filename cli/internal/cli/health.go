@@ -1,9 +1,9 @@
-package commands
+package cli
 
 import (
-	"net/http"
-
 	"github.com/spf13/cobra"
+
+	"github.com/getpaidhqco/getpaidhq/cli/internal/apigen"
 )
 
 func newHealthCmd(app *App) *cobra.Command {
@@ -14,11 +14,12 @@ func newHealthCmd(app *App) *cobra.Command {
 		Example: "  gphq health",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/health", nil, nil)
+			res, err := app.API.GetHealth(cmd.Context(), apigen.GetHealthParams{})
+			h, err := expectOK[*apigen.HealthResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, h)
 		},
 	}
 	return annotate(cmd, "GET", "/api/health")

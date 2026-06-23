@@ -1,4 +1,4 @@
-package commands_test
+package cli_test
 
 import (
 	"bytes"
@@ -12,7 +12,7 @@ import (
 	"sync"
 	"testing"
 
-	"getpaidhq/internal/cli"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/cli"
 )
 
 type cmdCase struct {
@@ -113,6 +113,7 @@ func runCase(t *testing.T, tc cmdCase) {
 	}
 }
 
+//nolint:unused // used by ported per-command test suites
 func runCases(t *testing.T, cases []cmdCase) {
 	t.Helper()
 	for _, tc := range cases {

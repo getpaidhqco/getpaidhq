@@ -1,11 +1,9 @@
-package commands
+package cli
 
 import (
-	"net/http"
-
 	"github.com/spf13/cobra"
 
-	api "getpaidhq/internal/adapter/http"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/apigen"
 )
 
 func newCartsCmd(app *App) *cobra.Command {
@@ -29,38 +27,37 @@ func newCartsAddCmd(app *App) *cobra.Command {
 		Example: "  gphq carts add cart_1 --product prod_1 --price pri_1 --qty 2\n  gphq carts add cart_1 --data '{\"product_id\":\"prod_1\",\"price_id\":\"pri_1\",\"quantity\":1}'",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
+			body, err := bindBody(cmd, func(in *apigen.AddItemRequest) error {
 				product, _ := cmd.Flags().GetString("product")
 				price, _ := cmd.Flags().GetString("price")
 				if product == "" || price == "" {
-					return nil, Usagef("--product and --price are required (or use --data)")
+					return Usagef("--product and --price are required (or use --data)")
 				}
 				qty, _ := cmd.Flags().GetInt("qty")
 				if qty < 1 {
-					return nil, Usagef("--qty must be a positive integer")
+					return Usagef("--qty must be a positive integer")
 				}
-				return api.AddItemRequest{
-					ProductId: product,
-					PriceId:   price,
-					Quantity:  qty,
-				}, nil
+				in.ProductID = product
+				in.PriceID = price
+				in.Quantity = apigen.NewOptInt(qty)
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			path := "/api/carts/" + args[0] + "/add"
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, path, nil, body)
+			res, err := app.API.AddProductToCart(cmd.Context(), body, apigen.AddProductToCartParams{ID: args[0]})
+			cart, err := expectOK[*apigen.CartResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, cart)
 		},
 	}
 	f := cmd.Flags()
 	f.String("product", "", "product ID (required)")
 	f.String("price", "", "price ID (required)")
 	f.Int("qty", 1, "quantity")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "POST", "/api/carts/{id}/add")
 }
 
@@ -72,28 +69,27 @@ func newCartsRemoveCmd(app *App) *cobra.Command {
 		Example: "  gphq carts remove cart_1 --item-id item_abc\n  gphq carts remove cart_1 --data '{\"id\":\"item_abc\"}'",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
+			body, err := bindBody(cmd, func(in *apigen.RemoveItemRequest) error {
 				itemID, _ := cmd.Flags().GetString("item-id")
 				if itemID == "" {
-					return nil, Usagef("--item-id is required (or use --data)")
+					return Usagef("--item-id is required (or use --data)")
 				}
-				return api.RemoveItemRequest{
-					Id: itemID,
-				}, nil
+				in.ID = apigen.NewOptString(itemID)
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			path := "/api/carts/" + args[0] + "/remove"
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, path, nil, body)
+			res, err := app.API.RemoveItemFromCart(cmd.Context(), body, apigen.RemoveItemFromCartParams{ID: args[0]})
+			cart, err := expectOK[*apigen.CartResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, cart)
 		},
 	}
 	f := cmd.Flags()
 	f.String("item-id", "", "cart item ID to remove (required)")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "POST", "/api/carts/{id}/remove")
 }

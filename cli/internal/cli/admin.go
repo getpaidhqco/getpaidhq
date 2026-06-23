@@ -1,13 +1,13 @@
-package commands
+package cli
 
 import (
 	"fmt"
-	"net/http"
+	"time"
 
 	"github.com/spf13/cobra"
 
-	api "getpaidhq/internal/adapter/http"
-	"getpaidhq/internal/cli/output"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/apigen"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/cli/output"
 )
 
 // ---------------------------------------------------------------------------
@@ -16,22 +16,22 @@ import (
 
 var apiKeyHeaders = []string{"ID", "NAME", "KEY", "CREATED"}
 
-func apiKeyCreateRow(k api.ApiKeyCreateResponse) []string {
+func apiKeyCreateRow(k apigen.ApiKeyCreateResponse) []string {
 	return []string{
-		k.Id,
-		output.Str(k.Name),
-		k.Key,
-		output.Time(k.CreatedAt),
+		k.ID.Or(""),
+		output.Str(k.Name.Or("")),
+		k.Key.Or(""),
+		output.Time(k.CreatedAt.Or(time.Time{})),
 	}
 }
 
 var apiKeyListHeaders = []string{"ID", "NAME", "CREATED"}
 
-func apiKeyListRow(k api.ApiKeyResponse) []string {
+func apiKeyListRow(k apigen.ApiKeyCreateResponse) []string {
 	return []string{
-		k.Id,
-		output.Str(k.Name),
-		output.Time(k.CreatedAt),
+		k.ID.Or(""),
+		output.Str(k.Name.Or("")),
+		output.Time(k.CreatedAt.Or(time.Time{})),
 	}
 }
 
@@ -57,26 +57,29 @@ func newApiKeysCreateCmd(app *App) *cobra.Command {
 		Example: "  gphq api-keys create --name ci-deploy\n  gphq api-keys create --data '{\"name\":\"my-key\"}'",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
-				name, _ := cmd.Flags().GetString("name")
-				return api.CreateApiKeyInput{Name: name}, nil
+			body, err := bindBody(cmd, func(in *apigen.CreateApiKeyInput) error {
+				if s, _ := cmd.Flags().GetString("name"); s != "" {
+					in.Name = apigen.NewOptString(s)
+				}
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, "/api/api-keys", nil, body)
+			res, err := app.API.CreateApiKey(cmd.Context(), body, apigen.CreateApiKeyParams{})
+			key, err := expectOK[*apigen.ApiKeyCreateResponse](res, err)
 			if err != nil {
 				return err
 			}
 			// Always print the one-time note to stderr — it never pollutes stdout
 			// and still reaches the operator even in json mode where scripts pipe stdout.
 			fmt.Fprintln(app.ErrOut, "note: store this key now — it is shown only once")
-			return renderOne(app, raw, apiKeyHeaders, apiKeyCreateRow)
+			return renderOne(app, *key, apiKeyHeaders, apiKeyCreateRow)
 		},
 	}
 	f := cmd.Flags()
 	f.String("name", "", "human-readable label for the key (optional)")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "POST", "/api/api-keys")
 }
 
@@ -88,11 +91,18 @@ func newApiKeysListCmd(app *App) *cobra.Command {
 		Example: "  gphq api-keys list",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/api-keys", listQuery(cmd), nil)
+			page, limit, sortBy, sortOrder := listArgs(cmd)
+			res, err := app.API.ListApiKeys(cmd.Context(), apigen.ListApiKeysParams{
+				Page:      apigen.NewOptInt(page),
+				Limit:     apigen.NewOptInt(limit),
+				SortBy:    apigen.NewOptString(sortBy),
+				SortOrder: apigen.NewOptString(sortOrder),
+			})
+			lr, err := expectOK[*apigen.ListResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderList(app, raw, apiKeyListHeaders, apiKeyListRow)
+			return renderList(app, lr, apiKeyListHeaders, apiKeyListRow)
 		},
 	}
 	addListFlags(cmd)
@@ -107,14 +117,11 @@ func newApiKeysRevokeCmd(app *App) *cobra.Command {
 		Example: "  gphq api-keys revoke key_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, err := app.Client.Do(cmd.Context(), http.MethodDelete, "/api/api-keys/"+args[0], nil, nil)
-			if err != nil {
+			res, err := app.API.DeleteApiKey(cmd.Context(), apigen.DeleteApiKeyParams{ID: args[0]})
+			if _, err := expectOK[*apigen.EmptyResponse](res, err); err != nil {
 				return err
 			}
-			if app.Output != "json" {
-				_, err = fmt.Fprintf(app.Out, "%s revoked\n", args[0])
-			}
-			return err
+			return renderDeleted(app, "api-key "+args[0])
 		},
 	}
 	return annotate(cmd, "DELETE", "/api/api-keys/{id}")
@@ -144,33 +151,35 @@ func newOrgsCreateCmd(app *App) *cobra.Command {
 		Example: "  gphq orgs create --name \"Acme Corp\" --country NG --timezone Africa/Lagos\n  gphq orgs create --data '{\"name\":\"Acme\",\"country\":\"NG\",\"timezone\":\"UTC\"}'",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
+			body, err := bindBody(cmd, func(in *apigen.CreateOrgRequest) error {
 				name, _ := cmd.Flags().GetString("name")
 				country, _ := cmd.Flags().GetString("country")
 				timezone, _ := cmd.Flags().GetString("timezone")
 				if name == "" || country == "" || timezone == "" {
-					return nil, Usagef("--name, --country, and --timezone are required (or use --data)")
+					return Usagef("--name, --country, and --timezone are required (or use --data)")
 				}
+				in.Name = name
+				in.Country = country
+				in.Timezone = timezone
 				metaPairs, _ := cmd.Flags().GetStringArray("metadata")
 				meta, err := parseKV(metaPairs, "metadata")
 				if err != nil {
-					return nil, err
+					return err
 				}
-				return api.CreateOrgRequest{
-					Name:     name,
-					Country:  country,
-					Timezone: timezone,
-					Metadata: meta,
-				}, nil
+				if meta != nil {
+					in.Metadata = apigen.NewOptCreateOrgRequestMetadata(apigen.CreateOrgRequestMetadata(meta))
+				}
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, "/api/organizations", nil, body)
+			res, err := app.API.CreateOrganization(cmd.Context(), body, apigen.CreateOrganizationParams{})
+			org, err := expectOK[*apigen.OrgResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, org)
 		},
 	}
 	f := cmd.Flags()
@@ -178,7 +187,7 @@ func newOrgsCreateCmd(app *App) *cobra.Command {
 	f.String("country", "", "ISO 3166-1 alpha-2 country code (required)")
 	f.String("timezone", "", "IANA timezone name, e.g. Africa/Lagos (required)")
 	f.StringArray("metadata", nil, "metadata key=value pairs (repeatable)")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "POST", "/api/organizations")
 }
 
@@ -206,47 +215,42 @@ func newGatewaysCreateCmd(app *App) *cobra.Command {
 		Example: "  gphq gateways create --name prod-paystack --psp paystack --credential secret_key=sk_live_x\n  gphq gateways create --data '{\"name\":\"prod\",\"psp\":\"paystack\",\"credentials\":{\"secret_key\":\"sk_live_x\"}}'",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
+			body, err := bindBody(cmd, func(in *apigen.CreateGatewayRequest) error {
 				name, _ := cmd.Flags().GetString("name")
 				psp, _ := cmd.Flags().GetString("psp")
 				if name == "" || psp == "" {
-					return nil, Usagef("--name and --psp are required (or use --data)")
+					return Usagef("--name and --psp are required (or use --data)")
 				}
 				credPairs, _ := cmd.Flags().GetStringArray("credential")
 				if len(credPairs) == 0 {
-					return nil, Usagef("at least one --credential key=value is required (or use --data)")
+					return Usagef("at least one --credential key=value is required (or use --data)")
 				}
 				creds, err := parseKV(credPairs, "credential")
 				if err != nil {
-					return nil, err
+					return err
 				}
 				configPairs, _ := cmd.Flags().GetStringArray("config")
 				cfg, err := parseKV(configPairs, "config")
 				if err != nil {
-					return nil, err
+					return err
 				}
-
-				// SECURITY: We must NOT use api.CreateGatewayRequest here.
-				// That struct has Credentials as map[string]domain.Secret, and
-				// domain.Secret redacts itself to "[redacted]" when JSON-marshaled.
-				// Using the typed struct would send literal "[redacted]" to the
-				// server instead of the real credential values. We build a plain
-				// map so the raw string values pass through unmodified.
-				return map[string]any{
-					"name":        name,
-					"psp":         psp,
-					"config":      cfg,
-					"credentials": creds,
-				}, nil
+				in.Name = name
+				in.Psp = psp
+				in.Credentials = apigen.CreateGatewayRequestCredentials(creds)
+				if cfg != nil {
+					in.Config = apigen.NewOptCreateGatewayRequestConfig(apigen.CreateGatewayRequestConfig(cfg))
+				}
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, "/api/gateways", nil, body)
+			res, err := app.API.CreateGateway(cmd.Context(), body, apigen.CreateGatewayParams{})
+			gw, err := expectOK[*apigen.GatewayResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, gw)
 		},
 	}
 	f := cmd.Flags()
@@ -254,7 +258,7 @@ func newGatewaysCreateCmd(app *App) *cobra.Command {
 	f.String("psp", "", "payment service provider id, e.g. paystack, checkout_com (required)")
 	f.StringArray("config", nil, "non-secret config key=value pairs (repeatable)")
 	f.StringArray("credential", nil, "secret credential key=value pairs (repeatable, required)")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "POST", "/api/gateways")
 }
 
@@ -264,13 +268,13 @@ func newGatewaysCreateCmd(app *App) *cobra.Command {
 
 var settingHeaders = []string{"PARENT", "ID", "TYPE", "VALUE", "CREATED"}
 
-func settingRow(s api.SettingResponse) []string {
+func settingRow(s apigen.SettingResponse) []string {
 	return []string{
-		output.Str(s.ParentId),
-		s.Id,
-		output.Str(s.Type),
-		output.Str(s.Value),
-		output.Time(s.CreatedAt),
+		output.Str(s.ParentID.Or("")),
+		s.ID.Or(""),
+		output.Str(s.Type.Or("")),
+		output.Str(s.Value.Or("")),
+		output.Time(s.CreatedAt.Or(time.Time{})),
 	}
 }
 
@@ -298,29 +302,32 @@ func newSettingsCreateCmd(app *App) *cobra.Command {
 		Example: "  gphq settings create --id theme --value dark\n  gphq settings create --parent ui --id color --type string --value blue",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
+			body, err := bindBody(cmd, func(in *apigen.CreateSettingRequest) error {
 				id, _ := cmd.Flags().GetString("id")
 				if id == "" {
-					return nil, Usagef("--id is required (or use --data)")
+					return Usagef("--id is required (or use --data)")
 				}
-				parent, _ := cmd.Flags().GetString("parent")
-				typ, _ := cmd.Flags().GetString("type")
-				val, _ := cmd.Flags().GetString("value")
-				return api.CreateSettingRequest{
-					ParentId: parent,
-					Id:       id,
-					Type:     typ,
-					Value:    val,
-				}, nil
+				in.ID = id
+				if s, _ := cmd.Flags().GetString("parent"); s != "" {
+					in.ParentID = apigen.NewOptString(s)
+				}
+				if s, _ := cmd.Flags().GetString("type"); s != "" {
+					in.Type = apigen.NewOptString(s)
+				}
+				if s, _ := cmd.Flags().GetString("value"); s != "" {
+					in.Value = apigen.NewOptString(s)
+				}
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, "/api/settings", nil, body)
+			res, err := app.API.CreateSetting(cmd.Context(), body, apigen.CreateSettingParams{})
+			s, err := expectOK[*apigen.SettingResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, settingHeaders, settingRow)
+			return renderOne(app, *s, settingHeaders, settingRow)
 		},
 	}
 	f := cmd.Flags()
@@ -328,7 +335,7 @@ func newSettingsCreateCmd(app *App) *cobra.Command {
 	f.String("id", "", "setting id (required)")
 	f.String("type", "", "value type hint, e.g. string, json")
 	f.String("value", "", "setting value")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "POST", "/api/settings")
 }
 
@@ -340,16 +347,18 @@ func newSettingsListCmd(app *App) *cobra.Command {
 		Example: "  gphq settings list\n  gphq settings list --parent ui",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			q := listQuery(cmd)
-			parent, _ := cmd.Flags().GetString("parent")
-			if parent != "" {
-				q.Set("parent_id", parent)
-			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/settings", q, nil)
+			page, limit, sortBy, sortOrder := listArgs(cmd)
+			res, err := app.API.ListSettings(cmd.Context(), apigen.ListSettingsParams{
+				Page:      apigen.NewOptInt(page),
+				Limit:     apigen.NewOptInt(limit),
+				SortBy:    apigen.NewOptString(sortBy),
+				SortOrder: apigen.NewOptString(sortOrder),
+			})
+			lr, err := expectOK[*apigen.ListResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderList(app, raw, settingHeaders, settingRow)
+			return renderList(app, lr, settingHeaders, settingRow)
 		},
 	}
 	f := cmd.Flags()
@@ -366,12 +375,12 @@ func newSettingsGetCmd(app *App) *cobra.Command {
 		Example: "  gphq settings get ui color",
 		Args:    exactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path := fmt.Sprintf("/api/settings/%s/%s", args[0], args[1])
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, path, nil, nil)
+			res, err := app.API.GetSetting(cmd.Context(), apigen.GetSettingParams{ParentId: args[0], ID: args[1]})
+			s, err := expectOK[*apigen.SettingResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, settingHeaders, settingRow)
+			return renderOne(app, *s, settingHeaders, settingRow)
 		},
 	}
 	return annotate(cmd, "GET", "/api/settings/{parentId}/{id}")
@@ -385,29 +394,30 @@ func newSettingsUpdateCmd(app *App) *cobra.Command {
 		Example: "  gphq settings update ui color --value red\n  gphq settings update ui color --data '{\"value\":\"red\"}'",
 		Args:    exactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
-				typ, _ := cmd.Flags().GetString("type")
-				val, _ := cmd.Flags().GetString("value")
-				return api.UpdateSettingRequest{
-					Type:  typ,
-					Value: val,
-				}, nil
+			body, err := bindBody(cmd, func(in *apigen.UpdateSettingRequest) error {
+				if s, _ := cmd.Flags().GetString("type"); s != "" {
+					in.Type = apigen.NewOptString(s)
+				}
+				if s, _ := cmd.Flags().GetString("value"); s != "" {
+					in.Value = apigen.NewOptString(s)
+				}
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			path := fmt.Sprintf("/api/settings/%s/%s", args[0], args[1])
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPut, path, nil, body)
+			res, err := app.API.UpdateSetting(cmd.Context(), body, apigen.UpdateSettingParams{ParentId: args[0], ID: args[1]})
+			s, err := expectOK[*apigen.SettingResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, settingHeaders, settingRow)
+			return renderOne(app, *s, settingHeaders, settingRow)
 		},
 	}
 	f := cmd.Flags()
 	f.String("type", "", "value type hint")
 	f.String("value", "", "setting value")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "PUT", "/api/settings/{parentId}/{id}")
 }
 
@@ -419,12 +429,11 @@ func newSettingsDeleteCmd(app *App) *cobra.Command {
 		Example: "  gphq settings delete ui color",
 		Args:    exactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path := fmt.Sprintf("/api/settings/%s/%s", args[0], args[1])
-			_, err := app.Client.Do(cmd.Context(), http.MethodDelete, path, nil, nil)
-			if err != nil {
+			res, err := app.API.DeleteSetting(cmd.Context(), apigen.DeleteSettingParams{ParentId: args[0], ID: args[1]})
+			if _, err := expectOK[*apigen.EmptyResponse](res, err); err != nil {
 				return err
 			}
-			return renderDeleted(app, args[0]+"/"+args[1])
+			return renderDeleted(app, "setting "+args[0]+"/"+args[1])
 		},
 	}
 	return annotate(cmd, "DELETE", "/api/settings/{parentId}/{id}")
@@ -455,37 +464,38 @@ func newWebhooksCreateCmd(app *App) *cobra.Command {
 		Example: "  gphq webhooks create --url https://example.com/hook --event subscription.created --event payment.succeeded",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
+			body, err := bindBody(cmd, func(in *apigen.CreateWebhookSubscriptionRequest) error {
 				urlVal, _ := cmd.Flags().GetString("url")
 				events, _ := cmd.Flags().GetStringArray("event")
 				if urlVal == "" {
-					return nil, Usagef("--url is required (or use --data)")
+					return Usagef("--url is required (or use --data)")
 				}
 				if len(events) == 0 {
-					return nil, Usagef("at least one --event is required (or use --data)")
+					return Usagef("at least one --event is required (or use --data)")
 				}
-				secret, _ := cmd.Flags().GetString("secret")
-				return api.CreateWebhookSubscriptionRequest{
-					Url:    urlVal,
-					Events: events,
-					Secret: secret,
-				}, nil
+				in.URL = urlVal
+				in.Events = events
+				if s, _ := cmd.Flags().GetString("secret"); s != "" {
+					in.Secret = apigen.NewOptString(s)
+				}
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, "/api/webhooks", nil, body)
+			res, err := app.API.CreateWebhookSubscription(cmd.Context(), body, apigen.CreateWebhookSubscriptionParams{})
+			sub, err := expectOK[*apigen.UnknownInterface](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, sub)
 		},
 	}
 	f := cmd.Flags()
 	f.String("url", "", "webhook endpoint URL (required)")
 	f.StringArray("event", nil, "event type to subscribe to (repeatable, required)")
 	f.String("secret", "", "optional signing secret")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "POST", "/api/webhooks")
 }
 
@@ -497,11 +507,12 @@ func newWebhooksListCmd(app *App) *cobra.Command {
 		Example: "  gphq webhooks list",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/webhooks", nil, nil)
+			res, err := app.API.ListWebhookSubscriptions(cmd.Context(), apigen.ListWebhookSubscriptionsParams{})
+			lr, err := expectOK[*apigen.ListResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, lr)
 		},
 	}
 	return annotate(cmd, "GET", "/api/webhooks")

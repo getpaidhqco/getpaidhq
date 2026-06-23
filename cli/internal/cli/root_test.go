@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"getpaidhq/internal/cli"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/cli"
 )
 
 func TestGeneratedDocsAreCurrent(t *testing.T) {
@@ -20,7 +20,7 @@ func TestGeneratedDocsAreCurrent(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	const committed = "../../docs/cli/reference"
+	const committed = "../../../docs/cli/reference"
 	got, err := os.ReadDir(committed)
 	if err != nil {
 		t.Fatalf("%v — run `make docs-cli` and commit the result", err)

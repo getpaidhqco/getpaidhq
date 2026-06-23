@@ -1,33 +1,32 @@
-package commands
+package cli
 
 import (
 	"fmt"
-	"net/http"
 	"strconv"
+	"time"
 
 	"github.com/spf13/cobra"
 
-	api "getpaidhq/internal/adapter/http"
-	"getpaidhq/internal/cli/output"
-	"getpaidhq/internal/core/domain"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/apigen"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/cli/output"
 )
 
 var priceHeaders = []string{"ID", "LABEL", "CATEGORY", "SCHEME", "CURRENCY", "UNIT PRICE", "INTERVAL", "CREATED"}
 
-func priceRow(p api.PriceResponse) []string {
+func priceRow(p apigen.PriceResponse) []string {
 	interval := "-"
-	if p.BillingInterval != "" && p.BillingInterval != domain.BillingIntervalNone {
-		interval = fmt.Sprintf("%d %s", p.BillingIntervalQty, p.BillingInterval)
+	if bi := p.BillingInterval.Or(""); bi != "" && bi != "none" {
+		interval = fmt.Sprintf("%d %s", p.BillingIntervalQty.Or(0), bi)
 	}
 	return []string{
-		p.Id,
-		output.Str(p.Label),
-		string(p.Category),
-		string(p.Scheme),
-		string(p.Currency),
-		strconv.FormatInt(p.UnitPrice, 10),
+		p.ID.Or(""),
+		output.Str(p.Label.Or("")),
+		p.Category.Or(""),
+		p.Scheme.Or(""),
+		p.Currency.Or(""),
+		strconv.FormatInt(p.UnitPrice.Or(0), 10),
 		interval,
-		output.Time(p.CreatedAt),
+		output.Time(p.CreatedAt.Or(time.Time{})),
 	}
 }
 
@@ -46,43 +45,50 @@ func newPricesCmd(app *App) *cobra.Command {
 	return cmd
 }
 
-// priceRequestFromFlags reads price flags from cmd and returns a populated
-// CreatePriceRequest. --variant, --category, --scheme, and --currency are
-// always required.
-func priceRequestFromFlags(cmd *cobra.Command) (any, error) {
+// priceRequestFromFlags populates a CreatePriceRequest from price flags.
+// --variant, --category, --scheme, and --currency are always required.
+func priceRequestFromFlags(cmd *cobra.Command, in *apigen.CreatePriceRequest) error {
 	variantID, _ := cmd.Flags().GetString("variant")
 	category, _ := cmd.Flags().GetString("category")
 	scheme, _ := cmd.Flags().GetString("scheme")
 	currency, _ := cmd.Flags().GetString("currency")
 	if variantID == "" || category == "" || scheme == "" || currency == "" {
-		return nil, Usagef("--variant, --category, --scheme and --currency are required (or use --data)")
+		return Usagef("--variant, --category, --scheme and --currency are required (or use --data)")
 	}
-	label, _ := cmd.Flags().GetString("label")
-	unitPrice, _ := cmd.Flags().GetInt64("unit-price")
-	interval, _ := cmd.Flags().GetString("interval")
-	intervalQty, _ := cmd.Flags().GetInt("interval-qty")
-	trialInterval, _ := cmd.Flags().GetString("trial-interval")
-	trialQty, _ := cmd.Flags().GetInt("trial-qty")
-	cycles, _ := cmd.Flags().GetInt("cycles")
+	in.VariantID = variantID
+	in.Category = apigen.CreatePriceRequestCategory(category)
+	in.Scheme = apigen.CreatePriceRequestScheme(scheme)
+	in.Currency = currency
+	if s, _ := cmd.Flags().GetString("label"); s != "" {
+		in.Label = apigen.NewOptString(s)
+	}
+	if v, _ := cmd.Flags().GetInt64("unit-price"); v != 0 {
+		in.UnitPrice = apigen.NewOptInt64(v)
+	}
+	if s, _ := cmd.Flags().GetString("interval"); s != "" {
+		in.BillingInterval = apigen.NewOptCreatePriceRequestBillingInterval(apigen.CreatePriceRequestBillingInterval(s))
+	}
+	if v, _ := cmd.Flags().GetInt("interval-qty"); v != 0 {
+		in.BillingIntervalQty = apigen.NewOptInt(v)
+	}
+	if s, _ := cmd.Flags().GetString("trial-interval"); s != "" {
+		in.TrialInterval = apigen.NewOptCreatePriceRequestTrialInterval(apigen.CreatePriceRequestTrialInterval(s))
+	}
+	if v, _ := cmd.Flags().GetInt("trial-qty"); v != 0 {
+		in.TrialIntervalQty = apigen.NewOptInt(v)
+	}
+	if v, _ := cmd.Flags().GetInt("cycles"); v != 0 {
+		in.Cycles = apigen.NewOptInt(v)
+	}
 	metaPairs, _ := cmd.Flags().GetStringArray("metadata")
 	meta, err := parseKV(metaPairs, "metadata")
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return api.CreatePriceRequest{
-		VariantId:          variantID,
-		Category:           domain.PriceCategory(category),
-		Scheme:             domain.PriceScheme(scheme),
-		Currency:           currency,
-		Label:              label,
-		UnitPrice:          unitPrice,
-		BillingInterval:    domain.BillingInterval(interval),
-		BillingIntervalQty: intervalQty,
-		TrialInterval:      domain.BillingInterval(trialInterval),
-		TrialIntervalQty:   trialQty,
-		Cycles:             cycles,
-		Metadata:           meta,
-	}, nil
+	if meta != nil {
+		in.Metadata = apigen.NewOptCreatePriceRequestMetadata(apigen.CreatePriceRequestMetadata(meta))
+	}
+	return nil
 }
 
 func newPricesCreateCmd(app *App) *cobra.Command {
@@ -94,17 +100,18 @@ func newPricesCreateCmd(app *App) *cobra.Command {
 			"  gphq prices create --data @price.json",
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
-				return priceRequestFromFlags(cmd)
+			body, err := bindBody(cmd, func(in *apigen.CreatePriceRequest) error {
+				return priceRequestFromFlags(cmd, in)
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, "/api/prices", nil, body)
+			res, err := app.API.CreatePrice(cmd.Context(), body, apigen.CreatePriceParams{})
+			price, err := expectOK[*apigen.PriceResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, priceHeaders, priceRow)
+			return renderOne(app, *price, priceHeaders, priceRow)
 		},
 	}
 	addPriceFlags(cmd)
@@ -119,11 +126,12 @@ func newPricesGetCmd(app *App) *cobra.Command {
 		Example: "  gphq prices get pri_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/prices/"+args[0], nil, nil)
+			res, err := app.API.GetPrice(cmd.Context(), apigen.GetPriceParams{PriceId: args[0]})
+			price, err := expectOK[*apigen.PriceResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, priceHeaders, priceRow)
+			return renderOne(app, *price, priceHeaders, priceRow)
 		},
 	}
 	return annotate(cmd, "GET", "/api/prices/{priceId}")
@@ -139,17 +147,18 @@ func newPricesUpdateCmd(app *App) *cobra.Command {
 			"  gphq prices update pri_1 --data @price.json",
 		Args: exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
-				return priceRequestFromFlags(cmd)
+			body, err := bindBody(cmd, func(in *apigen.CreatePriceRequest) error {
+				return priceRequestFromFlags(cmd, in)
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPatch, "/api/prices/"+args[0], nil, body)
+			res, err := app.API.UpdatePrice(cmd.Context(), body, apigen.UpdatePriceParams{PriceId: args[0]})
+			price, err := expectOK[*apigen.PriceResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, priceHeaders, priceRow)
+			return renderOne(app, *price, priceHeaders, priceRow)
 		},
 	}
 	addPriceFlags(cmd)
@@ -164,8 +173,8 @@ func newPricesDeleteCmd(app *App) *cobra.Command {
 		Example: "  gphq prices delete pri_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			_, err := app.Client.Do(cmd.Context(), http.MethodDelete, "/api/prices/"+args[0], nil, nil)
-			if err != nil {
+			res, err := app.API.DeletePrice(cmd.Context(), apigen.DeletePriceParams{PriceId: args[0]})
+			if _, err := expectOK[*apigen.EmptyResponse](res, err); err != nil {
 				return err
 			}
 			return renderDeleted(app, args[0])
@@ -189,5 +198,5 @@ func addPriceFlags(cmd *cobra.Command) {
 	f.Int("trial-qty", 0, "trial period quantity")
 	f.Int("cycles", 0, "number of billing cycles (0 = unlimited)")
 	f.StringArray("metadata", nil, "metadata key=value pairs (repeatable)")
-	f.String("data", "", "raw JSON body (@file, -, or inline; use for tiers/filters)")
+	addDataFlag(cmd)
 }

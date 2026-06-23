@@ -1,14 +1,12 @@
-package commands
+package cli
 
 import (
-	"net/http"
 	"time"
 
 	"github.com/spf13/cobra"
 
-	api "getpaidhq/internal/adapter/http"
-	"getpaidhq/internal/cli/output"
-	"getpaidhq/internal/core/domain"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/apigen"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/cli/output"
 )
 
 // ---------------------------------------------------------------------------
@@ -17,13 +15,13 @@ import (
 
 var meterHeaders = []string{"ID", "CODE", "NAME", "AGGREGATION", "CREATED"}
 
-func meterRow(m api.MeterResponse) []string {
+func meterRow(m apigen.MeterResponse) []string {
 	return []string{
-		m.Id,
-		m.Code,
-		m.Name,
-		string(m.Aggregation),
-		output.Time(m.CreatedAt),
+		m.ID.Or(""),
+		m.Code.Or(""),
+		m.Name.Or(""),
+		m.Aggregation.Or(""),
+		output.Time(m.CreatedAt.Or(time.Time{})),
 	}
 }
 
@@ -68,43 +66,50 @@ Example --data payload:
 		Example: "  gphq meters create --code api_calls --name \"API Calls\" --aggregation count\n  gphq meters create --code bytes --name \"Bytes\" --aggregation sum --field bytes_used --carry-over\n  gphq meters create --data '{\"code\":\"api_calls\",\"name\":\"API Calls\",\"aggregation\":\"count\"}'",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
+			body, err := bindBody(cmd, func(in *apigen.CreateMeterRequest) error {
 				code, _ := cmd.Flags().GetString("code")
 				name, _ := cmd.Flags().GetString("name")
 				agg, _ := cmd.Flags().GetString("aggregation")
 				if code == "" || name == "" || agg == "" {
-					return nil, Usagef("--code, --name and --aggregation are required (or use --data)")
+					return Usagef("--code, --name and --aggregation are required (or use --data)")
 				}
-				fieldName, _ := cmd.Flags().GetString("field")
-				carryOver, _ := cmd.Flags().GetBool("carry-over")
-				roundingMode, _ := cmd.Flags().GetString("rounding-mode")
-				roundingScale, _ := cmd.Flags().GetInt("rounding-scale")
-				groupBy, _ := cmd.Flags().GetStringArray("group-by")
+				in.Code = code
+				in.Name = name
+				in.Aggregation = apigen.CreateMeterRequestAggregation(agg)
+				if s, _ := cmd.Flags().GetString("field"); s != "" {
+					in.FieldName = apigen.NewOptString(s)
+				}
+				if carryOver, _ := cmd.Flags().GetBool("carry-over"); carryOver {
+					in.CarryOver = apigen.NewOptBool(carryOver)
+				}
+				if s, _ := cmd.Flags().GetString("rounding-mode"); s != "" {
+					in.RoundingMode = apigen.NewOptCreateMeterRequestRoundingMode(apigen.CreateMeterRequestRoundingMode(s))
+				}
+				if scale, _ := cmd.Flags().GetInt("rounding-scale"); scale != 0 {
+					in.RoundingScale = apigen.NewOptInt(scale)
+				}
+				if groupBy, _ := cmd.Flags().GetStringArray("group-by"); len(groupBy) > 0 {
+					in.GroupBy = groupBy
+				}
 				metaPairs, _ := cmd.Flags().GetStringArray("metadata")
 				meta, err := parseKV(metaPairs, "metadata")
 				if err != nil {
-					return nil, err
+					return err
 				}
-				return api.CreateMeterRequest{
-					Code:          code,
-					Name:          name,
-					Aggregation:   domain.AggregationType(agg),
-					FieldName:     fieldName,
-					CarryOver:     carryOver,
-					RoundingMode:  roundingMode,
-					RoundingScale: roundingScale,
-					GroupBy:       groupBy,
-					Metadata:      meta,
-				}, nil
+				if meta != nil {
+					in.Metadata = apigen.NewOptCreateMeterRequestMetadata(apigen.CreateMeterRequestMetadata(meta))
+				}
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, "/api/meters", nil, body)
+			res, err := app.API.CreateMeter(cmd.Context(), body, apigen.CreateMeterParams{})
+			meter, err := expectOK[*apigen.MeterResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, meterHeaders, meterRow)
+			return renderOne(app, *meter, meterHeaders, meterRow)
 		},
 	}
 	f := cmd.Flags()
@@ -129,11 +134,18 @@ func newMetersListCmd(app *App) *cobra.Command {
 		Example: "  gphq meters list\n  gphq meters list --page 1 --limit 5",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/meters", listQuery(cmd), nil)
+			page, limit, sortBy, sortOrder := listArgs(cmd)
+			res, err := app.API.ListMeters(cmd.Context(), apigen.ListMetersParams{
+				Page:      apigen.NewOptInt(page),
+				Limit:     apigen.NewOptInt(limit),
+				SortBy:    apigen.NewOptString(sortBy),
+				SortOrder: apigen.NewOptString(sortOrder),
+			})
+			lr, err := expectOK[*apigen.ListResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderList(app, raw, meterHeaders, meterRow)
+			return renderList(app, lr, meterHeaders, meterRow)
 		},
 	}
 	addListFlags(cmd)
@@ -148,11 +160,12 @@ func newMetersGetCmd(app *App) *cobra.Command {
 		Example: "  gphq meters get met_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/meters/"+args[0], nil, nil)
+			res, err := app.API.GetMeter(cmd.Context(), apigen.GetMeterParams{ID: args[0]})
+			meter, err := expectOK[*apigen.MeterResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, meterHeaders, meterRow)
+			return renderOne(app, *meter, meterHeaders, meterRow)
 		},
 	}
 	return annotate(cmd, "GET", "/api/meters/{id}")
@@ -189,50 +202,51 @@ To ingest multiple events in one request pass --data with a full
 		Example: "  gphq usage ingest --metric api_calls --customer cus_1\n  gphq usage ingest --metric bytes --customer cus_1 --metadata bytes=1024 --timestamp 2026-06-12T10:00:00Z\n  gphq usage ingest --data '{\"events\":[{\"metric_code\":\"api_calls\",\"customer_id\":\"cus_1\"}]}'",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
+			body, err := bindBody(cmd, func(in *apigen.IngestEventsRequest) error {
 				metric, _ := cmd.Flags().GetString("metric")
 				if metric == "" {
-					return nil, Usagef("--metric is required (or use --data)")
+					return Usagef("--metric is required (or use --data)")
 				}
-				customer, _ := cmd.Flags().GetString("customer")
-				extCustomer, _ := cmd.Flags().GetString("external-customer")
-				subscriptionID, _ := cmd.Flags().GetString("subscription")
-				externalID, _ := cmd.Flags().GetString("external-id")
-				tsStr, _ := cmd.Flags().GetString("timestamp")
+				event := apigen.IngestEventsRequestEventsItem{MetricCode: metric}
+				if s, _ := cmd.Flags().GetString("customer"); s != "" {
+					event.CustomerID = apigen.NewOptString(s)
+				}
+				if s, _ := cmd.Flags().GetString("external-customer"); s != "" {
+					event.ExternalCustomerID = apigen.NewOptString(s)
+				}
+				if s, _ := cmd.Flags().GetString("subscription"); s != "" {
+					event.SubscriptionID = apigen.NewOptString(s)
+				}
+				if s, _ := cmd.Flags().GetString("external-id"); s != "" {
+					event.ExternalID = apigen.NewOptString(s)
+				}
+				if tsStr, _ := cmd.Flags().GetString("timestamp"); tsStr != "" {
+					ts, err := time.Parse(time.RFC3339, tsStr)
+					if err != nil {
+						return Usagef("--timestamp must be RFC3339, e.g. 2026-06-12T10:00:00Z: %v", err)
+					}
+					event.Timestamp = apigen.NewOptDateTime(ts)
+				}
 				metaPairs, _ := cmd.Flags().GetStringArray("metadata")
 				meta, err := parseKV(metaPairs, "metadata")
 				if err != nil {
-					return nil, err
+					return err
 				}
-				var ts time.Time
-				if tsStr != "" {
-					ts, err = time.Parse(time.RFC3339, tsStr)
-					if err != nil {
-						return nil, Usagef("--timestamp must be RFC3339, e.g. 2026-06-12T10:00:00Z: %v", err)
-					}
+				if meta != nil {
+					event.Metadata = apigen.NewOptIngestEventsRequestEventsItemMetadata(apigen.IngestEventsRequestEventsItemMetadata(meta))
 				}
-				return api.IngestEventsRequest{
-					Events: []api.RecordEventRequest{
-						{
-							MetricCode:         metric,
-							CustomerId:         customer,
-							ExternalCustomerId: extCustomer,
-							SubscriptionId:     subscriptionID,
-							ExternalId:         externalID,
-							Timestamp:          ts,
-							Metadata:           meta,
-						},
-					},
-				}, nil
+				in.Events = []apigen.IngestEventsRequestEventsItem{event}
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, "/api/usage/ingest", nil, body)
+			res, err := app.API.IngestUsageEvents(cmd.Context(), body, apigen.IngestUsageEventsParams{})
+			resp, err := expectOK[*apigen.IngestEventsResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, resp)
 		},
 	}
 	f := cmd.Flags()
@@ -272,11 +286,12 @@ func newRemindersGetCmd(app *App) *cobra.Command {
 		Example: "  gphq reminders get",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/billing/reminder-config", nil, nil)
+			res, err := app.API.GetReminderConfig(cmd.Context(), apigen.GetReminderConfigParams{})
+			cfg, err := expectOK[*apigen.ReminderConfigDTO](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, cfg)
 		},
 	}
 	return annotate(cmd, "GET", "/api/billing/reminder-config")
@@ -294,22 +309,22 @@ configure several reminder points.`,
 		Example: "  gphq reminders set --enabled --offset 168h --offset 24h\n  gphq reminders set --data '{\"enabled\":true,\"offsets\":[\"168h\",\"24h\"]}'",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
+			body, err := bindBody(cmd, func(in *apigen.ReminderConfigDTO) error {
 				enabled, _ := cmd.Flags().GetBool("enabled")
 				offsets, _ := cmd.Flags().GetStringArray("offset")
-				return api.ReminderConfigDTO{
-					Enabled: enabled,
-					Offsets: offsets,
-				}, nil
+				in.Enabled = apigen.NewOptBool(enabled)
+				in.Offsets = offsets
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPut, "/api/billing/reminder-config", nil, body)
+			res, err := app.API.UpdateReminderConfig(cmd.Context(), body, apigen.UpdateReminderConfigParams{})
+			cfg, err := expectOK[*apigen.ReminderConfigDTO](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, cfg)
 		},
 	}
 	f := cmd.Flags()

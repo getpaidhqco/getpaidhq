@@ -23,7 +23,7 @@ gphq prices update <priceId> [flags]
       --category string         price category: one_time, subscription, free, variable (required)
       --currency string         ISO 4217 currency code, e.g. USD (required)
       --cycles int              number of billing cycles (0 = unlimited)
-      --data string             raw JSON body (@file, -, or inline; use for tiers/filters)
+      --data string             raw JSON body (@file, -, or inline)
   -h, --help                    help for update
       --interval string         billing interval: none, minute, hour, day, week, month, year
       --interval-qty int        billing interval quantity

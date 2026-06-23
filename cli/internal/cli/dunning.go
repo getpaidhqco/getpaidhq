@@ -1,43 +1,42 @@
-package commands
+package cli
 
 import (
 	"encoding/json"
 	"fmt"
-	"net/http"
-	"strconv"
+	"time"
 
 	"github.com/spf13/cobra"
 
-	api "getpaidhq/internal/adapter/http"
-	"getpaidhq/internal/cli/output"
-	"getpaidhq/internal/core/domain"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/apigen"
+	"github.com/getpaidhqco/getpaidhq/cli/internal/cli/output"
 )
 
 // ---------------------------------------------------------------------------
-// dunningList envelope — {data: any, total: int}
+// dunning list envelope — DunningList carries {data: raw, total: int}
 // ---------------------------------------------------------------------------
 
-type dunningEnvelope[T any] struct {
-	Data  []T `json:"data"`
-	Total int `json:"total"`
-}
-
-func renderDunningList[T any](app *App, raw []byte, headers []string, row func(T) []string) error {
+func renderDunningList[T any](app *App, lr *apigen.DunningList, headers []string, row func(T) []string) error {
 	if app.Output == "json" {
-		return output.JSON(app.Out, raw)
+		b, err := json.Marshal(lr)
+		if err != nil {
+			return err
+		}
+		return output.JSON(app.Out, b)
 	}
-	var page dunningEnvelope[T]
-	if err := json.Unmarshal(raw, &page); err != nil {
-		return fmt.Errorf("decoding list response: %w", err)
+	var items []T
+	if len(lr.Data) > 0 {
+		if err := json.Unmarshal(lr.Data, &items); err != nil {
+			return fmt.Errorf("decoding list data: %w", err)
+		}
 	}
-	rows := make([][]string, len(page.Data))
-	for i, item := range page.Data {
-		rows[i] = row(item)
+	rows := make([][]string, len(items))
+	for i, it := range items {
+		rows[i] = row(it)
 	}
 	if err := output.Table(app.Out, headers, rows); err != nil {
 		return err
 	}
-	_, err := fmt.Fprintf(app.Out, "\ntotal %d\n", page.Total)
+	_, err := fmt.Fprintf(app.Out, "\ntotal %d\n", lr.Total.Or(0))
 	return err
 }
 
@@ -47,15 +46,15 @@ func renderDunningList[T any](app *App, raw []byte, headers []string, row func(T
 
 var campaignHeaders = []string{"ID", "SUBSCRIPTION", "STATUS", "FAILED", "ATTEMPTS", "NEXT ATTEMPT", "CREATED"}
 
-func campaignRow(c api.DunningCampaignResponse) []string {
+func campaignRow(c apigen.DunningCampaignResponse) []string {
 	return []string{
-		c.ID,
-		c.SubscriptionID,
-		c.Status,
-		strconv.FormatInt(c.FailedAmount, 10),
-		strconv.Itoa(c.TotalAttempts),
-		output.Time(c.NextAttemptAt),
-		output.Time(c.CreatedAt),
+		c.ID.Or(""),
+		c.SubscriptionID.Or(""),
+		c.Status.Or(""),
+		fmt.Sprintf("%d", c.FailedAmount.Or(0)),
+		fmt.Sprintf("%d", c.TotalAttempts.Or(0)),
+		output.Time(c.NextAttemptAt.Or(time.Time{})),
+		output.Time(c.CreatedAt.Or(time.Time{})),
 	}
 }
 
@@ -65,14 +64,14 @@ func campaignRow(c api.DunningCampaignResponse) []string {
 
 var dunningConfigHeaders = []string{"ID", "NAME", "STATUS", "PRIORITY", "APPLIES TO", "CREATED"}
 
-func dunningConfigRow(c api.DunningConfigurationResponse) []string {
+func dunningConfigRow(c apigen.DunningConfigurationResponse) []string {
 	return []string{
-		c.ID,
-		c.Name,
-		c.Status,
-		strconv.Itoa(c.Priority),
-		string(c.AppliesTo),
-		output.Time(c.CreatedAt),
+		c.ID.Or(""),
+		c.Name.Or(""),
+		c.Status.Or(""),
+		fmt.Sprintf("%d", c.Priority.Or(0)),
+		c.AppliesTo.Or(""),
+		output.Time(c.CreatedAt.Or(time.Time{})),
 	}
 }
 
@@ -122,11 +121,18 @@ func newCampaignsListCmd(app *App) *cobra.Command {
 		Example: "  gphq dunning campaigns list\n  gphq dunning campaigns list --page 2 --limit 5",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/dunning/campaigns", listQuery(cmd), nil)
+			page, limit, sortBy, sortOrder := listArgs(cmd)
+			res, err := app.API.ListDunningCampaigns(cmd.Context(), apigen.ListDunningCampaignsParams{
+				Page:      apigen.NewOptInt(page),
+				Limit:     apigen.NewOptInt(limit),
+				SortBy:    apigen.NewOptString(sortBy),
+				SortOrder: apigen.NewOptString(sortOrder),
+			})
+			lr, err := expectOK[*apigen.DunningList](res, err)
 			if err != nil {
 				return err
 			}
-			return renderDunningList(app, raw, campaignHeaders, campaignRow)
+			return renderDunningList(app, lr, campaignHeaders, campaignRow)
 		},
 	}
 	addListFlags(cmd)
@@ -141,11 +147,12 @@ func newCampaignsGetCmd(app *App) *cobra.Command {
 		Example: "  gphq dunning campaigns get dc_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/dunning/campaigns/"+args[0], nil, nil)
+			res, err := app.API.GetDunningCampaign(cmd.Context(), apigen.GetDunningCampaignParams{ID: args[0]})
+			c, err := expectOK[*apigen.DunningCampaignResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, campaignHeaders, campaignRow)
+			return renderOne(app, *c, campaignHeaders, campaignRow)
 		},
 	}
 	return annotate(cmd, "GET", "/api/dunning/campaigns/{id}")
@@ -163,31 +170,32 @@ Use --data to send a raw JSON body instead of flags.`,
 		Example: "  gphq dunning campaigns update dc_1 --status paused --reason \"investigating payment issue\"\n  gphq dunning campaigns update dc_1 --data '{\"status\":\"cancelled\",\"reason\":\"customer churned\"}'",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
+			body, err := bindBody(cmd, func(in *apigen.UpdateDunningCampaignRequest) error {
 				status, _ := cmd.Flags().GetString("status")
 				if status == "" {
-					return nil, Usagef("--status is required (active, paused, or cancelled) — or use --data")
+					return Usagef("--status is required (active, paused, or cancelled) — or use --data")
 				}
-				reason, _ := cmd.Flags().GetString("reason")
-				return api.UpdateDunningCampaignRequest{
-					Status: status,
-					Reason: reason,
-				}, nil
+				in.Status = apigen.UpdateDunningCampaignRequestStatus(status)
+				if reason, _ := cmd.Flags().GetString("reason"); reason != "" {
+					in.Reason = apigen.NewOptString(reason)
+				}
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPatch, "/api/dunning/campaigns/"+args[0], nil, body)
+			res, err := app.API.UpdateDunningCampaign(cmd.Context(), body, apigen.UpdateDunningCampaignParams{ID: args[0]})
+			c, err := expectOK[*apigen.DunningCampaignResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, campaignHeaders, campaignRow)
+			return renderOne(app, *c, campaignHeaders, campaignRow)
 		},
 	}
 	f := cmd.Flags()
 	f.String("status", "", "new campaign status: active, paused, or cancelled (required)")
 	f.String("reason", "", "reason for the status change")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "PATCH", "/api/dunning/campaigns/{id}")
 }
 
@@ -199,11 +207,19 @@ func newCampaignsAttemptsCmd(app *App) *cobra.Command {
 		Example: "  gphq dunning campaigns attempts dc_1\n  gphq dunning campaigns attempts dc_1 --limit 50",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/dunning/campaigns/"+args[0]+"/attempts", listQuery(cmd), nil)
+			page, limit, sortBy, sortOrder := listArgs(cmd)
+			res, err := app.API.ListDunningCampaignAttempts(cmd.Context(), apigen.ListDunningCampaignAttemptsParams{
+				ID:        args[0],
+				Page:      apigen.NewOptInt(page),
+				Limit:     apigen.NewOptInt(limit),
+				SortBy:    apigen.NewOptString(sortBy),
+				SortOrder: apigen.NewOptString(sortOrder),
+			})
+			lr, err := expectOK[*apigen.DunningList](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, lr)
 		},
 	}
 	addListFlags(cmd)
@@ -221,25 +237,26 @@ Use --data to send a raw JSON body instead of flags.`,
 		Example: "  gphq dunning campaigns retry dc_1\n  gphq dunning campaigns retry dc_1 --payment-method pm_abc\n  gphq dunning campaigns retry dc_1 --data '{\"payment_method_id\":\"pm_abc\"}'",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
-				pmID, _ := cmd.Flags().GetString("payment-method")
-				return api.TriggerManualAttemptRequest{
-					PaymentMethodID: pmID,
-				}, nil
+			body, err := bindBody(cmd, func(in *apigen.TriggerManualAttemptRequest) error {
+				if pmID, _ := cmd.Flags().GetString("payment-method"); pmID != "" {
+					in.PaymentMethodID = apigen.NewOptString(pmID)
+				}
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, "/api/dunning/campaigns/"+args[0]+"/attempts", nil, body)
+			res, err := app.API.TriggerDunningManualAttempt(cmd.Context(), body, apigen.TriggerDunningManualAttemptParams{ID: args[0]})
+			att, err := expectOK[*apigen.DunningAttemptResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, att)
 		},
 	}
 	f := cmd.Flags()
 	f.String("payment-method", "", "payment method ID to charge (optional)")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "POST", "/api/dunning/campaigns/{id}/attempts")
 }
 
@@ -251,11 +268,19 @@ func newCampaignsCommunicationsCmd(app *App) *cobra.Command {
 		Example: "  gphq dunning campaigns communications dc_1\n  gphq dunning campaigns communications dc_1 --limit 50",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/dunning/campaigns/"+args[0]+"/communications", listQuery(cmd), nil)
+			page, limit, sortBy, sortOrder := listArgs(cmd)
+			res, err := app.API.ListDunningCampaignCommunications(cmd.Context(), apigen.ListDunningCampaignCommunicationsParams{
+				ID:        args[0],
+				Page:      apigen.NewOptInt(page),
+				Limit:     apigen.NewOptInt(limit),
+				SortBy:    apigen.NewOptString(sortBy),
+				SortOrder: apigen.NewOptString(sortOrder),
+			})
+			lr, err := expectOK[*apigen.DunningList](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, lr)
 		},
 	}
 	addListFlags(cmd)
@@ -289,11 +314,18 @@ func newConfigsListCmd(app *App) *cobra.Command {
 		Example: "  gphq dunning configs list\n  gphq dunning configs list --page 0 --limit 20",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/dunning/configurations", listQuery(cmd), nil)
+			page, limit, sortBy, sortOrder := listArgs(cmd)
+			res, err := app.API.ListDunningConfigurations(cmd.Context(), apigen.ListDunningConfigurationsParams{
+				Page:      apigen.NewOptInt(page),
+				Limit:     apigen.NewOptInt(limit),
+				SortBy:    apigen.NewOptString(sortBy),
+				SortOrder: apigen.NewOptString(sortOrder),
+			})
+			lr, err := expectOK[*apigen.DunningList](res, err)
 			if err != nil {
 				return err
 			}
-			return renderDunningList(app, raw, dunningConfigHeaders, dunningConfigRow)
+			return renderDunningList(app, lr, dunningConfigHeaders, dunningConfigRow)
 		},
 	}
 	addListFlags(cmd)
@@ -308,11 +340,12 @@ func newConfigsGetCmd(app *App) *cobra.Command {
 		Example: "  gphq dunning configs get dcfg_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			raw, err := app.Client.Do(cmd.Context(), http.MethodGet, "/api/dunning/configurations/"+args[0], nil, nil)
+			res, err := app.API.GetDunningConfiguration(cmd.Context(), apigen.GetDunningConfigurationParams{ID: args[0]})
+			c, err := expectOK[*apigen.DunningConfigurationResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, dunningConfigHeaders, dunningConfigRow)
+			return renderOne(app, *c, dunningConfigHeaders, dunningConfigRow)
 		},
 	}
 	return annotate(cmd, "GET", "/api/dunning/configurations/{id}")
@@ -342,34 +375,35 @@ Example --data payload:
 		Example: "  gphq dunning configs create --data @config.json\n  gphq dunning configs create --name \"Standard\" --applies-to all --data '{\"config\":{\"immediate_attempts\":1,\"escalation_policy\":\"cancel\"}}'",
 		Args:    cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
+			body, err := bindBody(cmd, func(in *apigen.CreateDunningConfigurationRequest) error {
 				name, _ := cmd.Flags().GetString("name")
 				if name == "" {
-					return nil, Usagef("--name is required (or use --data)")
+					return Usagef("--name is required (or use --data)")
 				}
 				appliesTo, _ := cmd.Flags().GetString("applies-to")
 				if appliesTo == "" {
-					return nil, Usagef("--applies-to is required (or use --data)")
+					return Usagef("--applies-to is required (or use --data)")
 				}
-				description, _ := cmd.Flags().GetString("description")
+				in.Name = name
+				in.AppliesTo = appliesTo
+				if description, _ := cmd.Flags().GetString("description"); description != "" {
+					in.Description = apigen.NewOptString(description)
+				}
 				priority, _ := cmd.Flags().GetInt("priority")
+				in.Priority = apigen.NewOptInt(priority)
 				// Config left zero — server will validate and reject if incomplete.
 				// Callers who need a full config must use --data.
-				return api.CreateDunningConfigurationRequest{
-					Name:        name,
-					Description: description,
-					Priority:    priority,
-					AppliesTo:   domain.DunningConfigScope(appliesTo),
-				}, nil
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, "/api/dunning/configurations", nil, body)
+			res, err := app.API.CreateDunningConfiguration(cmd.Context(), body, apigen.CreateDunningConfigurationParams{})
+			c, err := expectOK[*apigen.DunningConfigurationResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, dunningConfigHeaders, dunningConfigRow)
+			return renderOne(app, *c, dunningConfigHeaders, dunningConfigRow)
 		},
 	}
 	f := cmd.Flags()
@@ -389,27 +423,31 @@ func newConfigsUpdateCmd(app *App) *cobra.Command {
 		Example: "  gphq dunning configs update dcfg_1 --name \"Updated name\" --status active\n  gphq dunning configs update dcfg_1 --data '{\"name\":\"New name\",\"status\":\"active\"}'",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
-				name, _ := cmd.Flags().GetString("name")
-				description, _ := cmd.Flags().GetString("description")
-				priority, _ := cmd.Flags().GetInt("priority")
-				status, _ := cmd.Flags().GetString("status")
-				return api.UpdateDunningConfigurationRequest{
-					Name:        name,
-					Description: description,
-					Priority:    priority,
-					Status:      domain.ConfigStatus(status),
-					// Config, IsAbTest, AbTestPercentage: pointer fields — left nil
-				}, nil
+			body, err := bindBody(cmd, func(in *apigen.UpdateDunningConfigurationRequest) error {
+				if name, _ := cmd.Flags().GetString("name"); name != "" {
+					in.Name = apigen.NewOptString(name)
+				}
+				if description, _ := cmd.Flags().GetString("description"); description != "" {
+					in.Description = apigen.NewOptString(description)
+				}
+				if priority, _ := cmd.Flags().GetInt("priority"); priority != 0 {
+					in.Priority = apigen.NewOptInt(priority)
+				}
+				if status, _ := cmd.Flags().GetString("status"); status != "" {
+					in.Status = apigen.NewOptString(status)
+				}
+				// Config, IsAbTest, AbTestPercentage: only settable via --data
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPatch, "/api/dunning/configurations/"+args[0], nil, body)
+			res, err := app.API.UpdateDunningConfiguration(cmd.Context(), body, apigen.UpdateDunningConfigurationParams{ID: args[0]})
+			c, err := expectOK[*apigen.DunningConfigurationResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderOne(app, raw, dunningConfigHeaders, dunningConfigRow)
+			return renderOne(app, *c, dunningConfigHeaders, dunningConfigRow)
 		},
 	}
 	f := cmd.Flags()
@@ -417,7 +455,7 @@ func newConfigsUpdateCmd(app *App) *cobra.Command {
 	f.String("description", "", "updated description")
 	f.Int("priority", 0, "updated priority")
 	f.String("status", "", "new status, e.g. active, inactive")
-	f.String("data", "", "raw JSON body (@file, -, or inline)")
+	addDataFlag(cmd)
 	return annotate(cmd, "PATCH", "/api/dunning/configurations/{id}")
 }
 
@@ -447,12 +485,14 @@ func newPaymentTokensVerifyCmd(app *App) *cobra.Command {
 		Example: "  gphq payment-tokens verify tok_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			body := api.VerifyPaymentTokenRequest{TokenID: args[0]}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, "/api/payment-tokens/verify", nil, body)
+			res, err := app.API.VerifyPaymentToken(cmd.Context(),
+				&apigen.VerifyPaymentTokenRequest{TokenID: args[0]},
+				apigen.VerifyPaymentTokenParams{})
+			tok, err := expectOK[*apigen.PaymentUpdateTokenResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, tok)
 		},
 	}
 	return annotate(cmd, "POST", "/api/payment-tokens/verify")
@@ -466,12 +506,14 @@ func newPaymentTokensActivateCmd(app *App) *cobra.Command {
 		Example: "  gphq payment-tokens activate tok_abc123",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			body := api.ActivatePaymentTokenRequest{TokenID: args[0]}
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, "/api/payment-tokens/activate", nil, body)
+			res, err := app.API.ActivatePaymentToken(cmd.Context(),
+				&apigen.ActivatePaymentTokenRequest{TokenID: args[0]},
+				apigen.ActivatePaymentTokenParams{})
+			tok, err := expectOK[*apigen.PaymentUpdateTokenResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, tok)
 		},
 	}
 	return annotate(cmd, "POST", "/api/payment-tokens/activate")
@@ -488,28 +530,31 @@ them to update their payment method without logging in.`,
 		Example: "  gphq payment-tokens create sub_1 --max-uses 3 --expiry-hours 48 --reason \"proactive retry\"\n  gphq payment-tokens create sub_1 --data '{\"max_uses\":1,\"expiry_hours\":24}'",
 		Args:    exactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			body, err := bodyOrData(cmd, func() (any, error) {
-				maxUses, _ := cmd.Flags().GetInt("max-uses")
-				expiryHours, _ := cmd.Flags().GetInt("expiry-hours")
-				reason, _ := cmd.Flags().GetString("reason")
-				notes, _ := cmd.Flags().GetString("notes")
-				return api.CreatePaymentTokenRequest{
-					MaxUses:     maxUses,
-					ExpiryHours: expiryHours,
-					AdminReason: reason,
-					AdminNotes:  notes,
-					// AllowedActions only settable via --data
-				}, nil
+			body, err := bindBody(cmd, func(in *apigen.CreatePaymentTokenRequest) error {
+				if maxUses, _ := cmd.Flags().GetInt("max-uses"); maxUses != 0 {
+					in.MaxUses = apigen.NewOptInt(maxUses)
+				}
+				if expiryHours, _ := cmd.Flags().GetInt("expiry-hours"); expiryHours != 0 {
+					in.ExpiryHours = apigen.NewOptInt(expiryHours)
+				}
+				if reason, _ := cmd.Flags().GetString("reason"); reason != "" {
+					in.AdminReason = apigen.NewOptString(reason)
+				}
+				if notes, _ := cmd.Flags().GetString("notes"); notes != "" {
+					in.AdminNotes = apigen.NewOptString(notes)
+				}
+				// AllowedActions only settable via --data
+				return nil
 			})
 			if err != nil {
 				return err
 			}
-			path := fmt.Sprintf("/api/admin/subscriptions/%s/payment-tokens", args[0])
-			raw, err := app.Client.Do(cmd.Context(), http.MethodPost, path, nil, body)
+			res, err := app.API.CreatePaymentToken(cmd.Context(), body, apigen.CreatePaymentTokenParams{ID: args[0]})
+			tok, err := expectOK[*apigen.PaymentUpdateTokenResponse](res, err)
 			if err != nil {
 				return err
 			}
-			return renderJSON(app, raw)
+			return renderValue(app, tok)
 		},
 	}
 	f := cmd.Flags()
