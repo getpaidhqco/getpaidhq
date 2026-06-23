@@ -56,6 +56,10 @@ type OrderRepository interface {
 	FindByIdForUpdate(ctx context.Context, orgId string, id string) (domain.Order, error)
 	Create(ctx context.Context, entity domain.Order) (domain.Order, error)
 	Update(ctx context.Context, entity domain.Order) (domain.Order, error)
+	// SetPaymentSession persists the PSP payment-session payload onto an
+	// existing order with a targeted update (it never clears it — session is
+	// always non-nil here). Used by OrderService.InitOrderPayment.
+	SetPaymentSession(ctx context.Context, orgId, id string, session any) error
 	Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Order, int, error)
 
 	// Order item operations (merged from OrderItemRepository)

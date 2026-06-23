@@ -274,6 +274,19 @@ func testCartOrderItem(t *testing.T, ctx context.Context, rs RepoSet) {
 	require.True(t, ok, "updated payment_session round-trips as map[string]any, got %T", updated.PaymentSession)
 	assert.Equal(t, "ps_456", ups["reference"])
 	assert.Equal(t, "https://pay/y", ups["url"])
+
+	// SetPaymentSession is the targeted-update path used by InitOrderPayment:
+	// it stamps payment_session onto an order created without one, round-tripping
+	// as map[string]any like the full Update path.
+	stamp := seedOrder(t, ctx, rs, orgId, cust.Id)
+	require.NoError(t, rs.Order.SetPaymentSession(ctx, orgId,
+		stamp.Id, map[string]any{"reference": "ps_789", "url": "https://pay/z"}))
+	stamped, err := rs.Order.FindById(ctx, orgId, stamp.Id)
+	require.NoError(t, err)
+	sps, ok := stamped.PaymentSession.(map[string]any)
+	require.True(t, ok, "SetPaymentSession payload round-trips as map[string]any, got %T", stamped.PaymentSession)
+	assert.Equal(t, "ps_789", sps["reference"])
+	assert.Equal(t, "https://pay/z", sps["url"])
 }
 
 func newSubscription(orgId, customerId, orderId string) domain.Subscription {

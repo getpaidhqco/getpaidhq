@@ -44,7 +44,6 @@ func (o *OrderHandler) RegisterRoutes(s *fuego.Server) {
 
 type CreateOrderResponse struct {
 	Order OrderResponse `json:"order"`
-	Psp   any           `json:"psp"`
 }
 
 func (o *OrderHandler) CreateOrder(c fuego.ContextWithBody[CreateOrderRequest]) (CreateOrderResponse, error) {
@@ -94,7 +93,6 @@ func (o *OrderHandler) CreateOrder(c fuego.ContextWithBody[CreateOrderRequest]) 
 	}
 	return CreateOrderResponse{
 		Order: NewOrderResponseFromDetails(details),
-		Psp:   rsp.Psp.PspResponse,
 	}, nil
 }
 

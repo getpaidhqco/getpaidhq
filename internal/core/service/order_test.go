@@ -121,6 +121,33 @@ func (r *fakeOrderRepo) Update(_ context.Context, o domain.Order) (domain.Order,
 	return o, nil
 }
 
+func (r *fakeOrderRepo) SetPaymentSession(_ context.Context, _, _ string, session any) error {
+	r.order.PaymentSession = session
+	return nil
+}
+
+// initPaymentGateway records InitPayment calls and returns a fixed session.
+type initPaymentGateway struct {
+	port.PaymentGateway
+	calls int
+	resp  port.InitPaymentResponse
+}
+
+func (g *initPaymentGateway) InitPayment(_ context.Context, _ port.InitPaymentInput) (port.InitPaymentResponse, error) {
+	g.calls++
+	return g.resp, nil
+}
+
+// initPaymentFactory hands back a fixed gateway.
+type initPaymentFactory struct {
+	port.GatewayFactory
+	gw port.PaymentGateway
+}
+
+func (f *initPaymentFactory) NewGateway(_ context.Context, _, _ string) (port.PaymentGateway, error) {
+	return f.gw, nil
+}
+
 type fakeCustomerRepo struct {
 	port.CustomerRepository
 	customer      domain.Customer
@@ -311,6 +338,50 @@ func TestOrderService_CompleteOrder_HappyPath(t *testing.T) {
 		require.Len(t, subRepo.updated, 1)
 		assert.Equal(t, pmRepo.created[0].Id, subRepo.updated[0].PaymentMethodId)
 		assert.Len(t, engine.started, 1)
+	})
+}
+
+// InitOrderPayment initialises the PSP session once and is idempotent: a second
+// call returns the stored session without a second gateway call.
+func TestOrderService_InitOrderPayment(t *testing.T) {
+	newSvc := func(order domain.Order, gw *initPaymentGateway) (*OrderService, *fakeOrderRepo) {
+		orderRepo := &fakeOrderRepo{order: order}
+		factory := &initPaymentFactory{gw: gw}
+		svc := NewOrderService(nil, nil, nil, &fakePriceRepo{}, &fakeCartRepo{}, orderRepo,
+			&fakeCustomerRepo{}, nil, nil, nil, nil, factory, &recordingPubSub{}, silentLogger{}, nil)
+		return svc, orderRepo
+	}
+
+	t.Run("initialises once then returns the stored session on retry", func(t *testing.T) {
+		session := map[string]any{"reference": "ps_1", "url": "https://pay/x"}
+		gw := &initPaymentGateway{resp: port.InitPaymentResponse{PspResponse: session}}
+		svc, orderRepo := newSvc(pendingOrder(), gw)
+
+		resp, err := svc.InitOrderPayment(context.Background(), "org_1", "ord_1", "paystack", nil)
+		require.NoError(t, err)
+		assert.Equal(t, session, resp.PspResponse)
+		assert.Equal(t, 1, gw.calls, "gateway called once")
+		assert.Equal(t, session, orderRepo.order.PaymentSession, "session persisted on the order")
+
+		// Second call: the order now has a stored session, so no gateway call.
+		resp2, err := svc.InitOrderPayment(context.Background(), "org_1", "ord_1", "paystack", nil)
+		require.NoError(t, err)
+		assert.Equal(t, session, resp2.PspResponse)
+		assert.Equal(t, 1, gw.calls, "no second gateway call when a session already exists")
+	})
+
+	t.Run("rejects a non-pending order with a conflict", func(t *testing.T) {
+		order := pendingOrder()
+		order.Status = domain.OrderStatusCompleted
+		gw := &initPaymentGateway{}
+		svc, _ := newSvc(order, gw)
+
+		_, err := svc.InitOrderPayment(context.Background(), "org_1", "ord_1", "paystack", nil)
+		require.Error(t, err)
+		var ce lib.CustomError
+		require.ErrorAs(t, err, &ce)
+		assert.Equal(t, lib.ConflictError, ce.Type)
+		assert.Equal(t, 0, gw.calls, "no gateway call for a non-pending order")
 	})
 }
 

@@ -82,12 +82,6 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 	var orderCart domain.Cart
 	currency := input.Currency
 
-	createPspSession := true
-	if input.SessionId == "" {
-		// no session, so we need to have a payment method set before we can activate the order
-		createPspSession = false
-	}
-
 	// check if the cart exists
 	if input.SessionId != "" {
 		session, err := s.sessionRepository.FindById(ctx, orgId, input.SessionId)
@@ -295,34 +289,70 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		}
 	}
 
-	var pspResponse port.InitPaymentResponse
-	if createPspSession {
-		s.logger.Debugf("Creating payment session for order %s", order.Id)
-		gw, err := s.gatewayFactory.NewGateway(ctx, orgId, string(input.PspId))
-		if err != nil {
-			s.logger.Error("Failed to get gateway", "err", err.Error())
-			return port.CreateOrderResult{}, err
-		}
-		// initialise the payment session with the payment processor
-		pspResponse, err = gw.InitPayment(ctx, port.InitPaymentInput{
-			OrgId:    orgId,
-			Cart:     orderCart,
-			Order:    order,
-			Customer: customerEntity,
-			Options:  input.Options,
-		})
-		if err != nil {
-			s.logger.Error("Failed to initialise payment gateway", err.Error())
-			return port.CreateOrderResult{}, err
-		}
-	}
-
 	newOrder, _ := s.orderRepository.FindById(ctx, orgId, order.Id)
 
 	return port.CreateOrderResult{
 		Order: newOrder,
-		Psp:   pspResponse,
 	}, nil
+}
+
+// InitOrderPayment initialises (or returns) the PSP payment session for an
+// existing pending order. Idempotent on the stored session: a repeat call, or a
+// retry after a gateway failure, returns the same session — never a duplicate.
+// pspId selects the gateway (the order does not persist it); it is ignored when
+// a session already exists.
+func (s *OrderService) InitOrderPayment(ctx context.Context, orgId, orderId, pspId string, opts map[string]any) (port.InitPaymentResponse, error) {
+	order, err := s.orderRepository.FindById(ctx, orgId, orderId)
+	if err != nil {
+		s.logger.Error("Failed to find order", "id", orderId, "err", err.Error())
+		return port.InitPaymentResponse{}, lib.NewCustomError(lib.NotFoundError, "order not found", err)
+	}
+
+	if order.Status != domain.OrderStatusPending {
+		return port.InitPaymentResponse{}, lib.NewCustomError(lib.ConflictError, "order is not pending", nil)
+	}
+
+	// Already initialised — return the stored session without touching the gateway.
+	if order.PaymentSession != nil {
+		return port.InitPaymentResponse{PspResponse: order.PaymentSession}, nil
+	}
+
+	cart, err := s.cartRepository.FindById(ctx, orgId, order.CartId)
+	if err != nil {
+		s.logger.Error("Failed to find cart", "id", order.CartId, "err", err.Error())
+		return port.InitPaymentResponse{}, lib.NewCustomError(lib.NotFoundError, "cart not found", err)
+	}
+
+	customer, err := s.customerRepository.FindById(ctx, orgId, order.CustomerId)
+	if err != nil {
+		s.logger.Error("Failed to find customer", "id", order.CustomerId, "err", err.Error())
+		return port.InitPaymentResponse{}, lib.NewCustomError(lib.NotFoundError, "customer not found", err)
+	}
+
+	gw, err := s.gatewayFactory.NewGateway(ctx, orgId, pspId)
+	if err != nil {
+		s.logger.Error("Failed to get gateway", "err", err.Error())
+		return port.InitPaymentResponse{}, err
+	}
+
+	resp, err := gw.InitPayment(ctx, port.InitPaymentInput{
+		OrgId:    orgId,
+		Cart:     cart,
+		Order:    order,
+		Customer: customer,
+		Options:  toStringMap(opts),
+	})
+	if err != nil {
+		s.logger.Error("Failed to initialise payment gateway", err.Error())
+		return port.InitPaymentResponse{}, err
+	}
+
+	if err := s.orderRepository.SetPaymentSession(ctx, orgId, orderId, resp.PspResponse); err != nil {
+		s.logger.Error("Failed to persist payment session", "id", orderId, "err", err.Error())
+		return port.InitPaymentResponse{}, err
+	}
+
+	return resp, nil
 }
 
 func (s *OrderService) FindById(ctx context.Context, orgId string, id string) (domain.Order, error) {
@@ -620,6 +650,24 @@ func (s *OrderService) ListDetails(ctx context.Context, orgId string, pagination
 		out[i] = OrderDetails{Order: o, Customer: customerById[o.CustomerId], Items: itemDetails}
 	}
 	return out, total, nil
+}
+
+// toStringMap flattens the InitOrderPayment opts (map[string]any) into the
+// map[string]string the gateway InitPayment input expects. Non-string values
+// are rendered with fmt; a nil map yields nil.
+func toStringMap(in map[string]any) map[string]string {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		if s, ok := v.(string); ok {
+			out[k] = s
+			continue
+		}
+		out[k] = fmt.Sprintf("%v", v)
+	}
+	return out
 }
 
 // orderLine pairs a persisted order item with its resolved price.

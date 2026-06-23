@@ -2,6 +2,7 @@ package postgresgorm
 
 import (
 	"context"
+	"time"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
@@ -58,6 +59,18 @@ func (r *OrderRepo) Update(ctx context.Context, entity domain.Order) (domain.Ord
 		return domain.Order{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
+}
+
+// SetPaymentSession persists the PSP payment-session payload onto an existing
+// order with a targeted column update. Only payment_session and updated_at are
+// written, so the bare-`any` serializer:json field is the only one exercised —
+// and it is always non-nil here, so the serializer never sees a nil value.
+func (r *OrderRepo) SetPaymentSession(ctx context.Context, orgId, id string, session any) error {
+	return dbFromCtx(ctx, r.db).
+		Model(&orderRow{}).
+		Where("org_id = ? AND id = ?", orgId, id).
+		Select("payment_session", "updated_at").
+		Updates(&orderRow{PaymentSession: session, UpdatedAt: time.Now().UTC()}).Error
 }
 
 func (r *OrderRepo) Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Order, int, error) {

@@ -2,6 +2,7 @@ package postgrespgx
 
 import (
 	"context"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -64,6 +65,18 @@ func (r *OrderRepo) Update(ctx context.Context, entity domain.Order) (domain.Ord
 		return domain.Order{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
+}
+
+// SetPaymentSession persists the PSP payment-session payload onto an existing
+// order with a targeted update (payment_session + updated_at only). session is
+// always non-nil here; it is wrapped through jsonCol to match the order_row
+// jsonb encoding.
+func (r *OrderRepo) SetPaymentSession(ctx context.Context, orgId, id string, session any) error {
+	q := dbFromCtx(ctx, r.pool)
+	_, err := q.Exec(ctx,
+		`UPDATE orders SET payment_session=$3, updated_at=$4 WHERE org_id=$1 AND id=$2`,
+		orgId, id, newJSON(session), time.Now().UTC())
+	return err
 }
 
 func (r *OrderRepo) Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Order, int, error) {
