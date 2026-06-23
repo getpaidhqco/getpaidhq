@@ -25,9 +25,9 @@ func NewApiKeyHandler(apiKeyService *service.ApiKeyService, logger port.Logger, 
 
 func (h *ApiKeyHandler) RegisterRoutes(s *fuego.Server) {
 	g := fuego.Group(s, "/api-keys", option.Tags("API Keys"))
-	fuego.Get(g, "", h.List, append(PaginationParams(), option.Summary("List API keys"))...)
-	fuego.Post(g, "", h.Create, option.Summary("Create an API key"))
-	fuego.Delete(g, "/{id}", h.Delete, option.Summary("Revoke an API key"))
+	fuego.Get(g, "", h.List, append(PaginationParams(), option.Summary("List API keys"), option.OperationID("listApiKeys"))...)
+	fuego.Post(g, "", h.Create, option.Summary("Create an API key"), option.OperationID("createApiKey"))
+	fuego.Delete(g, "/{id}", h.Delete, option.Summary("Revoke an API key"), option.OperationID("deleteApiKey"))
 }
 
 // CreateApiKeyInput is the request body for POST /api/api-keys.

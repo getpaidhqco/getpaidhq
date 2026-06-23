@@ -22,19 +22,19 @@ func NewCouponHandler(svc *service.CouponService, logger port.Logger, authz port
 
 func (h *CouponHandler) RegisterRoutes(s *fuego.Server) {
 	g := fuego.Group(s, "/coupons", option.Tags("Coupons"))
-	fuego.Post(g, "", h.Create, option.Summary("Create a coupon"))
-	fuego.Get(g, "", h.List, append(PaginationParams(), option.Summary("List coupons"))...)
-	fuego.Get(g, "/{id}", h.Get, option.Summary("Get a coupon"))
-	fuego.Patch(g, "/{id}", h.Update, option.Summary("Update a coupon (name/active/metadata only)"))
-	fuego.Delete(g, "/{id}", h.Delete, option.Summary("Delete a coupon"))
-	fuego.Post(g, "/{id}/codes", h.CreateCode, option.Summary("Create a redeemable code"))
-	fuego.Get(g, "/{id}/codes", h.ListCodes, option.Summary("List a coupon's codes"))
+	fuego.Post(g, "", h.Create, option.Summary("Create a coupon"), option.OperationID("createCoupon"))
+	fuego.Get(g, "", h.List, append(PaginationParams(), option.Summary("List coupons"), option.OperationID("listCoupons"))...)
+	fuego.Get(g, "/{id}", h.Get, option.Summary("Get a coupon"), option.OperationID("getCoupon"))
+	fuego.Patch(g, "/{id}", h.Update, option.Summary("Update a coupon (name/active/metadata only)"), option.OperationID("updateCoupon"))
+	fuego.Delete(g, "/{id}", h.Delete, option.Summary("Delete a coupon"), option.OperationID("deleteCoupon"))
+	fuego.Post(g, "/{id}/codes", h.CreateCode, option.Summary("Create a redeemable code"), option.OperationID("createCouponCode"))
+	fuego.Get(g, "/{id}/codes", h.ListCodes, option.Summary("List a coupon's codes"), option.OperationID("listCouponCodes"))
 
 	cg := fuego.Group(s, "/coupon-codes", option.Tags("Coupons"))
-	fuego.Patch(cg, "/{id}", h.UpdateCode, option.Summary("Update a coupon code (active/metadata)"))
+	fuego.Patch(cg, "/{id}", h.UpdateCode, option.Summary("Update a coupon code (active/metadata)"), option.OperationID("updateCouponCode"))
 
 	dg := fuego.Group(s, "/discounts", option.Tags("Coupons"))
-	fuego.Get(dg, "/{id}", h.GetDiscount, option.Summary("Get a discount"))
+	fuego.Get(dg, "/{id}", h.GetDiscount, option.Summary("Get a discount"), option.OperationID("getDiscount"))
 }
 
 // CouponResponse is the public shape returned for a coupon.

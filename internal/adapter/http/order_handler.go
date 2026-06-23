@@ -29,11 +29,11 @@ func NewOrderHandler(orderService *service.OrderService, logger port.Logger, aut
 
 func (o *OrderHandler) RegisterRoutes(s *fuego.Server) {
 	g := fuego.Group(s, "/orders", option.Tags("Orders"))
-	fuego.Post(g, "", o.CreateOrder, option.Summary("Create an order"))
-	fuego.Post(g, "/{id}/complete", o.CompleteOrder, option.Summary("Complete an order"))
-	fuego.Get(g, "/{id}", o.Get, option.Summary("Get an order"))
-	fuego.Get(g, "", o.List, append(PaginationParams(), option.Summary("List orders"))...)
-	fuego.Get(g, "/{id}/subscriptions", o.ListSubscriptions, option.Summary("List subscriptions for an order"))
+	fuego.Post(g, "", o.CreateOrder, option.Summary("Create an order"), option.OperationID("createOrder"))
+	fuego.Post(g, "/{id}/complete", o.CompleteOrder, option.Summary("Complete an order"), option.OperationID("completeOrder"))
+	fuego.Get(g, "/{id}", o.Get, option.Summary("Get an order"), option.OperationID("getOrder"))
+	fuego.Get(g, "", o.List, append(PaginationParams(), option.Summary("List orders"), option.OperationID("listOrders"))...)
+	fuego.Get(g, "/{id}/subscriptions", o.ListSubscriptions, option.Summary("List subscriptions for an order"), option.OperationID("listOrderSubscriptions"))
 }
 
 type CreateOrderResponse struct {
