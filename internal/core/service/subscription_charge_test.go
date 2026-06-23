@@ -14,21 +14,21 @@ import (
 )
 
 type chargeRecorderGateway struct {
-	domain.GatewayProvider
-	res domain.ChargePaymentResponse
+	port.PaymentGateway
+	res port.ChargePaymentResponse
 }
 
-func (g *chargeRecorderGateway) ChargePayment(ctx context.Context, cmd domain.ChargePaymentCommand) domain.ChargePaymentResponse {
+func (g *chargeRecorderGateway) ChargePayment(ctx context.Context, cmd port.ChargePaymentInput) port.ChargePaymentResponse {
 	return g.res
 }
 
 type subscriptionChargeGatewayFactory struct {
 	port.GatewayFactory
-	gw  domain.GatewayProvider
+	gw  port.PaymentGateway
 	err error
 }
 
-func (f *subscriptionChargeGatewayFactory) NewGateway(ctx context.Context, orgId string, pspId string) (domain.GatewayProvider, error) {
+func (f *subscriptionChargeGatewayFactory) NewGateway(ctx context.Context, orgId string, pspId string) (port.PaymentGateway, error) {
 	return f.gw, f.err
 }
 
@@ -98,8 +98,8 @@ func TestSubscriptionService_ChargeForBillingPeriod(t *testing.T) {
 
 	t.Run("successful charge returns mapped result", func(t *testing.T) {
 		_, _, gf, svc := setup()
-		gf.gw = &chargeRecorderGateway{res: domain.ChargePaymentResponse{
-			Status:        domain.ChargePaymentStatusSuccess,
+		gf.gw = &chargeRecorderGateway{res: port.ChargePaymentResponse{
+			Status:        port.ChargePaymentStatusSuccess,
 			Psp:           domain.Paystack,
 			AmountCharged: 1000,
 			Reference:     "ref_1",
@@ -115,8 +115,8 @@ func TestSubscriptionService_ChargeForBillingPeriod(t *testing.T) {
 
 	t.Run("gateway error returns wrapped error", func(t *testing.T) {
 		_, _, gf, svc := setup()
-		gf.gw = &chargeRecorderGateway{res: domain.ChargePaymentResponse{
-			Status:      domain.GatewayError,
+		gf.gw = &chargeRecorderGateway{res: port.ChargePaymentResponse{
+			Status:      port.ChargePaymentStatusGatewayError,
 			ErrorReason: "insufficient_funds",
 		}}
 

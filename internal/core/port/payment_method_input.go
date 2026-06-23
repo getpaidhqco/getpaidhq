@@ -2,7 +2,7 @@ package port
 
 import "getpaidhq/internal/core/domain"
 
-// CreatePaymentMethodInput is the command input for PaymentMethodService.Create.
+// CreatePaymentMethodInput is the input for PaymentMethodService.Create.
 type CreatePaymentMethodInput struct {
 	OrgId          string
 	CustomerId     string
@@ -16,7 +16,7 @@ type CreatePaymentMethodInput struct {
 	Metadata       map[string]string
 }
 
-// UpdatePaymentMethodInput is the command input for PaymentMethodService.Update.
+// UpdatePaymentMethodInput is the input for PaymentMethodService.Update.
 type UpdatePaymentMethodInput struct {
 	OrgId           string
 	CustomerId      string

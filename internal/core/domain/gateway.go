@@ -5,15 +5,6 @@ import (
 	"time"
 )
 
-type GatewayConfig interface {
-	Validate() error
-}
-
-type GatewayProvider interface {
-	InitPayment(ctx context.Context, input InitPaymentCommand) (InitPaymentResponse, error)
-	ChargePayment(ctx context.Context, input ChargePaymentCommand) ChargePaymentResponse
-}
-
 // WebhookParser verifies and parses an incoming PSP webhook.
 //
 // ValidateWebhook MUST cryptographically verify `signature` against the
@@ -23,56 +14,6 @@ type GatewayProvider interface {
 type WebhookParser interface {
 	ValidateWebhook(ctx context.Context, data []byte, signature string) error
 	ParseWebhook(ctx context.Context, data []byte) (PaymentWebhookContext, error)
-}
-
-type ChargePaymentCommand struct {
-	OrgId          string
-	OrderId        string
-	SubscriptionId string
-	Amount         int64
-	Currency       string
-	Reference      string
-	PaymentMethod  GatewayPaymentMethod
-	Customer       Customer
-}
-
-type InitPaymentCommand struct {
-	OrgId    string
-	Cart     Cart
-	Order    Order
-	Customer Customer
-	Options  map[string]string
-}
-
-type ChargePaymentStatus string
-
-const (
-	ChargePaymentStatusSuccess ChargePaymentStatus = "Success"
-	ChargePaymentStatusPending ChargePaymentStatus = "Pending"
-	ChargePaymentStatusError   ChargePaymentStatus = "Error"
-
-	// GatewayError is a generic error relating to comms with the gateway. Common error is a 429 rate exceeded.
-	// This is not a user error and should be retried by the platform instead of being seen as a failed payment.
-	GatewayError ChargePaymentStatus = "gateway_error"
-)
-
-type ChargePaymentResponse struct {
-	Status        ChargePaymentStatus `json:"status"`
-	Retryable     bool                `json:"retryable"`
-	Psp           Gateway             `json:"psp"`
-	PspId         string              `json:"psp_id"`
-	Reference     string              `json:"reference"`
-	Currency      Currency            `json:"currency"`
-	AmountCharged int64               `json:"amount_charged"`
-	PaymentType   string              `json:"payment_type"`
-	ErrorReason   string              `json:"error_reason"`
-	ErrorCode     string              `json:"error_code"`
-
-	PspResponse any `json:"psp_response"`
-}
-
-type InitPaymentResponse struct {
-	PspResponse any
 }
 
 type PaymentWebhookType string

@@ -37,7 +37,7 @@ func NewGatewayAdapter(logger port.Logger) *GatewayAdapter {
 // and credentials are ignored — the in-memory gateway has no configuration
 // to parse — but the signature matches every other adapter so the
 // GatewayFactory treats it uniformly.
-func (a *GatewayAdapter) CreateGateway(_ map[string]string, _ map[string]domain.Secret) (domain.GatewayProvider, error) {
+func (a *GatewayAdapter) CreateGateway(_ map[string]string, _ map[string]domain.Secret) (port.PaymentGateway, error) {
 	return &gatewayProvider{logger: a.logger}, nil
 }
 
@@ -48,7 +48,7 @@ func (a *GatewayAdapter) CreateWebhookParser() domain.WebhookParser {
 	return &webhookParser{}
 }
 
-// gatewayProvider implements domain.GatewayProvider with always-successful
+// gatewayProvider implements port.PaymentGateway with always-successful
 // charges.
 type gatewayProvider struct {
 	logger port.Logger
@@ -58,8 +58,8 @@ type gatewayProvider struct {
 // in-memory gateway has no hosted checkout, so there is nothing to redirect
 // to; callers that only need the recurring ChargePayment path never reach
 // this.
-func (g *gatewayProvider) InitPayment(_ context.Context, input domain.InitPaymentCommand) (domain.InitPaymentResponse, error) {
-	return domain.InitPaymentResponse{PspResponse: input}, nil
+func (g *gatewayProvider) InitPayment(_ context.Context, input port.InitPaymentInput) (port.InitPaymentResponse, error) {
+	return port.InitPaymentResponse{PspResponse: input}, nil
 }
 
 // DeclineToken is the memory gateway's test-card sentinel: a charge whose
@@ -75,14 +75,14 @@ const DeclineToken = "tok_decline"
 // PaymentStatusSucceeded), Psp, PspId, Reference and AmountCharged off this
 // struct. A fresh reference is minted per call so distinct charges produce
 // distinct payment rows.
-func (g *gatewayProvider) ChargePayment(_ context.Context, input domain.ChargePaymentCommand) domain.ChargePaymentResponse {
+func (g *gatewayProvider) ChargePayment(_ context.Context, input port.ChargePaymentInput) port.ChargePaymentResponse {
 	reference := input.Reference
 	if reference == "" {
 		reference = lib.GenerateId("memref")
 	}
 	if input.PaymentMethod.Token == DeclineToken {
-		return domain.ChargePaymentResponse{
-			Status:      domain.ChargePaymentStatusError,
+		return port.ChargePaymentResponse{
+			Status:      port.ChargePaymentStatusError,
 			Retryable:   true,
 			Psp:         domain.Memory,
 			PspId:       lib.GenerateId("mempsp"),
@@ -99,8 +99,8 @@ func (g *gatewayProvider) ChargePayment(_ context.Context, input domain.ChargePa
 			},
 		}
 	}
-	return domain.ChargePaymentResponse{
-		Status:        domain.ChargePaymentStatusSuccess,
+	return port.ChargePaymentResponse{
+		Status:        port.ChargePaymentStatusSuccess,
 		Retryable:     false,
 		Psp:           domain.Memory,
 		PspId:         lib.GenerateId("mempsp"),

@@ -29,7 +29,7 @@ type fakeGatewayAdapter struct {
 	parser *fakeWebhookParser
 }
 
-func (a *fakeGatewayAdapter) CreateGateway(map[string]string, map[string]domain.Secret) (domain.GatewayProvider, error) {
+func (a *fakeGatewayAdapter) CreateGateway(map[string]string, map[string]domain.Secret) (port.PaymentGateway, error) {
 	return nil, nil
 }
 

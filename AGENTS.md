@@ -2,6 +2,8 @@
 
 Guidance for Claude Code and other agents working in this repo. For the user-facing overview see `README.md`; for deep mechanics see `docs/` (index: `docs/README.md`). 
 
+> **Agents: never branch in the shared working tree.** Multiple agents run against this repo concurrently. If a task needs a new branch, create it in a **git worktree** (`git worktree add ../<dir> -b <branch>`), not with `git checkout -b` in place — in-place branch switches clobber each other's work. One worktree per agent/task.
+
 ## Project
 
 GetPaidHQ is a subscription-billing backend with REST API, cli, Postgres datastore and pluggable adapters for everything.

@@ -1,6 +1,6 @@
 package port
 
-// CreateVariantInput is the command input for VariantService.Create.
+// CreateVariantInput is the input for VariantService.Create.
 type CreateVariantInput struct {
 	OrgId       string
 	Id          string
@@ -10,7 +10,7 @@ type CreateVariantInput struct {
 	Metadata    map[string]string
 }
 
-// UpdateVariantInput is the command input for VariantService.Update.
+// UpdateVariantInput is the input for VariantService.Update.
 type UpdateVariantInput struct {
 	Name        string
 	Description string

@@ -172,7 +172,7 @@ func TestCouponBillingE2E(t *testing.T) {
 	// 3. CreateOrder with the cart + coupon code → a reservation is held.
 	created, err := orders.CreateOrder(ctx, port.CreateOrderInput{
 		OrgId:           orgId,
-		Customer:        domain.CreateOrderCommandCustomer{Id: customer.Id},
+		Customer:        port.CreateOrderInputCustomer{Id: customer.Id},
 		Currency:        "USD",
 		PspId:           domain.Gateway(pspConfigId),
 		PaymentMethodId: pm.Id,

@@ -19,7 +19,7 @@ func NewAdapter(logger port.Logger, webhookSecret string) *Adapter {
 	return &Adapter{logger: logger, webhookSecret: webhookSecret}
 }
 
-func (a *Adapter) CreateGateway(config map[string]string, credentials map[string]domain.Secret) (domain.GatewayProvider, error) {
+func (a *Adapter) CreateGateway(config map[string]string, credentials map[string]domain.Secret) (port.PaymentGateway, error) {
 	c, err := ParseConfig(config, credentials)
 	if err != nil {
 		return nil, lib.NewCustomError(lib.ValidationError, "invalid config for CheckoutDotCom", err)

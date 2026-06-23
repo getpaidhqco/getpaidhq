@@ -52,7 +52,7 @@ func (c CheckoutDotComConfig) Validate() error {
 	return nil
 }
 
-func NewCheckoutDotComGateway(logger port.Logger, config CheckoutDotComConfig) domain.GatewayProvider {
+func NewCheckoutDotComGateway(logger port.Logger, config CheckoutDotComConfig) port.PaymentGateway {
 	api, _ := checkout.
 		Builder().
 		StaticKeys().
@@ -67,7 +67,7 @@ func NewCheckoutDotComGateway(logger port.Logger, config CheckoutDotComConfig) d
 	}
 }
 
-func (p CheckoutDotCom) InitPayment(ctx context.Context, input domain.InitPaymentCommand) (domain.InitPaymentResponse, error) {
+func (p CheckoutDotCom) InitPayment(ctx context.Context, input port.InitPaymentInput) (port.InitPaymentResponse, error) {
 	reference := input.Order.Reference
 	email := input.Customer.Email
 	var options InitPaymentOptions
@@ -76,12 +76,12 @@ func (p CheckoutDotCom) InitPayment(ctx context.Context, input domain.InitPaymen
 		optionsJSON, err := json.Marshal(input.Options)
 		if err != nil {
 			p.logger.Error("failed to marshal options to JSON", "error", err)
-			return domain.InitPaymentResponse{}, err
+			return port.InitPaymentResponse{}, err
 		}
 		err = json.Unmarshal(optionsJSON, &options)
 		if err != nil {
 			p.logger.Error("failed to unmarshal options from JSON", "error", err)
-			return domain.InitPaymentResponse{}, err
+			return port.InitPaymentResponse{}, err
 		}
 	}
 
@@ -124,11 +124,11 @@ func (p CheckoutDotCom) InitPayment(ctx context.Context, input domain.InitPaymen
 		})
 		if err != nil {
 			p.logger.Error("failed to request payment", "error", err)
-			return domain.InitPaymentResponse{}, err
+			return port.InitPaymentResponse{}, err
 		}
 
 		p.logger.Info("created Checkout.com payment session", "response", response)
-		return domain.InitPaymentResponse{
+		return port.InitPaymentResponse{
 			PspResponse: map[string]any{
 				"redirect": response.Links["redirect"].HRef,
 			},
@@ -178,11 +178,11 @@ func (p CheckoutDotCom) InitPayment(ctx context.Context, input domain.InitPaymen
 		response, err := p.client.PaymentSessions.RequestPaymentSessions(flowRequest)
 		if err != nil {
 			p.logger.Error("failed to request payment", "error", err)
-			return domain.InitPaymentResponse{}, err
+			return port.InitPaymentResponse{}, err
 		}
 
 		p.logger.Info("created Checkout.com payment session", "response", response)
-		return domain.InitPaymentResponse{
+		return port.InitPaymentResponse{
 			PspResponse: map[string]any{
 				"id":                    response.Id,
 				"payment_session_token": response.PaymentSessionToken,
@@ -192,7 +192,7 @@ func (p CheckoutDotCom) InitPayment(ctx context.Context, input domain.InitPaymen
 
 }
 
-func (p CheckoutDotCom) ChargePayment(ctx context.Context, input domain.ChargePaymentCommand) domain.ChargePaymentResponse {
+func (p CheckoutDotCom) ChargePayment(ctx context.Context, input port.ChargePaymentInput) port.ChargePaymentResponse {
 	//customer := input.Customer
 	paymentMethod := input.PaymentMethod
 
@@ -205,8 +205,8 @@ func (p CheckoutDotCom) ChargePayment(ctx context.Context, input domain.ChargePa
 		Build()
 	if err != nil {
 		p.logger.Error("failed to build checkout.com api", "error", err)
-		return domain.ChargePaymentResponse{
-			Status: domain.ChargePaymentStatusError,
+		return port.ChargePaymentResponse{
+			Status: port.ChargePaymentStatusError,
 		}
 	}
 
@@ -250,14 +250,14 @@ func (p CheckoutDotCom) ChargePayment(ctx context.Context, input domain.ChargePa
 				"requestId", capierr.Data.RequestID,
 				"errorCodes", capierr.Data.ErrorCodes)
 		}
-		return domain.ChargePaymentResponse{
-			Status: domain.ChargePaymentStatusError,
+		return port.ChargePaymentResponse{
+			Status: port.ChargePaymentStatusError,
 		}
 	}
 
 	p.logger.Infof("charged payment %s %s %s", response.Id, response.Reference, response.ResponseSummary)
-	return domain.ChargePaymentResponse{
-		Status:        domain.ChargePaymentStatusSuccess,
+	return port.ChargePaymentResponse{
+		Status:        port.ChargePaymentStatusSuccess,
 		Psp:           domain.CheckoutDotCom,
 		PspId:         response.Id,
 		Reference:     response.Reference,

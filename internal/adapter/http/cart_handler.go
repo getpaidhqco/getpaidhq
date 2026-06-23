@@ -34,7 +34,7 @@ func (o *CartHandler) AddProduct(c fuego.ContextWithBody[AddItemRequest]) (CartR
 	if err != nil {
 		return CartResponse{}, err
 	}
-	cart, err := o.cartService.AddProduct(c.Context(), port.AddProductCommand{
+	cart, err := o.cartService.AddProduct(c.Context(), port.AddProductInput{
 		OrgId:     authUser.OrgId,
 		CartId:    c.PathParam("id"),
 		ProductId: input.ProductId,
@@ -60,7 +60,7 @@ func (o *CartHandler) RemoveItem(c fuego.ContextWithBody[RemoveItemRequest]) (Ca
 	// The previous code took `input.OrgId` from the deserialized payload,
 	// which let any authenticated user remove items from a cart in any org
 	// by passing a different OrgId.
-	cart, err := o.cartService.RemoveItem(c.Context(), port.RemoveItemCommand{
+	cart, err := o.cartService.RemoveItem(c.Context(), port.RemoveItemInput{
 		OrgId:  authUser.OrgId,
 		CartId: c.PathParam("id"),
 		Id:     input.Id,

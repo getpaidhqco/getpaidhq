@@ -35,7 +35,7 @@ func NewGatewayFactory(
 	}
 }
 
-func (s *GatewayFactory) NewGateway(ctx context.Context, orgId string, id string) (domain.GatewayProvider, error) {
+func (s *GatewayFactory) NewGateway(ctx context.Context, orgId string, id string) (port.PaymentGateway, error) {
 	psp, err := s.pspRepository.FindById(ctx, orgId, id)
 	if err != nil {
 		s.logger.Errorf("Failed to get Gateway[%s] - %s", id, err.Error())

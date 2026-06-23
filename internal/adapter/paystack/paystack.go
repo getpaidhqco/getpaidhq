@@ -49,14 +49,14 @@ func (c PaystackConfig) Validate() error {
 	return nil
 }
 
-func NewPaystackGateway(logger port.Logger, config PaystackConfig) domain.GatewayProvider {
+func NewPaystackGateway(logger port.Logger, config PaystackConfig) port.PaymentGateway {
 	return Paystack{
 		Config: config,
 		logger: logger,
 	}
 }
 
-func (p Paystack) InitPayment(ctx context.Context, input domain.InitPaymentCommand) (domain.InitPaymentResponse, error) {
+func (p Paystack) InitPayment(ctx context.Context, input port.InitPaymentInput) (port.InitPaymentResponse, error) {
 	cart := input.Cart
 	currency := cart.Data.Currency
 	reference := input.Order.Reference
@@ -87,15 +87,15 @@ func (p Paystack) InitPayment(ctx context.Context, input domain.InitPaymentComma
 	transaction, err := client.Transaction.Initialize(ctx, &request)
 	if err != nil {
 		p.logger.Errorf("failed to init paystack payment [%s]", err.Error())
-		return domain.InitPaymentResponse{}, err
+		return port.InitPaymentResponse{}, err
 	}
 	p.logger.Info("created Paystack transaction", "reference", transaction.Reference, "code", transaction.AccessCode)
-	return domain.InitPaymentResponse{
+	return port.InitPaymentResponse{
 		PspResponse: transaction,
 	}, nil
 }
 
-func (p Paystack) ChargePayment(ctx context.Context, input domain.ChargePaymentCommand) domain.ChargePaymentResponse {
+func (p Paystack) ChargePayment(ctx context.Context, input port.ChargePaymentInput) port.ChargePaymentResponse {
 	client := paystacklib.NewPaystackApi(paystacklib.Options{
 		ApiKey:    p.Config.ApiKey.Reveal(),
 		ConnectId: p.Config.ConnectId,
@@ -130,8 +130,8 @@ func (p Paystack) ChargePayment(ctx context.Context, input domain.ChargePaymentC
 		if paystackErr, ok := errors.AsType[*pserrors.APIError](err); ok {
 
 			if paystackErr.HTTPStatusCode == 429 {
-				return domain.ChargePaymentResponse{
-					Status:        domain.GatewayError,
+				return port.ChargePaymentResponse{
+					Status:        port.ChargePaymentStatusGatewayError,
 					Retryable:     false,
 					Psp:           domain.Paystack,
 					ErrorReason:   paystackErr.Details.Message,
@@ -142,8 +142,8 @@ func (p Paystack) ChargePayment(ctx context.Context, input domain.ChargePaymentC
 				}
 			}
 
-			return domain.ChargePaymentResponse{
-				Status:        domain.ChargePaymentStatusError,
+			return port.ChargePaymentResponse{
+				Status:        port.ChargePaymentStatusError,
 				Retryable:     true,
 				Psp:           domain.Paystack,
 				ErrorReason:   paystackErr.Details.Message,
@@ -157,8 +157,8 @@ func (p Paystack) ChargePayment(ctx context.Context, input domain.ChargePaymentC
 			}
 		}
 
-		return domain.ChargePaymentResponse{
-			Status:        domain.ChargePaymentStatusError,
+		return port.ChargePaymentResponse{
+			Status:        port.ChargePaymentStatusError,
 			Retryable:     true,
 			Psp:           domain.Paystack,
 			ErrorReason:   err.Error(),
@@ -173,13 +173,13 @@ func (p Paystack) ChargePayment(ctx context.Context, input domain.ChargePaymentC
 	}
 
 	// check the status of the payment - "success" or "queued"
-	status := domain.ChargePaymentStatusSuccess
+	status := port.ChargePaymentStatusSuccess
 	//if response.Status == "queued" {
-	//	status = domain.ChargePaymentStatusPending
+	//	status = port.ChargePaymentStatusPending
 	//}
 
 	p.logger.Infof("ChargeAuthorization [%s][%s]", response.Status, response.Reference)
-	return domain.ChargePaymentResponse{
+	return port.ChargePaymentResponse{
 		Status:        status,
 		Psp:           domain.Paystack,
 		PspId:         strconv.FormatInt(response.ID, 10),
