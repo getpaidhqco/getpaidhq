@@ -307,26 +307,42 @@ Both paths agree numerically because the discount math is deterministic on
 
 ---
 
-## 9. Per-cycle discount application in billing (the other missing wire)
+## 9. Discount application — one rule, at every bill build
 
-`InvoiceService.BuildForBillingPeriod` (shared `core/service`, called by **both** engines) gains
-discount application, after building lines and before returning:
+**Wherever a bill is built — the order's invoice *and* each subscription cycle's invoice — the
+coupon's discount is computed on that bill's lines and subtracted, so the total it produces is
+already the discounted amount the customer is charged.** It is part of building the bill, not a
+later step. (Payment success writes the `Discount` record; it recalculates nothing.)
 
-1. Load `DiscountRepository.ActiveForSubscription(orgId, sub.Id)` (status `active` only) and each
-   discount's immutable `Coupon` → `[]domain.AppliedDiscount`.
-2. Build `[]domain.DiscountableLine` from the invoice lines, resolving each line's `ProductId`
-   (Price → Variant → Product; the order item already carries `product_id`).
-3. `perLine := domain.ApplyDiscounts(lines, applied, inv.Cycle, sub.Currency)` (`inv.Cycle =
-   sub.CyclesProcessed`).
+The discount source is resolved per bill:
+- **Pre-payment (the order's first invoice):** from the live **reservation's** coupon
+  (`PreviewForHolder`) — so the charged total is right even before the `Discount` record exists.
+- **After payment (cycles 1+, and the committed audit):** from `DiscountRepository.Active*`
+  (the committed `Discount` + its immutable `Coupon`).
+
+Both feed the same pure function and agree numerically.
+
+In `InvoiceService.BuildForBillingPeriod` (shared `core/service`, called by **both** engines),
+after building lines and before returning:
+
+1. Resolve the applicable discounts → `[]domain.AppliedDiscount` (from the reservation pre-payment,
+   else `DiscountRepository.ActiveForSubscription`, status `active`, + each coupon).
+2. Build `[]domain.DiscountableLine` from the lines, resolving each line's `ProductId`
+   (Price → Variant → Product; the order item carries `product_id`).
+3. `perLine := domain.ApplyDiscounts(lines, applied, inv.Cycle, currency)` (`inv.Cycle =
+   sub.CyclesProcessed`; for a one-time order bill, cycle/order targeting per `Discount.OrderId`).
 4. Set each line's `DiscountTotal = perLine[lineId]`; `inv.recalculate()` (`Total = Subtotal −
    DiscountTotal`).
 
-`ApplyDiscounts` already gates each discount to its window
+The **same step** runs when building a one-time (non-subscription) order's invoice — the bill is
+the order total, the discount is computed on its lines and subtracted there. No separate path.
+
+`ApplyDiscounts` gates each discount to its window
 (`StartCycle ≤ cycle < StartCycle + DurationInCycles`; `once`/`forever` special cases), so a
 `repeating(2)` coupon redeemed at `start_cycle=0` discounts cycles 0 and 1 and nothing after.
 
-`InvoiceService` gains a `DiscountRepository` + `CouponRepository` dependency (wired in
-`app.go`). Build remains idempotent (looked up by `(orgId, subId, CyclesProcessed)`), so replay /
+`InvoiceService` gains a `DiscountRepository` + `CouponRepository` (+ reservation read) dependency
+(wired in `app.go`). Build stays idempotent (keyed `(orgId, subId, CyclesProcessed)`), so replay /
 dunning retries re-derive the identical discount — no double-application.
 
 ---
