@@ -859,6 +859,11 @@ func (r *fakeOrderRepo) Update(_ context.Context, o domain.Order) (domain.Order,
 	return o, nil
 }
 
+func (r *fakeOrderRepo) SetPaymentSession(_ context.Context, _, _ string, session any) error {
+	r.byId.PaymentSession = session
+	return nil
+}
+
 func (r *fakeOrderRepo) Find(context.Context, string, domain.Pagination) ([]domain.Order, int, error) {
 	if r.listErr != nil {
 		return nil, 0, r.listErr

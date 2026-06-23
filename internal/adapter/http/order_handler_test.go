@@ -489,6 +489,115 @@ func TestOrderHandler_CreateOrder_NoKey_IndependentCreates(t *testing.T) {
 	require.Len(t, orderRepo.created, 2, "without a key, each request creates its own order")
 }
 
+// stubInitGateway is a port.PaymentGateway that records InitPayment calls and
+// returns a fixed session. Only InitPayment is exercised by /pay.
+type stubInitGateway struct {
+	port.PaymentGateway
+	calls   int
+	session any
+}
+
+func (g *stubInitGateway) InitPayment(_ context.Context, _ port.InitPaymentInput) (port.InitPaymentResponse, error) {
+	g.calls++
+	return port.InitPaymentResponse{PspResponse: g.session}, nil
+}
+
+// stubGatewayAdapter satisfies port.GatewayAdapter, handing back a fixed gateway.
+type stubGatewayAdapter struct {
+	gw port.PaymentGateway
+}
+
+func (a stubGatewayAdapter) CreateGateway(_ map[string]string, _ map[string]domain.Secret) (port.PaymentGateway, error) {
+	return a.gw, nil
+}
+
+func (a stubGatewayAdapter) CreateWebhookParser() domain.WebhookParser { return nil }
+
+// newOrderHandlerForPayTest assembles an OrderService whose GatewayFactory
+// resolves a stub gateway. The fakePspRepo returns a PspConfig whose PspId is
+// "memory", matching the single adapter registered in the factory's map, so
+// factory.NewGateway hands back gw. orderRepo is returned so tests can seed the
+// order and assert the persisted session.
+func newOrderHandlerForPayTest(t *testing.T, order domain.Order, gw port.PaymentGateway) (*OrderHandler, *fakeOrderRepo) {
+	t.Helper()
+	orderRepo := &fakeOrderRepo{byId: order}
+	pspRepo := &fakePspRepo{byId: domain.PspConfig{PspId: domain.Memory}}
+	factory := service.NewGatewayFactory(pspRepo, fakeSecretCipher{}, silentLogger{},
+		map[domain.Gateway]port.GatewayAdapter{domain.Memory: stubGatewayAdapter{gw: gw}})
+	svc := service.NewOrderService(
+		noopTxManager{}, &recordingEngine{}, &fakeSessionRepo{}, &fakePriceRepo{}, &fakeCartRepo{},
+		orderRepo, &fakeCustomerRepo{}, &fakeSubRepo{}, &fakePaymentRepo{}, &fakePaymentMethodRepo{},
+		&fakeProductRepo{}, factory, newPubSub(), silentLogger{}, nil,
+	)
+	idemMW := middleware.NewIdempotencyMiddleware(newFakeIdemStore(), idempo.Options{})
+	return NewOrderHandler(svc, silentLogger{}, newRealAuthz(t), idemMW), orderRepo
+}
+
+func TestOrderHandler_Pay_HappyPath(t *testing.T) {
+	session := map[string]any{"reference": "ps_1", "url": "https://pay/x"}
+	gw := &stubInitGateway{session: session}
+	order := domain.Order{OrgId: "org_1", Id: "ord_1", Status: domain.OrderStatusPending}
+	h, orderRepo := newOrderHandlerForPayTest(t, order, gw)
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/orders/ord_1/pay", PayOrderRequest{Psp: "memory", Options: map[string]any{}})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	var got PayOrderResponse
+	decodeJSON(t, rec, &got)
+	require.NotNil(t, got.Psp, "the response carries the PSP session payload")
+	assert.Equal(t, 1, gw.calls, "the gateway initialised the session once")
+	assert.NotNil(t, orderRepo.byId.PaymentSession, "the session was persisted on the order")
+}
+
+func TestOrderHandler_Pay_Idempotent_ServedFromStoredSession(t *testing.T) {
+	// Two /pay calls on the same order init the gateway once; the second is
+	// served from the stored payment_session (fakeOrderRepo.SetPaymentSession
+	// writes byId, so the second FindById sees the stored session).
+	session := map[string]any{"reference": "ps_1"}
+	gw := &stubInitGateway{session: session}
+	order := domain.Order{OrgId: "org_1", Id: "ord_1", Status: domain.OrderStatusPending}
+	h, _ := newOrderHandlerForPayTest(t, order, gw)
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	first := doJSON(t, ts, http.MethodPost, "/api/orders/ord_1/pay", PayOrderRequest{Psp: "memory"})
+	require.Equal(t, http.StatusOK, first.Code, "body=%s", first.Body.String())
+	second := doJSON(t, ts, http.MethodPost, "/api/orders/ord_1/pay", PayOrderRequest{Psp: "memory"})
+	require.Equal(t, http.StatusOK, second.Code, "body=%s", second.Body.String())
+
+	assert.Equal(t, 1, gw.calls, "the gateway is initialised exactly once across both calls")
+	assert.Equal(t, first.Body.String(), second.Body.String(), "both calls return the same session")
+}
+
+func TestOrderHandler_Pay_NonPending_Conflict(t *testing.T) {
+	gw := &stubInitGateway{session: map[string]any{"reference": "ps_1"}}
+	order := domain.Order{OrgId: "org_1", Id: "ord_1", Status: domain.OrderStatusCompleted}
+	h, _ := newOrderHandlerForPayTest(t, order, gw)
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/orders/ord_1/pay", PayOrderRequest{Psp: "memory"})
+
+	assertErrorEnvelope(t, rec, http.StatusConflict, string(lib.ConflictError))
+	assert.Equal(t, 0, gw.calls, "no gateway call for a non-pending order")
+}
+
+func TestOrderHandler_Pay_AuthzDenied(t *testing.T) {
+	gw := &stubInitGateway{session: map[string]any{"reference": "ps_1"}}
+	order := domain.Order{OrgId: "org_1", Id: "ord_1", Status: domain.OrderStatusPending}
+	h, _ := newOrderHandlerForPayTest(t, order, gw)
+	// member is denied CreateOrder, which /pay reuses.
+	ts := newTestServer(fixedAuthMiddleware(memberUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/orders/ord_1/pay", PayOrderRequest{Psp: "memory"})
+
+	assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+	assert.Equal(t, 0, gw.calls, "denied requests never reach the service")
+}
+
 func TestOrderHandler_ListSubscriptions(t *testing.T) {
 	// authz: owner has no "ListOrderSubscriptions" permit; admin does (via the
 	// unconditional admin rule).
