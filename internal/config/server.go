@@ -132,6 +132,12 @@ func BuildServer(deps ServerDeps, h Handlers) *fuego.Server {
 		// Render `validate:"oneof=..."` fields as real OpenAPI enums (not opaque
 		// strings) so the spec is constrained and SDK clients get enum types.
 		fuego.WithEngineOptions(fuego.WithOpenAPIGeneratorSchemaCustomizer(handler.EnumSchemaCustomizer)),
+		// Declare request bodies as application/json. Without this Fuego defaults
+		// the consumed content type to */*, which strict OpenAPI client generators
+		// (e.g. ogen) reject — they skip every operation with a */* body, silently
+		// dropping coverage. Pinning it to application/json keeps generated clients
+		// (CLI, SDK) at full API coverage.
+		fuego.WithEngineOptions(fuego.WithRequestContentType("application/json")),
 	}
 	if deps.Validator != nil {
 		opts = append(opts, fuego.WithValidator(deps.Validator))
