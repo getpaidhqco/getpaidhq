@@ -236,6 +236,38 @@ type IdempotencyKeyRepository interface {
 	Release(ctx context.Context, key string) error
 }
 
+// IdempotencyClaimStatus mirrors idempo's claim outcomes. String values are
+// identical to idempo.ClaimStatus so the http-layer shim can cast directly.
+type IdempotencyClaimStatus string
+
+const (
+	IdempotencyNew       IdempotencyClaimStatus = "new"
+	IdempotencyPending   IdempotencyClaimStatus = "pending"
+	IdempotencyCompleted IdempotencyClaimStatus = "completed"
+	IdempotencyConflict  IdempotencyClaimStatus = "conflict"
+)
+
+// IdempotencyClaim is the result of a Claim. Code/Headers/Body are populated
+// only when Status is IdempotencyCompleted.
+type IdempotencyClaim struct {
+	Status  IdempotencyClaimStatus
+	Code    int
+	Headers []byte
+	Body    []byte
+}
+
+// IdempotencyStore is the persistence behind the idempo middleware. It mirrors
+// idempo.Store one-to-one so a thin shim can adapt it without importing idempo
+// into core. Contract (per idempo): Claim must make exactly ONE concurrent
+// caller win (IdempotencyNew); an expired pending/completed row is reclaimable
+// as new. Complete and Abandon MUST be no-ops when the stored token does not
+// match, or when the row is not pending (fencing).
+type IdempotencyStore interface {
+	Claim(ctx context.Context, key, requestHash, token string) (IdempotencyClaim, error)
+	Complete(ctx context.Context, key, token string, statusCode int, headers, body []byte) error
+	Abandon(ctx context.Context, key, token string) error
+}
+
 // UserRepository manages user persistence.
 type UserRepository any
 
