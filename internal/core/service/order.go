@@ -33,6 +33,7 @@ type OrderService struct {
 	gatewayFactory          port.GatewayFactory
 	pubsub                  port.PubSub
 	logger                  port.Logger
+	coupons                 *CouponService
 }
 
 func NewOrderService(
@@ -50,6 +51,7 @@ func NewOrderService(
 	gatewayFactory port.GatewayFactory,
 	pubsub port.PubSub,
 	logger port.Logger,
+	coupons *CouponService,
 ) *OrderService {
 	return &OrderService{
 		tx:                      tx,
@@ -66,6 +68,7 @@ func NewOrderService(
 		logger:                  logger,
 		paymentRepository:       paymentRepository,
 		pubsub:                  pubsub,
+		coupons:                 coupons,
 	}
 }
 
@@ -275,6 +278,21 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 			}
 		}
 		_ = s.pubsub.Publish(orgId, port.TopicSubscriptionCreated, created)
+	}
+
+	// Reserve the coupon's capacity for this order. A refusal (exhausted code,
+	// minimum not met, etc.) is returned as a typed ApiError and fails the order.
+	if input.CouponCode != "" && s.coupons != nil {
+		if _, err := s.coupons.Reserve(ctx, ReserveInput{
+			OrgId:      orgId,
+			Code:       input.CouponCode,
+			CustomerId: customerEntity.Id,
+			OrderId:    orderId,
+			Currency:   currency,
+			Amount:     order.Total, // cart subtotal for MinimumAmount
+		}); err != nil {
+			return domain.CreateOrderResponse{}, err
+		}
 	}
 
 	var pspResponse domain.InitPaymentResponse

@@ -14,6 +14,7 @@ type CreateOrderInput struct {
 	CartItems       []domain.CartItem
 	PspId           domain.Gateway
 	PaymentMethodId string
+	CouponCode      string
 	Metadata        map[string]string
 	Options         map[string]string
 }

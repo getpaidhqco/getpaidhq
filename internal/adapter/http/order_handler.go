@@ -74,6 +74,7 @@ func (o *OrderHandler) CreateOrder(c fuego.ContextWithBody[CreateOrderRequest]) 
 		PaymentMethodId: input.PaymentMethodId,
 		CartItems:       ToCartItems(input.Cart.Items),
 		PspId:           domain.Gateway(input.PspId),
+		CouponCode:      input.CouponCode,
 		Metadata:        nil,
 		Options:         input.Options,
 	})

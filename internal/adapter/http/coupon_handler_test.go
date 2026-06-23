@@ -57,6 +57,10 @@ func (r *hFakeCouponRepo) Find(_ context.Context, _ string, _ domain.Pagination)
 	return out, len(out), nil
 }
 
+func (r *hFakeCouponRepo) FindByIdForUpdate(ctx context.Context, orgId, id string) (domain.Coupon, error) {
+	return r.FindById(ctx, orgId, id)
+}
+
 func (r *hFakeCouponRepo) DeleteIfUnreferenced(_ context.Context, _, _ string) error { return nil }
 
 type hFakeCouponCodeRepo struct {
@@ -104,6 +108,10 @@ func (r *hFakeCouponCodeRepo) FindByCode(_ context.Context, _, code string) (dom
 	return c, nil
 }
 
+func (r *hFakeCouponCodeRepo) FindByCodeForUpdate(ctx context.Context, orgId, code string) (domain.CouponCode, error) {
+	return r.FindByCode(ctx, orgId, code)
+}
+
 type hFakeDiscountRepo struct {
 	port.DiscountRepository
 	byId map[string]domain.Discount
@@ -137,14 +145,17 @@ func (h *hFakePriorPayments) HasPriorSuccessfulPayment(_ context.Context, _, _ s
 	return false, nil
 }
 
-// hFakeReservationRepo is a no-op reservation repo for handler tests that don't
-// exercise the reservation path. CountLive* / ExistsLive* return zero so the
-// gate never refuses on capacity.
+// hFakeReservationRepo is an in-memory reservation repo for handler tests.
+// couponCount seeds the live-by-coupon count so a test can simulate an
+// exhausted coupon; created records what Reserve inserted.
 type hFakeReservationRepo struct {
 	port.CouponReservationRepository
+	couponCount int
+	created     []domain.CouponReservation
 }
 
 func (r *hFakeReservationRepo) Create(_ context.Context, res domain.CouponReservation) (domain.CouponReservation, error) {
+	r.created = append(r.created, res)
 	return res, nil
 }
 func (r *hFakeReservationRepo) FindByOrder(_ context.Context, _, _ string) ([]domain.CouponReservation, error) {
@@ -152,7 +163,7 @@ func (r *hFakeReservationRepo) FindByOrder(_ context.Context, _, _ string) ([]do
 }
 func (r *hFakeReservationRepo) DeleteByOrder(_ context.Context, _, _ string) error { return nil }
 func (r *hFakeReservationRepo) CountLiveByCoupon(_ context.Context, _, _ string, _ time.Time) (int, error) {
-	return 0, nil
+	return r.couponCount, nil
 }
 func (r *hFakeReservationRepo) CountLiveByCode(_ context.Context, _, _ string, _ time.Time) (int, error) {
 	return 0, nil
