@@ -97,6 +97,17 @@ func (inv *Invoice) AddLine(l InvoiceLineItem) {
 	inv.recalculate()
 }
 
+// ApplyDiscountTotals sets each line's DiscountTotal from perLine (keyed by line
+// id), then recomputes invoice totals. Lines absent from the map keep 0.
+func (inv *Invoice) ApplyDiscountTotals(perLine map[string]int64) {
+	for i := range inv.LineItems {
+		if d, ok := perLine[inv.LineItems[i].Id]; ok {
+			inv.LineItems[i].DiscountTotal = d
+		}
+	}
+	inv.recalculate()
+}
+
 func (inv *Invoice) recalculate() {
 	var subtotal, discount int64
 	for _, l := range inv.LineItems {

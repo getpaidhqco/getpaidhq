@@ -41,6 +41,7 @@ type repoSet struct {
 	meter               port.MeterRepository
 	coupon              port.CouponRepository
 	couponCode          port.CouponCodeRepository
+	couponReservation   port.CouponReservationRepository
 	discount            port.DiscountRepository
 	priorPaymentChecker port.PriorPaymentChecker
 	tx                  port.TxManager
@@ -98,6 +99,7 @@ func newGormRepoSet(env lib.Env, logger lib.Logger) (*repoSet, error) {
 		meter:               postgresgorm.NewMeterRepo(db),
 		coupon:              postgresgorm.NewCouponRepo(db),
 		couponCode:          postgresgorm.NewCouponCodeRepo(db),
+		couponReservation:   postgresgorm.NewCouponReservationRepo(db),
 		discount:            postgresgorm.NewDiscountRepo(db),
 		priorPaymentChecker: postgresgorm.NewPriorPaymentChecker(db),
 		tx:                  postgresgorm.NewTxManager(db),
@@ -146,6 +148,7 @@ func newPgxRepoSet(env lib.Env, logger lib.Logger) (*repoSet, error) {
 		meter:               postgrespgx.NewMeterRepo(pool),
 		coupon:              postgrespgx.NewCouponRepo(pool),
 		couponCode:          postgrespgx.NewCouponCodeRepo(pool),
+		couponReservation:   postgrespgx.NewCouponReservationRepo(pool),
 		discount:            postgrespgx.NewDiscountRepo(pool),
 		priorPaymentChecker: postgrespgx.NewPriorPaymentChecker(pool),
 		tx:                  postgrespgx.NewTxManager(pool),

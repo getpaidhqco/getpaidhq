@@ -33,6 +33,7 @@ type OrderService struct {
 	gatewayFactory          port.GatewayFactory
 	pubsub                  port.PubSub
 	logger                  port.Logger
+	coupons                 *CouponService
 }
 
 func NewOrderService(
@@ -50,6 +51,7 @@ func NewOrderService(
 	gatewayFactory port.GatewayFactory,
 	pubsub port.PubSub,
 	logger port.Logger,
+	coupons *CouponService,
 ) *OrderService {
 	return &OrderService{
 		tx:                      tx,
@@ -66,6 +68,7 @@ func NewOrderService(
 		logger:                  logger,
 		paymentRepository:       paymentRepository,
 		pubsub:                  pubsub,
+		coupons:                 coupons,
 	}
 }
 
@@ -277,6 +280,21 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		_ = s.pubsub.Publish(orgId, port.TopicSubscriptionCreated, created)
 	}
 
+	// Reserve the coupon's capacity for this order. A refusal (exhausted code,
+	// minimum not met, etc.) is returned as a typed ApiError and fails the order.
+	if input.CouponCode != "" && s.coupons != nil {
+		if _, err := s.coupons.Reserve(ctx, ReserveInput{
+			OrgId:      orgId,
+			Code:       input.CouponCode,
+			CustomerId: customerEntity.Id,
+			OrderId:    orderId,
+			Currency:   currency,
+			Amount:     order.Total, // cart subtotal for MinimumAmount
+		}); err != nil {
+			return domain.CreateOrderResponse{}, err
+		}
+	}
+
 	var pspResponse domain.InitPaymentResponse
 	if createPspSession {
 		s.logger.Debugf("Creating payment session for order %s", order.Id)
@@ -474,6 +492,20 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 				return err
 			}
 			activated = append(activated, newSub)
+		}
+
+		// Convert the order's coupon reservation (if any) into an active Discount
+		// on the first activated subscription. No-op when the order has no
+		// reservation, so coupon-less orders are unaffected.
+		if len(activated) > 0 && s.coupons != nil {
+			if _, err := s.coupons.Consume(ctx, ConsumeInput{
+				OrgId:          input.OrgId,
+				OrderId:        order.Id,
+				SubscriptionId: activated[0].Id,
+				StartCycle:     activated[0].CyclesProcessed, // 0 at activation
+			}); err != nil {
+				return err
+			}
 		}
 		return nil
 	})

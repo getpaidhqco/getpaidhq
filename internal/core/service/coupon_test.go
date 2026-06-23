@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -14,12 +15,21 @@ import (
 
 func newCouponService(t *testing.T) (*CouponService, *fakeCouponRepo, *fakeCouponCodeRepo, *fakeDiscountRepo, *fakePriorPayments) {
 	t.Helper()
+	svc, cr, ccr, dr, pp, _ := newCouponServiceWithReservations(t)
+	return svc, cr, ccr, dr, pp
+}
+
+// newCouponServiceWithReservations is newCouponService plus the reservation fake
+// handle, for the Reserve/Consume tests.
+func newCouponServiceWithReservations(t *testing.T) (*CouponService, *fakeCouponRepo, *fakeCouponCodeRepo, *fakeDiscountRepo, *fakePriorPayments, *fakeCouponReservationRepo) {
+	t.Helper()
 	cr := &fakeCouponRepo{byId: map[string]domain.Coupon{}}
 	ccr := &fakeCouponCodeRepo{byCode: map[string]domain.CouponCode{}, byId: map[string]domain.CouponCode{}}
 	dr := &fakeDiscountRepo{}
 	pp := &fakePriorPayments{}
-	svc := NewCouponService(cr, ccr, dr, pp, noopTx{}, silentLogger{})
-	return svc, cr, ccr, dr, pp
+	rr := &fakeCouponReservationRepo{}
+	svc := NewCouponService(cr, ccr, dr, pp, noopTx{}, silentLogger{}, rr)
+	return svc, cr, ccr, dr, pp, rr
 }
 
 func TestCouponService_Create(t *testing.T) {
@@ -85,6 +95,9 @@ func (r *fakeCouponRepo) UpdateMutable(_ context.Context, orgId, id, name string
 	r.byId[id] = c
 	return c, nil
 }
+func (r *fakeCouponRepo) FindByIdForUpdate(ctx context.Context, orgId, id string) (domain.Coupon, error) {
+	return r.FindById(ctx, orgId, id)
+}
 
 type fakeCouponCodeRepo struct {
 	port.CouponCodeRepository
@@ -107,6 +120,9 @@ func (r *fakeCouponCodeRepo) FindByCode(_ context.Context, _, code string) (doma
 	}
 	return c, nil
 }
+func (r *fakeCouponCodeRepo) FindByCodeForUpdate(ctx context.Context, orgId, code string) (domain.CouponCode, error) {
+	return r.FindByCode(ctx, orgId, code)
+}
 func (r *fakeCouponCodeRepo) IncrementRedeemed(_ context.Context, _, id string) error {
 	r.redeemed = append(r.redeemed, id)
 	c := r.byId[id]
@@ -121,9 +137,13 @@ type fakeDiscountRepo struct {
 	created         []domain.Discount
 	countByCoupon   int
 	countByCustomer int
+	createErr       error // when set, Create returns this instead of recording
 }
 
 func (r *fakeDiscountRepo) Create(_ context.Context, d domain.Discount) (domain.Discount, error) {
+	if r.createErr != nil {
+		return domain.Discount{}, r.createErr
+	}
 	r.created = append(r.created, d)
 	return d, nil
 }
@@ -138,6 +158,46 @@ type fakePriorPayments struct{ prior bool }
 
 func (p *fakePriorPayments) HasPriorSuccessfulPayment(_ context.Context, _, _ string) (bool, error) {
 	return p.prior, nil
+}
+
+type fakeCouponReservationRepo struct {
+	port.CouponReservationRepository
+	created       []domain.CouponReservation
+	deletedOrders []string
+	byOrder       map[string][]domain.CouponReservation
+	liveByCoupon  int
+	liveByCode    int
+	existsForCust bool
+}
+
+func (r *fakeCouponReservationRepo) Create(_ context.Context, res domain.CouponReservation) (domain.CouponReservation, error) {
+	r.created = append(r.created, res)
+	if r.byOrder == nil {
+		r.byOrder = map[string][]domain.CouponReservation{}
+	}
+	if res.OrderId != "" {
+		r.byOrder[res.OrderId] = append(r.byOrder[res.OrderId], res)
+	}
+	return res, nil
+}
+func (r *fakeCouponReservationRepo) FindByOrder(_ context.Context, _, orderId string) ([]domain.CouponReservation, error) {
+	return r.byOrder[orderId], nil
+}
+func (r *fakeCouponReservationRepo) DeleteByOrder(_ context.Context, _, orderId string) error {
+	r.deletedOrders = append(r.deletedOrders, orderId)
+	if r.byOrder != nil {
+		delete(r.byOrder, orderId)
+	}
+	return nil
+}
+func (r *fakeCouponReservationRepo) CountLiveByCoupon(_ context.Context, _, _ string, _ time.Time) (int, error) {
+	return r.liveByCoupon, nil
+}
+func (r *fakeCouponReservationRepo) CountLiveByCode(_ context.Context, _, _ string, _ time.Time) (int, error) {
+	return r.liveByCode, nil
+}
+func (r *fakeCouponReservationRepo) ExistsLiveForCustomer(_ context.Context, _, _, _ string, _ time.Time) (bool, error) {
+	return r.existsForCust, nil
 }
 
 type noopTx struct{}

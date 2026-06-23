@@ -23,11 +23,11 @@ func NewUsageHandler(usageService *service.UsageService, logger port.Logger, aut
 
 func (h *UsageHandler) RegisterRoutes(srv *fuego.Server) {
 	g := fuego.Group(srv, "/usage", option.Tags("Usage"))
-	fuego.Post(g, "/ingest", h.Ingest, option.Summary("Ingest one or more usage events"))
+	fuego.Post(g, "/ingest", h.Ingest, option.Summary("Ingest one or more usage events"), option.OperationID("ingestUsageEvents"))
 
 	// Read current-period usage lives under the subscription it belongs to.
 	subs := fuego.Group(srv, "/subscriptions", option.Tags("Usage"))
-	fuego.Get(subs, "/{id}/usage", h.SubscriptionUsage, option.Summary("Get a subscription's current-period usage"))
+	fuego.Get(subs, "/{id}/usage", h.SubscriptionUsage, option.Summary("Get a subscription's current-period usage"), option.OperationID("getSubscriptionUsage"))
 }
 
 // Ingest records a batch of usage events. Each event is validated and stored

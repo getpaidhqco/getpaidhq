@@ -207,8 +207,13 @@ add coupon (checkout session, or inline order) ──reserve──▶ [live rese
   customer is known.
 - **Convert** — on **first-payment success**. **Unconditional, never re-gates caps** (the hold
   secured the slot; a paid customer is always honoured even if the hold expired). Deletes the
-  reservation, creates the `Discount` (`start_cycle` = the subscription's cycle at conversion, or
-  the order target), increments `code.times_redeemed`. One tx; joins the caller's tx.
+  reservation, creates **exactly one `Discount`**, increments `code.times_redeemed`. One tx; joins
+  the caller's tx. **One reservation → one Discount.** The Discount attaches to the **single
+  subscription the coupon matches** — the first subscription in the order holding a line the
+  coupon targets (`AppliesToProducts`, or any line for a whole-bill coupon); `start_cycle` = that
+  subscription's cycle at conversion (`0` for the first payment), or the order itself for a
+  one-time order. (`OrderService` resolves the matched subscription and passes it to `Consume`.)
+  A coupon never fans out across multiple subscriptions — one use, one discount, one target.
 - **Release** — on payment failure / order cancel: delete the reservation. Idempotent.
 
 `coupon.RedeemBy` / `code.ExpiresAt` are redemption cutoffs checked in the gate — distinct from
@@ -339,9 +344,8 @@ is not correctness-critical.
 
 ## 16. Open items
 
-- **One order producing multiple subscriptions** + one coupon — `Consume` makes one `Discount` per
-  `subscription_id`; need the rule for which sub(s) get it (likely one `Discount` per sub whose
-  lines the coupon targets).
+None outstanding. (Multi-subscription orders are resolved in §8: one reservation → one Discount →
+the first subscription the coupon matches; a coupon never spans multiple subscriptions.)
 
 ---
 
@@ -360,4 +364,5 @@ is not correctness-critical.
 | Reserve failure | **Fails the whole order** | A coupon that can't be held shouldn't half-create an order. |
 | Discount on bill vs record | **Bill carries the discount (pre-payment ok); `Discount` is the post-success record** | Hosted PSP charges the discounted amount before the record exists; math is deterministic. |
 | First bill ownership | **Subscription owns its first invoice** (built at activation, paid now); recurring after; one-time → `BuildForOrder` | Matches Stripe; `ChargeForBillingPeriod` stays recurring-only. |
+| Multi-subscription order | **One reservation → one Discount → one matched subscription** (no fan-out) | One coupon use = one slot = one discount; keeps caps "count Discount rows = redemptions" 1:1. |
 | Engine parity | All logic in `core/{domain,service}` | No per-adapter discount code. |

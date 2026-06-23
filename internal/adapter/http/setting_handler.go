@@ -21,11 +21,11 @@ func NewSettingHandler(settingService *service.SettingService, logger port.Logge
 
 func (h *SettingHandler) RegisterRoutes(srv *fuego.Server) {
 	g := fuego.Group(srv, "/settings", option.Tags("Settings"))
-	fuego.Post(g, "", h.Create, option.Summary("Create a setting"))
-	fuego.Get(g, "", h.List, append(PaginationParams(), option.Summary("List settings (optional ?parent_id=)"))...)
-	fuego.Get(g, "/{parentId}/{id}", h.Get, option.Summary("Get a setting"))
-	fuego.Put(g, "/{parentId}/{id}", h.Update, option.Summary("Create or replace a setting"))
-	fuego.Delete(g, "/{parentId}/{id}", h.Delete, option.Summary("Delete a setting"))
+	fuego.Post(g, "", h.Create, option.Summary("Create a setting"), option.OperationID("createSetting"))
+	fuego.Get(g, "", h.List, append(PaginationParams(), option.Summary("List settings (optional ?parent_id=)"), option.OperationID("listSettings"))...)
+	fuego.Get(g, "/{parentId}/{id}", h.Get, option.Summary("Get a setting"), option.OperationID("getSetting"))
+	fuego.Put(g, "/{parentId}/{id}", h.Update, option.Summary("Create or replace a setting"), option.OperationID("updateSetting"))
+	fuego.Delete(g, "/{parentId}/{id}", h.Delete, option.Summary("Delete a setting"), option.OperationID("deleteSetting"))
 }
 
 func (h *SettingHandler) Create(c fuego.ContextWithBody[CreateSettingRequest]) (SettingResponse, error) {

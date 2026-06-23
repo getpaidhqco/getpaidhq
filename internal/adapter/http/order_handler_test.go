@@ -1,10 +1,12 @@
 package handler
 
 import (
+	"context"
 	"errors"
 	"net/http"
 	"testing"
 
+	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -29,12 +31,13 @@ func newOrderHandlerForTest(
 	payRepo *fakePaymentRepo,
 	sessionRepo *fakeSessionRepo,
 	engine *recordingEngine,
+	coupons *service.CouponService,
 ) *OrderHandler {
 	t.Helper()
 	factory := service.NewGatewayFactory(&fakePspRepo{}, fakeSecretCipher{}, silentLogger{}, map[domain.Gateway]port.GatewayAdapter{})
 	svc := service.NewOrderService(
 		noopTxManager{}, engine, sessionRepo, priceRepo, cartRepo, orderRepo,
-		custRepo, subRepo, payRepo, pmRepo, productRepo, factory, newPubSub(), silentLogger{},
+		custRepo, subRepo, payRepo, pmRepo, productRepo, factory, newPubSub(), silentLogger{}, coupons,
 	)
 	return NewOrderHandler(svc, silentLogger{}, newRealAuthz(t))
 }
@@ -46,6 +49,7 @@ func TestOrderHandler_AuthzDenied_OnCreate(t *testing.T) {
 		&fakeOrderRepo{}, &fakeCustomerRepo{}, &fakeSubRepo{}, &fakeCartRepo{},
 		&fakeProductRepo{}, &fakePriceRepo{}, &fakePaymentMethodRepo{}, &fakePaymentRepo{},
 		&fakeSessionRepo{}, &recordingEngine{},
+		nil,
 	)
 
 	ts := newTestServer(fixedAuthMiddleware(memberUser()))
@@ -67,6 +71,7 @@ func TestOrderHandler_CreateOrder_RequiresCartOrSession(t *testing.T) {
 		&fakeOrderRepo{}, &fakeCustomerRepo{}, &fakeSubRepo{}, &fakeCartRepo{},
 		&fakeProductRepo{}, &fakePriceRepo{}, &fakePaymentMethodRepo{}, &fakePaymentRepo{},
 		&fakeSessionRepo{}, &recordingEngine{},
+		nil,
 	)
 	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
 	h.RegisterRoutes(ts.api())
@@ -95,6 +100,7 @@ func TestOrderHandler_CreateOrder_HappyPath(t *testing.T) {
 		orderRepo, &fakeCustomerRepo{}, &fakeSubRepo{}, &fakeCartRepo{},
 		prod, price, &fakePaymentMethodRepo{}, &fakePaymentRepo{},
 		&fakeSessionRepo{}, &recordingEngine{},
+		nil,
 	)
 	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
 	h.RegisterRoutes(ts.api())
@@ -120,6 +126,7 @@ func TestOrderHandler_Get(t *testing.T) {
 		orderRepo, &fakeCustomerRepo{}, &fakeSubRepo{}, &fakeCartRepo{},
 		&fakeProductRepo{}, &fakePriceRepo{}, &fakePaymentMethodRepo{}, &fakePaymentRepo{},
 		&fakeSessionRepo{}, &recordingEngine{},
+		nil,
 	)
 	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
 	h.RegisterRoutes(ts.api())
@@ -141,6 +148,7 @@ func TestOrderHandler_Get_NotFound(t *testing.T) {
 		orderRepo, &fakeCustomerRepo{}, &fakeSubRepo{}, &fakeCartRepo{},
 		&fakeProductRepo{}, &fakePriceRepo{}, &fakePaymentMethodRepo{}, &fakePaymentRepo{},
 		&fakeSessionRepo{}, &recordingEngine{},
+		nil,
 	)
 	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
 	h.RegisterRoutes(ts.api())
@@ -158,6 +166,7 @@ func TestOrderHandler_List(t *testing.T) {
 		orderRepo, &fakeCustomerRepo{}, &fakeSubRepo{}, &fakeCartRepo{},
 		&fakeProductRepo{}, &fakePriceRepo{}, &fakePaymentMethodRepo{}, &fakePaymentRepo{},
 		&fakeSessionRepo{}, &recordingEngine{},
+		nil,
 	)
 	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
 	h.RegisterRoutes(ts.api())
@@ -188,6 +197,7 @@ func TestOrderHandler_CompleteOrder(t *testing.T) {
 		orderRepo, custRepo, subRepo, &fakeCartRepo{},
 		&fakeProductRepo{}, &fakePriceRepo{}, &fakePaymentMethodRepo{}, &fakePaymentRepo{},
 		&fakeSessionRepo{}, engine,
+		nil,
 	)
 
 	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
@@ -207,6 +217,7 @@ func TestOrderHandler_CompleteOrder_InvalidCompletedAt(t *testing.T) {
 		orderRepo, &fakeCustomerRepo{}, &fakeSubRepo{}, &fakeCartRepo{},
 		&fakeProductRepo{}, &fakePriceRepo{}, &fakePaymentMethodRepo{}, &fakePaymentRepo{},
 		&fakeSessionRepo{}, &recordingEngine{},
+		nil,
 	)
 
 	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
@@ -220,6 +231,93 @@ func TestOrderHandler_CompleteOrder_InvalidCompletedAt(t *testing.T) {
 	assertErrorEnvelope(t, rec, http.StatusUnprocessableEntity, string(lib.ValidationError))
 }
 
+// newCouponServiceForOrderTest builds a real CouponService over in-memory fakes
+// and seeds one coupon (MaxRedemptions) + one code ("LAUNCH50"). resRepo is
+// returned so the caller can seed/inspect the reservation side.
+func newCouponServiceForOrderTest(t *testing.T, maxRedemptions int) (*service.CouponService, *hFakeReservationRepo) {
+	t.Helper()
+	cr := newHFakeCouponRepo()
+	ccr := newHFakeCouponCodeRepo()
+	res := &hFakeReservationRepo{}
+	svc := service.NewCouponService(cr, ccr, &hFakeDiscountRepo{}, &hFakePriorPayments{}, noopTxManager{}, silentLogger{}, res)
+
+	coupon, err := svc.Create(context.Background(), "org_1", port.CreateCouponInput{
+		Name:             "Launch 50",
+		DiscountType:     "percentage",
+		PercentOff:       decimal.NewFromInt(50),
+		Duration:         "repeating",
+		DurationInCycles: 2,
+		MaxRedemptions:   maxRedemptions,
+	})
+	require.NoError(t, err)
+	_, err = svc.CreateCode(context.Background(), "org_1", coupon.Id, port.CreateCouponCodeInput{Code: "LAUNCH50"})
+	require.NoError(t, err)
+	return svc, res
+}
+
+func TestOrderHandler_CreateOrder_CouponReserved(t *testing.T) {
+	// A valid coupon_code reserves capacity and the order is created (200).
+	coupons, res := newCouponServiceForOrderTest(t, 1)
+
+	orderRepo := &fakeOrderRepo{}
+	prod := &fakeProductRepo{byId: domain.Product{Id: "prod_1", Name: "Plan"}}
+	price := &fakePriceRepo{byId: domain.Price{Id: "price_1", UnitPrice: 1000, Category: domain.OneTime}}
+	h := newOrderHandlerForTest(t,
+		orderRepo, &fakeCustomerRepo{}, &fakeSubRepo{}, &fakeCartRepo{},
+		prod, price, &fakePaymentMethodRepo{}, &fakePaymentRepo{},
+		&fakeSessionRepo{}, &recordingEngine{},
+		coupons,
+	)
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/orders", CreateOrderRequest{
+		PspId:      "paystack",
+		Customer:   CreateOrderRequestCustomer{Email: "a@b.com", FirstName: "A"},
+		CouponCode: "LAUNCH50",
+		Cart: CartInput{
+			Currency: "USD",
+			Items:    []CartItem{{ProductId: "prod_1", PriceId: "price_1", Quantity: 1}},
+		},
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.Len(t, orderRepo.created, 1, "an order row was created")
+	require.Len(t, res.created, 1, "a reservation was recorded for the order")
+}
+
+func TestOrderHandler_CreateOrder_CouponExhausted(t *testing.T) {
+	// An exhausted coupon (live holds already at the cap) refuses the reserve
+	// with cap_reached → 409, and no reservation is recorded.
+	coupons, res := newCouponServiceForOrderTest(t, 1)
+	res.couponCount = 1 // one live hold already == MaxRedemptions
+
+	orderRepo := &fakeOrderRepo{}
+	prod := &fakeProductRepo{byId: domain.Product{Id: "prod_1", Name: "Plan"}}
+	price := &fakePriceRepo{byId: domain.Price{Id: "price_1", UnitPrice: 1000, Category: domain.OneTime}}
+	h := newOrderHandlerForTest(t,
+		orderRepo, &fakeCustomerRepo{}, &fakeSubRepo{}, &fakeCartRepo{},
+		prod, price, &fakePaymentMethodRepo{}, &fakePaymentRepo{},
+		&fakeSessionRepo{}, &recordingEngine{},
+		coupons,
+	)
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/orders", CreateOrderRequest{
+		PspId:      "paystack",
+		Customer:   CreateOrderRequestCustomer{Email: "a@b.com", FirstName: "A"},
+		CouponCode: "LAUNCH50",
+		Cart: CartInput{
+			Currency: "USD",
+			Items:    []CartItem{{ProductId: "prod_1", PriceId: "price_1", Quantity: 1}},
+		},
+	})
+
+	assertErrorEnvelope(t, rec, http.StatusConflict, string(lib.ConflictError))
+	require.Empty(t, res.created, "no reservation is recorded when the coupon is refused")
+}
+
 func TestOrderHandler_ListSubscriptions(t *testing.T) {
 	// authz: owner has no "ListOrderSubscriptions" permit; admin does (via the
 	// unconditional admin rule).
@@ -228,6 +326,7 @@ func TestOrderHandler_ListSubscriptions(t *testing.T) {
 		&fakeOrderRepo{}, &fakeCustomerRepo{}, subRepo, &fakeCartRepo{},
 		&fakeProductRepo{}, &fakePriceRepo{}, &fakePaymentMethodRepo{}, &fakePaymentRepo{},
 		&fakeSessionRepo{}, &recordingEngine{},
+		nil,
 	)
 	ts := newTestServer(fixedAuthMiddleware(adminUser()))
 	h.RegisterRoutes(ts.api())

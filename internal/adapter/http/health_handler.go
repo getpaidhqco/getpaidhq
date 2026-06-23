@@ -20,6 +20,8 @@ func (u *HealthHandler) RegisterRoutes(s *fuego.Server) {
 	fuego.Get(s, "/health", u.Healthcheck,
 		option.Summary("Liveness probe"),
 		option.Tags("Health"),
+		option.OperationID("getHealth"),
+		option.Security(), // public: unauthenticated liveness/readiness probe
 	)
 }
 

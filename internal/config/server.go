@@ -4,6 +4,7 @@ import (
 	"net/http"
 	"time"
 
+	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/go-fuego/fuego"
 	"github.com/go-playground/validator/v10"
 
@@ -132,6 +133,33 @@ func BuildServer(deps ServerDeps, h Handlers) *fuego.Server {
 		// Render `validate:"oneof=..."` fields as real OpenAPI enums (not opaque
 		// strings) so the spec is constrained and SDK clients get enum types.
 		fuego.WithEngineOptions(fuego.WithOpenAPIGeneratorSchemaCustomizer(handler.EnumSchemaCustomizer)),
+		// Declare request bodies as application/json. Without this Fuego defaults
+		// the consumed content type to */*, which strict OpenAPI client generators
+		// (e.g. ogen) reject — they skip every operation with a */* body, silently
+		// dropping coverage. Pinning it to application/json keeps generated clients
+		// (CLI, SDK) at full API coverage.
+		fuego.WithEngineOptions(fuego.WithRequestContentType("application/json")),
+		// Declare the two authentication schemes the API actually accepts so
+		// generated clients (CLI, SDK) and the docs know how to authenticate.
+		// This only registers them under components.securitySchemes; the default
+		// requirement is set globally below. Behaviour is unchanged — see the
+		// authn wrapper in internal/adapter/http/middleware/authn.go, which reads
+		// `Authorization: Bearer <clerk-jwt>` first, then falls back to the
+		// `x-api-key` header.
+		fuego.WithSecurity(openapi3.SecuritySchemes{
+			"bearerAuth": &openapi3.SecuritySchemeRef{Value: &openapi3.SecurityScheme{
+				Type:         "http",
+				Scheme:       "bearer",
+				BearerFormat: "JWT",
+				Description:  "Clerk session JWT, sent as `Authorization: Bearer <token>`. Used by the dashboard.",
+			}},
+			"apiKeyAuth": &openapi3.SecuritySchemeRef{Value: &openapi3.SecurityScheme{
+				Type:        "apiKey",
+				In:          "header",
+				Name:        "x-api-key",
+				Description: "Organization API key, sent as the `x-api-key` header. Used by the CLI and programmatic clients.",
+			}},
+		}),
 	}
 	if deps.Validator != nil {
 		opts = append(opts, fuego.WithValidator(deps.Validator))
@@ -141,6 +169,16 @@ func BuildServer(deps ServerDeps, h Handlers) *fuego.Server {
 	}
 
 	s := fuego.NewServer(opts...)
+
+	// Default security requirement applied to every operation. The two entries
+	// are alternatives (OR): a request satisfies auth with EITHER a Clerk bearer
+	// token OR an x-api-key — mirroring the authn wrapper's fallback order.
+	// Fuego v0.19 has no global-security option, so set it on the spec directly;
+	// public routes override this with an empty option.Security() (security: []).
+	s.OpenAPI.Description().Security = openapi3.SecurityRequirements{
+		{"bearerAuth": {}},
+		{"apiKeyAuth": {}},
+	}
 
 	// HTTP server timeouts. Without these, slowloris-style attacks
 	// (slow header send, slow body send, slow body read) trivially

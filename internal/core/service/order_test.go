@@ -187,7 +187,7 @@ func newOrderServiceForTest(
 ) *OrderService {
 	// session/cart/price/product repos and gateway factory are unused by
 	// CompleteOrder.
-	return NewOrderService(tx, engine, nil, &fakePriceRepo{}, nil, orderRepo, custRepo, subRepo, payRepo, pmRepo, nil, nil, ps, silentLogger{})
+	return NewOrderService(tx, engine, nil, &fakePriceRepo{}, nil, orderRepo, custRepo, subRepo, payRepo, pmRepo, nil, nil, ps, silentLogger{}, nil)
 }
 
 func pendingOrder() domain.Order {
@@ -322,7 +322,7 @@ func TestOrderService_CreateOrder_RejectsArchivedProduct(t *testing.T) {
 	prod := &fakeProductRepo{byId: domain.Product{OrgId: "org_1", Id: "prod_1", Status: domain.ProductStatusArchived}}
 	price := &fakePriceRepo{byId: domain.Price{OrgId: "org_1", Id: "price_1", UnitPrice: 1000}}
 	orderRepo := &fakeOrderRepo{}
-	svc := NewOrderService(nil, nil, nil, price, &fakeCartRepo{}, orderRepo, &fakeCustomerRepo{}, nil, nil, nil, prod, nil, &recordingPubSub{}, silentLogger{})
+	svc := NewOrderService(nil, nil, nil, price, &fakeCartRepo{}, orderRepo, &fakeCustomerRepo{}, nil, nil, nil, prod, nil, &recordingPubSub{}, silentLogger{}, nil)
 
 	_, err := svc.CreateOrder(context.Background(), port.CreateOrderInput{
 		OrgId:     "org_1",

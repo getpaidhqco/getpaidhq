@@ -46,7 +46,7 @@ func TestInvoiceService_BuildForBillingPeriod_Multiline(t *testing.T) {
 	es := &usageEventStore{count: 100} // 100 units measured for each meter
 	usage := newUsageSvc(meters, customers, &usageSubRepo{metered: []domain.Subscription{sub}}, es)
 
-	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, usage, nil, silentLogger{})
+	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, usage, nil, silentLogger{}, nil, nil)
 	inv, err := svc.BuildForBillingPeriod(context.Background(), sub)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -75,7 +75,7 @@ func TestInvoiceService_BuildForBillingPeriod_Multiline(t *testing.T) {
 func newInvoiceServiceForTest(price domain.Price, usage *UsageService) *InvoiceService {
 	orderRepo := &fakeOrderRepo{items: []domain.OrderItem{{Id: "oi_1", PriceId: "price_1", Quantity: 1}}}
 	priceRepo := &fakePriceRepo{byId: price}
-	return NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, usage, nil, silentLogger{})
+	return NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, usage, nil, silentLogger{}, nil, nil)
 }
 
 func TestInvoiceService_BuildForBillingPeriod_Trial(t *testing.T) {

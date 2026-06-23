@@ -29,8 +29,8 @@ type ReminderConfigDTO struct {
 
 func (h *ReminderConfigHandler) RegisterRoutes(s *fuego.Server) {
 	g := fuego.Group(s, "/billing/reminder-config", option.Tags("Billing"))
-	fuego.Get(g, "", h.Get, option.Summary("Get renewal reminder config"))
-	fuego.Put(g, "", h.Put, option.Summary("Set renewal reminder config"))
+	fuego.Get(g, "", h.Get, option.Summary("Get renewal reminder config"), option.OperationID("getReminderConfig"))
+	fuego.Put(g, "", h.Put, option.Summary("Set renewal reminder config"), option.OperationID("updateReminderConfig"))
 }
 
 func (h *ReminderConfigHandler) Get(c fuego.ContextNoBody) (ReminderConfigDTO, error) {

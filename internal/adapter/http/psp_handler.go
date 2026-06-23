@@ -21,7 +21,7 @@ func NewPspHandler(gatewayService *service.PspService, logger port.Logger, authz
 
 func (s *PspHandler) RegisterRoutes(srv *fuego.Server) {
 	g := fuego.Group(srv, "/gateways", option.Tags("Payment Service Providers"))
-	fuego.Post(g, "", s.Create, option.Summary("Configure a payment service provider"))
+	fuego.Post(g, "", s.Create, option.Summary("Configure a payment service provider"), option.OperationID("createGateway"))
 }
 
 func (s *PspHandler) Create(c fuego.ContextWithBody[CreateGatewayRequest]) (GatewayResponse, error) {

@@ -44,28 +44,28 @@ func NewDunningHandler(
 
 func (h *DunningHandler) RegisterRoutes(s *fuego.Server) {
 	campaigns := fuego.Group(s, "/dunning/campaigns", option.Tags("Dunning Campaigns"))
-	fuego.Get(campaigns, "", h.ListCampaigns, append(PaginationParams(), option.Summary("List dunning campaigns"))...)
-	fuego.Get(campaigns, "/{id}", h.GetCampaign, option.Summary("Get a dunning campaign"))
-	fuego.Patch(campaigns, "/{id}", h.UpdateCampaign, option.Summary("Update a dunning campaign"))
-	fuego.Get(campaigns, "/{id}/attempts", h.ListCampaignAttempts, append(PaginationParams(), option.Summary("List dunning campaign attempts"))...)
-	fuego.Post(campaigns, "/{id}/attempts", h.TriggerManualAttempt, option.Summary("Trigger a manual dunning attempt"))
-	fuego.Get(campaigns, "/{id}/communications", h.ListCampaignCommunications, append(PaginationParams(), option.Summary("List dunning campaign communications"))...)
+	fuego.Get(campaigns, "", h.ListCampaigns, append(PaginationParams(), option.Summary("List dunning campaigns"), option.OperationID("listDunningCampaigns"))...)
+	fuego.Get(campaigns, "/{id}", h.GetCampaign, option.Summary("Get a dunning campaign"), option.OperationID("getDunningCampaign"))
+	fuego.Patch(campaigns, "/{id}", h.UpdateCampaign, option.Summary("Update a dunning campaign"), option.OperationID("updateDunningCampaign"))
+	fuego.Get(campaigns, "/{id}/attempts", h.ListCampaignAttempts, append(PaginationParams(), option.Summary("List dunning campaign attempts"), option.OperationID("listDunningCampaignAttempts"))...)
+	fuego.Post(campaigns, "/{id}/attempts", h.TriggerManualAttempt, option.Summary("Trigger a manual dunning attempt"), option.OperationID("triggerDunningManualAttempt"))
+	fuego.Get(campaigns, "/{id}/communications", h.ListCampaignCommunications, append(PaginationParams(), option.Summary("List dunning campaign communications"), option.OperationID("listDunningCampaignCommunications"))...)
 
 	tokens := fuego.Group(s, "/payment-tokens", option.Tags("Payment Update Tokens"))
-	fuego.Post(tokens, "/verify", h.VerifyPaymentToken, option.Summary("Verify a payment update token"))
-	fuego.Post(tokens, "/activate", h.ActivatePaymentToken, option.Summary("Activate a payment update token"))
+	fuego.Post(tokens, "/verify", h.VerifyPaymentToken, option.Summary("Verify a payment update token"), option.OperationID("verifyPaymentToken"))
+	fuego.Post(tokens, "/activate", h.ActivatePaymentToken, option.Summary("Activate a payment update token"), option.OperationID("activatePaymentToken"))
 
 	adminTokens := fuego.Group(s, "/admin/subscriptions", option.Tags("Payment Update Tokens"))
-	fuego.Post(adminTokens, "/{id}/payment-tokens", h.CreatePaymentToken, option.Summary("Admin: create a payment update token"))
+	fuego.Post(adminTokens, "/{id}/payment-tokens", h.CreatePaymentToken, option.Summary("Admin: create a payment update token"), option.OperationID("createPaymentToken"))
 
 	configs := fuego.Group(s, "/dunning/configurations", option.Tags("Dunning Configurations"))
-	fuego.Get(configs, "", h.ListConfigurations, append(PaginationParams(), option.Summary("List dunning configurations"))...)
-	fuego.Get(configs, "/{id}", h.GetConfiguration, option.Summary("Get a dunning configuration"))
-	fuego.Post(configs, "", h.CreateConfiguration, option.Summary("Create a dunning configuration"))
-	fuego.Patch(configs, "/{id}", h.UpdateConfiguration, option.Summary("Update a dunning configuration"))
+	fuego.Get(configs, "", h.ListConfigurations, append(PaginationParams(), option.Summary("List dunning configurations"), option.OperationID("listDunningConfigurations"))...)
+	fuego.Get(configs, "/{id}", h.GetConfiguration, option.Summary("Get a dunning configuration"), option.OperationID("getDunningConfiguration"))
+	fuego.Post(configs, "", h.CreateConfiguration, option.Summary("Create a dunning configuration"), option.OperationID("createDunningConfiguration"))
+	fuego.Patch(configs, "/{id}", h.UpdateConfiguration, option.Summary("Update a dunning configuration"), option.OperationID("updateDunningConfiguration"))
 
 	customers := fuego.Group(s, "/customers", option.Tags("Dunning"))
-	fuego.Get(customers, "/{id}/dunning-history", h.GetCustomerDunningHistory, option.Summary("Get a customer's dunning history"))
+	fuego.Get(customers, "/{id}/dunning-history", h.GetCustomerDunningHistory, option.Summary("Get a customer's dunning history"), option.OperationID("getCustomerDunningHistory"))
 }
 
 type dunningList struct {

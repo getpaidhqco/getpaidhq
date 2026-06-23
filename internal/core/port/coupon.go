@@ -14,6 +14,7 @@ type CouponRepository interface {
 	// UpdateMutable persists ONLY name, active and metadata — terms are immutable.
 	UpdateMutable(ctx context.Context, orgId, id, name string, active bool, metadata map[string]string) (domain.Coupon, error)
 	FindById(ctx context.Context, orgId, id string) (domain.Coupon, error)
+	FindByIdForUpdate(ctx context.Context, orgId, id string) (domain.Coupon, error) // SELECT ... FOR UPDATE
 	Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Coupon, int, error)
 	DeleteIfUnreferenced(ctx context.Context, orgId, id string) error
 }
@@ -22,7 +23,8 @@ type CouponCodeRepository interface {
 	Create(ctx context.Context, code domain.CouponCode) (domain.CouponCode, error)
 	UpdateMutable(ctx context.Context, orgId, id string, active bool, metadata map[string]string) (domain.CouponCode, error)
 	IncrementRedeemed(ctx context.Context, orgId, id string) error
-	FindByCode(ctx context.Context, orgId, code string) (domain.CouponCode, error) // case-insensitive
+	FindByCode(ctx context.Context, orgId, code string) (domain.CouponCode, error)          // case-insensitive
+	FindByCodeForUpdate(ctx context.Context, orgId, code string) (domain.CouponCode, error) // SELECT ... FOR UPDATE, case-insensitive
 	FindByCouponId(ctx context.Context, orgId, couponId string) ([]domain.CouponCode, error)
 }
 
@@ -34,6 +36,17 @@ type DiscountRepository interface {
 	ActiveForOrder(ctx context.Context, orgId, orderId string) ([]domain.Discount, error)
 	CountByCoupon(ctx context.Context, orgId, couponId string) (int, error)
 	CountByCouponAndCustomer(ctx context.Context, orgId, couponId, customerId string) (int, error)
+}
+
+// CouponReservationRepository persists ephemeral capacity holds (build-now: order-held).
+type CouponReservationRepository interface {
+	Create(ctx context.Context, r domain.CouponReservation) (domain.CouponReservation, error)
+	FindByOrder(ctx context.Context, orgId, orderId string) ([]domain.CouponReservation, error)
+	DeleteByOrder(ctx context.Context, orgId, orderId string) error
+	CountLiveByCoupon(ctx context.Context, orgId, couponId string, now time.Time) (int, error)
+	CountLiveByCode(ctx context.Context, orgId, couponCodeId string, now time.Time) (int, error)
+	ExistsLiveForCustomer(ctx context.Context, orgId, couponId, customerId string, now time.Time) (bool, error)
+	DeleteExpired(ctx context.Context, now time.Time) (int, error)
 }
 
 // PriorPaymentChecker backs the FirstTimeTransaction restriction.

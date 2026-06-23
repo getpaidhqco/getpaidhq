@@ -21,7 +21,7 @@ func NewPaymentMethodHandler(customerService *service.CustomerService) *PaymentM
 
 func (s *PaymentMethodHandler) RegisterRoutes(srv *fuego.Server) {
 	g := fuego.Group(srv, "/payment-methods", option.Tags("Payment Methods"))
-	fuego.Get(g, "/{id}", s.Get, option.Summary("Get a payment method"))
+	fuego.Get(g, "/{id}", s.Get, option.Summary("Get a payment method"), option.OperationID("getPaymentMethod"))
 }
 
 func (s *PaymentMethodHandler) Get(c fuego.ContextNoBody) (PaymentMethodResponse, error) {

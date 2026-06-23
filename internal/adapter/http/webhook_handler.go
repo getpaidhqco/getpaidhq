@@ -29,8 +29,10 @@ func NewWebhookHandler(service *service.WebhookService, logger port.Logger) *Web
 func (u *WebhookHandler) RegisterRoutes(s *fuego.Server) {
 	fuego.PostStd(s, "/notify", u.Process,
 		option.Tags("Webhooks"),
+		option.OperationID("receiveWebhook"),
 		option.Summary("PSP webhook receiver"),
 		option.Query("p", "PSP identifier"),
+		option.Security(), // public: authenticated by HMAC body signature, not a user token
 	)
 }
 
