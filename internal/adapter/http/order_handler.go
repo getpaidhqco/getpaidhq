@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/go-fuego/fuego"
@@ -17,20 +18,26 @@ type OrderHandler struct {
 	service *service.OrderService
 	logger  port.Logger
 	authz   port.Authz
+	idem    func(http.Handler) http.Handler
 }
 
-func NewOrderHandler(orderService *service.OrderService, logger port.Logger, authz port.Authz) *OrderHandler {
+func NewOrderHandler(orderService *service.OrderService, logger port.Logger, authz port.Authz, idem func(http.Handler) http.Handler) *OrderHandler {
 	return &OrderHandler{
 		service: orderService,
 		logger:  logger,
 		authz:   authz,
+		idem:    idem,
 	}
 }
 
 func (o *OrderHandler) RegisterRoutes(s *fuego.Server) {
-	g := fuego.Group(s, "/orders", option.Tags("Orders"))
+	g := fuego.Group(s, "/orders",
+		option.Tags("Orders"),
+		option.Middleware(o.idem),
+	)
 	fuego.Post(g, "", o.CreateOrder, option.Summary("Create an order"), option.OperationID("createOrder"))
 	fuego.Post(g, "/{id}/complete", o.CompleteOrder, option.Summary("Complete an order"), option.OperationID("completeOrder"))
+	fuego.Post(g, "/{id}/pay", o.Pay, option.Summary("Initialise an order's payment session"), option.OperationID("payOrder"))
 	fuego.Get(g, "/{id}", o.Get, option.Summary("Get an order"), option.OperationID("getOrder"))
 	fuego.Get(g, "", o.List, append(PaginationParams(), option.Summary("List orders"), option.OperationID("listOrders"))...)
 	fuego.Get(g, "/{id}/subscriptions", o.ListSubscriptions, option.Summary("List subscriptions for an order"), option.OperationID("listOrderSubscriptions"))
@@ -38,7 +45,6 @@ func (o *OrderHandler) RegisterRoutes(s *fuego.Server) {
 
 type CreateOrderResponse struct {
 	Order OrderResponse `json:"order"`
-	Psp   any           `json:"psp"`
 }
 
 func (o *OrderHandler) CreateOrder(c fuego.ContextWithBody[CreateOrderRequest]) (CreateOrderResponse, error) {
@@ -88,7 +94,6 @@ func (o *OrderHandler) CreateOrder(c fuego.ContextWithBody[CreateOrderRequest]) 
 	}
 	return CreateOrderResponse{
 		Order: NewOrderResponseFromDetails(details),
-		Psp:   rsp.Psp.PspResponse,
 	}, nil
 }
 
@@ -157,6 +162,32 @@ func (o *OrderHandler) CompleteOrder(c fuego.ContextWithBody[CompleteOrderReques
 		return OrderResponse{}, NewApiErrorFromError(err)
 	}
 	return NewOrderResponseFromDetails(details), nil
+}
+
+type PayOrderRequest struct {
+	Psp     string         `json:"psp"`
+	Options map[string]any `json:"options"`
+}
+
+type PayOrderResponse struct {
+	Psp any `json:"psp"`
+}
+
+func (o *OrderHandler) Pay(c fuego.ContextWithBody[PayOrderRequest]) (PayOrderResponse, error) {
+	authUser := AuthUserFrom(c)
+	id := c.PathParam("id")
+	if !o.authz.Enforce(authUser, port.ActionCreateOrder, "") {
+		return PayOrderResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+	}
+	input, err := c.Body()
+	if err != nil {
+		return PayOrderResponse{}, err
+	}
+	resp, err := o.service.InitOrderPayment(c.Context(), authUser.OrgId, id, input.Psp, input.Options)
+	if err != nil {
+		return PayOrderResponse{}, NewApiErrorFromError(err)
+	}
+	return PayOrderResponse{Psp: resp.PspResponse}, nil
 }
 
 func (o *OrderHandler) ListSubscriptions(c fuego.ContextNoBody) ([]SubscriptionResponse, error) {

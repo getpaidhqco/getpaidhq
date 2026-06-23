@@ -32,7 +32,6 @@ type CreateOrderInputCustomer struct {
 // CreateOrderResult is the result of a successful OrderService.CreateOrder call.
 type CreateOrderResult struct {
 	Order domain.Order
-	Psp   InitPaymentResponse
 }
 
 // CompleteOrderInput is the input for OrderService.Complete.

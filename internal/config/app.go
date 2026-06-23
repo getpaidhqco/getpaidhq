@@ -9,6 +9,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/eben-vranken/idempo"
 	"github.com/go-fuego/fuego"
 	"github.com/nats-io/nats.go/jetstream"
 
@@ -21,6 +22,7 @@ import (
 	"getpaidhq/internal/adapter/hatchet"
 	hatchetsteps "getpaidhq/internal/adapter/hatchet/steps"
 	handler "getpaidhq/internal/adapter/http"
+	"getpaidhq/internal/adapter/http/middleware"
 	gphqjetstream "getpaidhq/internal/adapter/jetstream"
 	"getpaidhq/internal/adapter/memory"
 	"getpaidhq/internal/adapter/nats"
@@ -309,9 +311,10 @@ func NewApp() (*App, error) {
 	// HTTP Handlers
 	// ---------------------------------------------------------------------------
 	customerHandler := handler.NewCustomerHandler(customerService, logger, authzEngine)
+	idemMW := middleware.NewIdempotencyMiddleware(repos.idempotencyStore, idempo.Options{Logger: lib.GetSlogLogger()})
 	handlers := Handlers{
 		Health:         handler.NewHealthHandler(logger),
-		Order:          handler.NewOrderHandler(orderService, logger, authzEngine),
+		Order:          handler.NewOrderHandler(orderService, logger, authzEngine, idemMW),
 		Subscription:   handler.NewSubscriptionHandler(subOrchestrationService, logger, authzEngine),
 		Customer:       customerHandler,
 		Product:        handler.NewProductHandler(productService, logger, authzEngine),

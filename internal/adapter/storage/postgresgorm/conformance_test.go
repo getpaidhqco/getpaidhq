@@ -4,6 +4,7 @@ package postgresgorm
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -27,6 +28,8 @@ func gormRepoSet(t *testing.T, dsn string) storagetest.RepoSet {
 		Setting:      NewSettingRepo(db),
 		Idempotency:  NewIdempotencyKeyRepo(db),
 		Tx:           NewTxManager(db),
+
+		IdempotencyStore: NewIdempotencyStore(db, time.Minute, 24*time.Hour),
 
 		Invoice:           NewInvoiceRepo(db),
 		Dunning:           NewDunningRepo(db),

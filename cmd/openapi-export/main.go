@@ -11,6 +11,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 
 	"sigs.k8s.io/yaml"
@@ -30,7 +31,7 @@ func main() {
 	// so nil is safe.
 	handlers := config.Handlers{
 		Health:         handler.NewHealthHandler(logger),
-		Order:          handler.NewOrderHandler(nil, logger, nil),
+		Order:          handler.NewOrderHandler(nil, logger, nil, func(h http.Handler) http.Handler { return h }),
 		Subscription:   handler.NewSubscriptionHandler(nil, logger, nil),
 		Customer:       handler.NewCustomerHandler(nil, logger, nil),
 		Product:        handler.NewProductHandler(nil, logger, nil),

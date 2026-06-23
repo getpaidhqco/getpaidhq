@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,6 +34,8 @@ type RepoSet struct {
 	Setting      port.SettingRepository
 	Idempotency  port.IdempotencyKeyRepository
 	Tx           port.TxManager
+
+	IdempotencyStore port.IdempotencyStore
 
 	Invoice           port.InvoiceRepository
 	Dunning           port.DunningRepository
@@ -69,6 +72,7 @@ func RunConformance(t *testing.T, newRepos Factory) {
 	t.Run("Payment", func(t *testing.T) { testPayment(t, ctx, rs) })
 	t.Run("SettingUpsert", func(t *testing.T) { testSettingUpsert(t, ctx, rs) })
 	t.Run("IdempotencyClaim", func(t *testing.T) { testIdempotency(t, ctx, rs) })
+	t.Run("IdempotencyStore", func(t *testing.T) { testIdempotencyStore(t, ctx, rs) })
 	t.Run("TxRollback", func(t *testing.T) { testTxRollback(t, ctx, rs) })
 	t.Run("ProductFindAndVariantDelete", func(t *testing.T) { testProductFindAndVariantDelete(t, ctx, rs) })
 	t.Run("Invoice", func(t *testing.T) { testInvoice(t, ctx, rs) })
@@ -237,6 +241,54 @@ func testCartOrderItem(t *testing.T, ctx context.Context, rs RepoSet) {
 	require.NoError(t, err)
 	require.Len(t, items, 1)
 	assert.Equal(t, price.Id, items[0].PriceId)
+
+	// PaymentSession round-trip: the seeded order had none, so it reads back nil.
+	assert.Nil(t, got.PaymentSession, "order with no payment session reads back nil")
+
+	// An order created with a PSP session payload round-trips (back as map[string]any).
+	withSession := domain.Order{
+		OrgId: orgId, Id: lib.GenerateId("ord"), CustomerId: cust.Id, CartId: order.CartId,
+		Reference: "REF-" + lib.GenerateId("r"), Status: domain.OrderStatusPending, Currency: "USD",
+		Total: 1999, Metadata: map[string]string{}, CreatedAt: now(), UpdatedAt: now(),
+		PaymentSession: map[string]any{"reference": "ps_123", "url": "https://pay/x"},
+	}
+	_, err = rs.Order.Create(ctx, withSession)
+	require.NoError(t, err)
+
+	gotSession, err := rs.Order.FindById(ctx, orgId, withSession.Id)
+	require.NoError(t, err)
+	ps, ok := gotSession.PaymentSession.(map[string]any)
+	require.True(t, ok, "payment_session round-trips as map[string]any, got %T", gotSession.PaymentSession)
+	assert.Equal(t, "ps_123", ps["reference"])
+	assert.Equal(t, "https://pay/x", ps["url"])
+
+	// The general Update does NOT manage payment_session (it is owned solely by
+	// SetPaymentSession); a routine Update must leave a stored session intact.
+	pending := seedOrder(t, ctx, rs, orgId, cust.Id)
+	require.NoError(t, rs.Order.SetPaymentSession(ctx, orgId,
+		pending.Id, map[string]any{"reference": "ps_456", "url": "https://pay/y"}))
+	pending.Reference = "REF-updated"
+	_, err = rs.Order.Update(ctx, pending) // Update with a nil PaymentSession field...
+	require.NoError(t, err)
+	updated, err := rs.Order.FindById(ctx, orgId, pending.Id)
+	require.NoError(t, err)
+	ups, ok := updated.PaymentSession.(map[string]any)
+	require.True(t, ok, "Update must not clobber the stored session, got %T", updated.PaymentSession)
+	assert.Equal(t, "ps_456", ups["reference"])
+	assert.Equal(t, "REF-updated", updated.Reference)
+
+	// SetPaymentSession is the targeted-update path used by InitOrderPayment:
+	// it stamps payment_session onto an order created without one, round-tripping
+	// as map[string]any like the full Update path.
+	stamp := seedOrder(t, ctx, rs, orgId, cust.Id)
+	require.NoError(t, rs.Order.SetPaymentSession(ctx, orgId,
+		stamp.Id, map[string]any{"reference": "ps_789", "url": "https://pay/z"}))
+	stamped, err := rs.Order.FindById(ctx, orgId, stamp.Id)
+	require.NoError(t, err)
+	sps, ok := stamped.PaymentSession.(map[string]any)
+	require.True(t, ok, "SetPaymentSession payload round-trips as map[string]any, got %T", stamped.PaymentSession)
+	assert.Equal(t, "ps_789", sps["reference"])
+	assert.Equal(t, "https://pay/z", sps["url"])
 }
 
 func newSubscription(orgId, customerId, orderId string) domain.Subscription {
@@ -909,4 +961,71 @@ func testEventStore(t *testing.T, ctx context.Context, rs RepoSet) {
 		got[g.Value] = g.Quantity.IntPart()
 	}
 	assert.Equal(t, map[string]int64{"acme": 35, "globex": 5}, got, "sum split per project")
+}
+
+func testIdempotencyStore(t *testing.T, ctx context.Context, rs RepoSet) {
+	key := lib.GenerateId("idemreq")
+	hashA, hashB := "hash-a", "hash-b"
+
+	c, err := rs.IdempotencyStore.Claim(ctx, key, hashA, "tok-1")
+	require.NoError(t, err)
+	assert.Equal(t, port.IdempotencyNew, c.Status)
+
+	c, err = rs.IdempotencyStore.Claim(ctx, key, hashA, "tok-2")
+	require.NoError(t, err)
+	assert.Equal(t, port.IdempotencyPending, c.Status)
+
+	// Fencing: Complete with the WRONG token is a no-op (row stays pending).
+	require.NoError(t, rs.IdempotencyStore.Complete(ctx, key, "tok-WRONG", 200, []byte(`{"h":1}`), []byte(`{"order":"x"}`)))
+	c, err = rs.IdempotencyStore.Claim(ctx, key, hashA, "tok-3")
+	require.NoError(t, err)
+	assert.Equal(t, port.IdempotencyPending, c.Status, "wrong-token Complete must not complete the row")
+
+	require.NoError(t, rs.IdempotencyStore.Complete(ctx, key, "tok-1", 201, []byte(`{"h":1}`), []byte(`{"order":"x"}`)))
+
+	c, err = rs.IdempotencyStore.Claim(ctx, key, hashA, "tok-4")
+	require.NoError(t, err)
+	assert.Equal(t, port.IdempotencyCompleted, c.Status)
+	assert.Equal(t, 201, c.Code)
+	assert.Equal(t, []byte(`{"h":1}`), c.Headers)
+	assert.Equal(t, []byte(`{"order":"x"}`), c.Body)
+
+	c, err = rs.IdempotencyStore.Claim(ctx, key, hashB, "tok-5")
+	require.NoError(t, err)
+	assert.Equal(t, port.IdempotencyConflict, c.Status)
+
+	key2 := lib.GenerateId("idemreq")
+	c, err = rs.IdempotencyStore.Claim(ctx, key2, hashA, "tok-a")
+	require.NoError(t, err)
+	require.Equal(t, port.IdempotencyNew, c.Status)
+	require.NoError(t, rs.IdempotencyStore.Abandon(ctx, key2, "tok-WRONG")) // no-op (fenced)
+	c, err = rs.IdempotencyStore.Claim(ctx, key2, hashA, "tok-b")
+	require.NoError(t, err)
+	assert.Equal(t, port.IdempotencyPending, c.Status, "wrong-token Abandon must not release")
+	require.NoError(t, rs.IdempotencyStore.Abandon(ctx, key2, "tok-a")) // real release
+	c, err = rs.IdempotencyStore.Claim(ctx, key2, hashA, "tok-c")
+	require.NoError(t, err)
+	assert.Equal(t, port.IdempotencyNew, c.Status, "claim after release wins again")
+
+	key3 := lib.GenerateId("idemreq")
+	const n = 12
+	results := make([]port.IdempotencyClaimStatus, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			cc, e := rs.IdempotencyStore.Claim(ctx, key3, hashA, fmt.Sprintf("tok-%d", i))
+			require.NoError(t, e)
+			results[i] = cc.Status
+		}(i)
+	}
+	wg.Wait()
+	newCount := 0
+	for _, s := range results {
+		if s == port.IdempotencyNew {
+			newCount++
+		}
+	}
+	assert.Equal(t, 1, newCount, "exactly one concurrent claim wins New")
 }

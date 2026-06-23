@@ -2,19 +2,80 @@ package handler
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync"
 	"testing"
 
+	"github.com/eben-vranken/idempo"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"getpaidhq/internal/adapter/http/middleware"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
 	"getpaidhq/internal/lib"
 )
+
+// fakeIdemStore is an in-memory port.IdempotencyStore for HTTP idempotency
+// tests. No expiry: each test either uses a fresh store (so idempo no-ops
+// without an Idempotency-Key header) or shares one instance across two
+// requests to exercise the replay/conflict paths.
+type fakeIdemStore struct {
+	mu   sync.Mutex
+	rows map[string]*fakeIdemRow
+}
+
+type fakeIdemRow struct {
+	hash, state, token string
+	code               int
+	headers, body      []byte
+}
+
+func newFakeIdemStore() *fakeIdemStore { return &fakeIdemStore{rows: map[string]*fakeIdemRow{}} }
+
+func (f *fakeIdemStore) Claim(_ context.Context, key, hash, token string) (port.IdempotencyClaim, error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	r, ok := f.rows[key]
+	if !ok {
+		f.rows[key] = &fakeIdemRow{hash: hash, state: "pending", token: token}
+		return port.IdempotencyClaim{Status: port.IdempotencyNew}, nil
+	}
+	switch r.state {
+	case "pending":
+		return port.IdempotencyClaim{Status: port.IdempotencyPending}, nil
+	case "completed":
+		if r.hash != hash {
+			return port.IdempotencyClaim{Status: port.IdempotencyConflict}, nil
+		}
+		return port.IdempotencyClaim{Status: port.IdempotencyCompleted, Code: r.code, Headers: r.headers, Body: r.body}, nil
+	}
+	return port.IdempotencyClaim{Status: port.IdempotencyConflict}, nil
+}
+
+func (f *fakeIdemStore) Complete(_ context.Context, key, token string, code int, headers, body []byte) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if r, ok := f.rows[key]; ok && r.token == token && r.state == "pending" {
+		r.state, r.code, r.headers, r.body = "completed", code, headers, body
+	}
+	return nil
+}
+
+func (f *fakeIdemStore) Abandon(_ context.Context, key, token string) error {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if r, ok := f.rows[key]; ok && r.token == token && r.state == "pending" {
+		delete(f.rows, key)
+	}
+	return nil
+}
 
 // newOrderHandlerForTest assembles an OrderService against fake repos plus a
 // real cedar authz so authz paths can be exercised the same way production
@@ -32,6 +93,7 @@ func newOrderHandlerForTest(
 	sessionRepo *fakeSessionRepo,
 	engine *recordingEngine,
 	coupons *service.CouponService,
+	idemStore ...*fakeIdemStore,
 ) *OrderHandler {
 	t.Helper()
 	factory := service.NewGatewayFactory(&fakePspRepo{}, fakeSecretCipher{}, silentLogger{}, map[domain.Gateway]port.GatewayAdapter{})
@@ -39,7 +101,14 @@ func newOrderHandlerForTest(
 		noopTxManager{}, engine, sessionRepo, priceRepo, cartRepo, orderRepo,
 		custRepo, subRepo, payRepo, pmRepo, productRepo, factory, newPubSub(), silentLogger{}, coupons,
 	)
-	return NewOrderHandler(svc, silentLogger{}, newRealAuthz(t))
+	// Each existing test gets a fresh store (idempo no-ops without the header);
+	// idempotency tests inject one shared store across two requests.
+	store := newFakeIdemStore()
+	if len(idemStore) > 0 && idemStore[0] != nil {
+		store = idemStore[0]
+	}
+	idemMW := middleware.NewIdempotencyMiddleware(store, idempo.Options{})
+	return NewOrderHandler(svc, silentLogger{}, newRealAuthz(t), idemMW)
 }
 
 func TestOrderHandler_AuthzDenied_OnCreate(t *testing.T) {
@@ -316,6 +385,217 @@ func TestOrderHandler_CreateOrder_CouponExhausted(t *testing.T) {
 
 	assertErrorEnvelope(t, rec, http.StatusConflict, string(lib.ConflictError))
 	require.Empty(t, res.created, "no reservation is recorded when the coupon is refused")
+}
+
+// doJSONWithHeaders is doJSON plus arbitrary request headers (used to set
+// Idempotency-Key). Mirrors doJSON's middleware composition so the
+// AuthUser-injecting fixedAuthMiddleware still runs.
+func doJSONWithHeaders(t *testing.T, ts *testSrv, method, path string, body any, headers map[string]string) *httptest.ResponseRecorder {
+	t.Helper()
+	raw, err := json.Marshal(body)
+	require.NoError(t, err)
+	req := httptest.NewRequest(method, path, strings.NewReader(string(raw)))
+	req.Header.Set("Content-Type", "application/json")
+	for k, v := range headers {
+		req.Header.Set(k, v)
+	}
+	rec := httptest.NewRecorder()
+	asHandler(ts.srv, ts.mws).ServeHTTP(rec, req)
+	return rec
+}
+
+func validOrderBody() CreateOrderRequest {
+	return CreateOrderRequest{
+		PspId:    "paystack",
+		Customer: CreateOrderRequestCustomer{Email: "a@b.com", FirstName: "A"},
+		Cart: CartInput{
+			Currency: "USD",
+			Items:    []CartItem{{ProductId: "prod_1", PriceId: "price_1", Quantity: 1}},
+		},
+	}
+}
+
+func newOrderHandlerForIdemTest(t *testing.T, store *fakeIdemStore) (*OrderHandler, *fakeOrderRepo) {
+	t.Helper()
+	orderRepo := &fakeOrderRepo{}
+	prod := &fakeProductRepo{byId: domain.Product{Id: "prod_1", Name: "Plan"}}
+	price := &fakePriceRepo{byId: domain.Price{Id: "price_1", UnitPrice: 1000, Category: domain.OneTime}}
+	h := newOrderHandlerForTest(t,
+		orderRepo, &fakeCustomerRepo{}, &fakeSubRepo{}, &fakeCartRepo{},
+		prod, price, &fakePaymentMethodRepo{}, &fakePaymentRepo{},
+		&fakeSessionRepo{}, &recordingEngine{},
+		nil,
+		store,
+	)
+	return h, orderRepo
+}
+
+func TestOrderHandler_CreateOrder_Idempotent_Replay(t *testing.T) {
+	// Same key + same body twice → the order is created once and the second
+	// response is replayed verbatim with the Idempotency-Replayed header.
+	store := newFakeIdemStore()
+	h, orderRepo := newOrderHandlerForIdemTest(t, store)
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	hdr := map[string]string{"Idempotency-Key": "k1"}
+	first := doJSONWithHeaders(t, ts, http.MethodPost, "/api/orders", validOrderBody(), hdr)
+	require.Equal(t, http.StatusOK, first.Code, "body=%s", first.Body.String())
+
+	second := doJSONWithHeaders(t, ts, http.MethodPost, "/api/orders", validOrderBody(), hdr)
+	require.Equal(t, http.StatusOK, second.Code, "body=%s", second.Body.String())
+
+	assert.Equal(t, "true", second.Header().Get("Idempotency-Replayed"), "the replay must carry the replayed header")
+	assert.Empty(t, first.Header().Get("Idempotency-Replayed"), "the original response is not a replay")
+	assert.Equal(t, first.Body.String(), second.Body.String(), "the replay body matches the original")
+	require.Len(t, orderRepo.created, 1, "the handler ran exactly once; the replay did not re-create the order")
+}
+
+func TestOrderHandler_CreateOrder_Idempotent_BodyMismatch(t *testing.T) {
+	// Same key + a different body on the second call → 422 (the request does
+	// not match the fingerprint of the completed claim).
+	store := newFakeIdemStore()
+	h, orderRepo := newOrderHandlerForIdemTest(t, store)
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	hdr := map[string]string{"Idempotency-Key": "k1"}
+	first := doJSONWithHeaders(t, ts, http.MethodPost, "/api/orders", validOrderBody(), hdr)
+	require.Equal(t, http.StatusOK, first.Code, "body=%s", first.Body.String())
+
+	changed := validOrderBody()
+	changed.Customer.Email = "different@b.com"
+	second := doJSONWithHeaders(t, ts, http.MethodPost, "/api/orders", changed, hdr)
+
+	require.Equal(t, http.StatusUnprocessableEntity, second.Code, "body=%s", second.Body.String())
+	require.Len(t, orderRepo.created, 1, "the mismatched replay never reaches the handler")
+}
+
+func TestOrderHandler_CreateOrder_NoKey_IndependentCreates(t *testing.T) {
+	// No Idempotency-Key header → today's behaviour: two independent creates,
+	// no replay header.
+	store := newFakeIdemStore()
+	h, orderRepo := newOrderHandlerForIdemTest(t, store)
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	first := doJSON(t, ts, http.MethodPost, "/api/orders", validOrderBody())
+	require.Equal(t, http.StatusOK, first.Code, "body=%s", first.Body.String())
+	second := doJSON(t, ts, http.MethodPost, "/api/orders", validOrderBody())
+	require.Equal(t, http.StatusOK, second.Code, "body=%s", second.Body.String())
+
+	assert.Empty(t, first.Header().Get("Idempotency-Replayed"))
+	assert.Empty(t, second.Header().Get("Idempotency-Replayed"))
+	require.Len(t, orderRepo.created, 2, "without a key, each request creates its own order")
+}
+
+// stubInitGateway is a port.PaymentGateway that records InitPayment calls and
+// returns a fixed session. Only InitPayment is exercised by /pay.
+type stubInitGateway struct {
+	port.PaymentGateway
+	calls   int
+	session any
+}
+
+func (g *stubInitGateway) InitPayment(_ context.Context, _ port.InitPaymentInput) (port.InitPaymentResponse, error) {
+	g.calls++
+	return port.InitPaymentResponse{PspResponse: g.session}, nil
+}
+
+// stubGatewayAdapter satisfies port.GatewayAdapter, handing back a fixed gateway.
+type stubGatewayAdapter struct {
+	gw port.PaymentGateway
+}
+
+func (a stubGatewayAdapter) CreateGateway(_ map[string]string, _ map[string]domain.Secret) (port.PaymentGateway, error) {
+	return a.gw, nil
+}
+
+func (a stubGatewayAdapter) CreateWebhookParser() domain.WebhookParser { return nil }
+
+// newOrderHandlerForPayTest assembles an OrderService whose GatewayFactory
+// resolves a stub gateway. The fakePspRepo returns a PspConfig whose PspId is
+// "memory", matching the single adapter registered in the factory's map, so
+// factory.NewGateway hands back gw. orderRepo is returned so tests can seed the
+// order and assert the persisted session.
+func newOrderHandlerForPayTest(t *testing.T, order domain.Order, gw port.PaymentGateway) (*OrderHandler, *fakeOrderRepo) {
+	t.Helper()
+	orderRepo := &fakeOrderRepo{byId: order}
+	pspRepo := &fakePspRepo{byId: domain.PspConfig{PspId: domain.Memory}}
+	factory := service.NewGatewayFactory(pspRepo, fakeSecretCipher{}, silentLogger{},
+		map[domain.Gateway]port.GatewayAdapter{domain.Memory: stubGatewayAdapter{gw: gw}})
+	svc := service.NewOrderService(
+		noopTxManager{}, &recordingEngine{}, &fakeSessionRepo{}, &fakePriceRepo{}, &fakeCartRepo{},
+		orderRepo, &fakeCustomerRepo{}, &fakeSubRepo{}, &fakePaymentRepo{}, &fakePaymentMethodRepo{},
+		&fakeProductRepo{}, factory, newPubSub(), silentLogger{}, nil,
+	)
+	idemMW := middleware.NewIdempotencyMiddleware(newFakeIdemStore(), idempo.Options{})
+	return NewOrderHandler(svc, silentLogger{}, newRealAuthz(t), idemMW), orderRepo
+}
+
+func TestOrderHandler_Pay_HappyPath(t *testing.T) {
+	session := map[string]any{"reference": "ps_1", "url": "https://pay/x"}
+	gw := &stubInitGateway{session: session}
+	order := domain.Order{OrgId: "org_1", Id: "ord_1", Status: domain.OrderStatusPending}
+	h, orderRepo := newOrderHandlerForPayTest(t, order, gw)
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/orders/ord_1/pay", PayOrderRequest{Psp: "memory", Options: map[string]any{}})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	var got PayOrderResponse
+	decodeJSON(t, rec, &got)
+	require.NotNil(t, got.Psp, "the response carries the PSP session payload")
+	assert.Equal(t, 1, gw.calls, "the gateway initialised the session once")
+	assert.NotNil(t, orderRepo.byId.PaymentSession, "the session was persisted on the order")
+}
+
+func TestOrderHandler_Pay_Idempotent_ServedFromStoredSession(t *testing.T) {
+	// Two /pay calls on the same order init the gateway once; the second is
+	// served from the stored payment_session (fakeOrderRepo.SetPaymentSession
+	// writes byId, so the second FindById sees the stored session).
+	session := map[string]any{"reference": "ps_1"}
+	gw := &stubInitGateway{session: session}
+	order := domain.Order{OrgId: "org_1", Id: "ord_1", Status: domain.OrderStatusPending}
+	h, _ := newOrderHandlerForPayTest(t, order, gw)
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	first := doJSON(t, ts, http.MethodPost, "/api/orders/ord_1/pay", PayOrderRequest{Psp: "memory"})
+	require.Equal(t, http.StatusOK, first.Code, "body=%s", first.Body.String())
+	second := doJSON(t, ts, http.MethodPost, "/api/orders/ord_1/pay", PayOrderRequest{Psp: "memory"})
+	require.Equal(t, http.StatusOK, second.Code, "body=%s", second.Body.String())
+
+	assert.Equal(t, 1, gw.calls, "the gateway is initialised exactly once across both calls")
+	assert.Equal(t, first.Body.String(), second.Body.String(), "both calls return the same session")
+}
+
+func TestOrderHandler_Pay_NonPending_Conflict(t *testing.T) {
+	gw := &stubInitGateway{session: map[string]any{"reference": "ps_1"}}
+	order := domain.Order{OrgId: "org_1", Id: "ord_1", Status: domain.OrderStatusCompleted}
+	h, _ := newOrderHandlerForPayTest(t, order, gw)
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/orders/ord_1/pay", PayOrderRequest{Psp: "memory"})
+
+	assertErrorEnvelope(t, rec, http.StatusConflict, string(lib.ConflictError))
+	assert.Equal(t, 0, gw.calls, "no gateway call for a non-pending order")
+}
+
+func TestOrderHandler_Pay_AuthzDenied(t *testing.T) {
+	gw := &stubInitGateway{session: map[string]any{"reference": "ps_1"}}
+	order := domain.Order{OrgId: "org_1", Id: "ord_1", Status: domain.OrderStatusPending}
+	h, _ := newOrderHandlerForPayTest(t, order, gw)
+	// member is denied CreateOrder, which /pay reuses.
+	ts := newTestServer(fixedAuthMiddleware(memberUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/orders/ord_1/pay", PayOrderRequest{Psp: "memory"})
+
+	assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+	assert.Equal(t, 0, gw.calls, "denied requests never reach the service")
 }
 
 func TestOrderHandler_ListSubscriptions(t *testing.T) {
