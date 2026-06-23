@@ -32,6 +32,7 @@ func (u *WebhookHandler) RegisterRoutes(s *fuego.Server) {
 		option.OperationID("receiveWebhook"),
 		option.Summary("PSP webhook receiver"),
 		option.Query("p", "PSP identifier"),
+		option.Security(), // public: authenticated by HMAC body signature, not a user token
 	)
 }
 
