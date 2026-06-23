@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"net/http"
 	"time"
 
 	"github.com/go-fuego/fuego"
@@ -17,18 +18,23 @@ type OrderHandler struct {
 	service *service.OrderService
 	logger  port.Logger
 	authz   port.Authz
+	idem    func(http.Handler) http.Handler
 }
 
-func NewOrderHandler(orderService *service.OrderService, logger port.Logger, authz port.Authz) *OrderHandler {
+func NewOrderHandler(orderService *service.OrderService, logger port.Logger, authz port.Authz, idem func(http.Handler) http.Handler) *OrderHandler {
 	return &OrderHandler{
 		service: orderService,
 		logger:  logger,
 		authz:   authz,
+		idem:    idem,
 	}
 }
 
 func (o *OrderHandler) RegisterRoutes(s *fuego.Server) {
-	g := fuego.Group(s, "/orders", option.Tags("Orders"))
+	g := fuego.Group(s, "/orders",
+		option.Tags("Orders"),
+		option.Middleware(o.idem),
+	)
 	fuego.Post(g, "", o.CreateOrder, option.Summary("Create an order"), option.OperationID("createOrder"))
 	fuego.Post(g, "/{id}/complete", o.CompleteOrder, option.Summary("Complete an order"), option.OperationID("completeOrder"))
 	fuego.Get(g, "/{id}", o.Get, option.Summary("Get an order"), option.OperationID("getOrder"))
