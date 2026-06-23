@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
@@ -33,6 +34,8 @@ type RepoSet struct {
 	Setting      port.SettingRepository
 	Idempotency  port.IdempotencyKeyRepository
 	Tx           port.TxManager
+
+	IdempotencyStore port.IdempotencyStore
 
 	Invoice           port.InvoiceRepository
 	Dunning           port.DunningRepository
@@ -69,6 +72,7 @@ func RunConformance(t *testing.T, newRepos Factory) {
 	t.Run("Payment", func(t *testing.T) { testPayment(t, ctx, rs) })
 	t.Run("SettingUpsert", func(t *testing.T) { testSettingUpsert(t, ctx, rs) })
 	t.Run("IdempotencyClaim", func(t *testing.T) { testIdempotency(t, ctx, rs) })
+	t.Run("IdempotencyStore", func(t *testing.T) { testIdempotencyStore(t, ctx, rs) })
 	t.Run("TxRollback", func(t *testing.T) { testTxRollback(t, ctx, rs) })
 	t.Run("ProductFindAndVariantDelete", func(t *testing.T) { testProductFindAndVariantDelete(t, ctx, rs) })
 	t.Run("Invoice", func(t *testing.T) { testInvoice(t, ctx, rs) })
@@ -909,4 +913,71 @@ func testEventStore(t *testing.T, ctx context.Context, rs RepoSet) {
 		got[g.Value] = g.Quantity.IntPart()
 	}
 	assert.Equal(t, map[string]int64{"acme": 35, "globex": 5}, got, "sum split per project")
+}
+
+func testIdempotencyStore(t *testing.T, ctx context.Context, rs RepoSet) {
+	key := lib.GenerateId("idemreq")
+	hashA, hashB := "hash-a", "hash-b"
+
+	c, err := rs.IdempotencyStore.Claim(ctx, key, hashA, "tok-1")
+	require.NoError(t, err)
+	assert.Equal(t, port.IdempotencyNew, c.Status)
+
+	c, err = rs.IdempotencyStore.Claim(ctx, key, hashA, "tok-2")
+	require.NoError(t, err)
+	assert.Equal(t, port.IdempotencyPending, c.Status)
+
+	// Fencing: Complete with the WRONG token is a no-op (row stays pending).
+	require.NoError(t, rs.IdempotencyStore.Complete(ctx, key, "tok-WRONG", 200, []byte(`{"h":1}`), []byte(`{"order":"x"}`)))
+	c, err = rs.IdempotencyStore.Claim(ctx, key, hashA, "tok-3")
+	require.NoError(t, err)
+	assert.Equal(t, port.IdempotencyPending, c.Status, "wrong-token Complete must not complete the row")
+
+	require.NoError(t, rs.IdempotencyStore.Complete(ctx, key, "tok-1", 201, []byte(`{"h":1}`), []byte(`{"order":"x"}`)))
+
+	c, err = rs.IdempotencyStore.Claim(ctx, key, hashA, "tok-4")
+	require.NoError(t, err)
+	assert.Equal(t, port.IdempotencyCompleted, c.Status)
+	assert.Equal(t, 201, c.Code)
+	assert.Equal(t, []byte(`{"h":1}`), c.Headers)
+	assert.Equal(t, []byte(`{"order":"x"}`), c.Body)
+
+	c, err = rs.IdempotencyStore.Claim(ctx, key, hashB, "tok-5")
+	require.NoError(t, err)
+	assert.Equal(t, port.IdempotencyConflict, c.Status)
+
+	key2 := lib.GenerateId("idemreq")
+	c, err = rs.IdempotencyStore.Claim(ctx, key2, hashA, "tok-a")
+	require.NoError(t, err)
+	require.Equal(t, port.IdempotencyNew, c.Status)
+	require.NoError(t, rs.IdempotencyStore.Abandon(ctx, key2, "tok-WRONG")) // no-op (fenced)
+	c, err = rs.IdempotencyStore.Claim(ctx, key2, hashA, "tok-b")
+	require.NoError(t, err)
+	assert.Equal(t, port.IdempotencyPending, c.Status, "wrong-token Abandon must not release")
+	require.NoError(t, rs.IdempotencyStore.Abandon(ctx, key2, "tok-a")) // real release
+	c, err = rs.IdempotencyStore.Claim(ctx, key2, hashA, "tok-c")
+	require.NoError(t, err)
+	assert.Equal(t, port.IdempotencyNew, c.Status, "claim after release wins again")
+
+	key3 := lib.GenerateId("idemreq")
+	const n = 12
+	results := make([]port.IdempotencyClaimStatus, n)
+	var wg sync.WaitGroup
+	for i := 0; i < n; i++ {
+		wg.Add(1)
+		go func(i int) {
+			defer wg.Done()
+			cc, e := rs.IdempotencyStore.Claim(ctx, key3, hashA, fmt.Sprintf("tok-%d", i))
+			require.NoError(t, e)
+			results[i] = cc.Status
+		}(i)
+	}
+	wg.Wait()
+	newCount := 0
+	for _, s := range results {
+		if s == port.IdempotencyNew {
+			newCount++
+		}
+	}
+	assert.Equal(t, 1, newCount, "exactly one concurrent claim wins New")
 }
