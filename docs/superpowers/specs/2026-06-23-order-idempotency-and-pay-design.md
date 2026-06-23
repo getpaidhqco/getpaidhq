@@ -42,7 +42,7 @@ cart.Create (direct path) → customer find/create → order.Create(idempotency_
 
 ### 2.2 Idempotency
 
-- An optional **`Idempotency-Key`** (HTTP header, Stripe-style) → `port.CreateOrderInput.IdempotencyKey` → stored on the order in a new `orders.idempotency_key` column, with a **unique partial index `(org_id, idempotency_key) WHERE idempotency_key IS NOT NULL`**.
+- An optional **`Idempotency-Key`** HTTP header → `port.CreateOrderInput.IdempotencyKey` → stored on the order in a new `orders.idempotency_key` column, with a **unique partial index `(org_id, idempotency_key) WHERE idempotency_key IS NOT NULL`**.
 - The order `INSERT` inside the tx carries the key. On a **replay** the insert raises a unique violation → the tx rolls back (nothing partial) → we `SELECT` the existing order by `(org_id, idempotency_key)` and **return it** (HTTP 200, same order). The DB constraint *is* the atomic dedup — no TOCTOU, and two concurrent replays resolve to the one winner.
 - **No key supplied** → behaves as today (each call is a new order). Dedup is opt-in.
 
