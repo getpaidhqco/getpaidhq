@@ -2777,7 +2777,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreatePaymentTokenRequest'
         description: Request body for handler.CreatePaymentTokenRequest
@@ -2897,7 +2897,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreateApiKeyInput'
         description: Request body for handler.CreateApiKeyInput
@@ -3043,7 +3043,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/ReminderConfigDTO'
         description: Request body for handler.ReminderConfigDTO
@@ -3100,7 +3100,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/AddItemRequest'
         description: Request body for handler.AddItemRequest
@@ -3157,7 +3157,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/RemoveItemRequest'
         description: Request body for handler.RemoveItemRequest
@@ -3214,7 +3214,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/UpdateCouponCodeInput'
         description: Request body for port.UpdateCouponCodeInput
@@ -3334,7 +3334,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreateCouponInput'
         description: Request body for port.CreateCouponInput
@@ -3489,7 +3489,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/UpdateCouponInput'
         description: Request body for port.UpdateCouponInput
@@ -3599,7 +3599,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreateCouponCodeInput'
         description: Request body for port.CreateCouponCodeInput
@@ -3719,7 +3719,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreateCustomerInput'
         description: Request body for port.CreateCustomerInput
@@ -3876,7 +3876,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreatePaymentMethodInput'
         description: Request body for port.CreatePaymentMethodInput
@@ -3938,7 +3938,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/UpdatePaymentMethodInput'
         description: Request body for port.UpdatePaymentMethodInput
@@ -4163,7 +4163,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/UpdateDunningCampaignRequest'
         description: Request body for handler.UpdateDunningCampaignRequest
@@ -4293,7 +4293,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/TriggerManualAttemptRequest'
         description: Request body for handler.TriggerManualAttemptRequest
@@ -4487,7 +4487,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreateDunningConfigurationRequest'
         description: Request body for handler.CreateDunningConfigurationRequest
@@ -4593,7 +4593,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/UpdateDunningConfigurationRequest'
         description: Request body for handler.UpdateDunningConfigurationRequest
@@ -4645,7 +4645,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreateGatewayRequest'
         description: Request body for handler.CreateGatewayRequest
@@ -4928,7 +4928,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreateMeterRequest'
         description: Request body for handler.CreateMeterRequest
@@ -5143,7 +5143,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreateOrderRequest'
         description: Request body for handler.CreateOrderRequest
@@ -5250,7 +5250,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CompleteOrderRequest'
         description: Request body for handler.CompleteOrderRequest
@@ -5356,7 +5356,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreateOrgRequest'
         description: Request body for handler.CreateOrgRequest
@@ -5458,7 +5458,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/ActivatePaymentTokenRequest'
         description: Request body for handler.ActivatePaymentTokenRequest
@@ -5510,7 +5510,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/VerifyPaymentTokenRequest'
         description: Request body for handler.VerifyPaymentTokenRequest
@@ -5681,7 +5681,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreatePriceRequest'
         description: Request body for handler.CreatePriceRequest
@@ -5836,7 +5836,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreatePriceRequest'
         description: Request body for handler.CreatePriceRequest
@@ -5956,7 +5956,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreateProductRequest'
         description: Request body for handler.CreateProductRequest
@@ -6111,7 +6111,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/UpdateProductRequest'
         description: Request body for handler.UpdateProductRequest
@@ -6341,7 +6341,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreateVariantRequest'
         description: Request body for handler.CreateVariantRequest
@@ -6393,7 +6393,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreateSessionRequest'
         description: Request body for handler.CreateSessionRequest
@@ -6513,7 +6513,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreateSettingRequest'
         description: Request body for handler.CreateSettingRequest
@@ -6683,7 +6683,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/UpdateSettingRequest'
         description: Request body for handler.UpdateSettingRequest
@@ -6858,7 +6858,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/UpdateSubscriptionRequest'
         description: Request body for domain.UpdateSubscriptionRequest
@@ -6915,7 +6915,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/UpdateBillingAnchorRequest'
         description: Request body for handler.UpdateBillingAnchorRequest
@@ -6972,7 +6972,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CancelSubscriptionRequest'
         description: Request body for handler.CancelSubscriptionRequest
@@ -7103,7 +7103,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/PauseSubscriptionRequest'
         description: Request body for handler.PauseSubscriptionRequest
@@ -7234,7 +7234,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/ResumeSubscriptionRequest'
         description: Request body for handler.ResumeSubscriptionRequest
@@ -7336,7 +7336,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/IngestEventsRequest'
         description: Request body for handler.IngestEventsRequest
@@ -7491,7 +7491,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/UpdateVariantRequest'
         description: Request body for handler.UpdateVariantRequest
@@ -7661,7 +7661,7 @@ paths:
           type: string
       requestBody:
         content:
-          '*/*':
+          application/json:
             schema:
               $ref: '#/components/schemas/CreateWebhookSubscriptionRequest'
         description: Request body for handler.CreateWebhookSubscriptionRequest
