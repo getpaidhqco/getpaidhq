@@ -2,6 +2,7 @@ package postgresgorm
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"gorm.io/gorm"
@@ -79,6 +80,12 @@ func (s *IdempotencyStore) Claim(ctx context.Context, key, requestHash, token st
 	if err := dbFromCtx(ctx, s.db).
 		Where("key = ?", key).
 		First(&existing).Error; err != nil {
+		// The row was swept (expired) between our failed insert and this read.
+		// Mirror the pgx adapter: report Pending (idempo → 409, client retries)
+		// rather than surfacing a 500, keeping the two drivers at parity.
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return port.IdempotencyClaim{Status: port.IdempotencyPending}, nil
+		}
 		return port.IdempotencyClaim{}, err
 	}
 

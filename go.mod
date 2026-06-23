@@ -18,6 +18,7 @@ require (
 require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.46.0
 	github.com/clerk/clerk-sdk-go/v2 v2.6.0
+	github.com/eben-vranken/idempo v1.0.0
 	github.com/getkin/kin-openapi v0.135.0
 	github.com/go-fuego/fuego v0.19.0
 	github.com/go-redis/redis_rate/v10 v10.0.1
@@ -75,7 +76,6 @@ require (
 	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/dustin/go-humanize v1.0.1 // indirect
-	github.com/eben-vranken/idempo v1.0.0 // indirect
 	github.com/ebitengine/purego v0.10.0 // indirect
 	github.com/elastic/go-sysinfo v1.15.4 // indirect
 	github.com/elastic/go-windows v1.0.2 // indirect
