@@ -493,6 +493,20 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 			}
 			activated = append(activated, newSub)
 		}
+
+		// Convert the order's coupon reservation (if any) into an active Discount
+		// on the first activated subscription. No-op when the order has no
+		// reservation, so coupon-less orders are unaffected.
+		if len(activated) > 0 && s.coupons != nil {
+			if _, err := s.coupons.Consume(ctx, ConsumeInput{
+				OrgId:          input.OrgId,
+				OrderId:        order.Id,
+				SubscriptionId: activated[0].Id,
+				StartCycle:     activated[0].CyclesProcessed, // 0 at activation
+			}); err != nil {
+				return err
+			}
+		}
 		return nil
 	})
 	if err != nil {
