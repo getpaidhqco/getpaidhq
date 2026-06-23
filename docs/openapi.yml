@@ -482,6 +482,9 @@ components:
                 type: object
               type: array
           type: object
+        coupon_code:
+          nullable: true
+          type: string
         customer:
           properties:
             email:
