@@ -57,6 +57,16 @@ func (r *CouponRepo) FindById(ctx context.Context, orgId, id string) (domain.Cou
 	return row.toDomain(), nil
 }
 
+func (r *CouponRepo) FindByIdForUpdate(ctx context.Context, orgId, id string) (domain.Coupon, error) {
+	q := dbFromCtx(ctx, r.pool)
+	var row couponRow
+	if err := row.scanInto(q.QueryRow(ctx,
+		`SELECT `+couponColumns+` FROM coupons WHERE org_id = $1 AND id = $2 FOR UPDATE`, orgId, id)); err != nil {
+		return domain.Coupon{}, translateErr(err)
+	}
+	return row.toDomain(), nil
+}
+
 func (r *CouponRepo) Find(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Coupon, int, error) {
 	q := dbFromCtx(ctx, r.pool)
 	var count int64

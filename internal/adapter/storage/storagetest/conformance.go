@@ -34,19 +34,20 @@ type RepoSet struct {
 	Idempotency  port.IdempotencyKeyRepository
 	Tx           port.TxManager
 
-	Invoice       port.InvoiceRepository
-	Dunning       port.DunningRepository
-	Coupon        port.CouponRepository
-	CouponCode    port.CouponCodeRepository
-	Discount      port.DiscountRepository
-	Meter         port.MeterRepository
-	Metadata      port.MetadataStoreRepository
-	Psp           port.PspRepository
-	ApiKey        port.ApiKeyRepository
-	Webhook       port.WebhookSubscriptionRepository
-	Session       port.SessionRepository
-	PaymentMethod port.PaymentMethodRepository
-	EventStore    port.EventStore
+	Invoice           port.InvoiceRepository
+	Dunning           port.DunningRepository
+	Coupon            port.CouponRepository
+	CouponCode        port.CouponCodeRepository
+	CouponReservation port.CouponReservationRepository
+	Discount          port.DiscountRepository
+	Meter             port.MeterRepository
+	Metadata          port.MetadataStoreRepository
+	Psp               port.PspRepository
+	ApiKey            port.ApiKeyRepository
+	Webhook           port.WebhookSubscriptionRepository
+	Session           port.SessionRepository
+	PaymentMethod     port.PaymentMethodRepository
+	EventStore        port.EventStore
 }
 
 // Factory builds a RepoSet bound to a fresh connection against dsn. Defined in
@@ -73,6 +74,7 @@ func RunConformance(t *testing.T, newRepos Factory) {
 	t.Run("Invoice", func(t *testing.T) { testInvoice(t, ctx, rs) })
 	t.Run("Dunning", func(t *testing.T) { testDunning(t, ctx, rs) })
 	t.Run("Coupon", func(t *testing.T) { testCoupon(t, ctx, rs) })
+	t.Run("CouponReservation", func(t *testing.T) { testCouponReservation(t, ctx, rs) })
 	t.Run("Meter", func(t *testing.T) { testMeter(t, ctx, rs) })
 	t.Run("Metadata", func(t *testing.T) { testMetadata(t, ctx, rs) })
 	t.Run("Psp", func(t *testing.T) { testPsp(t, ctx, rs) })
@@ -570,6 +572,62 @@ func testCoupon(t *testing.T, ctx context.Context, rs RepoSet) {
 	byCust, err := rs.Discount.CountByCouponAndCustomer(ctx, orgId, coupon.Id, custId)
 	require.NoError(t, err)
 	assert.Equal(t, 1, byCust)
+}
+
+// ---- coupon_reservation (ephemeral capacity holds) ----
+
+// mustCoupon builds a valid percentage/repeating(2) coupon for orgId.
+func mustCoupon(t *testing.T, orgId string) domain.Coupon {
+	t.Helper()
+	c, err := domain.NewCoupon(domain.NewCouponInput{
+		OrgId:            orgId,
+		Name:             "Reservation Coupon",
+		DiscountType:     domain.DiscountTypePercentage,
+		PercentOff:       decimal.NewFromInt(50),
+		Duration:         domain.DurationRepeating,
+		DurationInCycles: 2,
+	})
+	require.NoError(t, err)
+	return c
+}
+
+func testCouponReservation(t *testing.T, ctx context.Context, rs RepoSet) {
+	orgId := seedOrg(t, ctx, rs)
+
+	coupon := mustCoupon(t, orgId)
+	_, err := rs.Coupon.Create(ctx, coupon)
+	require.NoError(t, err)
+
+	n := now()
+	orderId := lib.GenerateId("ord")
+	res, err := domain.NewCouponReservation(domain.NewCouponReservationInput{
+		OrgId: orgId, CouponId: coupon.Id, OrderId: orderId,
+		ExpiresAt: n.Add(time.Hour),
+	})
+	require.NoError(t, err)
+	created, err := rs.CouponReservation.Create(ctx, res)
+	require.NoError(t, err)
+	assert.Equal(t, res.Id, created.Id)
+
+	byOrder, err := rs.CouponReservation.FindByOrder(ctx, orgId, orderId)
+	require.NoError(t, err)
+	require.Len(t, byOrder, 1)
+	assert.Equal(t, res.Id, byOrder[0].Id)
+
+	// Live at now; lazily expired at now+2h (no row deletion required).
+	live, err := rs.CouponReservation.CountLiveByCoupon(ctx, orgId, coupon.Id, n)
+	require.NoError(t, err)
+	assert.Equal(t, 1, live, "hold counts while live")
+
+	expired, err := rs.CouponReservation.CountLiveByCoupon(ctx, orgId, coupon.Id, n.Add(2*time.Hour))
+	require.NoError(t, err)
+	assert.Equal(t, 0, expired, "hold no longer counts past expires_at (lazy expiry)")
+
+	// DeleteByOrder releases the hold.
+	require.NoError(t, rs.CouponReservation.DeleteByOrder(ctx, orgId, orderId))
+	after, err := rs.CouponReservation.CountLiveByCoupon(ctx, orgId, coupon.Id, n)
+	require.NoError(t, err)
+	assert.Equal(t, 0, after, "hold gone after DeleteByOrder")
 }
 
 // ---- meter (BillableMetric) ----

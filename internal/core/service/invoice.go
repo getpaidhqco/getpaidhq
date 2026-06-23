@@ -22,6 +22,8 @@ type InvoiceService struct {
 	usageService      *UsageService
 	tx                port.TxManager
 	logger            port.Logger
+	discounts         port.DiscountRepository
+	coupons           port.CouponRepository
 }
 
 func NewInvoiceService(
@@ -31,6 +33,8 @@ func NewInvoiceService(
 	usageService *UsageService,
 	tx port.TxManager,
 	logger port.Logger,
+	discounts port.DiscountRepository,
+	coupons port.CouponRepository,
 ) *InvoiceService {
 	return &InvoiceService{
 		invoiceRepository: invoiceRepository,
@@ -39,6 +43,8 @@ func NewInvoiceService(
 		usageService:      usageService,
 		tx:                tx,
 		logger:            logger,
+		discounts:         discounts,
+		coupons:           coupons,
 	}
 }
 
@@ -64,7 +70,9 @@ func (s *InvoiceService) BuildForBillingPeriod(ctx context.Context, sub domain.S
 	}
 
 	inv := domain.NewInvoice(sub, sub.CurrentPeriodStart, sub.CurrentPeriodEnd)
+	productByPrice := map[string]string{}
 	for _, it := range items {
+		productByPrice[it.PriceId] = it.ProductId
 		price, perr := s.priceRepository.FindById(ctx, sub.OrgId, it.PriceId)
 		if perr != nil {
 			return domain.Invoice{}, perr
@@ -95,6 +103,10 @@ func (s *InvoiceService) BuildForBillingPeriod(ctx context.Context, sub domain.S
 		}
 	}
 
+	if err := s.applyDiscounts(ctx, sub, &inv, productByPrice); err != nil {
+		return domain.Invoice{}, err
+	}
+
 	var created domain.Invoice
 	run := func(ctx context.Context) error {
 		var e error
@@ -111,6 +123,36 @@ func (s *InvoiceService) BuildForBillingPeriod(ctx context.Context, sub domain.S
 	}
 	s.logger.Infof("[%s][%s] invoice %s built for cycle %d total=%d", sub.OrgId, sub.Id, created.Id, created.Cycle, created.Total)
 	return created, nil
+}
+
+// applyDiscounts resolves the subscription's active discounts and writes each
+// line's DiscountTotal via the pure domain.ApplyDiscounts, scoped to the current
+// cycle. No-op when the discount/coupon repos aren't wired (unit tests).
+func (s *InvoiceService) applyDiscounts(ctx context.Context, sub domain.Subscription, inv *domain.Invoice, productByPrice map[string]string) error {
+	if s.discounts == nil || s.coupons == nil {
+		return nil // not wired (unit tests without discounts)
+	}
+	ds, err := s.discounts.ActiveForSubscription(ctx, sub.OrgId, sub.Id)
+	if err != nil {
+		return err
+	}
+	if len(ds) == 0 {
+		return nil
+	}
+	applied := make([]domain.AppliedDiscount, 0, len(ds))
+	for _, d := range ds {
+		c, err := s.coupons.FindById(ctx, sub.OrgId, d.CouponId)
+		if err != nil {
+			return err
+		}
+		applied = append(applied, domain.AppliedDiscount{Discount: d, Coupon: c})
+	}
+	lines := make([]domain.DiscountableLine, 0, len(inv.LineItems))
+	for _, l := range inv.LineItems {
+		lines = append(lines, domain.DiscountableLine{LineId: l.Id, ProductId: productByPrice[l.PriceId], Total: l.Total})
+	}
+	inv.ApplyDiscountTotals(domain.ApplyDiscounts(lines, applied, sub.CyclesProcessed, sub.Currency))
+	return nil
 }
 
 // GetById returns one invoice (with line items).

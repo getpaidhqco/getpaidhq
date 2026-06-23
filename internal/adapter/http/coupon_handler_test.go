@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
@@ -56,6 +57,10 @@ func (r *hFakeCouponRepo) Find(_ context.Context, _ string, _ domain.Pagination)
 	return out, len(out), nil
 }
 
+func (r *hFakeCouponRepo) FindByIdForUpdate(ctx context.Context, orgId, id string) (domain.Coupon, error) {
+	return r.FindById(ctx, orgId, id)
+}
+
 func (r *hFakeCouponRepo) DeleteIfUnreferenced(_ context.Context, _, _ string) error { return nil }
 
 type hFakeCouponCodeRepo struct {
@@ -103,6 +108,10 @@ func (r *hFakeCouponCodeRepo) FindByCode(_ context.Context, _, code string) (dom
 	return c, nil
 }
 
+func (r *hFakeCouponCodeRepo) FindByCodeForUpdate(ctx context.Context, orgId, code string) (domain.CouponCode, error) {
+	return r.FindByCode(ctx, orgId, code)
+}
+
 type hFakeDiscountRepo struct {
 	port.DiscountRepository
 	byId map[string]domain.Discount
@@ -136,6 +145,36 @@ func (h *hFakePriorPayments) HasPriorSuccessfulPayment(_ context.Context, _, _ s
 	return false, nil
 }
 
+// hFakeReservationRepo is an in-memory reservation repo for handler tests.
+// couponCount seeds the live-by-coupon count so a test can simulate an
+// exhausted coupon; created records what Reserve inserted.
+type hFakeReservationRepo struct {
+	port.CouponReservationRepository
+	couponCount int
+	created     []domain.CouponReservation
+}
+
+func (r *hFakeReservationRepo) Create(_ context.Context, res domain.CouponReservation) (domain.CouponReservation, error) {
+	r.created = append(r.created, res)
+	return res, nil
+}
+func (r *hFakeReservationRepo) FindByOrder(_ context.Context, _, _ string) ([]domain.CouponReservation, error) {
+	return nil, nil
+}
+func (r *hFakeReservationRepo) DeleteByOrder(_ context.Context, _, _ string) error { return nil }
+func (r *hFakeReservationRepo) CountLiveByCoupon(_ context.Context, _, _ string, _ time.Time) (int, error) {
+	return r.couponCount, nil
+}
+func (r *hFakeReservationRepo) CountLiveByCode(_ context.Context, _, _ string, _ time.Time) (int, error) {
+	return 0, nil
+}
+func (r *hFakeReservationRepo) ExistsLiveForCustomer(_ context.Context, _, _, _ string, _ time.Time) (bool, error) {
+	return false, nil
+}
+func (r *hFakeReservationRepo) DeleteExpired(_ context.Context, _ time.Time) (int, error) {
+	return 0, nil
+}
+
 // newCouponHandlerForTest constructs a CouponHandler backed by in-memory fakes.
 func newCouponHandlerForTest(
 	t *testing.T,
@@ -143,7 +182,7 @@ func newCouponHandlerForTest(
 	ccr *hFakeCouponCodeRepo,
 ) *CouponHandler {
 	t.Helper()
-	svc := service.NewCouponService(cr, ccr, &hFakeDiscountRepo{}, &hFakePriorPayments{}, noopTxManager{}, silentLogger{})
+	svc := service.NewCouponService(cr, ccr, &hFakeDiscountRepo{}, &hFakePriorPayments{}, noopTxManager{}, silentLogger{}, &hFakeReservationRepo{})
 	return NewCouponHandler(svc, silentLogger{}, newRealAuthz(t))
 }
 
@@ -195,7 +234,7 @@ func TestCouponHandler_Get(t *testing.T) {
 		h := newCouponHandlerForTest(t, cr, newHFakeCouponCodeRepo())
 
 		// Seed via service to get a real id.
-		svc := service.NewCouponService(cr, newHFakeCouponCodeRepo(), &hFakeDiscountRepo{}, &hFakePriorPayments{}, noopTxManager{}, silentLogger{})
+		svc := service.NewCouponService(cr, newHFakeCouponCodeRepo(), &hFakeDiscountRepo{}, &hFakePriorPayments{}, noopTxManager{}, silentLogger{}, &hFakeReservationRepo{})
 		c, err := svc.Create(context.Background(), "org_1", port.CreateCouponInput{
 			Name: "Q", DiscountType: "percentage", PercentOff: decimal.NewFromInt(20), Duration: "forever",
 		})
@@ -226,7 +265,7 @@ func TestCouponHandler_Get(t *testing.T) {
 
 func TestCouponHandler_List(t *testing.T) {
 	cr := newHFakeCouponRepo()
-	svc := service.NewCouponService(cr, newHFakeCouponCodeRepo(), &hFakeDiscountRepo{}, &hFakePriorPayments{}, noopTxManager{}, silentLogger{})
+	svc := service.NewCouponService(cr, newHFakeCouponCodeRepo(), &hFakeDiscountRepo{}, &hFakePriorPayments{}, noopTxManager{}, silentLogger{}, &hFakeReservationRepo{})
 	_, _ = svc.Create(context.Background(), "org_1", port.CreateCouponInput{
 		Name: "A", DiscountType: "percentage", PercentOff: decimal.NewFromInt(5), Duration: "once",
 	})
@@ -250,7 +289,7 @@ func TestCouponHandler_List(t *testing.T) {
 func TestCouponHandler_Update(t *testing.T) {
 	t.Run("admin can rename and deactivate", func(t *testing.T) {
 		cr := newHFakeCouponRepo()
-		svc := service.NewCouponService(cr, newHFakeCouponCodeRepo(), &hFakeDiscountRepo{}, &hFakePriorPayments{}, noopTxManager{}, silentLogger{})
+		svc := service.NewCouponService(cr, newHFakeCouponCodeRepo(), &hFakeDiscountRepo{}, &hFakePriorPayments{}, noopTxManager{}, silentLogger{}, &hFakeReservationRepo{})
 		c, _ := svc.Create(context.Background(), "org_1", port.CreateCouponInput{
 			Name: "Old", DiscountType: "percentage", PercentOff: decimal.NewFromInt(5), Duration: "once",
 		})
@@ -277,7 +316,7 @@ func TestCouponHandler_CreateCode(t *testing.T) {
 	t.Run("admin creates a code for a coupon", func(t *testing.T) {
 		cr := newHFakeCouponRepo()
 		ccr := newHFakeCouponCodeRepo()
-		svc := service.NewCouponService(cr, ccr, &hFakeDiscountRepo{}, &hFakePriorPayments{}, noopTxManager{}, silentLogger{})
+		svc := service.NewCouponService(cr, ccr, &hFakeDiscountRepo{}, &hFakePriorPayments{}, noopTxManager{}, silentLogger{}, &hFakeReservationRepo{})
 		c, _ := svc.Create(context.Background(), "org_1", port.CreateCouponInput{
 			Name: "Q", DiscountType: "percentage", PercentOff: decimal.NewFromInt(10), Duration: "forever",
 		})
@@ -317,7 +356,7 @@ func TestCouponHandler_GetDiscount(t *testing.T) {
 		}
 		dr.byId[d.Id] = d
 
-		svc := service.NewCouponService(cr, ccr, dr, &hFakePriorPayments{}, noopTxManager{}, silentLogger{})
+		svc := service.NewCouponService(cr, ccr, dr, &hFakePriorPayments{}, noopTxManager{}, silentLogger{}, &hFakeReservationRepo{})
 		h := NewCouponHandler(svc, silentLogger{}, newRealAuthz(t))
 
 		ts := newTestServer(fixedAuthMiddleware(adminUser()))
