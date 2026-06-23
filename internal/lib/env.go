@@ -88,6 +88,9 @@ type Env struct {
 	HatchetLogLevel             string        `mapstructure:"HATCHET_LOG_LEVEL"`
 	HatchetTracingEnabled       bool          `mapstructure:"HATCHET_TRACING_ENABLED"`
 
+	IdempotencyLockTTL      time.Duration `mapstructure:"IDEMPOTENCY_LOCK_TTL"`
+	IdempotencyRetentionTTL time.Duration `mapstructure:"IDEMPOTENCY_RETENTION_TTL"`
+
 	TemporalHost      string `mapstructure:"TEMPORAL_HOST"`
 	TemporalNamespace string `mapstructure:"TEMPORAL_NAMESPACE"`
 	TemporalTaskQueue string `mapstructure:"TEMPORAL_TASK_QUEUE"`
@@ -130,6 +133,8 @@ func NewEnv() Env {
 
 	viper.SetDefault("WORKFLOW_ENGINE", "hatchet")
 	viper.SetDefault("HATCHET_BILLING_SWEEP_INTERVAL", "5m")
+	viper.SetDefault("IDEMPOTENCY_LOCK_TTL", "1m")
+	viper.SetDefault("IDEMPOTENCY_RETENTION_TTL", "24h")
 	viper.SetDefault("HATCHET_LOG_LEVEL", "warn")
 	viper.SetDefault("GORM_LOG_LEVEL", "warn")
 	viper.SetDefault("DB_DRIVER", "gorm")
@@ -173,6 +178,8 @@ func NewEnv() Env {
 	viper.BindEnv("HATCHET_CLIENT_NAMESPACE")
 	viper.BindEnv("HATCHET_CLIENT_TLS_STRATEGY")
 	viper.BindEnv("HATCHET_BILLING_SWEEP_INTERVAL")
+	viper.BindEnv("IDEMPOTENCY_LOCK_TTL")
+	viper.BindEnv("IDEMPOTENCY_RETENTION_TTL")
 	viper.BindEnv("HATCHET_LOG_LEVEL")
 	viper.BindEnv("HATCHET_TRACING_ENABLED")
 	viper.BindEnv("TEMPORAL_HOST")
@@ -207,6 +214,8 @@ func NewEnv() Env {
 		env.HatchetNamespace = viper.GetString("HATCHET_CLIENT_NAMESPACE")
 		env.HatchetTLSStrategy = viper.GetString("HATCHET_CLIENT_TLS_STRATEGY")
 		env.HatchetBillingSweepInterval = viper.GetDuration("HATCHET_BILLING_SWEEP_INTERVAL")
+		env.IdempotencyLockTTL = viper.GetDuration("IDEMPOTENCY_LOCK_TTL")
+		env.IdempotencyRetentionTTL = viper.GetDuration("IDEMPOTENCY_RETENTION_TTL")
 		env.HatchetLogLevel = viper.GetString("HATCHET_LOG_LEVEL")
 		env.HatchetTracingEnabled = viper.GetBool("HATCHET_TRACING_ENABLED")
 		env.TemporalHost = viper.GetString("TEMPORAL_HOST")
