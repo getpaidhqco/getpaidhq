@@ -4,6 +4,7 @@ package postgrespgx
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 
@@ -43,6 +44,7 @@ func pgxRepoSet(t *testing.T, dsn string) storagetest.RepoSet {
 		Session:           NewSessionRepo(pool),
 		PaymentMethod:     NewPaymentMethodRepo(pool),
 		EventStore:        NewEventStore(pool),
+		IdempotencyStore:  NewIdempotencyStore(pool, time.Minute, 24*time.Hour),
 	}
 }
 
