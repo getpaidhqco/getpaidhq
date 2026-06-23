@@ -34,6 +34,7 @@ type repoSet struct {
 	webhookSub          port.WebhookSubscriptionRepository
 	apiKey              port.ApiKeyRepository
 	idempotency         port.IdempotencyKeyRepository
+	idempotencyStore    port.IdempotencyStore
 	psp                 port.PspRepository
 	metadata            port.MetadataStoreRepository
 	dunning             port.DunningRepository
@@ -92,6 +93,7 @@ func newGormRepoSet(env lib.Env, logger lib.Logger) (*repoSet, error) {
 		webhookSub:          postgresgorm.NewWebhookSubscriptionRepo(db),
 		apiKey:              postgresgorm.NewApiKeyRepo(db),
 		idempotency:         postgresgorm.NewIdempotencyKeyRepo(db),
+		idempotencyStore:    postgresgorm.NewIdempotencyStore(db, env.IdempotencyLockTTL, env.IdempotencyRetentionTTL),
 		psp:                 postgresgorm.NewPspRepo(db),
 		metadata:            postgresgorm.NewMetadataStoreRepo(db),
 		dunning:             postgresgorm.NewDunningRepo(db),
@@ -141,6 +143,7 @@ func newPgxRepoSet(env lib.Env, logger lib.Logger) (*repoSet, error) {
 		webhookSub:          postgrespgx.NewWebhookSubscriptionRepo(pool),
 		apiKey:              postgrespgx.NewApiKeyRepo(pool),
 		idempotency:         postgrespgx.NewIdempotencyKeyRepo(pool),
+		idempotencyStore:    postgrespgx.NewIdempotencyStore(pool, env.IdempotencyLockTTL, env.IdempotencyRetentionTTL),
 		psp:                 postgrespgx.NewPspRepo(pool),
 		metadata:            postgrespgx.NewMetadataStoreRepo(pool),
 		dunning:             postgrespgx.NewDunningRepo(pool),
