@@ -23,17 +23,21 @@ build: ## Build the server binary (same as the Dockerfile)
 	go build -o $(BIN) .
 
 .PHONY: build-cli
-build-cli: ## Build the gphq CLI binary to bin/gphq
-	go build -o bin/gphq ./cmd/gphq
+build-cli: ## Build the gphq CLI binary to bin/gphq (separate cli module)
+	cd cli && go build -o ../bin/gphq ./cmd/gphq
 
 .PHONY: install-cli
-install-cli: ## go install the gphq CLI
-	go install ./cmd/gphq
+install-cli: ## go install the gphq CLI (separate cli module)
+	cd cli && go install ./cmd/gphq
 
 .PHONY: docs-cli
 docs-cli: ## Regenerate the CLI markdown reference (docs/cli/reference)
 	rm -rf docs/cli/reference && mkdir -p docs/cli/reference
-	go run ./cmd/gphq docs --dir docs/cli/reference
+	cd cli && go run ./cmd/gphq docs --dir ../docs/cli/reference
+
+.PHONY: cli-gen
+cli-gen: openapi ## Regenerate the CLI's OpenAPI client from docs/openapi.yml
+	cd cli/internal/apigen && go generate ./...
 
 .PHONY: openapi
 openapi: ## Regenerate the OpenAPI contract (docs/openapi.yml)

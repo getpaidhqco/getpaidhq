@@ -160,6 +160,14 @@ func BuildServer(deps ServerDeps, h Handlers) *fuego.Server {
 				Description: "Organization API key, sent as the `x-api-key` header. Used by the CLI and programmatic clients.",
 			}},
 		}),
+		// Describe error responses with the body the server actually returns —
+		// our ApiError {code,message,details} (see error.go / ApiErrorSerializer).
+		// Fuego otherwise defaults 4xx/5xx to its own HTTPError shape
+		// (detail/status/instance), so a generated client would decode error
+		// bodies into the wrong type and lose the message. Override the two
+		// default error codes with ApiError.
+		fuego.WithGlobalResponseTypes(400, "Bad Request _(validation or deserialization error)_", fuego.Response{Type: handler.ApiError{}}),
+		fuego.WithGlobalResponseTypes(500, "Internal Server Error _(panics)_", fuego.Response{Type: handler.ApiError{}}),
 	}
 	if deps.Validator != nil {
 		opts = append(opts, fuego.WithValidator(deps.Validator))

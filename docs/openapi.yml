@@ -21,6 +21,15 @@ components:
       - price_id
       - product_id
       type: object
+    ApiError:
+      description: ApiError schema
+      properties:
+        code:
+          type: string
+        details: {}
+        message:
+          type: string
+      type: object
     ApiKeyCreateResponse:
       description: ApiKeyCreateResponse schema
       properties:
@@ -2812,19 +2821,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -2881,19 +2890,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -2932,19 +2941,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -2982,19 +2991,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3027,19 +3036,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3078,19 +3087,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3135,19 +3144,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3192,19 +3201,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3249,19 +3258,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3318,19 +3327,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3369,19 +3378,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3419,19 +3428,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3468,19 +3477,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3524,19 +3533,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3578,19 +3587,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3634,19 +3643,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3703,19 +3712,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3754,19 +3763,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3804,19 +3813,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3854,19 +3863,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3911,19 +3920,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -3973,19 +3982,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -4023,19 +4032,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -4092,19 +4101,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -4142,19 +4151,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -4198,19 +4207,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -4272,19 +4281,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -4328,19 +4337,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -4402,19 +4411,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -4471,19 +4480,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -4522,19 +4531,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -4572,19 +4581,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -4628,19 +4637,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -4680,19 +4689,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -4725,19 +4734,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -4794,19 +4803,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -4844,19 +4853,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -4913,19 +4922,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -4964,19 +4973,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5014,19 +5023,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5060,19 +5069,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5129,19 +5138,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5180,19 +5189,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5230,19 +5239,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5287,19 +5296,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5341,19 +5350,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5393,19 +5402,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5443,19 +5452,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5495,19 +5504,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5547,19 +5556,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5616,19 +5625,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5666,19 +5675,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5718,19 +5727,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5768,19 +5777,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5817,19 +5826,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5873,19 +5882,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5942,19 +5951,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -5993,19 +6002,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -6043,19 +6052,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -6092,19 +6101,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -6148,19 +6157,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -6198,19 +6207,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -6248,19 +6257,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -6322,19 +6331,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -6378,19 +6387,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -6430,19 +6439,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -6499,19 +6508,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -6550,19 +6559,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -6605,19 +6614,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -6659,19 +6668,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -6720,19 +6729,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -6789,19 +6798,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -6839,19 +6848,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -6895,19 +6904,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -6952,19 +6961,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -7009,19 +7018,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -7083,19 +7092,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -7140,19 +7149,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -7214,19 +7223,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -7271,19 +7280,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -7321,19 +7330,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -7373,19 +7382,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -7423,19 +7432,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -7472,19 +7481,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -7528,19 +7537,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -7602,19 +7611,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -7647,19 +7656,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""
@@ -7698,19 +7707,19 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Bad Request _(validation or deserialization error)_
         "500":
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
             application/xml:
               schema:
-                $ref: '#/components/schemas/HTTPError'
+                $ref: '#/components/schemas/ApiError'
           description: Internal Server Error _(panics)_
         default:
           description: ""

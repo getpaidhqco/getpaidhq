@@ -5,12 +5,14 @@
 ## Install
 
 ```
-make install-cli     # go install ./cmd/gphq  (adds gphq to $GOPATH/bin)
+make install-cli     # go install (adds gphq to $GOPATH/bin)
 # or
 make build-cli       # writes bin/gphq in the repo
 ```
 
-Requires Go 1.26+.
+The CLI lives in its own Go module under `cli/` — it consumes the OpenAPI
+client generated from `docs/openapi.yml` (`cli/internal/apigen`, regenerate with
+`make cli-gen`) and depends on nothing in the server. Requires Go 1.26+.
 
 ## Authentication
 
