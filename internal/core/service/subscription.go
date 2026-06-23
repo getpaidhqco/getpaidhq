@@ -778,13 +778,13 @@ func (s *SubscriptionService) ChargeForBillingPeriod(ctx context.Context, curren
 		return domain.ChargeResult{}, err
 	}
 
-	chargeResult := gw.ChargePayment(ctx, domain.ChargePaymentCommand{
+	chargeResult := gw.ChargePayment(ctx, port.ChargePaymentInput{
 		OrgId:          subscription.OrgId,
 		OrderId:        subscription.OrderId,
 		SubscriptionId: subscription.Id,
 		Amount:         invoice.Total,
 		Currency:       subscription.Currency,
-		PaymentMethod: domain.GatewayPaymentMethod{
+		PaymentMethod: port.PspPaymentMethod{
 			PspId:       paymentMethod.Id,
 			Name:        paymentMethod.Name,
 			Type:        string(paymentMethod.Type),
@@ -794,7 +794,7 @@ func (s *SubscriptionService) ChargeForBillingPeriod(ctx context.Context, curren
 		Customer: customer,
 	})
 
-	if chargeResult.Status == domain.GatewayError {
+	if chargeResult.Status == port.ChargePaymentStatusGatewayError {
 		s.logger.Error("Gateway error, charge should be retried", "error", chargeResult.ErrorReason)
 		s.errorReporter.ReportError(ctx, errors.New("gateway error while charging subscription"), map[string]any{
 			"org_id":          subscription.OrgId,
@@ -813,12 +813,12 @@ func (s *SubscriptionService) ChargeForBillingPeriod(ctx context.Context, curren
 	var status domain.PaymentStatus
 	var completedAt time.Time
 	switch chargeResult.Status {
-	case domain.ChargePaymentStatusSuccess:
+	case port.ChargePaymentStatusSuccess:
 		status = domain.PaymentStatusSucceeded
 		completedAt = time.Now()
-	case domain.ChargePaymentStatusPending:
+	case port.ChargePaymentStatusPending:
 		status = domain.PaymentStatusPending
-	case domain.ChargePaymentStatusError:
+	case port.ChargePaymentStatusError:
 		status = domain.PaymentStatusFailed
 	}
 

@@ -2,7 +2,7 @@ package port
 
 import "getpaidhq/internal/core/domain"
 
-// CompleteCheckoutSessionInput is the command input for OrderWorkflowService.CompleteCheckoutSession.
+// CompleteCheckoutSessionInput is the input for OrderWorkflowService.CompleteCheckoutSession.
 type CompleteCheckoutSessionInput struct {
 	OrgId          string
 	OrderId        string

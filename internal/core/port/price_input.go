@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// CreatePriceInput is the command input for PriceService.Create.
+// CreatePriceInput is the input for PriceService.Create.
 type CreatePriceInput struct {
 	OrgId              string
 	Label              string

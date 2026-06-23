@@ -5,10 +5,10 @@ import (
 	"time"
 )
 
-// CreateOrderInput is the command input for OrderService.Create.
+// CreateOrderInput is the input for OrderService.Create.
 type CreateOrderInput struct {
 	OrgId           string
-	Customer        domain.CreateOrderCommandCustomer
+	Customer        CreateOrderInputCustomer
 	SessionId       string
 	Currency        string
 	CartItems       []domain.CartItem
@@ -19,7 +19,23 @@ type CreateOrderInput struct {
 	Options         map[string]string
 }
 
-// CompleteOrderInput is the command input for OrderService.Complete.
+// CreateOrderInputCustomer holds customer details provided when creating an order.
+type CreateOrderInputCustomer struct {
+	Id        string
+	Email     string
+	FirstName string
+	LastName  string
+	Phone     string
+	Metadata  map[string]string
+}
+
+// CreateOrderResult is the result of a successful OrderService.CreateOrder call.
+type CreateOrderResult struct {
+	Order domain.Order
+	Psp   InitPaymentResponse
+}
+
+// CompleteOrderInput is the input for OrderService.Complete.
 type CompleteOrderInput struct {
 	OrgId           string
 	Id              string

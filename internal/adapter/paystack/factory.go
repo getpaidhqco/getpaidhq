@@ -31,7 +31,7 @@ func NewPaystackFactory(
 	}
 }
 
-func (s PaystackFactory) New(ctx context.Context, orgId string) (domain.GatewayProvider, error) {
+func (s PaystackFactory) New(ctx context.Context, orgId string) (port.PaymentGateway, error) {
 
 	psp, err := s.pspRepository.FindById(ctx, orgId, string(domain.Paystack))
 	if err != nil {

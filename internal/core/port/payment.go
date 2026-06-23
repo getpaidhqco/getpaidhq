@@ -11,8 +11,8 @@ import (
 // PaymentGateway is the port for payment service provider operations.
 // Named PaymentGateway (not Gateway) to avoid collision with domain.Gateway string type.
 type PaymentGateway interface {
-	InitPayment(ctx context.Context, input InitPaymentCommand) (InitPaymentResponse, error)
-	ChargePayment(ctx context.Context, input ChargePaymentCommand) ChargePaymentResponse
+	InitPayment(ctx context.Context, input InitPaymentInput) (InitPaymentResponse, error)
+	ChargePayment(ctx context.Context, input ChargePaymentInput) ChargePaymentResponse
 }
 
 // PaymentGatewayConfig validates PSP-specific configuration.
@@ -29,7 +29,7 @@ type WebhookParser interface {
 	ParseWebhook(ctx context.Context, data []byte) (PaymentWebhookContext, error)
 }
 
-type ChargePaymentCommand struct {
+type ChargePaymentInput struct {
 	OrgId          string
 	OrderId        string
 	SubscriptionId string
@@ -40,9 +40,9 @@ type ChargePaymentCommand struct {
 	Customer       domain.Customer
 }
 
-type InitPaymentCommand struct {
+type InitPaymentInput struct {
 	OrgId    string
-	Cart     any // cart.Cart - resolved at adapter level
+	Cart     domain.Cart
 	Order    domain.Order
 	Customer domain.Customer
 	Options  map[string]string
@@ -51,10 +51,10 @@ type InitPaymentCommand struct {
 type ChargePaymentStatus string
 
 const (
-	ChargePaymentStatusSuccess ChargePaymentStatus = "Success"
-	ChargePaymentStatusPending ChargePaymentStatus = "Pending"
-	ChargePaymentStatusError   ChargePaymentStatus = "Error"
-	ChargeGatewayError         ChargePaymentStatus = "gateway_error"
+	ChargePaymentStatusSuccess      ChargePaymentStatus = "Success"
+	ChargePaymentStatusPending      ChargePaymentStatus = "Pending"
+	ChargePaymentStatusError        ChargePaymentStatus = "Error"
+	ChargePaymentStatusGatewayError ChargePaymentStatus = "gateway_error"
 )
 
 type ChargePaymentResponse struct {
@@ -151,7 +151,7 @@ func ParsePaymentWebhookContext(data any) (PaymentWebhookContext, error) {
 // "[redacted]" instead of key material. Adapters call Reveal() only when
 // constructing their PSP SDK client.
 type GatewayAdapter interface {
-	CreateGateway(config map[string]string, credentials map[string]domain.Secret) (domain.GatewayProvider, error)
+	CreateGateway(config map[string]string, credentials map[string]domain.Secret) (PaymentGateway, error)
 	CreateWebhookParser() domain.WebhookParser
 }
 

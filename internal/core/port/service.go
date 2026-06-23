@@ -39,5 +39,5 @@ type ReminderConfigResolver interface {
 
 // GatewayFactory creates payment gateway instances from configuration.
 type GatewayFactory interface {
-	NewGateway(ctx context.Context, orgId string, id string) (domain.GatewayProvider, error)
+	NewGateway(ctx context.Context, orgId string, id string) (PaymentGateway, error)
 }

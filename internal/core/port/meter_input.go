@@ -7,7 +7,7 @@ import (
 	"getpaidhq/internal/lib"
 )
 
-// CreateMeterInput is the command input for MeterService.Create. A meter (BillableMetric)
+// CreateMeterInput is the input for MeterService.Create. A meter (BillableMetric)
 // defines what usage to measure (Code, referenced by events) and how to add it up
 // (Aggregation over an event Metadata FieldName).
 type CreateMeterInput struct {

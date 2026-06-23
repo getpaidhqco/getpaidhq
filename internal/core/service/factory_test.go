@@ -12,8 +12,8 @@ import (
 	"getpaidhq/internal/core/port"
 )
 
-// stubGateway is a no-op domain.GatewayProvider.
-type stubGateway struct{ domain.GatewayProvider }
+// stubGateway is a no-op port.PaymentGateway.
+type stubGateway struct{ port.PaymentGateway }
 
 // stubWebhookParser is a no-op domain.WebhookParser.
 type stubWebhookParser struct{ domain.WebhookParser }
@@ -21,14 +21,14 @@ type stubWebhookParser struct{ domain.WebhookParser }
 // fakeGatewayAdapter records the config/credentials it was asked to build a
 // gateway from.
 type fakeGatewayAdapter struct {
-	gateway       domain.GatewayProvider
+	gateway       port.PaymentGateway
 	createErr     error
 	gotConfig     map[string]string
 	gotCreds      map[string]domain.Secret
 	webhookParser domain.WebhookParser
 }
 
-func (a *fakeGatewayAdapter) CreateGateway(config map[string]string, credentials map[string]domain.Secret) (domain.GatewayProvider, error) {
+func (a *fakeGatewayAdapter) CreateGateway(config map[string]string, credentials map[string]domain.Secret) (port.PaymentGateway, error) {
 	a.gotConfig = config
 	a.gotCreds = credentials
 	if a.createErr != nil {

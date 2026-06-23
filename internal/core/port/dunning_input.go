@@ -2,7 +2,7 @@ package port
 
 import "getpaidhq/internal/core/domain"
 
-// CreateDunningCampaignInput is the command input for DunningService.CreateCampaign.
+// CreateDunningCampaignInput is the input for DunningService.CreateCampaign.
 type CreateDunningCampaignInput struct {
 	OrgId                string
 	SubscriptionId       string
@@ -28,28 +28,28 @@ type StartDunningWorkflowInput struct {
 	Metadata             map[string]string
 }
 
-// PauseDunningCampaignInput is the command input for DunningService.PauseCampaign.
+// PauseDunningCampaignInput is the input for DunningService.PauseCampaign.
 type PauseDunningCampaignInput struct {
 	OrgId      string
 	CampaignId string
 	Reason     string
 }
 
-// ResumeDunningCampaignInput is the command input for DunningService.ResumeCampaign.
+// ResumeDunningCampaignInput is the input for DunningService.ResumeCampaign.
 type ResumeDunningCampaignInput struct {
 	OrgId      string
 	CampaignId string
 	Reason     string
 }
 
-// CancelDunningCampaignInput is the command input for DunningService.CancelCampaign.
+// CancelDunningCampaignInput is the input for DunningService.CancelCampaign.
 type CancelDunningCampaignInput struct {
 	OrgId      string
 	CampaignId string
 	Reason     string
 }
 
-// TriggerManualAttemptInput is the command input for DunningService.TriggerManualAttempt.
+// TriggerManualAttemptInput is the input for DunningService.TriggerManualAttempt.
 type TriggerManualAttemptInput struct {
 	OrgId           string
 	CampaignId      string
@@ -57,7 +57,7 @@ type TriggerManualAttemptInput struct {
 	TriggeredBy     string
 }
 
-// CreateDunningConfigurationInput is the command input for DunningService.CreateConfiguration.
+// CreateDunningConfigurationInput is the input for DunningService.CreateConfiguration.
 type CreateDunningConfigurationInput struct {
 	OrgId            string
 	Name             string
@@ -71,7 +71,7 @@ type CreateDunningConfigurationInput struct {
 	CreatedBy        string
 }
 
-// UpdateDunningConfigurationInput is the command input for DunningService.UpdateConfiguration.
+// UpdateDunningConfigurationInput is the input for DunningService.UpdateConfiguration.
 type UpdateDunningConfigurationInput struct {
 	OrgId            string
 	Id               string
@@ -86,7 +86,7 @@ type UpdateDunningConfigurationInput struct {
 	AbTestPercentage *float64
 }
 
-// CreatePaymentUpdateTokenInput is the command input for DunningService.CreatePaymentUpdateToken.
+// CreatePaymentUpdateTokenInput is the input for DunningService.CreatePaymentUpdateToken.
 type CreatePaymentUpdateTokenInput struct {
 	OrgId             string
 	SubscriptionId    string
@@ -102,7 +102,7 @@ type CreatePaymentUpdateTokenInput struct {
 	CreatedBy         string
 }
 
-// ActivatePaymentUpdateTokenInput is the command input for DunningService.ActivatePaymentUpdateToken.
+// ActivatePaymentUpdateTokenInput is the input for DunningService.ActivatePaymentUpdateToken.
 type ActivatePaymentUpdateTokenInput struct {
 	OrgId   string
 	TokenId string

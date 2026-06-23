@@ -1,6 +1,6 @@
 package port
 
-// CreateProductInput is the command input for ProductService.Create.
+// CreateProductInput is the input for ProductService.Create.
 type CreateProductInput struct {
 	Name        string
 	Description string
@@ -8,7 +8,7 @@ type CreateProductInput struct {
 	Variants    []CreateProductVariantInput
 }
 
-// UpdateProductInput is the command input for ProductService.Update.
+// UpdateProductInput is the input for ProductService.Update.
 type UpdateProductInput struct {
 	Name        string
 	Description string

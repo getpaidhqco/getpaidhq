@@ -1,6 +1,6 @@
 package port
 
-// CreateSessionInput is the command input for SessionService.Create.
+// CreateSessionInput is the input for SessionService.Create.
 type CreateSessionInput struct {
 	OrgId    string
 	Currency string

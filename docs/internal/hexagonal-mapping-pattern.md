@@ -27,7 +27,7 @@ in this repo is wrong and should be fixed.
 │                                                                          │
 │  internal/core/service/   ─ APPLICATION layer                            │
 │                            • Application services (use cases)            │
-│                            • Command/Query INPUT types                   │
+│                            • Operation/query input types                 │
 │                            • Read Models (composed query results)        │
 │                                                                          │
 │  internal/core/domain/    ─ DOMAIN layer                                 │
@@ -47,7 +47,7 @@ in this repo is wrong and should be fixed.
 | Domain service | `internal/core/domain/` | none | pure functions or methods that encode business rules |
 | Domain event | `internal/core/domain/` | none | `OrderCompletedEvent` |
 | Port interface (inbound & outbound) | `internal/core/port/` | none | `port.SubscriptionService`, `port.SubscriptionRepository`, `port.Engine` |
-| Command / Query Input (parameter of a port method) | `internal/core/port/` | none | `port.CreateSubscriptionInput` |
+| Operation/query input (parameter of a port method) | `internal/core/port/` | none | `port.CreateSubscriptionInput` |
 | **Read Model** (composed query result) | `internal/core/service/` | none | `service.OrderDetails`, `service.SubscriptionDetails` |
 | HTTP Request DTO | `internal/adapter/http/` | `json:""`, `validate:""` | `CreateSubscriptionRequest` |
 | HTTP Response DTO | `internal/adapter/http/` | `json:""` | `SubscriptionResponse` |
@@ -65,7 +65,7 @@ in this repo is wrong and should be fixed.
 3. **No wire-format concerns.** No JSON field naming, no `omitempty`
    considerations.
 
-4. **No command/input types.** A `CreateSubscriptionInput` is a parameter of
+4. **No operation input types.** A `CreateSubscriptionInput` is a parameter of
    a port method — it lives in `internal/core/port/` with the interface it
    serves, not in `domain/`.
 
