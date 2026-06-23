@@ -88,7 +88,7 @@ type CreateOrderRequest struct {
 
 	// CouponCode reserves a coupon's capacity for this order; an exhausted or
 	// otherwise refused code fails the order.
-	CouponCode string            `json:"coupon_code"`
+	CouponCode string            `json:"coupon_code,omitempty"`
 	Metadata   map[string]string `json:"metadata"`
 	Options    map[string]string `json:"options"`
 }
