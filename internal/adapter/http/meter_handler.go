@@ -21,9 +21,9 @@ func NewMeterHandler(meterService *service.MeterService, logger port.Logger, aut
 
 func (h *MeterHandler) RegisterRoutes(srv *fuego.Server) {
 	g := fuego.Group(srv, "/meters", option.Tags("Meters"))
-	fuego.Post(g, "", h.Create, option.Summary("Create a meter"))
-	fuego.Get(g, "", h.List, append(PaginationParams(), option.Summary("List meters"))...)
-	fuego.Get(g, "/{id}", h.Get, option.Summary("Get a meter"))
+	fuego.Post(g, "", h.Create, option.Summary("Create a meter"), option.OperationID("createMeter"))
+	fuego.Get(g, "", h.List, append(PaginationParams(), option.Summary("List meters"), option.OperationID("listMeters"))...)
+	fuego.Get(g, "/{id}", h.Get, option.Summary("Get a meter"), option.OperationID("getMeter"))
 }
 
 func (h *MeterHandler) Create(c fuego.ContextWithBody[CreateMeterRequest]) (MeterResponse, error) {

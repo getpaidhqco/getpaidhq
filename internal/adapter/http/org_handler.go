@@ -19,7 +19,7 @@ func NewOrgHandler(service *service.OrgService, logger port.Logger) *OrgHandler 
 
 func (u *OrgHandler) RegisterRoutes(s *fuego.Server) {
 	g := fuego.Group(s, "/organizations", option.Tags("Organizations"))
-	fuego.Post(g, "", u.Create, option.Summary("Create an organization"))
+	fuego.Post(g, "", u.Create, option.Summary("Create an organization"), option.OperationID("createOrganization"))
 }
 
 func (u *OrgHandler) Create(c fuego.ContextWithBody[CreateOrgRequest]) (OrgResponse, error) {

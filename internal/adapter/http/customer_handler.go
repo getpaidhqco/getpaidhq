@@ -25,11 +25,11 @@ func NewCustomerHandler(customerService *service.CustomerService, logger port.Lo
 
 func (cc *CustomerHandler) RegisterRoutes(s *fuego.Server) {
 	g := fuego.Group(s, "/customers", option.Tags("Customers"))
-	fuego.Get(g, "", cc.List, append(PaginationParams(), option.Summary("List customers"))...)
-	fuego.Get(g, "/{id}", cc.Get, option.Summary("Get a customer"))
-	fuego.Post(g, "", cc.Create, option.Summary("Create a customer"))
-	fuego.Post(g, "/{id}/payment-methods", cc.CreateCustomerPaymentMethod, option.Summary("Add a payment method to a customer"))
-	fuego.Put(g, "/{id}/payment-methods/{pmid}", cc.UpdateCustomerPaymentMethod, option.Summary("Update a customer's payment method"))
+	fuego.Get(g, "", cc.List, append(PaginationParams(), option.Summary("List customers"), option.OperationID("listCustomers"))...)
+	fuego.Get(g, "/{id}", cc.Get, option.Summary("Get a customer"), option.OperationID("getCustomer"))
+	fuego.Post(g, "", cc.Create, option.Summary("Create a customer"), option.OperationID("createCustomer"))
+	fuego.Post(g, "/{id}/payment-methods", cc.CreateCustomerPaymentMethod, option.Summary("Add a payment method to a customer"), option.OperationID("createCustomerPaymentMethod"))
+	fuego.Put(g, "/{id}/payment-methods/{pmid}", cc.UpdateCustomerPaymentMethod, option.Summary("Update a customer's payment method"), option.OperationID("updateCustomerPaymentMethod"))
 }
 
 func (cc *CustomerHandler) Create(c fuego.ContextWithBody[port.CreateCustomerInput]) (CustomerResponse, error) {

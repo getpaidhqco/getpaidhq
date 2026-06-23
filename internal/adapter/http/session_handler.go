@@ -20,7 +20,7 @@ func NewSessionHandler(sessionService *service.SessionService, logger port.Logge
 
 func (s *SessionHandler) RegisterRoutes(srv *fuego.Server) {
 	g := fuego.Group(srv, "/sessions", option.Tags("Sessions"))
-	fuego.Post(g, "", s.Create, option.Summary("Create a session"))
+	fuego.Post(g, "", s.Create, option.Summary("Create a session"), option.OperationID("createSession"))
 }
 
 func (s *SessionHandler) Create(c fuego.ContextWithBody[CreateSessionRequest]) (CreateSessionResponse, error) {

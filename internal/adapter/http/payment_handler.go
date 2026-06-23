@@ -23,8 +23,8 @@ func NewPaymentHandler(paymentService *service.PaymentService, logger port.Logge
 
 func (h *PaymentHandler) RegisterRoutes(srv *fuego.Server) {
 	g := fuego.Group(srv, "/payments", option.Tags("Payments"))
-	fuego.Get(g, "", h.List, append(PaginationParams(), option.Summary("List payments"))...)
-	fuego.Get(g, "/{id}", h.Get, option.Summary("Get a payment"))
+	fuego.Get(g, "", h.List, append(PaginationParams(), option.Summary("List payments"), option.OperationID("listPayments"))...)
+	fuego.Get(g, "/{id}", h.Get, option.Summary("Get a payment"), option.OperationID("getPayment"))
 	// Per-subscription payments are served by SubscriptionHandler
 	// (GET /subscriptions/{id}/payments) — not duplicated here.
 }

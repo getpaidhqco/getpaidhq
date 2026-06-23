@@ -21,8 +21,8 @@ func NewCartHandler(cartService *service.CartService, logger port.Logger, authz 
 
 func (o *CartHandler) RegisterRoutes(s *fuego.Server) {
 	g := fuego.Group(s, "/carts", option.Tags("Carts"))
-	fuego.Post(g, "/{id}/add", o.AddProduct, option.Summary("Add a product to a cart"))
-	fuego.Post(g, "/{id}/remove", o.RemoveItem, option.Summary("Remove an item from a cart"))
+	fuego.Post(g, "/{id}/add", o.AddProduct, option.Summary("Add a product to a cart"), option.OperationID("addProductToCart"))
+	fuego.Post(g, "/{id}/remove", o.RemoveItem, option.Summary("Remove an item from a cart"), option.OperationID("removeItemFromCart"))
 }
 
 func (o *CartHandler) AddProduct(c fuego.ContextWithBody[AddItemRequest]) (CartResponse, error) {

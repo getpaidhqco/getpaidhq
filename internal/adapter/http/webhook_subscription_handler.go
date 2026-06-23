@@ -28,8 +28,8 @@ func NewWebhookSubscriptionHandler(
 
 func (s *WebhookSubscriptionHandler) RegisterRoutes(srv *fuego.Server) {
 	g := fuego.Group(srv, "/webhooks", option.Tags("Webhook Subscriptions"))
-	fuego.Post(g, "", s.Create, option.Summary("Create a webhook subscription"))
-	fuego.Get(g, "", s.List, option.Summary("List webhook subscriptions"))
+	fuego.Post(g, "", s.Create, option.Summary("Create a webhook subscription"), option.OperationID("createWebhookSubscription"))
+	fuego.Get(g, "", s.List, option.Summary("List webhook subscriptions"), option.OperationID("listWebhookSubscriptions"))
 }
 
 func (s *WebhookSubscriptionHandler) Create(c fuego.ContextWithBody[CreateWebhookSubscriptionRequest]) (any, error) {

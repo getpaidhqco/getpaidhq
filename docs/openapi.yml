@@ -2764,7 +2764,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*DunningHandler).CreatePaymentToken`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/admin/subscriptions/:id/payment-tokens
+      operationId: createPaymentToken
       parameters:
       - in: header
         name: Accept
@@ -2821,7 +2821,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ApiKeyHandler).List`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/api-keys
+      operationId: listApiKeys
       parameters:
       - description: Page number (0-based)
         in: query
@@ -2889,7 +2889,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ApiKeyHandler).Create`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/api-keys
+      operationId: createApiKey
       parameters:
       - in: header
         name: Accept
@@ -2941,7 +2941,7 @@ paths:
     delete:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ApiKeyHandler).Delete`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: DELETE_/api/api-keys/:id
+      operationId: deleteApiKey
       parameters:
       - in: header
         name: Accept
@@ -2991,7 +2991,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ReminderConfigHandler).Get`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/billing/reminder-config
+      operationId: getReminderConfig
       parameters:
       - in: header
         name: Accept
@@ -3035,7 +3035,7 @@ paths:
     put:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ReminderConfigHandler).Put`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: PUT_/api/billing/reminder-config
+      operationId: updateReminderConfig
       parameters:
       - in: header
         name: Accept
@@ -3087,7 +3087,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*CartHandler).AddProduct`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/carts/:id/add
+      operationId: addProductToCart
       parameters:
       - in: header
         name: Accept
@@ -3144,7 +3144,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*CartHandler).RemoveItem`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/carts/:id/remove
+      operationId: removeItemFromCart
       parameters:
       - in: header
         name: Accept
@@ -3201,7 +3201,7 @@ paths:
     patch:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*CouponHandler).UpdateCode`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: PATCH_/api/coupon-codes/:id
+      operationId: updateCouponCode
       parameters:
       - in: header
         name: Accept
@@ -3258,7 +3258,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*CouponHandler).List`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/coupons
+      operationId: listCoupons
       parameters:
       - description: Page number (0-based)
         in: query
@@ -3326,7 +3326,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*CouponHandler).Create`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/coupons
+      operationId: createCoupon
       parameters:
       - in: header
         name: Accept
@@ -3378,7 +3378,7 @@ paths:
     delete:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*CouponHandler).Delete`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: DELETE_/api/coupons/:id
+      operationId: deleteCoupon
       parameters:
       - in: header
         name: Accept
@@ -3427,7 +3427,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*CouponHandler).Get`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/coupons/:id
+      operationId: getCoupon
       parameters:
       - in: header
         name: Accept
@@ -3476,7 +3476,7 @@ paths:
     patch:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*CouponHandler).Update`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: PATCH_/api/coupons/:id
+      operationId: updateCoupon
       parameters:
       - in: header
         name: Accept
@@ -3533,7 +3533,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*CouponHandler).ListCodes`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/coupons/:id/codes
+      operationId: listCouponCodes
       parameters:
       - in: header
         name: Accept
@@ -3586,7 +3586,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*CouponHandler).CreateCode`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/coupons/:id/codes
+      operationId: createCouponCode
       parameters:
       - in: header
         name: Accept
@@ -3643,7 +3643,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*CustomerHandler).List`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/customers
+      operationId: listCustomers
       parameters:
       - description: Page number (0-based)
         in: query
@@ -3711,7 +3711,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*CustomerHandler).Create`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/customers
+      operationId: createCustomer
       parameters:
       - in: header
         name: Accept
@@ -3763,7 +3763,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*CustomerHandler).Get`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/customers/:id
+      operationId: getCustomer
       parameters:
       - in: header
         name: Accept
@@ -3813,7 +3813,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*DunningHandler).GetCustomerDunningHistory`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/customers/:id/dunning-history
+      operationId: getCustomerDunningHistory
       parameters:
       - in: header
         name: Accept
@@ -3863,7 +3863,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*CustomerHandler).CreateCustomerPaymentMethod`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/customers/:id/payment-methods
+      operationId: createCustomerPaymentMethod
       parameters:
       - in: header
         name: Accept
@@ -3920,7 +3920,7 @@ paths:
     put:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*CustomerHandler).UpdateCustomerPaymentMethod`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: PUT_/api/customers/:id/payment-methods/:pmid
+      operationId: updateCustomerPaymentMethod
       parameters:
       - in: header
         name: Accept
@@ -3982,7 +3982,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*CouponHandler).GetDiscount`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/discounts/:id
+      operationId: getDiscount
       parameters:
       - in: header
         name: Accept
@@ -4032,7 +4032,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*DunningHandler).ListCampaigns`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/dunning/campaigns
+      operationId: listDunningCampaigns
       parameters:
       - description: Page number (0-based)
         in: query
@@ -4101,7 +4101,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*DunningHandler).GetCampaign`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/dunning/campaigns/:id
+      operationId: getDunningCampaign
       parameters:
       - in: header
         name: Accept
@@ -4150,7 +4150,7 @@ paths:
     patch:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*DunningHandler).UpdateCampaign`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: PATCH_/api/dunning/campaigns/:id
+      operationId: updateDunningCampaign
       parameters:
       - in: header
         name: Accept
@@ -4207,7 +4207,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*DunningHandler).ListCampaignAttempts`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/dunning/campaigns/:id/attempts
+      operationId: listDunningCampaignAttempts
       parameters:
       - description: Page number (0-based)
         in: query
@@ -4280,7 +4280,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*DunningHandler).TriggerManualAttempt`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/dunning/campaigns/:id/attempts
+      operationId: triggerDunningManualAttempt
       parameters:
       - in: header
         name: Accept
@@ -4337,7 +4337,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*DunningHandler).ListCampaignCommunications`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/dunning/campaigns/:id/communications
+      operationId: listDunningCampaignCommunications
       parameters:
       - description: Page number (0-based)
         in: query
@@ -4411,7 +4411,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*DunningHandler).ListConfigurations`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/dunning/configurations
+      operationId: listDunningConfigurations
       parameters:
       - description: Page number (0-based)
         in: query
@@ -4479,7 +4479,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*DunningHandler).CreateConfiguration`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/dunning/configurations
+      operationId: createDunningConfiguration
       parameters:
       - in: header
         name: Accept
@@ -4531,7 +4531,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*DunningHandler).GetConfiguration`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/dunning/configurations/:id
+      operationId: getDunningConfiguration
       parameters:
       - in: header
         name: Accept
@@ -4580,7 +4580,7 @@ paths:
     patch:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*DunningHandler).UpdateConfiguration`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: PATCH_/api/dunning/configurations/:id
+      operationId: updateDunningConfiguration
       parameters:
       - in: header
         name: Accept
@@ -4637,7 +4637,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*PspHandler).Create`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/gateways
+      operationId: createGateway
       parameters:
       - in: header
         name: Accept
@@ -4689,7 +4689,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*HealthHandler).Healthcheck`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/health
+      operationId: getHealth
       parameters:
       - in: header
         name: Accept
@@ -4733,7 +4733,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*InvoiceHandler).List`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/invoices
+      operationId: listInvoices
       parameters:
       - description: Page number (0-based)
         in: query
@@ -4802,7 +4802,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*InvoiceHandler).Get`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/invoices/:id
+      operationId: getInvoice
       parameters:
       - in: header
         name: Accept
@@ -4852,7 +4852,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*MeterHandler).List`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/meters
+      operationId: listMeters
       parameters:
       - description: Page number (0-based)
         in: query
@@ -4920,7 +4920,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*MeterHandler).Create`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/meters
+      operationId: createMeter
       parameters:
       - in: header
         name: Accept
@@ -4972,7 +4972,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*MeterHandler).Get`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/meters/:id
+      operationId: getMeter
       parameters:
       - in: header
         name: Accept
@@ -5022,7 +5022,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*WebhookHandler).Process`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/notify
+      operationId: receiveWebhook
       parameters:
       - description: PSP identifier
         in: query
@@ -5067,7 +5067,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*OrderHandler).List`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/orders
+      operationId: listOrders
       parameters:
       - description: Page number (0-based)
         in: query
@@ -5135,7 +5135,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*OrderHandler).CreateOrder`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/orders
+      operationId: createOrder
       parameters:
       - in: header
         name: Accept
@@ -5187,7 +5187,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*OrderHandler).Get`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/orders/:id
+      operationId: getOrder
       parameters:
       - in: header
         name: Accept
@@ -5237,7 +5237,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*OrderHandler).CompleteOrder`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/orders/:id/complete
+      operationId: completeOrder
       parameters:
       - in: header
         name: Accept
@@ -5294,7 +5294,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*OrderHandler).ListSubscriptions`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/orders/:id/subscriptions
+      operationId: listOrderSubscriptions
       parameters:
       - in: header
         name: Accept
@@ -5348,7 +5348,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*OrgHandler).Create`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/organizations
+      operationId: createOrganization
       parameters:
       - in: header
         name: Accept
@@ -5400,7 +5400,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*PaymentMethodHandler).Get`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/payment-methods/:id
+      operationId: getPaymentMethod
       parameters:
       - in: header
         name: Accept
@@ -5450,7 +5450,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*DunningHandler).ActivatePaymentToken`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/payment-tokens/activate
+      operationId: activatePaymentToken
       parameters:
       - in: header
         name: Accept
@@ -5502,7 +5502,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*DunningHandler).VerifyPaymentToken`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/payment-tokens/verify
+      operationId: verifyPaymentToken
       parameters:
       - in: header
         name: Accept
@@ -5554,7 +5554,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*PaymentHandler).List`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/payments
+      operationId: listPayments
       parameters:
       - description: Page number (0-based)
         in: query
@@ -5623,7 +5623,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*PaymentHandler).Get`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/payments/:id
+      operationId: getPayment
       parameters:
       - in: header
         name: Accept
@@ -5673,7 +5673,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ProductHandler).CreatePrice`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/prices
+      operationId: createPrice
       parameters:
       - in: header
         name: Accept
@@ -5725,7 +5725,7 @@ paths:
     delete:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ProductHandler).DeletePrice`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: DELETE_/api/prices/:priceId
+      operationId: deletePrice
       parameters:
       - in: header
         name: Accept
@@ -5774,7 +5774,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ProductHandler).GetPrice`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/prices/:priceId
+      operationId: getPrice
       parameters:
       - in: header
         name: Accept
@@ -5823,7 +5823,7 @@ paths:
     patch:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ProductHandler).UpdatePrice`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: PATCH_/api/prices/:priceId
+      operationId: updatePrice
       parameters:
       - in: header
         name: Accept
@@ -5880,7 +5880,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ProductHandler).List`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/products
+      operationId: listProducts
       parameters:
       - description: Page number (0-based)
         in: query
@@ -5948,7 +5948,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ProductHandler).Create`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/products
+      operationId: createProduct
       parameters:
       - in: header
         name: Accept
@@ -6000,7 +6000,7 @@ paths:
     delete:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ProductHandler).Delete`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: DELETE_/api/products/:id
+      operationId: deleteProduct
       parameters:
       - in: header
         name: Accept
@@ -6049,7 +6049,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ProductHandler).Get`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/products/:id
+      operationId: getProduct
       parameters:
       - in: header
         name: Accept
@@ -6098,7 +6098,7 @@ paths:
     patch:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ProductHandler).Update`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: PATCH_/api/products/:id
+      operationId: updateProduct
       parameters:
       - in: header
         name: Accept
@@ -6155,7 +6155,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ProductHandler).Archive`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/products/:id/archive
+      operationId: archiveProduct
       parameters:
       - in: header
         name: Accept
@@ -6205,7 +6205,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ProductHandler).Unarchive`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/products/:id/unarchive
+      operationId: unarchiveProduct
       parameters:
       - in: header
         name: Accept
@@ -6255,7 +6255,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ProductHandler).ListVariants`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/products/:id/variants
+      operationId: listProductVariants
       parameters:
       - description: Page number (0-based)
         in: query
@@ -6328,7 +6328,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ProductHandler).CreateVariant`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/products/:id/variants
+      operationId: createProductVariant
       parameters:
       - in: header
         name: Accept
@@ -6385,7 +6385,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*SessionHandler).Create`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/sessions
+      operationId: createSession
       parameters:
       - in: header
         name: Accept
@@ -6437,7 +6437,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*SettingHandler).List`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/settings
+      operationId: listSettings
       parameters:
       - description: Page number (0-based)
         in: query
@@ -6505,7 +6505,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*SettingHandler).Create`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/settings
+      operationId: createSetting
       parameters:
       - in: header
         name: Accept
@@ -6557,7 +6557,7 @@ paths:
     delete:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*SettingHandler).Delete`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: DELETE_/api/settings/:parentId/:id
+      operationId: deleteSetting
       parameters:
       - in: header
         name: Accept
@@ -6611,7 +6611,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*SettingHandler).Get`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/settings/:parentId/:id
+      operationId: getSetting
       parameters:
       - in: header
         name: Accept
@@ -6665,7 +6665,7 @@ paths:
     put:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*SettingHandler).Update`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: PUT_/api/settings/:parentId/:id
+      operationId: updateSetting
       parameters:
       - in: header
         name: Accept
@@ -6727,7 +6727,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*SubscriptionHandler).List`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/subscriptions
+      operationId: listSubscriptions
       parameters:
       - description: Page number (0-based)
         in: query
@@ -6796,7 +6796,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*SubscriptionHandler).Get`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/subscriptions/:id
+      operationId: getSubscription
       parameters:
       - in: header
         name: Accept
@@ -6845,7 +6845,7 @@ paths:
     patch:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*SubscriptionHandler).Update`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: PATCH_/api/subscriptions/:id
+      operationId: updateSubscription
       parameters:
       - in: header
         name: Accept
@@ -6902,7 +6902,7 @@ paths:
     patch:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*SubscriptionHandler).UpdateBillingAnchor`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: PATCH_/api/subscriptions/:id/billing-anchor
+      operationId: updateSubscriptionBillingAnchor
       parameters:
       - in: header
         name: Accept
@@ -6959,7 +6959,7 @@ paths:
     put:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*SubscriptionHandler).Cancel`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: PUT_/api/subscriptions/:id/cancel
+      operationId: cancelSubscription
       parameters:
       - in: header
         name: Accept
@@ -7016,7 +7016,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*InvoiceHandler).ListBySubscription`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/subscriptions/:id/invoices
+      operationId: listSubscriptionInvoices
       parameters:
       - description: Page number (0-based)
         in: query
@@ -7090,7 +7090,7 @@ paths:
     put:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*SubscriptionHandler).Pause`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: PUT_/api/subscriptions/:id/pause
+      operationId: pauseSubscription
       parameters:
       - in: header
         name: Accept
@@ -7147,7 +7147,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*SubscriptionHandler).ListPayments`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/subscriptions/:id/payments
+      operationId: listSubscriptionPayments
       parameters:
       - description: Page number (0-based)
         in: query
@@ -7221,7 +7221,7 @@ paths:
     put:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*SubscriptionHandler).Resume`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: PUT_/api/subscriptions/:id/resume
+      operationId: resumeSubscription
       parameters:
       - in: header
         name: Accept
@@ -7278,7 +7278,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*UsageHandler).SubscriptionUsage`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/subscriptions/:id/usage
+      operationId: getSubscriptionUsage
       parameters:
       - in: header
         name: Accept
@@ -7328,7 +7328,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*UsageHandler).Ingest`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/usage/ingest
+      operationId: ingestUsageEvents
       parameters:
       - in: header
         name: Accept
@@ -7380,7 +7380,7 @@ paths:
     delete:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ProductHandler).DeleteVariant`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: DELETE_/api/variants/:variantId
+      operationId: deleteVariant
       parameters:
       - in: header
         name: Accept
@@ -7429,7 +7429,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ProductHandler).GetVariant`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/variants/:variantId
+      operationId: getVariant
       parameters:
       - in: header
         name: Accept
@@ -7478,7 +7478,7 @@ paths:
     put:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ProductHandler).UpdateVariant`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: PUT_/api/variants/:variantId
+      operationId: updateVariant
       parameters:
       - in: header
         name: Accept
@@ -7535,7 +7535,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*ProductHandler).ListPrices`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/variants/:variantId/prices
+      operationId: listVariantPrices
       parameters:
       - description: Page number (0-based)
         in: query
@@ -7609,7 +7609,7 @@ paths:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*WebhookSubscriptionHandler).List`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: GET_/api/webhooks
+      operationId: listWebhookSubscriptions
       parameters:
       - in: header
         name: Accept
@@ -7653,7 +7653,7 @@ paths:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*WebhookSubscriptionHandler).Create`\n\n####
         Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
-      operationId: POST_/api/webhooks
+      operationId: createWebhookSubscription
       parameters:
       - in: header
         name: Accept

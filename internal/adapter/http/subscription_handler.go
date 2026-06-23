@@ -33,14 +33,14 @@ func NewSubscriptionHandler(
 
 func (s *SubscriptionHandler) RegisterRoutes(srv *fuego.Server) {
 	g := fuego.Group(srv, "/subscriptions", option.Tags("Subscriptions"))
-	fuego.Get(g, "", s.List, append(PaginationParams(), option.Summary("List subscriptions"))...)
-	fuego.Get(g, "/{id}", s.Get, option.Summary("Get a subscription"))
-	fuego.Get(g, "/{id}/payments", s.ListPayments, append(PaginationParams(), option.Summary("List subscription payments"))...)
-	fuego.Put(g, "/{id}/pause", s.Pause, option.Summary("Pause a subscription"))
-	fuego.Put(g, "/{id}/cancel", s.Cancel, option.Summary("Cancel a subscription"))
-	fuego.Put(g, "/{id}/resume", s.Resume, option.Summary("Resume a subscription"))
-	fuego.Patch(g, "/{id}/billing-anchor", s.UpdateBillingAnchor, option.Summary("Update subscription billing anchor"))
-	fuego.Patch(g, "/{id}", s.Update, option.Summary("Update subscription metadata"))
+	fuego.Get(g, "", s.List, append(PaginationParams(), option.Summary("List subscriptions"), option.OperationID("listSubscriptions"))...)
+	fuego.Get(g, "/{id}", s.Get, option.Summary("Get a subscription"), option.OperationID("getSubscription"))
+	fuego.Get(g, "/{id}/payments", s.ListPayments, append(PaginationParams(), option.Summary("List subscription payments"), option.OperationID("listSubscriptionPayments"))...)
+	fuego.Put(g, "/{id}/pause", s.Pause, option.Summary("Pause a subscription"), option.OperationID("pauseSubscription"))
+	fuego.Put(g, "/{id}/cancel", s.Cancel, option.Summary("Cancel a subscription"), option.OperationID("cancelSubscription"))
+	fuego.Put(g, "/{id}/resume", s.Resume, option.Summary("Resume a subscription"), option.OperationID("resumeSubscription"))
+	fuego.Patch(g, "/{id}/billing-anchor", s.UpdateBillingAnchor, option.Summary("Update subscription billing anchor"), option.OperationID("updateSubscriptionBillingAnchor"))
+	fuego.Patch(g, "/{id}", s.Update, option.Summary("Update subscription metadata"), option.OperationID("updateSubscription"))
 }
 
 // denied returns the standard 403 envelope.
