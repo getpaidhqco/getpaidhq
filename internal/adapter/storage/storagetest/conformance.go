@@ -241,6 +241,39 @@ func testCartOrderItem(t *testing.T, ctx context.Context, rs RepoSet) {
 	require.NoError(t, err)
 	require.Len(t, items, 1)
 	assert.Equal(t, price.Id, items[0].PriceId)
+
+	// PaymentSession round-trip: the seeded order had none, so it reads back nil.
+	assert.Nil(t, got.PaymentSession, "order with no payment session reads back nil")
+
+	// An order created with a PSP session payload round-trips (back as map[string]any).
+	withSession := domain.Order{
+		OrgId: orgId, Id: lib.GenerateId("ord"), CustomerId: cust.Id, CartId: order.CartId,
+		Reference: "REF-" + lib.GenerateId("r"), Status: domain.OrderStatusPending, Currency: "USD",
+		Total: 1999, Metadata: map[string]string{}, CreatedAt: now(), UpdatedAt: now(),
+		PaymentSession: map[string]any{"reference": "ps_123", "url": "https://pay/x"},
+	}
+	_, err = rs.Order.Create(ctx, withSession)
+	require.NoError(t, err)
+
+	gotSession, err := rs.Order.FindById(ctx, orgId, withSession.Id)
+	require.NoError(t, err)
+	ps, ok := gotSession.PaymentSession.(map[string]any)
+	require.True(t, ok, "payment_session round-trips as map[string]any, got %T", gotSession.PaymentSession)
+	assert.Equal(t, "ps_123", ps["reference"])
+	assert.Equal(t, "https://pay/x", ps["url"])
+
+	// The production flow attaches a session via Update (order created without one,
+	// then /orders/{id}/pay stamps it). Round-trip that too.
+	pending := seedOrder(t, ctx, rs, orgId, cust.Id)
+	pending.PaymentSession = map[string]any{"reference": "ps_456", "url": "https://pay/y"}
+	_, err = rs.Order.Update(ctx, pending)
+	require.NoError(t, err)
+	updated, err := rs.Order.FindById(ctx, orgId, pending.Id)
+	require.NoError(t, err)
+	ups, ok := updated.PaymentSession.(map[string]any)
+	require.True(t, ok, "updated payment_session round-trips as map[string]any, got %T", updated.PaymentSession)
+	assert.Equal(t, "ps_456", ups["reference"])
+	assert.Equal(t, "https://pay/y", ups["url"])
 }
 
 func newSubscription(orgId, customerId, orderId string) domain.Subscription {

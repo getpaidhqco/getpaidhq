@@ -18,8 +18,11 @@ type Order struct {
 	Currency   string
 	Total      int64
 	Metadata   map[string]string
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	// PaymentSession is the PSP session payload (arbitrary shape); nil when no
+	// session has been initialized yet. Stored as a nullable JSONB column.
+	PaymentSession any
+	CreatedAt      time.Time
+	UpdatedAt      time.Time
 }
 
 // SetMetadata merges the existing metadata with the specified values.
