@@ -2,16 +2,16 @@ package port
 
 import "getpaidhq/internal/core/domain"
 
-// AddItemInput is the command input for adding a product to a cart.
+// AddItemInput is the input for adding a product to a cart.
 type AddItemInput struct {
 	ProductId string
 	PriceId   string
 	Quantity  int
 }
 
-// AddProductCommand drives CartService.AddProduct. orgId / cartId are sourced
+// AddProductInput drives CartService.AddProduct. orgId / cartId are sourced
 // from the authenticated context at the HTTP boundary.
-type AddProductCommand struct {
+type AddProductInput struct {
 	OrgId     string
 	CartId    string
 	ProductId string
@@ -19,15 +19,15 @@ type AddProductCommand struct {
 	Quantity  int
 }
 
-// RemoveItemCommand drives CartService.RemoveItem.
-type RemoveItemCommand struct {
+// RemoveItemInput drives CartService.RemoveItem.
+type RemoveItemInput struct {
 	OrgId  string
 	CartId string
 	Id     string
 }
 
-// AdjustCommand drives CartService.Adjust.
-type AdjustCommand struct {
+// AdjustItemInput drives CartService.Adjust.
+type AdjustItemInput struct {
 	OrgId     string
 	CartId    string
 	ProductId string

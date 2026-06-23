@@ -31,7 +31,7 @@ type recordingAdapter struct {
 	gotCreds  map[string]domain.Secret
 }
 
-func (a *recordingAdapter) CreateGateway(config map[string]string, creds map[string]domain.Secret) (domain.GatewayProvider, error) {
+func (a *recordingAdapter) CreateGateway(config map[string]string, creds map[string]domain.Secret) (port.PaymentGateway, error) {
 	a.gotConfig, a.gotCreds = config, creds
 	return nil, nil
 }

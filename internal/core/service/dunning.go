@@ -305,13 +305,13 @@ func (s *DunningService) runChargeAttempt(ctx context.Context, orgId, campaignId
 	}
 
 	startedAt := time.Now().UTC()
-	chargeResult := gw.ChargePayment(ctx, domain.ChargePaymentCommand{
+	chargeResult := gw.ChargePayment(ctx, port.ChargePaymentInput{
 		OrgId:          orgId,
 		OrderId:        subscription.OrderId,
 		SubscriptionId: subscription.Id,
 		Amount:         campaign.FailedAmount,
 		Currency:       campaign.Currency,
-		PaymentMethod: domain.GatewayPaymentMethod{
+		PaymentMethod: port.PspPaymentMethod{
 			PspId:       paymentMethod.Id,
 			Name:        paymentMethod.Name,
 			Type:        string(paymentMethod.Type),
@@ -324,13 +324,13 @@ func (s *DunningService) runChargeAttempt(ctx context.Context, orgId, campaignId
 
 	status := domain.PaymentStatusFailed
 	switch chargeResult.Status {
-	case domain.ChargePaymentStatusSuccess:
+	case port.ChargePaymentStatusSuccess:
 		status = domain.PaymentStatusSucceeded
-	case domain.ChargePaymentStatusPending:
+	case port.ChargePaymentStatusPending:
 		status = domain.PaymentStatusPending
-	case domain.ChargePaymentStatusError:
+	case port.ChargePaymentStatusError:
 		status = domain.PaymentStatusFailed
-	case domain.GatewayError:
+	case port.ChargePaymentStatusGatewayError:
 		status = domain.PaymentStatusFailed
 	}
 

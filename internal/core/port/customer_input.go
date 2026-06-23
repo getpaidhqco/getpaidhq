@@ -2,7 +2,7 @@ package port
 
 import "getpaidhq/internal/core/domain"
 
-// CreateCustomerInput is the command input for CustomerService.Create.
+// CreateCustomerInput is the input for CustomerService.Create.
 //
 // JSON tags are load-bearing: fuego derives the request body's OpenAPI schema from
 // them, and the request decoder matches incoming keys against them. Without tags the

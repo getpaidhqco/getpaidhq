@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// CreateSubscriptionInput is the command input for SubscriptionService.Create.
+// CreateSubscriptionInput is the input for SubscriptionService.Create.
 type CreateSubscriptionInput struct {
 	OrgId              string
 	PaymentMethodId    string
@@ -64,7 +64,7 @@ func (input CreateSubscriptionInput) ToSubscription() domain.Subscription {
 	}
 }
 
-// UpdateSubscriptionInput is the command input for SubscriptionService.Update.
+// UpdateSubscriptionInput is the input for SubscriptionService.Update.
 type UpdateSubscriptionInput struct {
 	OrgId                string
 	Id                   string
@@ -73,14 +73,14 @@ type UpdateSubscriptionInput struct {
 	Metadata             map[string]string
 }
 
-// PauseSubscriptionInput is the command input for SubscriptionService.Pause.
+// PauseSubscriptionInput is the input for SubscriptionService.Pause.
 type PauseSubscriptionInput struct {
 	OrgId  string
 	Id     string
 	Reason string
 }
 
-// ResumeSubscriptionInput is the command input for SubscriptionService.Resume.
+// ResumeSubscriptionInput is the input for SubscriptionService.Resume.
 type ResumeSubscriptionInput struct {
 	OrgId          string
 	Id             string
@@ -97,7 +97,7 @@ const (
 	OutstandingInvoiceKeep          OutstandingInvoiceAction = "keep"
 )
 
-// CancelSubscriptionInput is the command input for SubscriptionService.Cancel.
+// CancelSubscriptionInput is the input for SubscriptionService.Cancel.
 type CancelSubscriptionInput struct {
 	OrgId              string
 	Id                 string
@@ -105,7 +105,7 @@ type CancelSubscriptionInput struct {
 	OutstandingInvoice OutstandingInvoiceAction // empty => uncollectible
 }
 
-// UpdateBillingAnchorInput is the command input for SubscriptionService.UpdateBillingAnchor.
+// UpdateBillingAnchorInput is the input for SubscriptionService.UpdateBillingAnchor.
 type UpdateBillingAnchorInput struct {
 	OrgId         string
 	Id            string

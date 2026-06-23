@@ -62,7 +62,7 @@ func (o *OrderHandler) CreateOrder(c fuego.ContextWithBody[CreateOrderRequest]) 
 	rsp, err := o.service.CreateOrder(c.Context(), port.CreateOrderInput{
 		OrgId:    authUser.OrgId,
 		Currency: input.Cart.Currency,
-		Customer: domain.CreateOrderCommandCustomer{
+		Customer: port.CreateOrderInputCustomer{
 			Id:        input.Customer.ID,
 			Email:     input.Customer.Email,
 			FirstName: input.Customer.FirstName,

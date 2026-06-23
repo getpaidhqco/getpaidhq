@@ -73,7 +73,7 @@ func NewOrderService(
 }
 
 // CreateOrder creates a new order from a session/cart or direct cart items.
-func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderInput) (domain.CreateOrderResponse, error) {
+func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderInput) (port.CreateOrderResult, error) {
 	s.logger.Info("Creating order for cart", "session", input.SessionId)
 	orgId := input.OrgId
 	orderId := lib.GenerateId("order")
@@ -93,13 +93,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		session, err := s.sessionRepository.FindById(ctx, orgId, input.SessionId)
 		if err != nil {
 			s.logger.Error("Failed to find session id ", "id", input.SessionId, err.Error())
-			return domain.CreateOrderResponse{}, lib.NewCustomError(lib.NotFoundError, "session not found", nil)
+			return port.CreateOrderResult{}, lib.NewCustomError(lib.NotFoundError, "session not found", nil)
 		}
 
 		existingCart, err := s.cartRepository.FindById(ctx, orgId, session.CartId)
 		if err != nil {
 			s.logger.Error("Failed to find cart id ", "id", input.SessionId, err.Error())
-			return domain.CreateOrderResponse{}, lib.NewCustomError(lib.NotFoundError, "cart not found", nil)
+			return port.CreateOrderResult{}, lib.NewCustomError(lib.NotFoundError, "cart not found", nil)
 		}
 		orderCart = existingCart
 		currency = orderCart.Data.Currency
@@ -117,13 +117,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 			product, err := s.productRepository.FindById(ctx, orgId, item.ProductId)
 			if err != nil {
 				s.logger.Error("Failed to find product", err.Error())
-				return domain.CreateOrderResponse{}, lib.NewCustomError(lib.InternalError, "Can't add item to cart", err)
+				return port.CreateOrderResult{}, lib.NewCustomError(lib.InternalError, "Can't add item to cart", err)
 			}
 
 			price, err := s.priceRepository.FindById(ctx, orgId, item.PriceId)
 			if err != nil {
 				s.logger.Error("Failed to find price", err.Error())
-				return domain.CreateOrderResponse{}, lib.NewCustomError(lib.InternalError, "Can't add item to cart", err)
+				return port.CreateOrderResult{}, lib.NewCustomError(lib.InternalError, "Can't add item to cart", err)
 			}
 
 			orderCart.Data.Items = append(orderCart.Data.Items, domain.CartLineItem{
@@ -151,13 +151,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		})
 		if err != nil {
 			s.logger.Error("failed to create cart", err)
-			return domain.CreateOrderResponse{}, err
+			return port.CreateOrderResult{}, err
 		}
 	}
 
 	// validate that the cart is not empty
 	if len(orderCart.Data.Items) == 0 {
-		return domain.CreateOrderResponse{}, errors.New("cart is empty")
+		return port.CreateOrderResult{}, errors.New("cart is empty")
 	}
 
 	// Archived products are retired and not sellable. Guard here so the rule holds
@@ -168,10 +168,10 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		product, err := s.productRepository.FindById(ctx, orgId, item.ProductId)
 		if err != nil {
 			s.logger.Error("Failed to find product", err.Error())
-			return domain.CreateOrderResponse{}, lib.NewCustomError(lib.NotFoundError, "Product not found", err)
+			return port.CreateOrderResult{}, lib.NewCustomError(lib.NotFoundError, "Product not found", err)
 		}
 		if product.IsArchived() {
-			return domain.CreateOrderResponse{}, lib.NewCustomError(
+			return port.CreateOrderResult{}, lib.NewCustomError(
 				lib.ConflictError,
 				fmt.Sprintf("Product %s is archived and cannot be sold", product.Id),
 				nil,
@@ -184,7 +184,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		customerEntity, err = s.customerRepository.FindById(ctx, orgId, input.Customer.Id)
 		if err != nil {
 			s.logger.Error("Failed to find customer", err.Error())
-			return domain.CreateOrderResponse{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+			return port.CreateOrderResult{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
 		}
 	} else {
 		customerEntity, err = s.customerRepository.Create(ctx, domain.Customer{
@@ -197,7 +197,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		})
 		if err != nil {
 			s.logger.Error("Failed to create customer", err.Error())
-			return domain.CreateOrderResponse{}, err
+			return port.CreateOrderResult{}, err
 		}
 	}
 
@@ -218,7 +218,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 	})
 	if err != nil {
 		s.logger.Error("Failed to create order", err.Error())
-		return domain.CreateOrderResponse{}, err
+		return port.CreateOrderResult{}, err
 	}
 
 	var lines []orderLine
@@ -242,13 +242,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		})
 		if err != nil {
 			s.logger.Error("Failed to create order item", "item", item, "err", err.Error())
-			return domain.CreateOrderResponse{}, err
+			return port.CreateOrderResult{}, err
 		}
 
 		price, err := s.priceRepository.FindById(ctx, orgId, item.Price.Id)
 		if err != nil {
 			s.logger.Error("Failed to find price for order item", "price_id", item.Price.Id, "err", err.Error())
-			return domain.CreateOrderResponse{}, err
+			return port.CreateOrderResult{}, err
 		}
 		lines = append(lines, orderLine{item: orderItem, price: price})
 	}
@@ -267,14 +267,14 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		created, err := s.subscriptionRepository.Create(ctx, sub)
 		if err != nil {
 			s.logger.Error("Failed to create subscription", "err", err.Error())
-			return domain.CreateOrderResponse{}, err
+			return port.CreateOrderResult{}, err
 		}
 		for _, l := range group {
 			item := l.item
 			item.SubscriptionId = created.Id
 			if _, err := s.orderRepository.UpdateOrderItem(ctx, item); err != nil {
 				s.logger.Error("Failed to link order item to subscription", "order_item", item.Id, "err", err.Error())
-				return domain.CreateOrderResponse{}, err
+				return port.CreateOrderResult{}, err
 			}
 		}
 		_ = s.pubsub.Publish(orgId, port.TopicSubscriptionCreated, created)
@@ -291,20 +291,20 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 			Currency:   currency,
 			Amount:     order.Total, // cart subtotal for MinimumAmount
 		}); err != nil {
-			return domain.CreateOrderResponse{}, err
+			return port.CreateOrderResult{}, err
 		}
 	}
 
-	var pspResponse domain.InitPaymentResponse
+	var pspResponse port.InitPaymentResponse
 	if createPspSession {
 		s.logger.Debugf("Creating payment session for order %s", order.Id)
 		gw, err := s.gatewayFactory.NewGateway(ctx, orgId, string(input.PspId))
 		if err != nil {
 			s.logger.Error("Failed to get gateway", "err", err.Error())
-			return domain.CreateOrderResponse{}, err
+			return port.CreateOrderResult{}, err
 		}
 		// initialise the payment session with the payment processor
-		pspResponse, err = gw.InitPayment(ctx, domain.InitPaymentCommand{
+		pspResponse, err = gw.InitPayment(ctx, port.InitPaymentInput{
 			OrgId:    orgId,
 			Cart:     orderCart,
 			Order:    order,
@@ -313,13 +313,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		})
 		if err != nil {
 			s.logger.Error("Failed to initialise payment gateway", err.Error())
-			return domain.CreateOrderResponse{}, err
+			return port.CreateOrderResult{}, err
 		}
 	}
 
 	newOrder, _ := s.orderRepository.FindById(ctx, orgId, order.Id)
 
-	return domain.CreateOrderResponse{
+	return port.CreateOrderResult{
 		Order: newOrder,
 		Psp:   pspResponse,
 	}, nil
