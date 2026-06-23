@@ -41,7 +41,7 @@ func NewTxManager(db *gorm.DB) *TxManager {
 var _ port.TxManager = (*TxManager)(nil)
 
 func (t *TxManager) RunInTx(ctx context.Context, fn func(context.Context) error) error {
-	return t.db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
+	return dbFromCtx(ctx, t.db).Transaction(func(tx *gorm.DB) error {
 		return fn(WithTx(ctx, tx))
 	})
 }
