@@ -55,12 +55,14 @@ func (r *OrderRepo) Create(ctx context.Context, entity domain.Order) (domain.Ord
 func (r *OrderRepo) Update(ctx context.Context, entity domain.Order) (domain.Order, error) {
 	row := orderRowFromDomain(entity)
 	q := dbFromCtx(ctx, r.pool)
+	// payment_session is owned by SetPaymentSession, never the general Update, so
+	// a routine order update (e.g. CompleteOrder) cannot clobber a stored session.
 	_, err := q.Exec(ctx,
 		`UPDATE orders SET customer_id=$3, reference=$4, status=$5, session_id=$6, cart_id=$7,
-		        currency=$8, total=$9, metadata=$10, updated_at=$11, payment_session=$12
+		        currency=$8, total=$9, metadata=$10, updated_at=$11
 		 WHERE org_id=$1 AND id=$2`,
 		row.OrgId, row.Id, row.CustomerId, row.Reference, row.Status, row.SessionId,
-		row.CartId, row.Currency, row.Total, row.Metadata, row.UpdatedAt, row.PaymentSession)
+		row.CartId, row.Currency, row.Total, row.Metadata, row.UpdatedAt)
 	if err != nil {
 		return domain.Order{}, err
 	}

@@ -55,7 +55,10 @@ func (r *OrderRepo) Create(ctx context.Context, entity domain.Order) (domain.Ord
 
 func (r *OrderRepo) Update(ctx context.Context, entity domain.Order) (domain.Order, error) {
 	row := orderRowFromDomain(entity)
-	if err := dbFromCtx(ctx, r.db).Save(&row).Error; err != nil {
+	// payment_session is owned by SetPaymentSession, never the general Update —
+	// omitting it keeps the two drivers at parity (pgx's Update also leaves it
+	// untouched) and avoids gorm's serializer panicking on a nil `any` during Save.
+	if err := dbFromCtx(ctx, r.db).Omit("payment_session").Save(&row).Error; err != nil {
 		return domain.Order{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)

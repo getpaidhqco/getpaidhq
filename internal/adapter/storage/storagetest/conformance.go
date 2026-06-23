@@ -262,18 +262,20 @@ func testCartOrderItem(t *testing.T, ctx context.Context, rs RepoSet) {
 	assert.Equal(t, "ps_123", ps["reference"])
 	assert.Equal(t, "https://pay/x", ps["url"])
 
-	// The production flow attaches a session via Update (order created without one,
-	// then /orders/{id}/pay stamps it). Round-trip that too.
+	// The general Update does NOT manage payment_session (it is owned solely by
+	// SetPaymentSession); a routine Update must leave a stored session intact.
 	pending := seedOrder(t, ctx, rs, orgId, cust.Id)
-	pending.PaymentSession = map[string]any{"reference": "ps_456", "url": "https://pay/y"}
-	_, err = rs.Order.Update(ctx, pending)
+	require.NoError(t, rs.Order.SetPaymentSession(ctx, orgId,
+		pending.Id, map[string]any{"reference": "ps_456", "url": "https://pay/y"}))
+	pending.Reference = "REF-updated"
+	_, err = rs.Order.Update(ctx, pending) // Update with a nil PaymentSession field...
 	require.NoError(t, err)
 	updated, err := rs.Order.FindById(ctx, orgId, pending.Id)
 	require.NoError(t, err)
 	ups, ok := updated.PaymentSession.(map[string]any)
-	require.True(t, ok, "updated payment_session round-trips as map[string]any, got %T", updated.PaymentSession)
+	require.True(t, ok, "Update must not clobber the stored session, got %T", updated.PaymentSession)
 	assert.Equal(t, "ps_456", ups["reference"])
-	assert.Equal(t, "https://pay/y", ups["url"])
+	assert.Equal(t, "REF-updated", updated.Reference)
 
 	// SetPaymentSession is the targeted-update path used by InitOrderPayment:
 	// it stamps payment_session onto an order created without one, round-tripping
