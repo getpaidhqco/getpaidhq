@@ -137,6 +137,7 @@ func NewApp() (*App, error) {
 	meterRepo := repos.meter
 	couponRepo := repos.coupon
 	couponCodeRepo := repos.couponCode
+	couponReservationRepo := repos.couponReservation
 	discountRepo := repos.discount
 	priorPaymentChecker := repos.priorPaymentChecker
 	eventStore := repos.eventStore
@@ -212,7 +213,7 @@ func NewApp() (*App, error) {
 	usageService := service.NewUsageService(meterRepo, customerRepo, subRepo, orderRepo, priceRepo, ingestor, eventStore, pubsub, logger)
 	meterService := service.NewMeterService(meterRepo, pubsub, logger)
 	invoiceService := service.NewInvoiceService(invoiceRepo, orderRepo, priceRepo, usageService, txManager, logger)
-	couponService := service.NewCouponService(couponRepo, couponCodeRepo, discountRepo, priorPaymentChecker, txManager, logger)
+	couponService := service.NewCouponService(couponRepo, couponCodeRepo, discountRepo, priorPaymentChecker, txManager, logger, couponReservationRepo)
 	subService, err := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, priceRepo, gatewayFactory, invoiceService, pubsub, reporter, logger, txManager)
 	if err != nil {
 		return nil, err
