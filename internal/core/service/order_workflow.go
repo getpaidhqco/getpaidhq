@@ -104,7 +104,7 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 	var subscriptionId string
 	subscriptions, err := s.subscriptionRepository.FindByOrderId(ctx, orgId, orderId)
 	if err != nil {
-		s.logger.Error("no subscriptions", err.Error())
+		s.logger.Error("error finding subscriptions", err.Error())
 	}
 
 	recurringPayment := len(subscriptions) > 0 && paymentCtx.Payment.Amount > 0
