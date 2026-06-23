@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
@@ -41,6 +42,15 @@ func (r *CouponRepo) UpdateMutable(ctx context.Context, orgId, id, name string, 
 func (r *CouponRepo) FindById(ctx context.Context, orgId, id string) (domain.Coupon, error) {
 	var row couponRow
 	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("id = ?", id).First(&row).Error; err != nil {
+		return domain.Coupon{}, translateErr(err)
+	}
+	return row.toDomain(), nil
+}
+
+func (r *CouponRepo) FindByIdForUpdate(ctx context.Context, orgId, id string) (domain.Coupon, error) {
+	var row couponRow
+	if err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("id = ?", id).
+		Clauses(clause.Locking{Strength: "UPDATE"}).First(&row).Error; err != nil {
 		return domain.Coupon{}, translateErr(err)
 	}
 	return row.toDomain(), nil

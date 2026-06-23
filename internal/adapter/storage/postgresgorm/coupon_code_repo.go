@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
@@ -45,6 +46,17 @@ func (r *CouponCodeRepo) FindByCode(ctx context.Context, orgId, code string) (do
 	var row couponCodeRow
 	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).
 		Where("upper(code) = upper(?)", code).First(&row).Error
+	if err != nil {
+		return domain.CouponCode{}, translateErr(err)
+	}
+	return row.toDomain(), nil
+}
+
+func (r *CouponCodeRepo) FindByCodeForUpdate(ctx context.Context, orgId, code string) (domain.CouponCode, error) {
+	var row couponCodeRow
+	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).
+		Where("upper(code) = upper(?)", code).
+		Clauses(clause.Locking{Strength: "UPDATE"}).First(&row).Error
 	if err != nil {
 		return domain.CouponCode{}, translateErr(err)
 	}
