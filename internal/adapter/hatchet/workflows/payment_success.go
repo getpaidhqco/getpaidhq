@@ -1,11 +1,14 @@
 package workflows
 
 import (
+	"errors"
 	"fmt"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 	"time"
 
+	"github.com/hatchet-dev/hatchet/pkg/worker"
 	hatchet "github.com/hatchet-dev/hatchet/sdks/go"
 )
 
@@ -29,11 +32,15 @@ func NewPaymentSuccessWorkflow(
 
 	completeOrder := wf.NewTask("complete-order",
 		func(ctx hatchet.Context, input PaymentSuccessInput) (domain.Order, error) {
-			return orderService.CompleteCheckoutSession(ctx, port.CompleteCheckoutSessionInput{
+			order, err := orderService.CompleteCheckoutSession(ctx, port.CompleteCheckoutSessionInput{
 				OrgId:          input.PaymentContext.OrgId,
 				OrderId:        input.PaymentContext.OrderId,
 				PaymentContext: input.PaymentContext,
 			})
+			if err != nil && isPermanentCompleteOrderError(err) {
+				return domain.Order{}, worker.NewNonRetryableError(err)
+			}
+			return order, err
 		},
 		hatchet.WithExecutionTimeout(10*time.Second),
 		hatchet.WithRetries(10),
@@ -70,4 +77,23 @@ func NewPaymentSuccessWorkflow(
 	)
 
 	return wf
+}
+
+func isPermanentCompleteOrderError(err error) bool {
+	if err == nil {
+		return false
+	}
+	if errors.Is(err, port.ErrNotFound) {
+		return true
+	}
+
+	var custom lib.CustomError
+	if errors.As(err, &custom) {
+		switch custom.Type {
+		case lib.BadRequestError, lib.ConflictError, lib.NotFoundError, lib.ValidationError:
+			return true
+		}
+	}
+
+	return false
 }

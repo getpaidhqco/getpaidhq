@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -8,7 +9,17 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/lib"
 )
+
+func TestIsPermanentCompleteOrderError(t *testing.T) {
+	assert.True(t, isPermanentCompleteOrderError(port.ErrNotFound))
+	assert.True(t, isPermanentCompleteOrderError(lib.NewCustomError(lib.ConflictError, "not pending", nil)))
+	assert.True(t, isPermanentCompleteOrderError(lib.NewCustomError(lib.BadRequestError, "invalid", nil)))
+	assert.False(t, isPermanentCompleteOrderError(errors.New("db down")))
+	assert.False(t, isPermanentCompleteOrderError(nil))
+}
 
 // ============================================================
 // Dunning runner pure helpers

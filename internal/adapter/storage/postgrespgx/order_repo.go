@@ -28,6 +28,16 @@ func (r *OrderRepo) FindById(ctx context.Context, orgId string, id string) (doma
 	return row.toDomain(), nil
 }
 
+func (r *OrderRepo) FindByIdForUpdate(ctx context.Context, orgId string, id string) (domain.Order, error) {
+	q := dbFromCtx(ctx, r.pool)
+	var row orderRow
+	if err := row.scanInto(q.QueryRow(ctx,
+		`SELECT `+orderColumns+` FROM orders WHERE org_id = $1 AND id = $2 FOR UPDATE`, orgId, id)); err != nil {
+		return domain.Order{}, translateErr(err)
+	}
+	return row.toDomain(), nil
+}
+
 func (r *OrderRepo) Create(ctx context.Context, entity domain.Order) (domain.Order, error) {
 	row := orderRowFromDomain(entity)
 	q := dbFromCtx(ctx, r.pool)

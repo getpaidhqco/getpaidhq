@@ -1,6 +1,7 @@
 package workflows
 
 import (
+	"getpaidhq/internal/core/domain"
 	"testing"
 	"time"
 )
@@ -13,6 +14,24 @@ import (
 func TestSubscriptionRunKey(t *testing.T) {
 	if got := SubscriptionRunKey("org_1", "sub_2"); got != "sub_org_1_sub_2" {
 		t.Errorf("SubscriptionRunKey: got %q", got)
+	}
+}
+
+func TestPaymentSuccessRunKey(t *testing.T) {
+	if got := PaymentSuccessRunKey("org_1", "ord_2", domain.Paystack, "psp_3"); got != "payment_success_org_1_ord_2_Paystack_psp_3" {
+		t.Errorf("PaymentSuccessRunKey: got %q", got)
+	}
+	if PaymentSuccessRunKey("org_1", "ord_2", domain.Paystack, "psp_3") == PaymentSuccessRunKey("org_1", "ord_2", domain.Paystack, "psp_4") {
+		t.Error("PaymentSuccessRunKey must differ by PSP payment identity")
+	}
+}
+
+func TestPaymentRefundedRunKey(t *testing.T) {
+	if got := PaymentRefundedRunKey("org_1", "ord_2", domain.CheckoutDotCom, "pay_3"); got != "payment_refunded_org_1_ord_2_CheckoutDotCom_pay_3" {
+		t.Errorf("PaymentRefundedRunKey: got %q", got)
+	}
+	if PaymentRefundedRunKey("org_1", "ord_2", domain.CheckoutDotCom, "pay_3") == PaymentRefundedRunKey("org_1", "ord_3", domain.CheckoutDotCom, "pay_3") {
+		t.Error("PaymentRefundedRunKey must differ by order")
 	}
 }
 
