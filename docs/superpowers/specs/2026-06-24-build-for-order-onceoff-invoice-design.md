@@ -16,7 +16,7 @@
 
 ## 2. Order-config flags
 
-Two flags, set at `CreateOrder`, persisted on the order (real columns — not `Metadata`).
+Two flags, set at `CreateOrder`, persisted on the order in a single typed `config` JSONB column (see Surface below).
 
 ### `payment_mode` — how the first payment is collected
 - **`direct`** (default) — a payment is supplied / a saved method is charged now (today's `CompleteOrder`-with-a-payment path). Invoices are built **and paid** at completion.
