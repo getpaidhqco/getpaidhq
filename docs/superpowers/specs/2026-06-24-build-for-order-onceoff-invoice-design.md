@@ -30,9 +30,21 @@ Two flags, set at `CreateOrder`, persisted on the order (real columns — not `M
 A **subscription always** owns its invoices (§5) regardless of `invoice_behaviour`; the flag governs only the **one-time** lines of an order.
 
 ### Surface
-- Migration: `orders` gains `payment_mode TEXT NOT NULL DEFAULT 'direct'` and `invoice_behaviour TEXT NOT NULL DEFAULT 'record'`.
-- `domain.Order` gains `PaymentMode` and `InvoiceBehaviour` (typed string enums in `domain`, validated). Both storage adapters map the columns; conformance round-trips them.
-- `port.CreateOrderInput` gains both; `CreateOrderRequest` (HTTP) gains `payment_mode` / `invoice_behaviour` (`validate:"omitempty,oneof=..."`, defaults applied in the service). They are persisted on the order at create; `CompleteOrder` reads them off the stored order (not re-supplied).
+Order configuration is a **single typed `config` JSONB column** on `orders` — not discrete columns — because it is an explicitly growing flag bag, is never queried/filtered on, and mirrors the existing `orders.payment_session` JSONB pattern. New order-config flags are added as struct fields with **no further migration**.
+
+```go
+type PaymentMode string      // "direct" | "checkout"
+type InvoiceBehaviour string // "none" | "record" | "open"
+
+type OrderConfig struct {
+    PaymentMode      PaymentMode      `json:"payment_mode"`
+    InvoiceBehaviour InvoiceBehaviour `json:"invoice_behaviour"`
+    // future order-config flags land here
+}
+```
+- Migration: `orders` gains `config JSONB` (one column, holds the serialized `OrderConfig`).
+- `domain.Order` gains `Config OrderConfig`. A typed struct value is never nil, so the gorm `serializer:json` `Save` path is safe (unlike the bare-`any` `payment_session`). `OrderConfig` has a `withDefaults()`/validation in `domain` (empty `PaymentMode` → `direct`, empty `InvoiceBehaviour` → `record`). Both storage adapters map the column (gorm `serializer:json`, pgx `jsonCol[domain.OrderConfig]`); conformance round-trips it.
+- `port.CreateOrderInput` gains `Config OrderConfig` (or the two flag fields, assembled into `OrderConfig`); `CreateOrderRequest` (HTTP) gains `payment_mode` / `invoice_behaviour` (`validate:"omitempty,oneof=..."`). Defaults applied + validated in the domain at create; persisted on the order. `CompleteOrder` reads `order.Config` off the stored order (not re-supplied). Distinct from the existing `CreateOrderInput.Options` (the PSP-options map passed to `InitPayment`), which is unchanged.
 
 ---
 
@@ -117,7 +129,7 @@ For `payment_mode == checkout`: `CompleteOrder` is not the payment step; the ord
 
 ## 9. Data model & migrations
 
-- `orders`: `+ payment_mode TEXT NOT NULL DEFAULT 'direct'`, `+ invoice_behaviour TEXT NOT NULL DEFAULT 'record'`. `domain.Order` fields + both row mappers + conformance.
+- `orders`: `+ config JSONB` (one column holding the typed `OrderConfig`; future flags need no migration). `domain.Order.Config` + both row mappers + conformance.
 - `invoices`: `subscription_id` → **nullable** (`DROP NOT NULL`) for order-only invoices. `order_id` stays `NOT NULL`. Confirm both adapters write NULL (not `""`) for empty `subscription_id`.
 - **No discounts migration** (columns already nullable).
 - `InvoiceRepository.FindOrderInvoice(orgId, orderId)` (order_id set, subscription_id NULL) — port + both adapters + conformance.
@@ -128,13 +140,13 @@ For `payment_mode == checkout`: `CompleteOrder` is not the payment step; the ord
 
 | Layer | Change |
 | --- | --- |
-| `core/domain` | `Order.PaymentMode`/`InvoiceBehaviour` (enums + validation); `NewDiscount` order-always; `NewInvoiceForOrder`. |
+| `core/domain` | `Order.Config` (`OrderConfig` enums + validation); `NewDiscount` order-always; `NewInvoiceForOrder`. |
 | `core/service` | `InvoiceService.BuildForOrder` + shared discount helper + reservation-coupon pre-payment resolution; `CouponService.Consume` order-always; `OrderService.CreateOrder` persists flags; `OrderService.CompleteOrder` full orchestration (§7) incl. first sub invoice (§5); `OrderService` gains `*InvoiceService`. |
 | `core/port` | `CreateOrderInput.PaymentMode/InvoiceBehaviour`; `InvoiceRepository.FindOrderInvoice`. |
-| `adapter/storage/{postgresgorm,postgrespgx}` | order flag columns; `FindOrderInvoice`; `ActiveForOrder` sub-null; invoice nullable `subscription_id`. Both drivers + conformance. |
+| `adapter/storage/{postgresgorm,postgrespgx}` | order `config` jsonb column; `FindOrderInvoice`; `ActiveForOrder` sub-null; invoice nullable `subscription_id`. Both drivers + conformance. |
 | `adapter/http` | `CreateOrderRequest` flags (validated, defaulted). |
 | `config/app.go` | inject `*InvoiceService` into `OrderService`. |
-| `schemas/app/migrations` | order flags; `invoices.subscription_id` nullable. |
+| `schemas/app/migrations` | `orders.config` jsonb; `invoices.subscription_id` nullable. |
 
 No workflow-engine code change (activation owns the first invoice; recurring engine unchanged & idempotent). Parity preserved.
 
@@ -158,7 +170,7 @@ No workflow-engine code change (activation owns the first invoice; recurring eng
 ## 12. Testing
 
 - **domain:** `NewDiscount` (order-only ✓, order+sub ✓, missing order ✗, sub-only ✗); `Order` flag validation + defaults; `NewInvoiceForOrder`.
-- **storage (both drivers, conformance):** order flag columns round-trip; `FindOrderInvoice` returns the sub-null order invoice & `ErrNotFound` when only a sub invoice exists; `ActiveForOrder` excludes sub-targeted discounts sharing the order_id; invoice round-trips NULL `subscription_id`.
+- **storage (both drivers, conformance):** order `config` jsonb round-trips; `FindOrderInvoice` returns the sub-null order invoice & `ErrNotFound` when only a sub invoice exists; `ActiveForOrder` excludes sub-targeted discounts sharing the order_id; invoice round-trips NULL `subscription_id`.
 - **service:** `BuildForOrder` (one-time lines only, discount once, idempotent); `CompleteOrder` — pure one-time `direct/record` → one paid discounted order invoice, reservation consumed; `direct/none` → no invoice; `open` → open invoice; **subscription `direct` → cycle-0 invoice built+paid, `Payment.InvoiceId` set, CyclesProcessed=1**; mixed order routes coupon to sub; idempotent re-complete.
 - **engine parity (integration, both engines):** after activation with an upfront payment, the recurring engine bills cycle 1 next and does NOT rebuild/recharge cycle 0 (the existing paid invoice is reused). The no-upfront-payment path still builds+charges cycle 0.
 - **e2e:** create once-off order (coupon, direct/record) → complete → one paid discounted invoice, reservation gone, replay no-ops; create subscription order (direct) → complete → cycle-0 paid invoice + recurring continues discounted.
@@ -176,7 +188,7 @@ The hosted-checkout **page** (customer-facing pay-link UI + redirect) is not bui
 | Decision | Choice | Rationale |
 | --- | --- | --- |
 | Discount ownership | order_id always; subscription_id optional | Order is topmost owner; mirrors `invoices`; no migration. |
-| Order flags storage | real `orders` columns | Plain model; queryable; not `Metadata` soup. |
+| Order flags storage | one typed `config` JSONB column (`OrderConfig`) | Growing flag bag, never queried on; mirrors `payment_session`; new flags need no migration; typed struct is nil-safe for gorm Save. |
 | `payment_mode` default | `direct` | Today's working path; no surprise. |
 | `invoice_behaviour` default | `record` | Most once-off sales want a receipt; `none`/`open` opt-in. |
 | First subscription invoice | built+paid at activation (`direct`) / open (`checkout`) | §6 "subscription owns its first invoice"; links `Payment.InvoiceId`. |
