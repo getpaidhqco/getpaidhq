@@ -33,7 +33,7 @@ func (r *fakeInvoiceRepoHTTP) FindBySubscriptionId(_ context.Context, _, _ strin
 
 func newInvoiceHandlerForTest(t *testing.T, repo *fakeInvoiceRepoHTTP) *InvoiceHandler {
 	t.Helper()
-	svc := service.NewInvoiceService(repo, nil, nil, nil, nil, nil, silentLogger{}, nil, nil, nil)
+	svc := service.NewInvoiceService(repo, nil, nil, nil, nil, nil, silentLogger{}, nil, nil, nil, nil)
 	return NewInvoiceHandler(svc, silentLogger{}, newRealAuthz(t))
 }
 

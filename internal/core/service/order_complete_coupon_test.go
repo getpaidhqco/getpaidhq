@@ -124,7 +124,7 @@ func TestOrderService_CompleteOrder_OneTimeCouponConsumed(t *testing.T) {
 
 	// InvoiceService wired WITH the discount + coupon repos so the order discount
 	// is applied to the combined invoice.
-	invSvc := NewInvoiceService(invRepo, orderRepo, priceRepo, subRepo, nil, tx, silentLogger{}, discRepo, couponRepo, nil)
+	invSvc := NewInvoiceService(invRepo, orderRepo, priceRepo, subRepo, nil, tx, silentLogger{}, discRepo, couponRepo, nil, nil)
 	svc := NewOrderService(tx, engine, nil, priceRepo, nil, orderRepo, custRepo, subRepo, payRepo, &fakePaymentMethodRepo{}, nil, nil, ps, silentLogger{}, coupons, invSvc)
 
 	_, err = svc.CompleteOrder(context.Background(), port.CompleteOrderInput{

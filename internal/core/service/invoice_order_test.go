@@ -29,7 +29,7 @@ func TestInvoiceService_BuildForOrder_Mixed(t *testing.T) {
 	sub := domain.Subscription{OrgId: orgId, Id: "sub_1", OrderId: "ord_1", CustomerId: "cus_1", Status: domain.SubscriptionStatusActive, Currency: "USD"}
 	subRepo := &fakeSubRepo{byOrderId: []domain.Subscription{sub}}
 
-	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, subRepo, nil, nil, silentLogger{}, nil, nil, nil)
+	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, subRepo, nil, nil, silentLogger{}, nil, nil, nil, nil)
 
 	order := domain.Order{OrgId: orgId, Id: "ord_1", CustomerId: "cus_1", Currency: "USD"}
 	inv, err := svc.BuildForOrder(context.Background(), order)
@@ -74,7 +74,7 @@ func TestInvoiceService_BuildForOrder_PureOneTimeWithDiscount(t *testing.T) {
 	coupons := &findByIdCouponRepo{byId: map[string]domain.Coupon{coupon.Id: coupon}}
 	subRepo := &fakeSubRepo{} // no subscriptions on the order
 
-	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, subRepo, nil, nil, silentLogger{}, discounts, coupons, nil)
+	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, subRepo, nil, nil, silentLogger{}, discounts, coupons, nil, nil)
 
 	order := domain.Order{OrgId: orgId, Id: "ord_2", CustomerId: "cus_1", Currency: "USD"}
 	inv, err := svc.BuildForOrder(context.Background(), order)
@@ -86,6 +86,46 @@ func TestInvoiceService_BuildForOrder_PureOneTimeWithDiscount(t *testing.T) {
 	require.Equal(t, "", inv.SubscriptionId, "pure one-time order has no subscription linkage")
 }
 
+func TestInvoiceService_BuildForOrder_ReservationDiscount(t *testing.T) {
+	// Pre-payment (upfront) path: the order has a LIVE coupon reservation but NO
+	// committed Discount yet (ActiveForOrder is empty). The built invoice must
+	// still carry the discounted total, resolved from the reservation's coupon.
+	// $200 line, 25%-off coupon → Total 15000, DiscountTotal 5000.
+	const orgId = "org_1"
+	price := domain.Price{OrgId: orgId, Id: "price_x", Scheme: domain.Fixed, UnitPrice: 20000}
+	orderRepo := &fakeOrderRepo{items: []domain.OrderItem{
+		{OrgId: orgId, Id: "oi_x", OrderId: "ord_r", ProductId: "prod_x", PriceId: "price_x", Quantity: 1},
+	}}
+	priceRepo := &mapPriceRepo{byId: map[string]domain.Price{"price_x": price}}
+
+	coupon, err := domain.NewCoupon(domain.NewCouponInput{
+		OrgId:        orgId,
+		Name:         "Quarter off",
+		DiscountType: domain.DiscountTypePercentage,
+		PercentOff:   decimal.NewFromInt(25),
+		Duration:     domain.DurationOnce,
+	})
+	require.NoError(t, err)
+
+	// No committed discount (empty ActiveForOrder), but a live reservation exists.
+	discounts := &orderDiscountRepo{active: nil}
+	coupons := &findByIdCouponRepo{byId: map[string]domain.Coupon{coupon.Id: coupon}}
+	reservations := &fakeCouponReservationRepo{byOrder: map[string][]domain.CouponReservation{
+		"ord_r": {{OrgId: orgId, Id: "cres_1", CouponId: coupon.Id, CustomerId: "cus_1", OrderId: "ord_r"}},
+	}}
+	subRepo := &fakeSubRepo{} // no subscriptions on the order
+
+	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, subRepo, nil, nil, silentLogger{}, discounts, coupons, reservations, nil)
+
+	order := domain.Order{OrgId: orgId, Id: "ord_r", CustomerId: "cus_1", Currency: "USD"}
+	inv, err := svc.BuildForOrder(context.Background(), order)
+	require.NoError(t, err)
+
+	require.Len(t, inv.LineItems, 1)
+	require.EqualValues(t, 15000, inv.Total, "200 less 25% = 150, from the reserved coupon")
+	require.EqualValues(t, 5000, inv.DiscountTotal)
+}
+
 func TestInvoiceService_BuildForOrder_Idempotent(t *testing.T) {
 	const orgId = "org_1"
 	price := domain.Price{OrgId: orgId, Id: "price_x", Scheme: domain.Fixed, UnitPrice: 5000}
@@ -94,7 +134,7 @@ func TestInvoiceService_BuildForOrder_Idempotent(t *testing.T) {
 	}}
 	priceRepo := &mapPriceRepo{byId: map[string]domain.Price{"price_x": price}}
 	repo := newFakeInvoiceRepo()
-	svc := NewInvoiceService(repo, orderRepo, priceRepo, &fakeSubRepo{}, nil, nil, silentLogger{}, nil, nil, nil)
+	svc := NewInvoiceService(repo, orderRepo, priceRepo, &fakeSubRepo{}, nil, nil, silentLogger{}, nil, nil, nil, nil)
 
 	order := domain.Order{OrgId: orgId, Id: "ord_3", CustomerId: "cus_1", Currency: "USD"}
 	first, err := svc.BuildForOrder(context.Background(), order)
@@ -110,7 +150,7 @@ func TestInvoiceService_BuildForOrder_Idempotent(t *testing.T) {
 func TestInvoiceService_BuildForOrder_NoItems(t *testing.T) {
 	const orgId = "org_1"
 	orderRepo := &fakeOrderRepo{items: nil}
-	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, &mapPriceRepo{}, &fakeSubRepo{}, nil, nil, silentLogger{}, nil, nil, nil)
+	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, &mapPriceRepo{}, &fakeSubRepo{}, nil, nil, silentLogger{}, nil, nil, nil, nil)
 
 	order := domain.Order{OrgId: orgId, Id: "ord_empty", CustomerId: "cus_1", Currency: "USD"}
 	_, err := svc.BuildForOrder(context.Background(), order)

@@ -26,6 +26,7 @@ type InvoiceService struct {
 	logger                 port.Logger
 	discounts              port.DiscountRepository
 	coupons                port.CouponRepository
+	reservations           port.CouponReservationRepository
 	invoiceSettings        port.InvoiceSettingsResolver
 }
 
@@ -39,6 +40,7 @@ func NewInvoiceService(
 	logger port.Logger,
 	discounts port.DiscountRepository,
 	coupons port.CouponRepository,
+	reservations port.CouponReservationRepository,
 	invoiceSettings port.InvoiceSettingsResolver,
 ) *InvoiceService {
 	return &InvoiceService{
@@ -51,6 +53,7 @@ func NewInvoiceService(
 		logger:                 logger,
 		discounts:              discounts,
 		coupons:                coupons,
+		reservations:           reservations,
 		invoiceSettings:        invoiceSettings,
 	}
 }
@@ -285,8 +288,20 @@ func (s *InvoiceService) addItemLine(ctx context.Context, inv *domain.Invoice, p
 	return nil
 }
 
-// applyOrderDiscounts resolves the order's active (order-owned) discounts and
-// writes each line's DiscountTotal via the pure domain.ApplyDiscounts at cycle 0.
+// applyOrderDiscounts resolves the order's discount and writes each line's
+// DiscountTotal via the pure domain.ApplyDiscounts at cycle 0. It resolves
+// committed-OR-reservation:
+//
+//   - if the order already has a committed (order-owned) Discount, that is used
+//     (the post-completion / billing path);
+//   - otherwise, if the order has a live coupon reservation (the pre-payment
+//     upfront-invoice path, before the reservation is consumed into a Discount),
+//     a synthetic AppliedDiscount is built from the reserved coupon so the open
+//     invoice already carries the discounted total. The synthetic Discount is
+//     NOT persisted — it is only used to compute the bill. At completion, Consume
+//     creates the real Discount and BuildForOrder returns the existing invoice,
+//     so totals stay consistent.
+//
 // No-op when the discount/coupon repos aren't wired (unit tests).
 func (s *InvoiceService) applyOrderDiscounts(ctx context.Context, order domain.Order, inv *domain.Invoice, productByPrice map[string]string) error {
 	if s.discounts == nil || s.coupons == nil {
@@ -296,16 +311,48 @@ func (s *InvoiceService) applyOrderDiscounts(ctx context.Context, order domain.O
 	if err != nil {
 		return err
 	}
-	if len(ds) == 0 {
-		return nil
-	}
+
 	applied := make([]domain.AppliedDiscount, 0, len(ds))
-	for _, d := range ds {
-		c, err := s.coupons.FindById(ctx, order.OrgId, d.CouponId)
-		if err != nil {
-			return err
+	if len(ds) > 0 {
+		// Committed discounts (post-completion / billing path).
+		for _, d := range ds {
+			c, err := s.coupons.FindById(ctx, order.OrgId, d.CouponId)
+			if err != nil {
+				return err
+			}
+			applied = append(applied, domain.AppliedDiscount{Discount: d, Coupon: c})
 		}
-		applied = append(applied, domain.AppliedDiscount{Discount: d, Coupon: c})
+	} else if s.reservations != nil {
+		// No committed discount yet — fall back to the order's live reservation
+		// so a pre-payment (open) invoice is still discounted.
+		rs, rerr := s.reservations.FindByOrder(ctx, order.OrgId, order.Id)
+		if rerr != nil {
+			return rerr
+		}
+		if len(rs) == 0 {
+			return nil
+		}
+		r := rs[0]
+		c, cerr := s.coupons.FindById(ctx, order.OrgId, r.CouponId)
+		if cerr != nil {
+			return cerr
+		}
+		applied = append(applied, domain.AppliedDiscount{
+			Coupon: c,
+			Discount: domain.Discount{
+				OrgId:      order.OrgId,
+				CouponId:   r.CouponId,
+				CustomerId: r.CustomerId,
+				OrderId:    order.Id,
+				StartCycle: 0,
+				Status:     domain.DiscountStatusActive,
+				RedeemedAt: time.Now().UTC(),
+			},
+		})
+	}
+
+	if len(applied) == 0 {
+		return nil
 	}
 	lines := make([]domain.DiscountableLine, 0, len(inv.LineItems))
 	for _, l := range inv.LineItems {

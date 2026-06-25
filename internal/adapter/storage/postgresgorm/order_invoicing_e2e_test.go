@@ -51,6 +51,7 @@ func buildWiredInvoiceService(t *testing.T, db *gorm.DB) *service.InvoiceService
 		logger,
 		NewDiscountRepo(db),
 		NewCouponRepo(db),
+		NewCouponReservationRepo(db),
 		settings, // real resolver
 	)
 }
@@ -369,6 +370,107 @@ func TestOrderInvoicing_UpfrontInvoice_E2E(t *testing.T) {
 	assert.Equal(t, 1, total, "exactly one invoice across create + complete")
 }
 
+// TestOrderInvoicing_UpfrontInvoiceWithCoupon_E2E: with Config.UpfrontInvoice AND
+// a coupon, the OPEN invoice built at CreateOrder time is ALREADY discounted from
+// the order's live reservation (before the reservation is consumed into a
+// Discount). CompleteOrder reuses the SAME invoice, settles it paid (still
+// discounted), and the reservation converts to an order-owned Discount. This is
+// the exact pre-payment-discount case the review flagged as untested.
+func TestOrderInvoicing_UpfrontInvoiceWithCoupon_E2E(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	orgId := uniqueOrg(t)
+	cleanupOrg(t, db, orgId)
+
+	productId, priceId := seedOneTimePrice(t, db, orgId, 20000)
+	customer := seedCustomer(t, db, orgId)
+	pspConfigId := seedMemoryPsp(t, db, orgId)
+	pm := seedPaymentMethod(t, db, orgId, customer.Id)
+
+	coupons := buildCouponService(t, db)
+	invoices := buildWiredInvoiceService(t, db)
+	orders := buildWiredOrderService(t, db, coupons, invoices)
+
+	coupon, err := coupons.Create(ctx, orgId, port.CreateCouponInput{
+		Name:         "Quarter off",
+		DiscountType: string(domain.DiscountTypePercentage),
+		PercentOff:   decimal.NewFromInt(25),
+		Duration:     string(domain.DurationOnce),
+	})
+	require.NoError(t, err)
+	_, err = coupons.CreateCode(ctx, orgId, coupon.Id, port.CreateCouponCodeInput{Code: "QUARTER25"})
+	require.NoError(t, err)
+
+	created, err := orders.CreateOrder(ctx, port.CreateOrderInput{
+		OrgId:           orgId,
+		Customer:        port.CreateOrderInputCustomer{Id: customer.Id},
+		Currency:        "USD",
+		PspId:           domain.Gateway(pspConfigId),
+		PaymentMethodId: pm.Id,
+		CartItems:       []domain.CartItem{{ProductId: productId, PriceId: priceId, Quantity: 1}},
+		CouponCode:      "QUARTER25",
+		Config:          domain.OrderConfig{UpfrontInvoice: true},
+	})
+	require.NoError(t, err)
+	orderId := created.Order.Id
+
+	// At this point the reservation exists but is NOT yet a committed Discount.
+	res, err := NewCouponReservationRepo(db).FindByOrder(ctx, orgId, orderId)
+	require.NoError(t, err)
+	require.Len(t, res, 1, "CreateOrder holds one reservation")
+	ds0, err := NewDiscountRepo(db).ActiveForOrder(ctx, orgId, orderId)
+	require.NoError(t, err)
+	require.Empty(t, ds0, "no committed Discount before completion — only a reservation")
+
+	// The OPEN upfront invoice is ALREADY discounted from the reservation's coupon.
+	require.NotNil(t, created.Invoice, "upfront invoice returned on the create result")
+	upfront := *created.Invoice
+	assert.Equal(t, domain.InvoiceStatusOpen, upfront.Status)
+	assert.Equal(t, int64(5000), upfront.DiscountTotal, "open invoice discounted from the reservation: 25%% of $200")
+	assert.Equal(t, int64(15000), upfront.Total, "$200 less 25%% = $150 BEFORE payment")
+
+	persistedUpfront, err := NewInvoiceRepo(db).FindOrderInvoice(ctx, orgId, orderId)
+	require.NoError(t, err)
+	assert.Equal(t, upfront.Id, persistedUpfront.Id)
+	assert.Equal(t, int64(5000), persistedUpfront.DiscountTotal)
+	assert.Equal(t, int64(15000), persistedUpfront.Total)
+
+	_, err = orders.CompleteOrder(ctx, port.CompleteOrderInput{
+		OrgId:           orgId,
+		Id:              orderId,
+		PaymentMethodId: pm.Id,
+		Payment: port.CompleteOrderInputPayment{
+			PspId:       pspConfigId,
+			Amount:      15000,
+			Currency:    "USD",
+			CompletedAt: time.Now().UTC(),
+			Reference:   "ref-upfront-coupon",
+		},
+	})
+	require.NoError(t, err)
+
+	// SAME invoice, now paid, still discounted — totals stay consistent.
+	settled, err := NewInvoiceRepo(db).FindOrderInvoice(ctx, orgId, orderId)
+	require.NoError(t, err)
+	assert.Equal(t, upfront.Id, settled.Id, "completion reuses the upfront invoice")
+	assert.Equal(t, domain.InvoiceStatusPaid, settled.Status)
+	assert.Equal(t, int64(5000), settled.DiscountTotal, "discount preserved through completion")
+	assert.Equal(t, int64(15000), settled.Total)
+
+	_, total, err := NewInvoiceRepo(db).List(ctx, orgId, domain.Pagination{Page: 1, Limit: 50})
+	require.NoError(t, err)
+	assert.Equal(t, 1, total, "exactly one invoice across create + complete")
+
+	// The reservation converted into the committed order-owned Discount.
+	ds, err := NewDiscountRepo(db).ActiveForOrder(ctx, orgId, orderId)
+	require.NoError(t, err)
+	require.Len(t, ds, 1, "the reservation consumes into exactly one order-owned Discount")
+	assert.Equal(t, coupon.Id, ds[0].CouponId)
+	gone, err := NewCouponReservationRepo(db).FindByOrder(ctx, orgId, orderId)
+	require.NoError(t, err)
+	assert.Empty(t, gone, "no leftover reservation after consume")
+}
+
 // TestOrderInvoicing_CustomInvoiceSettings_E2E: a custom prefix + padding set via
 // the real InvoiceSettingsService is honoured by the build path — the order
 // invoice's reference starts with the prefix and is zero-padded to the width.
@@ -391,7 +493,7 @@ func TestOrderInvoicing_CustomInvoiceSettings_E2E(t *testing.T) {
 	invoices := service.NewInvoiceService(
 		NewInvoiceRepo(db), NewOrderRepo(db), NewPriceRepo(db), NewSubscriptionRepo(db),
 		buildUsageService(t, db), NewTxManager(db), noopLogger{},
-		NewDiscountRepo(db), NewCouponRepo(db), settings,
+		NewDiscountRepo(db), NewCouponRepo(db), NewCouponReservationRepo(db), settings,
 	)
 	orders := buildWiredOrderService(t, db, coupons, invoices)
 
