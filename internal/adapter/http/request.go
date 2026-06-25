@@ -88,9 +88,13 @@ type CreateOrderRequest struct {
 
 	// CouponCode reserves a coupon's capacity for this order; an exhausted or
 	// otherwise refused code fails the order.
-	CouponCode string            `json:"coupon_code,omitempty"`
-	Metadata   map[string]string `json:"metadata"`
-	Options    map[string]string `json:"options"`
+	CouponCode string `json:"coupon_code,omitempty"`
+
+	// UpfrontInvoice opts the order into raising a combined open invoice at
+	// creation time.
+	UpfrontInvoice bool              `json:"upfront_invoice"`
+	Metadata       map[string]string `json:"metadata"`
+	Options        map[string]string `json:"options"`
 }
 
 type CreateOrderRequestCustomer struct {

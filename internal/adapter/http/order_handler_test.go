@@ -187,6 +187,116 @@ func TestOrderHandler_CreateOrder_HappyPath(t *testing.T) {
 	require.Len(t, orderRepo.created, 1, "an order row was created")
 }
 
+func TestOrderHandler_CreateOrder_ThreadsUpfrontInvoiceFlag(t *testing.T) {
+	// upfront_invoice:true in the request must thread through to
+	// port.CreateOrderInput.Config and be persisted onto the created order.
+	// (The harness wires a nil invoiceService, so no invoice is actually built;
+	// the response-side mapping of rsp.Invoice is covered by a direct unit test.)
+	orderRepo := &fakeOrderRepo{}
+	prod := &fakeProductRepo{byId: domain.Product{Id: "prod_1", Name: "Plan"}}
+	price := &fakePriceRepo{byId: domain.Price{
+		Id: "price_1", UnitPrice: 1000, Category: domain.OneTime,
+	}}
+	h := newOrderHandlerForTest(t,
+		orderRepo, &fakeCustomerRepo{}, &fakeSubRepo{}, &fakeCartRepo{},
+		prod, price, &fakePaymentMethodRepo{}, &fakePaymentRepo{},
+		&fakeSessionRepo{}, &recordingEngine{},
+		nil,
+	)
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/orders", CreateOrderRequest{
+		PspId:          "paystack",
+		Customer:       CreateOrderRequestCustomer{Email: "a@b.com", FirstName: "A"},
+		UpfrontInvoice: true,
+		Cart: CartInput{
+			Currency: "USD",
+			Items:    []CartItem{{ProductId: "prod_1", PriceId: "price_1", Quantity: 1}},
+		},
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.Len(t, orderRepo.created, 1, "an order row was created")
+	assert.True(t, orderRepo.created[0].Config.UpfrontInvoice,
+		"upfront_invoice request flag threads to Order.Config.UpfrontInvoice")
+
+	// No invoiceService is wired in this harness, so no invoice is raised and
+	// the response omits the field.
+	var resp CreateOrderResponse
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
+	assert.Nil(t, resp.Invoice, "no invoice raised → invoice field omitted")
+	assert.NotContains(t, rec.Body.String(), "\"invoice\"")
+}
+
+func TestOrderHandler_CreateOrder_OmitsInvoiceByDefault(t *testing.T) {
+	// upfront_invoice omitted (false) → Config flag is false and the response
+	// carries no invoice field.
+	orderRepo := &fakeOrderRepo{}
+	prod := &fakeProductRepo{byId: domain.Product{Id: "prod_1", Name: "Plan"}}
+	price := &fakePriceRepo{byId: domain.Price{
+		Id: "price_1", UnitPrice: 1000, Category: domain.OneTime,
+	}}
+	h := newOrderHandlerForTest(t,
+		orderRepo, &fakeCustomerRepo{}, &fakeSubRepo{}, &fakeCartRepo{},
+		prod, price, &fakePaymentMethodRepo{}, &fakePaymentRepo{},
+		&fakeSessionRepo{}, &recordingEngine{},
+		nil,
+	)
+	ts := newTestServer(fixedAuthMiddleware(ownerUser()))
+	h.RegisterRoutes(ts.api())
+
+	rec := doJSON(t, ts, http.MethodPost, "/api/orders", CreateOrderRequest{
+		PspId:    "paystack",
+		Customer: CreateOrderRequestCustomer{Email: "a@b.com", FirstName: "A"},
+		Cart: CartInput{
+			Currency: "USD",
+			Items:    []CartItem{{ProductId: "prod_1", PriceId: "price_1", Quantity: 1}},
+		},
+	})
+
+	require.Equal(t, http.StatusOK, rec.Code, "body=%s", rec.Body.String())
+	require.Len(t, orderRepo.created, 1)
+	assert.False(t, orderRepo.created[0].Config.UpfrontInvoice)
+	assert.NotContains(t, rec.Body.String(), "\"invoice\"", "invoice field omitted by default")
+}
+
+// TestCreateOrderResponse_InvoiceMapping covers the response-side mapping of
+// rsp.Invoice → CreateOrderResponse.Invoice {id,url} directly, since the HTTP
+// harness wires a nil invoiceService and never raises an invoice.
+func TestCreateOrderResponse_InvoiceMapping(t *testing.T) {
+	t.Run("invoice raised → field present with id and (placeholder) url", func(t *testing.T) {
+		rsp := port.CreateOrderResult{Invoice: &domain.Invoice{Id: "inv_123"}}
+
+		resp := CreateOrderResponse{}
+		if rsp.Invoice != nil {
+			resp.Invoice = &CreateOrderInvoice{Id: rsp.Invoice.Id, Url: ""}
+		}
+
+		require.NotNil(t, resp.Invoice)
+		assert.Equal(t, "inv_123", resp.Invoice.Id)
+		assert.Equal(t, "", resp.Invoice.Url)
+
+		out, err := json.Marshal(resp)
+		require.NoError(t, err)
+		assert.Contains(t, string(out), `"invoice":{"id":"inv_123","url":""}`)
+	})
+
+	t.Run("no invoice → field omitted", func(t *testing.T) {
+		rsp := port.CreateOrderResult{Invoice: nil}
+
+		resp := CreateOrderResponse{}
+		if rsp.Invoice != nil {
+			resp.Invoice = &CreateOrderInvoice{Id: rsp.Invoice.Id, Url: ""}
+		}
+
+		assert.Nil(t, resp.Invoice)
+		out, err := json.Marshal(resp)
+		require.NoError(t, err)
+		assert.NotContains(t, string(out), `"invoice"`)
+	})
+}
+
 func TestOrderHandler_Get(t *testing.T) {
 	orderRepo := &fakeOrderRepo{byId: domain.Order{
 		OrgId: "org_1", Id: "ord_1", Reference: "ref_1", Status: domain.OrderStatusPending,

@@ -45,6 +45,16 @@ func (o *OrderHandler) RegisterRoutes(s *fuego.Server) {
 
 type CreateOrderResponse struct {
 	Order OrderResponse `json:"order"`
+	// Invoice is the order's combined open invoice, present only when the order
+	// was created with upfront_invoice; omitted otherwise.
+	Invoice *CreateOrderInvoice `json:"invoice,omitempty"`
+}
+
+// CreateOrderInvoice is the minimal invoice shape returned when an upfront
+// invoice was raised for the order.
+type CreateOrderInvoice struct {
+	Id  string `json:"id"`
+	Url string `json:"url"`
 }
 
 func (o *OrderHandler) CreateOrder(c fuego.ContextWithBody[CreateOrderRequest]) (CreateOrderResponse, error) {
@@ -81,6 +91,7 @@ func (o *OrderHandler) CreateOrder(c fuego.ContextWithBody[CreateOrderRequest]) 
 		CartItems:       ToCartItems(input.Cart.Items),
 		PspId:           domain.Gateway(input.PspId),
 		CouponCode:      input.CouponCode,
+		Config:          domain.OrderConfig{UpfrontInvoice: input.UpfrontInvoice},
 		Metadata:        nil,
 		Options:         input.Options,
 	})
@@ -92,9 +103,14 @@ func (o *OrderHandler) CreateOrder(c fuego.ContextWithBody[CreateOrderRequest]) 
 	if err != nil {
 		return CreateOrderResponse{}, NewApiErrorFromError(err)
 	}
-	return CreateOrderResponse{
+	resp := CreateOrderResponse{
 		Order: NewOrderResponseFromDetails(details),
-	}, nil
+	}
+	if rsp.Invoice != nil {
+		// url is a placeholder until the hosted-invoice link is wired.
+		resp.Invoice = &CreateOrderInvoice{Id: rsp.Invoice.Id, Url: ""}
+	}
+	return resp, nil
 }
 
 func (o *OrderHandler) CompleteOrder(c fuego.ContextWithBody[CompleteOrderRequest]) (OrderResponse, error) {
