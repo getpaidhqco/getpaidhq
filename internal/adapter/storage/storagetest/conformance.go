@@ -555,6 +555,18 @@ func testInvoice(t *testing.T, ctx context.Context, rs RepoSet) {
 	_, err = rs.Invoice.FindBySubscriptionCycle(ctx, orgId, subId, 99)
 	assert.ErrorIs(t, err, port.ErrNotFound, "no invoice for an unbuilt cycle")
 
+	// FindOrderInvoice returns the order's combined cycle-0 invoice (the order-only
+	// invoice seeded above: OrderId set, cycle 0, no subscription).
+	gotOrderInv, err := rs.Invoice.FindOrderInvoice(ctx, orgId, orderOnly.OrderId)
+	require.NoError(t, err)
+	assert.Equal(t, orderOnly.Id, gotOrderInv.Id, "FindOrderInvoice returns the order's cycle-0 invoice")
+	require.Len(t, gotOrderInv.LineItems, 1, "line items hydrated")
+
+	// The first invoice's order has only a subscription cycle-3 invoice (no cycle-0
+	// order invoice), so FindOrderInvoice on it must miss.
+	_, err = rs.Invoice.FindOrderInvoice(ctx, orgId, inv.OrderId)
+	assert.ErrorIs(t, err, port.ErrNotFound, "no cycle-0 order invoice for an order with only subscription invoices")
+
 	first, err := rs.Invoice.NextInvoiceNumber(ctx, orgId)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, first)

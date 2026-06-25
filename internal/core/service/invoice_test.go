@@ -187,6 +187,9 @@ func (r *minimalInvoiceRepo) FindById(_ context.Context, _, _ string) (domain.In
 func (r *minimalInvoiceRepo) FindBySubscriptionCycle(_ context.Context, _, _ string, _ int) (domain.Invoice, error) {
 	return domain.Invoice{}, port.ErrNotFound
 }
+func (r *minimalInvoiceRepo) FindOrderInvoice(_ context.Context, _, _ string) (domain.Invoice, error) {
+	return domain.Invoice{}, port.ErrNotFound
+}
 func (r *minimalInvoiceRepo) FindBySubscriptionId(_ context.Context, _, _ string, _ domain.Pagination) ([]domain.Invoice, int, error) {
 	return nil, 0, nil
 }

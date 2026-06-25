@@ -86,6 +86,20 @@ func (r *InvoiceRepo) FindBySubscriptionCycle(ctx context.Context, orgId, subscr
 	return row.toDomain(), nil
 }
 
+func (r *InvoiceRepo) FindOrderInvoice(ctx context.Context, orgId, orderId string) (domain.Invoice, error) {
+	var row invoiceRow
+	err := dbFromCtx(ctx, r.db).
+		Scopes(OrgScope(orgId)).
+		Preload("LineItems").
+		Where("order_id = ? AND cycle = ?", orderId, 0).
+		Order("created_at").
+		First(&row).Error
+	if err != nil {
+		return domain.Invoice{}, translateErr(err)
+	}
+	return row.toDomain(), nil
+}
+
 func (r *InvoiceRepo) List(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Invoice, int, error) {
 	var rows []invoiceRow
 	var count int64

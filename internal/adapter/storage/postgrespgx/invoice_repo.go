@@ -115,6 +115,24 @@ func (r *InvoiceRepo) FindBySubscriptionCycle(ctx context.Context, orgId, subscr
 	return inv, nil
 }
 
+func (r *InvoiceRepo) FindOrderInvoice(ctx context.Context, orgId, orderId string) (domain.Invoice, error) {
+	q := dbFromCtx(ctx, r.pool)
+	var row invoiceRow
+	if err := row.scanInto(q.QueryRow(ctx,
+		`SELECT `+invoiceColumns+` FROM invoices WHERE org_id = $1 AND order_id = $2 AND cycle = 0
+		 ORDER BY created_at LIMIT 1`,
+		orgId, orderId)); err != nil {
+		return domain.Invoice{}, translateErr(err)
+	}
+	inv := row.toDomain()
+	lineItems, err := r.lineItems(ctx, orgId, inv.Id)
+	if err != nil {
+		return domain.Invoice{}, err
+	}
+	inv.LineItems = lineItems
+	return inv, nil
+}
+
 func (r *InvoiceRepo) List(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Invoice, int, error) {
 	q := dbFromCtx(ctx, r.pool)
 	var count int64
