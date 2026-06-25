@@ -12,6 +12,29 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
+// OrderCoupons is the narrow coupon capability OrderService /
+// OrderWorkflowService need: reserve a code's capacity for an order, and consume
+// that reservation into a Discount at completion. Defined here (consumer-side)
+// so order tests can fake it cheaply; *CouponService satisfies it.
+type OrderCoupons interface {
+	Reserve(ctx context.Context, in ReserveInput) (domain.CouponReservation, error)
+	Consume(ctx context.Context, in ConsumeInput) (domain.Discount, error)
+}
+
+var _ OrderCoupons = (*CouponService)(nil)
+
+// OrderInvoicing is the narrow invoicing capability the order flow needs: build
+// the combined cycle-0 invoice for an order, open it, and settle it once paid.
+// Defined here (consumer-side) so order tests can fake it cheaply;
+// *InvoiceService satisfies it.
+type OrderInvoicing interface {
+	BuildForOrder(ctx context.Context, order domain.Order) (domain.Invoice, error)
+	MarkOpen(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error)
+	SettleOrderInvoice(ctx context.Context, orgId, invoiceId string) error
+}
+
+var _ OrderInvoicing = (*InvoiceService)(nil)
+
 // OrderService owns engine-aware order operations: creating orders,
 // completing orders from the HTTP flow (which starts subscription workflows),
 // and read-side queries.
@@ -35,8 +58,8 @@ type OrderService struct {
 	gatewayFactory          port.GatewayFactory
 	pubsub                  port.PubSub
 	logger                  port.Logger
-	coupons                 *CouponService
-	invoiceService          *InvoiceService
+	coupons                 OrderCoupons
+	invoiceService          OrderInvoicing
 }
 
 func NewOrderService(
@@ -54,8 +77,8 @@ func NewOrderService(
 	gatewayFactory port.GatewayFactory,
 	pubsub port.PubSub,
 	logger port.Logger,
-	coupons *CouponService,
-	invoiceService *InvoiceService,
+	coupons OrderCoupons,
+	invoiceService OrderInvoicing,
 ) *OrderService {
 	return &OrderService{
 		tx:                      tx,
@@ -282,7 +305,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 
 	// Reserve the coupon's capacity for this order. A refusal (exhausted code,
 	// minimum not met, etc.) is returned as a typed ApiError and fails the order.
-	if input.CouponCode != "" && s.coupons != nil {
+	if input.CouponCode != "" {
 		if _, err := s.coupons.Reserve(ctx, ReserveInput{
 			OrgId:      orgId,
 			Code:       input.CouponCode,
@@ -305,7 +328,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 	// complete order. BuildForOrder is idempotent on the order and opens its own
 	// tx; an empty order (nothing to invoice) returns port.ErrNotFound, which we
 	// treat as "no invoice".
-	if input.Config.UpfrontInvoice && s.invoiceService != nil {
+	if input.Config.UpfrontInvoice {
 		inv, err := s.invoiceService.BuildForOrder(ctx, newOrder)
 		if err != nil && !errors.Is(err, port.ErrNotFound) {
 			return port.CreateOrderResult{}, err
@@ -566,29 +589,23 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 		// discount via OrderId only. No-op when the order has no reservation, so
 		// coupon-less orders are unaffected. Consumed BEFORE BuildForOrder so the
 		// committed Discount is visible to BuildForOrder's ActiveForOrder.
-		if s.coupons != nil {
-			consume := ConsumeInput{
-				OrgId:      input.OrgId,
-				OrderId:    order.Id,
-				StartCycle: 0,
-			}
-			if len(activated) > 0 {
-				consume.SubscriptionId = activated[0].Id
-			}
-			if _, err := s.coupons.Consume(ctx, consume); err != nil {
-				return err
-			}
+		consume := ConsumeInput{
+			OrgId:      input.OrgId,
+			OrderId:    order.Id,
+			StartCycle: 0,
+		}
+		if len(activated) > 0 {
+			consume.SubscriptionId = activated[0].Id
+		}
+		if _, err := s.coupons.Consume(ctx, consume); err != nil {
+			return err
 		}
 
 		// Build the one combined cycle-0 invoice for the order (sub first-period
 		// line(s) + every one-time line, with the order discount applied). Returns
 		// the already-built invoice when upfront_invoice opened it at create time.
 		// An order with no billable items returns port.ErrNotFound → no invoice,
-		// no payment-link, no settlement. Guarded so unit-test harnesses that pass
-		// a nil invoiceService behave as before.
-		if s.invoiceService == nil {
-			return nil
-		}
+		// no payment-link, no settlement.
 		inv, err := s.invoiceService.BuildForOrder(ctx, order)
 		if err != nil {
 			if errors.Is(err, port.ErrNotFound) {

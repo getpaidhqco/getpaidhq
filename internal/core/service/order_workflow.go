@@ -26,8 +26,8 @@ type OrderWorkflowService struct {
 	tx                      port.TxManager
 	pubsub                  port.PubSub
 	logger                  port.Logger
-	invoiceService          *InvoiceService
-	coupons                 *CouponService
+	invoiceService          OrderInvoicing
+	coupons                 OrderCoupons
 }
 
 func NewOrderWorkflowService(
@@ -40,8 +40,8 @@ func NewOrderWorkflowService(
 	tx port.TxManager,
 	pubsub port.PubSub,
 	logger port.Logger,
-	invoiceService *InvoiceService,
-	coupons *CouponService,
+	invoiceService OrderInvoicing,
+	coupons OrderCoupons,
 ) *OrderWorkflowService {
 	return &OrderWorkflowService{
 		orderRepository:         orderRepository,
@@ -168,40 +168,34 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 		// order anchors the discount on its (single) activated sub; a one-time
 		// order owns the discount via OrderId only. No-op when the order has no
 		// reservation. Consumed BEFORE BuildForOrder so the committed Discount is
-		// visible to BuildForOrder's ActiveForOrder. Guarded for unit harnesses
-		// that pass a nil coupon service.
-		if s.coupons != nil {
-			consume := ConsumeInput{
-				OrgId:      orgId,
-				OrderId:    orderId,
-				StartCycle: 0,
-			}
-			if subscriptionId != "" {
-				consume.SubscriptionId = subscriptionId
-			}
-			if _, err := s.coupons.Consume(ctx, consume); err != nil {
-				return err
-			}
+		// visible to BuildForOrder's ActiveForOrder.
+		consume := ConsumeInput{
+			OrgId:      orgId,
+			OrderId:    orderId,
+			StartCycle: 0,
+		}
+		if subscriptionId != "" {
+			consume.SubscriptionId = subscriptionId
+		}
+		if _, err := s.coupons.Consume(ctx, consume); err != nil {
+			return err
 		}
 
 		// Build the ONE combined cycle-0 invoice for the order (sub first-period
 		// line(s) + every one-time line, with the order discount applied). Returns
 		// the already-built invoice when upfront_invoice opened it at create time
 		// (idempotent on the order). An order with no billable items returns
-		// port.ErrNotFound → no invoice, no payment-link, no settlement. Guarded
-		// so unit-test harnesses with a nil invoiceService behave as before.
+		// port.ErrNotFound → no invoice, no payment-link, no settlement.
 		var invoiceId string
-		if s.invoiceService != nil {
-			inv, berr := s.invoiceService.BuildForOrder(ctx, order)
-			if berr != nil {
-				if !errors.Is(berr, port.ErrNotFound) {
-					s.logger.Error("Failed to build order invoice", berr.Error())
-					return berr
-				}
-				// nothing to invoice — leave invoiceId empty
-			} else {
-				invoiceId = inv.Id
+		inv, berr := s.invoiceService.BuildForOrder(ctx, order)
+		if berr != nil {
+			if !errors.Is(berr, port.ErrNotFound) {
+				s.logger.Error("Failed to build order invoice", berr.Error())
+				return berr
 			}
+			// nothing to invoice — leave invoiceId empty
+		} else {
+			invoiceId = inv.Id
 		}
 
 		if paymentCtx.Payment.Amount > 0 {
@@ -235,10 +229,8 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 			// The combined invoice is paid by this first charge — open then settle it
 			// (no-op when there was nothing to invoice; idempotent from open when
 			// upfront_invoice already opened it).
-			if s.invoiceService != nil {
-				if err := s.invoiceService.SettleOrderInvoice(ctx, orgId, invoiceId); err != nil {
-					return err
-				}
+			if err := s.invoiceService.SettleOrderInvoice(ctx, orgId, invoiceId); err != nil {
+				return err
 			}
 		}
 

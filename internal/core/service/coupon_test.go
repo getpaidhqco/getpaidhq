@@ -211,3 +211,33 @@ type noopUsage struct{}
 func (noopUsage) MeteredUsageForSubscription(ctx context.Context, sub domain.Subscription, price domain.Price, from, to time.Time) (MeteredUsage, error) {
 	return MeteredUsage{}, nil
 }
+
+// noopCoupons is an OrderCoupons that reserves/consumes nothing — for order
+// tests that don't exercise coupons but must wire a real (non-nil) coupon dep.
+type noopCoupons struct{}
+
+func (noopCoupons) Reserve(ctx context.Context, in ReserveInput) (domain.CouponReservation, error) {
+	return domain.CouponReservation{}, nil
+}
+
+func (noopCoupons) Consume(ctx context.Context, in ConsumeInput) (domain.Discount, error) {
+	return domain.Discount{}, nil
+}
+
+// noopInvoicing is an OrderInvoicing that builds no invoice (BuildForOrder
+// returns port.ErrNotFound, mirroring an order with nothing to invoice) — for
+// order tests that don't exercise invoicing but must wire a real (non-nil) dep.
+// This preserves the old "nil invoiceService → no invoice" behaviour.
+type noopInvoicing struct{}
+
+func (noopInvoicing) BuildForOrder(ctx context.Context, order domain.Order) (domain.Invoice, error) {
+	return domain.Invoice{}, port.ErrNotFound
+}
+
+func (noopInvoicing) MarkOpen(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
+	return domain.Invoice{}, nil
+}
+
+func (noopInvoicing) SettleOrderInvoice(ctx context.Context, orgId, invoiceId string) error {
+	return nil
+}

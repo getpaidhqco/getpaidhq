@@ -23,7 +23,7 @@ func newOrderWorkflowService(
 	if ps == nil {
 		ps = &recordingPubSub{}
 	}
-	return NewOrderWorkflowService(orderRepo, &fakeCustomerRepo{}, subRepo, pmRepo, payRepo, &fakePriceRepo{}, &fakeTxManager{}, ps, silentLogger{}, nil, nil)
+	return NewOrderWorkflowService(orderRepo, &fakeCustomerRepo{}, subRepo, pmRepo, payRepo, &fakePriceRepo{}, &fakeTxManager{}, ps, silentLogger{}, noopInvoicing{}, noopCoupons{})
 }
 
 func completeSessionInput() port.CompleteCheckoutSessionInput {

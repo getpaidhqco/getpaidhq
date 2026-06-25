@@ -230,7 +230,7 @@ func newOrderServiceForTest(
 ) *OrderService {
 	// session/cart/price/product repos and gateway factory are unused by
 	// CompleteOrder.
-	return NewOrderService(tx, engine, nil, &fakePriceRepo{}, nil, orderRepo, custRepo, subRepo, payRepo, pmRepo, nil, nil, ps, silentLogger{}, nil, nil)
+	return NewOrderService(tx, engine, nil, &fakePriceRepo{}, nil, orderRepo, custRepo, subRepo, payRepo, pmRepo, nil, nil, ps, silentLogger{}, noopCoupons{}, noopInvoicing{})
 }
 
 // newOrderServiceWithInvoice wires an invoice-aware OrderService for CompleteOrder
@@ -248,8 +248,11 @@ func newOrderServiceWithInvoice(
 	ps port.PubSub,
 	priceRepo port.PriceRepository,
 	invRepo *fakeInvoiceRepo,
-	coupons *CouponService,
+	coupons OrderCoupons,
 ) *OrderService {
+	if coupons == nil {
+		coupons = noopCoupons{}
+	}
 	invSvc := NewInvoiceService(invRepo, orderRepo, priceRepo, subRepo, noopUsage{}, tx, silentLogger{}, noopDiscountRepo{}, noopCouponRepo{}, noopReservationRepo{}, defaultSettingsResolver{})
 	return NewOrderService(tx, engine, nil, priceRepo, nil, orderRepo, custRepo, subRepo, payRepo, pmRepo, nil, nil, ps, silentLogger{}, coupons, invSvc)
 }
@@ -443,7 +446,7 @@ func TestOrderService_InitOrderPayment(t *testing.T) {
 		orderRepo := &fakeOrderRepo{order: order}
 		factory := &initPaymentFactory{gw: gw}
 		svc := NewOrderService(nil, nil, nil, &fakePriceRepo{}, &fakeCartRepo{}, orderRepo,
-			&fakeCustomerRepo{}, nil, nil, nil, nil, factory, &recordingPubSub{}, silentLogger{}, nil, nil)
+			&fakeCustomerRepo{}, nil, nil, nil, nil, factory, &recordingPubSub{}, silentLogger{}, noopCoupons{}, noopInvoicing{})
 		return svc, orderRepo
 	}
 
@@ -488,7 +491,7 @@ func TestOrderService_CreateOrder_RejectsArchivedProduct(t *testing.T) {
 	prod := &fakeProductRepo{byId: domain.Product{OrgId: "org_1", Id: "prod_1", Status: domain.ProductStatusArchived}}
 	price := &fakePriceRepo{byId: domain.Price{OrgId: "org_1", Id: "price_1", UnitPrice: 1000}}
 	orderRepo := &fakeOrderRepo{}
-	svc := NewOrderService(nil, nil, nil, price, &fakeCartRepo{}, orderRepo, &fakeCustomerRepo{}, nil, nil, nil, prod, nil, &recordingPubSub{}, silentLogger{}, nil, nil)
+	svc := NewOrderService(nil, nil, nil, price, &fakeCartRepo{}, orderRepo, &fakeCustomerRepo{}, nil, nil, nil, prod, nil, &recordingPubSub{}, silentLogger{}, noopCoupons{}, noopInvoicing{})
 
 	_, err := svc.CreateOrder(context.Background(), port.CreateOrderInput{
 		OrgId:     "org_1",
@@ -518,7 +521,7 @@ func TestOrderService_CreateOrder_UpfrontInvoice(t *testing.T) {
 		invSvc := NewInvoiceService(invRepo, orderRepo, price, subRepo, noopUsage{}, noopTx{}, silentLogger{}, noopDiscountRepo{}, noopCouponRepo{}, noopReservationRepo{}, defaultSettingsResolver{})
 		svc := NewOrderService(
 			nil, &recordingEngine{}, nil, price, &fakeCartRepo{}, orderRepo,
-			custRepo, subRepo, nil, nil, prod, nil, &recordingPubSub{}, silentLogger{}, nil, invSvc,
+			custRepo, subRepo, nil, nil, prod, nil, &recordingPubSub{}, silentLogger{}, noopCoupons{}, invSvc,
 		)
 		return svc, orderRepo, invRepo
 	}
