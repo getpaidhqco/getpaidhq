@@ -21,15 +21,16 @@ type orderRow struct {
 	Total          int64
 	Metadata       jsonCol[map[string]string]
 	PaymentSession jsonCol[any]
+	Config         jsonCol[domain.OrderConfig]
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
 }
 
-const orderColumns = `org_id, id, customer_id, reference, status, session_id, cart_id, currency, total, metadata, created_at, updated_at, payment_session`
+const orderColumns = `org_id, id, customer_id, reference, status, session_id, cart_id, currency, total, metadata, created_at, updated_at, payment_session, config`
 
 func (r *orderRow) scanInto(s scanner) error {
 	return s.Scan(&r.OrgId, &r.Id, &r.CustomerId, &r.Reference, &r.Status, &r.SessionId,
-		&r.CartId, &r.Currency, &r.Total, &r.Metadata, &r.CreatedAt, &r.UpdatedAt, &r.PaymentSession)
+		&r.CartId, &r.Currency, &r.Total, &r.Metadata, &r.CreatedAt, &r.UpdatedAt, &r.PaymentSession, &r.Config)
 }
 
 func (r orderRow) toDomain() domain.Order {
@@ -45,6 +46,7 @@ func (r orderRow) toDomain() domain.Order {
 		Total:          r.Total,
 		Metadata:       r.Metadata.V,
 		PaymentSession: r.PaymentSession.V,
+		Config:         r.Config.V,
 		CreatedAt:      r.CreatedAt,
 		UpdatedAt:      r.UpdatedAt,
 	}
@@ -63,6 +65,7 @@ func orderRowFromDomain(o domain.Order) orderRow {
 		Total:          o.Total,
 		Metadata:       newJSON(emptyIfNil(o.Metadata)),
 		PaymentSession: newJSON(o.PaymentSession),
+		Config:         newJSON(o.Config),
 		CreatedAt:      o.CreatedAt,
 		UpdatedAt:      o.UpdatedAt,
 	}

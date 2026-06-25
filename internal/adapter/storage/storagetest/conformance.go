@@ -245,6 +245,23 @@ func testCartOrderItem(t *testing.T, ctx context.Context, rs RepoSet) {
 	// PaymentSession round-trip: the seeded order had none, so it reads back nil.
 	assert.Nil(t, got.PaymentSession, "order with no payment session reads back nil")
 
+	// Config round-trip: the seeded order had a zero-value config, so UpfrontInvoice
+	// reads back false.
+	assert.False(t, got.Config.UpfrontInvoice, "zero-value config reads back UpfrontInvoice=false")
+
+	// An order created with Config.UpfrontInvoice=true round-trips that flag.
+	withConfig := domain.Order{
+		OrgId: orgId, Id: lib.GenerateId("ord"), CustomerId: cust.Id, CartId: order.CartId,
+		Reference: "REF-" + lib.GenerateId("r"), Status: domain.OrderStatusPending, Currency: "USD",
+		Total: 1999, Metadata: map[string]string{}, CreatedAt: now(), UpdatedAt: now(),
+		Config: domain.OrderConfig{UpfrontInvoice: true},
+	}
+	_, err = rs.Order.Create(ctx, withConfig)
+	require.NoError(t, err)
+	gotConfig, err := rs.Order.FindById(ctx, orgId, withConfig.Id)
+	require.NoError(t, err)
+	assert.True(t, gotConfig.Config.UpfrontInvoice, "Config.UpfrontInvoice round-trips as true")
+
 	// An order created with a PSP session payload round-trips (back as map[string]any).
 	withSession := domain.Order{
 		OrgId: orgId, Id: lib.GenerateId("ord"), CustomerId: cust.Id, CartId: order.CartId,
