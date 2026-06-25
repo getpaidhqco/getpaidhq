@@ -148,6 +148,13 @@ type PaymentRepository interface {
 type InvoiceRepository interface {
 	// Create persists the Invoice and its LineItems atomically.
 	Create(ctx context.Context, entity domain.Invoice) (domain.Invoice, error)
+	// NextInvoiceNumber increments the org-scoped invoice counter and returns
+	// the incremented value. Implementations must make this safe across
+	// concurrent callers and service instances.
+	NextInvoiceNumber(ctx context.Context, orgId string) (int64, error)
+	// SetInvoiceCounter sets the org-scoped counter value regardless of the
+	// current value; the next NextInvoiceNumber call returns value+1.
+	SetInvoiceCounter(ctx context.Context, orgId string, value int64) error
 	FindById(ctx context.Context, orgId string, id string) (domain.Invoice, error)
 	// FindBySubscriptionCycle returns the invoice already built for a
 	// (subscription, cycle) pair, or port.ErrNotFound — the build idempotency guard.

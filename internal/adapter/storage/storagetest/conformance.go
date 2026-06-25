@@ -513,6 +513,55 @@ func testInvoice(t *testing.T, ctx context.Context, rs RepoSet) {
 
 	_, err = rs.Invoice.FindBySubscriptionCycle(ctx, orgId, subId, 99)
 	assert.ErrorIs(t, err, port.ErrNotFound, "no invoice for an unbuilt cycle")
+
+	first, err := rs.Invoice.NextInvoiceNumber(ctx, orgId)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, first)
+
+	second, err := rs.Invoice.NextInvoiceNumber(ctx, orgId)
+	require.NoError(t, err)
+	assert.EqualValues(t, 2, second)
+
+	otherOrg := seedOrg(t, ctx, rs)
+	otherFirst, err := rs.Invoice.NextInvoiceNumber(ctx, otherOrg)
+	require.NoError(t, err)
+	assert.EqualValues(t, 1, otherFirst, "counter is scoped per org")
+
+	require.NoError(t, rs.Invoice.SetInvoiceCounter(ctx, orgId, 41))
+	afterSet, err := rs.Invoice.NextInvoiceNumber(ctx, orgId)
+	require.NoError(t, err)
+	assert.EqualValues(t, 42, afterSet, "set is unconditional and next returns value+1")
+
+	const workers = 20
+	var wg sync.WaitGroup
+	results := make(chan int64, workers)
+	errs := make(chan error, workers)
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			n, err := rs.Invoice.NextInvoiceNumber(ctx, orgId)
+			if err != nil {
+				errs <- err
+				return
+			}
+			results <- n
+		}()
+	}
+	wg.Wait()
+	close(results)
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+	seen := map[int64]bool{}
+	for n := range results {
+		seen[n] = true
+	}
+	require.Len(t, seen, workers, "concurrent increments must return unique numbers")
+	for n := int64(43); n < 43+workers; n++ {
+		assert.True(t, seen[n], "missing invoice number %d", n)
+	}
 }
 
 // ---- dunning (campaign create/find/update + an attempt) ----

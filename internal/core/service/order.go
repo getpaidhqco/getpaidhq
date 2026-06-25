@@ -8,6 +8,8 @@ import (
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
 	"time"
+
+	"golang.org/x/sync/errgroup"
 )
 
 // OrderService owns engine-aware order operations: creating orders,
@@ -317,16 +319,31 @@ func (s *OrderService) InitOrderPayment(ctx context.Context, orgId, orderId, psp
 		return port.InitPaymentResponse{PspResponse: order.PaymentSession}, nil
 	}
 
-	cart, err := s.cartRepository.FindById(ctx, orgId, order.CartId)
-	if err != nil {
-		s.logger.Error("Failed to find cart", "id", order.CartId, "err", err.Error())
-		return port.InitPaymentResponse{}, lib.NewCustomError(lib.NotFoundError, "cart not found", err)
-	}
-
-	customer, err := s.customerRepository.FindById(ctx, orgId, order.CustomerId)
-	if err != nil {
-		s.logger.Error("Failed to find customer", "id", order.CustomerId, "err", err.Error())
-		return port.InitPaymentResponse{}, lib.NewCustomError(lib.NotFoundError, "customer not found", err)
+	var (
+		cart     domain.Cart
+		customer domain.Customer
+	)
+	g, gctx := errgroup.WithContext(ctx)
+	g.Go(func() error {
+		var ferr error
+		cart, ferr = s.cartRepository.FindById(gctx, orgId, order.CartId)
+		if ferr != nil {
+			s.logger.Error("Failed to find cart", "id", order.CartId, "err", ferr.Error())
+			return lib.NewCustomError(lib.NotFoundError, "cart not found", ferr)
+		}
+		return nil
+	})
+	g.Go(func() error {
+		var ferr error
+		customer, ferr = s.customerRepository.FindById(gctx, orgId, order.CustomerId)
+		if ferr != nil {
+			s.logger.Error("Failed to find customer", "id", order.CustomerId, "err", ferr.Error())
+			return lib.NewCustomError(lib.NotFoundError, "customer not found", ferr)
+		}
+		return nil
+	})
+	if err := g.Wait(); err != nil {
+		return port.InitPaymentResponse{}, err
 	}
 
 	gw, err := s.gatewayFactory.NewGateway(ctx, orgId, pspId)
