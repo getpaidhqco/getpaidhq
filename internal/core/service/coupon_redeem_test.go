@@ -20,11 +20,12 @@ func TestRedeem_CreatesDiscountAndIncrements(t *testing.T) {
 	ccr.byId[code.Id] = code
 
 	d, err := svc.Redeem(context.Background(), port.RedeemCouponInput{
-		OrgId: "org_1", Code: "SAVE", CustomerId: "cus_1", SubscriptionId: "sub_1", StartCycle: 4, Currency: "USD",
+		OrgId: "org_1", Code: "SAVE", CustomerId: "cus_1", SubscriptionId: "sub_1", OrderId: "ord_1", StartCycle: 4, Currency: "USD",
 	})
 	require.NoError(t, err)
 	assert.Equal(t, c.Id, d.CouponId)
 	assert.Equal(t, code.Id, d.CouponCodeId)
+	assert.Equal(t, "ord_1", d.OrderId)
 	assert.Equal(t, 4, d.StartCycle)
 	require.Len(t, dr.created, 1)
 	require.Len(t, ccr.redeemed, 1, "TimesRedeemed incremented")
