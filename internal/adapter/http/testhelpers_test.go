@@ -20,6 +20,7 @@ import (
 	"getpaidhq/internal/adapter/http/middleware"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
+	"getpaidhq/internal/core/service"
 	"getpaidhq/internal/lib"
 )
 
@@ -302,6 +303,34 @@ type noopTxManager struct{}
 
 func (noopTxManager) RunInTx(ctx context.Context, fn func(context.Context) error) error {
 	return fn(ctx)
+}
+
+// noopCoupons / noopInvoicing satisfy service.OrderCoupons / service.OrderInvoicing
+// for handler tests that don't exercise coupons or invoicing but must wire a
+// real (non-nil) dependency. noopInvoicing.BuildForOrder returns port.ErrNotFound
+// (order with nothing to invoice), preserving the old "no invoice" behaviour.
+type noopCoupons struct{}
+
+func (noopCoupons) Reserve(ctx context.Context, in service.ReserveInput) (domain.CouponReservation, error) {
+	return domain.CouponReservation{}, nil
+}
+
+func (noopCoupons) Consume(ctx context.Context, in service.ConsumeInput) (domain.Discount, error) {
+	return domain.Discount{}, nil
+}
+
+type noopInvoicing struct{}
+
+func (noopInvoicing) BuildForOrder(ctx context.Context, order domain.Order) (domain.Invoice, error) {
+	return domain.Invoice{}, port.ErrNotFound
+}
+
+func (noopInvoicing) MarkOpen(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
+	return domain.Invoice{}, nil
+}
+
+func (noopInvoicing) SettleOrderInvoice(ctx context.Context, orgId, invoiceId string) error {
+	return nil
 }
 
 // recordingEngine is an inert port.Engine implementation, recording the calls

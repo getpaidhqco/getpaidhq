@@ -60,8 +60,9 @@ func seedDecliningCard(t *testing.T, db *gorm.DB, orgId string, sub *domain.Subs
 // tests that drive the invoice builder directly.
 func buildInvoiceService(t *testing.T, db *gorm.DB) *service.InvoiceService {
 	t.Helper()
-	return service.NewInvoiceService(NewInvoiceRepo(db), NewOrderRepo(db), NewPriceRepo(db),
-		buildUsageService(t, db), NewTxManager(db), noopLogger{}, NewDiscountRepo(db), NewCouponRepo(db))
+	return service.NewInvoiceService(NewInvoiceRepo(db), NewOrderRepo(db), NewPriceRepo(db), NewSubscriptionRepo(db),
+		buildUsageService(t, db), NewTxManager(db), noopLogger{}, NewDiscountRepo(db), NewCouponRepo(db), NewCouponReservationRepo(db),
+		service.NewInvoiceSettingsService(NewSettingRepo(db), noopLogger{}))
 }
 
 // A declined charge: the charge result is failed (not an error), the failure

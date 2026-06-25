@@ -159,6 +159,10 @@ type InvoiceRepository interface {
 	// FindBySubscriptionCycle returns the invoice already built for a
 	// (subscription, cycle) pair, or port.ErrNotFound — the build idempotency guard.
 	FindBySubscriptionCycle(ctx context.Context, orgId, subscriptionId string, cycle int) (domain.Invoice, error)
+	// FindOrderInvoice returns the order's combined cycle-0 invoice (order_id set,
+	// cycle = 0), or port.ErrNotFound. The build-idempotency guard for an order's
+	// invoice (an order has at most one such invoice).
+	FindOrderInvoice(ctx context.Context, orgId, orderId string) (domain.Invoice, error)
 	FindBySubscriptionId(ctx context.Context, orgId, subscriptionId string, p domain.Pagination) ([]domain.Invoice, int, error)
 	// List returns the org's invoices, newest first, paginated.
 	List(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Invoice, int, error)

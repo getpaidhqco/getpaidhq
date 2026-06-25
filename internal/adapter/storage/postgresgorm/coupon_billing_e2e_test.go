@@ -73,6 +73,25 @@ func (noopPriorPayments) HasPriorSuccessfulPayment(context.Context, string, stri
 	return false, nil
 }
 
+// noopOrderInvoicing satisfies service.OrderInvoicing without building an
+// invoice: BuildForOrder returns port.ErrNotFound (order with nothing to
+// invoice), so order completion does no invoicing — the behaviour this
+// coupon-billing flow asserts (it does not opt into order-level invoicing; the
+// per-cycle invoices are produced later by the billing tail).
+type noopOrderInvoicing struct{}
+
+func (noopOrderInvoicing) BuildForOrder(ctx context.Context, order domain.Order) (domain.Invoice, error) {
+	return domain.Invoice{}, port.ErrNotFound
+}
+
+func (noopOrderInvoicing) MarkOpen(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
+	return domain.Invoice{}, nil
+}
+
+func (noopOrderInvoicing) SettleOrderInvoice(ctx context.Context, orgId, invoiceId string) error {
+	return nil
+}
+
 // buildOrderService wires an engine-aware OrderService off the testcontainer db,
 // with the memory gateway registered and the coupon service threaded in.
 func buildOrderService(t *testing.T, db *gorm.DB, coupons *service.CouponService) *service.OrderService {
@@ -101,6 +120,7 @@ func buildOrderService(t *testing.T, db *gorm.DB, coupons *service.CouponService
 		noopPubSub{},
 		logger,
 		coupons,
+		noopOrderInvoicing{}, // this flow does not opt into order-level invoicing
 	)
 }
 

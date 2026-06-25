@@ -32,8 +32,8 @@ func (r *InvoiceRepo) Create(ctx context.Context, entity domain.Invoice) (domain
 		q := dbFromCtx(ctx, r.pool)
 		if _, err := q.Exec(ctx,
 			`INSERT INTO invoices (`+invoiceColumns+`)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
-			row.OrgId, row.Id, row.Number, row.SubscriptionId, row.CustomerId, row.OrderId,
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18)`,
+			row.OrgId, row.Id, row.Number, row.Reference, row.SubscriptionId, row.CustomerId, row.OrderId,
 			row.Status, row.Currency, row.Subtotal, row.DiscountTotal, row.Total,
 			row.Cycle, row.PeriodStart, row.PeriodEnd, row.Metadata, row.CreatedAt, row.UpdatedAt); err != nil {
 			return err
@@ -115,6 +115,24 @@ func (r *InvoiceRepo) FindBySubscriptionCycle(ctx context.Context, orgId, subscr
 	return inv, nil
 }
 
+func (r *InvoiceRepo) FindOrderInvoice(ctx context.Context, orgId, orderId string) (domain.Invoice, error) {
+	q := dbFromCtx(ctx, r.pool)
+	var row invoiceRow
+	if err := row.scanInto(q.QueryRow(ctx,
+		`SELECT `+invoiceColumns+` FROM invoices WHERE org_id = $1 AND order_id = $2 AND cycle = 0
+		 ORDER BY created_at LIMIT 1`,
+		orgId, orderId)); err != nil {
+		return domain.Invoice{}, translateErr(err)
+	}
+	inv := row.toDomain()
+	lineItems, err := r.lineItems(ctx, orgId, inv.Id)
+	if err != nil {
+		return domain.Invoice{}, err
+	}
+	inv.LineItems = lineItems
+	return inv, nil
+}
+
 func (r *InvoiceRepo) List(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Invoice, int, error) {
 	q := dbFromCtx(ctx, r.pool)
 	var count int64
@@ -162,11 +180,11 @@ func (r *InvoiceRepo) Update(ctx context.Context, entity domain.Invoice) (domain
 	// written at Create time and not mutated here. created_at is intentionally
 	// not in the SET list — every $N below is referenced.
 	_, err := q.Exec(ctx,
-		`UPDATE invoices SET number=$3, subscription_id=$4, customer_id=$5, order_id=$6, status=$7,
-		        currency=$8, subtotal=$9, discount_total=$10, total=$11, cycle=$12,
-		        period_start=$13, period_end=$14, metadata=$15, updated_at=$16
+		`UPDATE invoices SET number=$3, reference=$4, subscription_id=$5, customer_id=$6, order_id=$7, status=$8,
+		        currency=$9, subtotal=$10, discount_total=$11, total=$12, cycle=$13,
+		        period_start=$14, period_end=$15, metadata=$16, updated_at=$17
 		 WHERE org_id=$1 AND id=$2`,
-		row.OrgId, row.Id, row.Number, row.SubscriptionId, row.CustomerId, row.OrderId, row.Status,
+		row.OrgId, row.Id, row.Number, row.Reference, row.SubscriptionId, row.CustomerId, row.OrderId, row.Status,
 		row.Currency, row.Subtotal, row.DiscountTotal, row.Total, row.Cycle,
 		row.PeriodStart, row.PeriodEnd, row.Metadata, row.UpdatedAt)
 	if err != nil {

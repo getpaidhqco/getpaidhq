@@ -21,6 +21,7 @@ type orderRow struct {
 	Total          int64              `gorm:"column:total"`
 	Metadata       map[string]string  `gorm:"column:metadata;serializer:json"`
 	PaymentSession any                `gorm:"column:payment_session;serializer:json"`
+	Config         domain.OrderConfig `gorm:"column:config;serializer:json"`
 	CreatedAt      time.Time          `gorm:"column:created_at"`
 	UpdatedAt      time.Time          `gorm:"column:updated_at"`
 }
@@ -40,6 +41,7 @@ func (r orderRow) toDomain() domain.Order {
 		Total:          r.Total,
 		Metadata:       r.Metadata,
 		PaymentSession: r.PaymentSession,
+		Config:         r.Config,
 		CreatedAt:      r.CreatedAt,
 		UpdatedAt:      r.UpdatedAt,
 	}
@@ -58,6 +60,7 @@ func orderRowFromDomain(o domain.Order) orderRow {
 		Total:          o.Total,
 		Metadata:       o.Metadata,
 		PaymentSession: o.PaymentSession,
+		Config:         o.Config,
 		CreatedAt:      o.CreatedAt,
 		UpdatedAt:      o.UpdatedAt,
 	}

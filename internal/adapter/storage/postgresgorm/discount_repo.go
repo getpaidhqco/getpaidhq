@@ -45,8 +45,18 @@ func (r *DiscountRepo) ActiveForSubscription(ctx context.Context, orgId, subscri
 	return r.activeBy(ctx, orgId, "subscription_id = ?", subscriptionId)
 }
 
+// ActiveForOrder returns only order-level discounts (subscription_id IS NULL),
+// so a subscription-targeted discount never leaks into a one-time order invoice.
 func (r *DiscountRepo) ActiveForOrder(ctx context.Context, orgId, orderId string) ([]domain.Discount, error) {
-	return r.activeBy(ctx, orgId, "order_id = ?", orderId)
+	var rows []discountRow
+	err := dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).
+		Where("status = ?", domain.DiscountStatusActive).
+		Where("order_id = ?", orderId).
+		Where("subscription_id IS NULL").Find(&rows).Error
+	if err != nil {
+		return nil, err
+	}
+	return discountsToDomain(rows), nil
 }
 
 func (r *DiscountRepo) activeBy(ctx context.Context, orgId, where, arg string) ([]domain.Discount, error) {
@@ -57,11 +67,15 @@ func (r *DiscountRepo) activeBy(ctx context.Context, orgId, where, arg string) (
 	if err != nil {
 		return nil, err
 	}
+	return discountsToDomain(rows), nil
+}
+
+func discountsToDomain(rows []discountRow) []domain.Discount {
 	out := make([]domain.Discount, len(rows))
 	for i, row := range rows {
 		out[i] = row.toDomain()
 	}
-	return out, nil
+	return out
 }
 
 func (r *DiscountRepo) CountByCoupon(ctx context.Context, orgId, couponId string) (int, error) {

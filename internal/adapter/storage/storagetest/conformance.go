@@ -245,6 +245,23 @@ func testCartOrderItem(t *testing.T, ctx context.Context, rs RepoSet) {
 	// PaymentSession round-trip: the seeded order had none, so it reads back nil.
 	assert.Nil(t, got.PaymentSession, "order with no payment session reads back nil")
 
+	// Config round-trip: the seeded order had a zero-value config, so UpfrontInvoice
+	// reads back false.
+	assert.False(t, got.Config.UpfrontInvoice, "zero-value config reads back UpfrontInvoice=false")
+
+	// An order created with Config.UpfrontInvoice=true round-trips that flag.
+	withConfig := domain.Order{
+		OrgId: orgId, Id: lib.GenerateId("ord"), CustomerId: cust.Id, CartId: order.CartId,
+		Reference: "REF-" + lib.GenerateId("r"), Status: domain.OrderStatusPending, Currency: "USD",
+		Total: 1999, Metadata: map[string]string{}, CreatedAt: now(), UpdatedAt: now(),
+		Config: domain.OrderConfig{UpfrontInvoice: true},
+	}
+	_, err = rs.Order.Create(ctx, withConfig)
+	require.NoError(t, err)
+	gotConfig, err := rs.Order.FindById(ctx, orgId, withConfig.Id)
+	require.NoError(t, err)
+	assert.True(t, gotConfig.Config.UpfrontInvoice, "Config.UpfrontInvoice round-trips as true")
+
 	// An order created with a PSP session payload round-trips (back as map[string]any).
 	withSession := domain.Order{
 		OrgId: orgId, Id: lib.GenerateId("ord"), CustomerId: cust.Id, CartId: order.CartId,
@@ -478,7 +495,7 @@ func testInvoice(t *testing.T, ctx context.Context, rs RepoSet) {
 	subId := lib.GenerateId("sub")
 
 	inv := domain.Invoice{
-		OrgId: orgId, Id: lib.GenerateId("inv"), SubscriptionId: subId, CustomerId: cust.Id,
+		OrgId: orgId, Id: lib.GenerateId("inv"), Reference: "INV-2026-0001", SubscriptionId: subId, CustomerId: cust.Id,
 		OrderId: lib.GenerateId("ord"), Status: domain.InvoiceStatusDraft, Currency: "USD",
 		Cycle: 3, PeriodStart: now(), PeriodEnd: now().Add(720 * time.Hour),
 		Metadata: map[string]string{"reason": "renewal"}, CreatedAt: now(), UpdatedAt: now(),
@@ -506,6 +523,30 @@ func testInvoice(t *testing.T, ctx context.Context, rs RepoSet) {
 	assert.Equal(t, inv.Id, got.Id)
 	require.Len(t, got.LineItems, 2, "line items persisted atomically with the invoice")
 	assert.Equal(t, "renewal", got.Metadata["reason"])
+	assert.Equal(t, "INV-2026-0001", got.Reference, "reference round-trips")
+	assert.Equal(t, subId, got.SubscriptionId, "subscription id round-trips")
+
+	// Order-only invoice: no subscription. The empty SubscriptionId must persist
+	// as SQL NULL and read back as "" on both drivers (subscription_id is nullable).
+	orderOnly := domain.Invoice{
+		OrgId: orgId, Id: lib.GenerateId("inv"), Reference: "INV-2026-0002", SubscriptionId: "", CustomerId: cust.Id,
+		OrderId: lib.GenerateId("ord"), Status: domain.InvoiceStatusDraft, Currency: "USD",
+		Cycle: 0, PeriodStart: now(), PeriodEnd: now().Add(720 * time.Hour),
+		Metadata: map[string]string{"reason": "one-off"}, CreatedAt: now(), UpdatedAt: now(),
+	}
+	orderOnly.AddLine(domain.InvoiceLineItem{
+		OrgId: orgId, Id: lib.GenerateId("ili"), InvoiceId: orderOnly.Id, PriceId: price.Id,
+		Kind: domain.InvoiceLineKindBase, Description: "One-off charge",
+		Quantity: decimal.NewFromInt(1), UnitAmount: decimal.NewFromInt(4200), Total: 4200,
+		CreatedAt: now(), UpdatedAt: now(),
+	})
+	_, err = rs.Invoice.Create(ctx, orderOnly)
+	require.NoError(t, err)
+	gotOrderOnly, err := rs.Invoice.FindById(ctx, orgId, orderOnly.Id)
+	require.NoError(t, err)
+	assert.Equal(t, "", gotOrderOnly.SubscriptionId, "order-only invoice reads back empty subscription id (NULL)")
+	assert.Equal(t, "INV-2026-0002", gotOrderOnly.Reference, "reference round-trips for order-only invoice")
+	assert.Equal(t, orderOnly.OrderId, gotOrderOnly.OrderId)
 
 	byCycle, err := rs.Invoice.FindBySubscriptionCycle(ctx, orgId, subId, 3)
 	require.NoError(t, err)
@@ -513,6 +554,18 @@ func testInvoice(t *testing.T, ctx context.Context, rs RepoSet) {
 
 	_, err = rs.Invoice.FindBySubscriptionCycle(ctx, orgId, subId, 99)
 	assert.ErrorIs(t, err, port.ErrNotFound, "no invoice for an unbuilt cycle")
+
+	// FindOrderInvoice returns the order's combined cycle-0 invoice (the order-only
+	// invoice seeded above: OrderId set, cycle 0, no subscription).
+	gotOrderInv, err := rs.Invoice.FindOrderInvoice(ctx, orgId, orderOnly.OrderId)
+	require.NoError(t, err)
+	assert.Equal(t, orderOnly.Id, gotOrderInv.Id, "FindOrderInvoice returns the order's cycle-0 invoice")
+	require.Len(t, gotOrderInv.LineItems, 1, "line items hydrated")
+
+	// The first invoice's order has only a subscription cycle-3 invoice (no cycle-0
+	// order invoice), so FindOrderInvoice on it must miss.
+	_, err = rs.Invoice.FindOrderInvoice(ctx, orgId, inv.OrderId)
+	assert.ErrorIs(t, err, port.ErrNotFound, "no cycle-0 order invoice for an order with only subscription invoices")
 
 	first, err := rs.Invoice.NextInvoiceNumber(ctx, orgId)
 	require.NoError(t, err)
@@ -664,11 +717,13 @@ func testCoupon(t *testing.T, ctx context.Context, rs RepoSet) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, byCode.TimesRedeemed)
 
-	// Discount referencing the coupon, scoped to a subscription.
+	// Discount referencing the coupon, owned by an order and targeting a
+	// subscription (order_id + subscription_id both set).
+	orderId := lib.GenerateId("ord")
 	subId := lib.GenerateId("sub")
 	custId := lib.GenerateId("cus")
 	disc, err := domain.NewDiscount(domain.NewDiscountInput{
-		OrgId: orgId, CouponId: coupon.Id, CustomerId: custId, SubscriptionId: subId,
+		OrgId: orgId, CouponId: coupon.Id, CustomerId: custId, OrderId: orderId, SubscriptionId: subId,
 	})
 	require.NoError(t, err)
 	_, err = rs.Discount.Create(ctx, disc)
@@ -683,12 +738,30 @@ func testCoupon(t *testing.T, ctx context.Context, rs RepoSet) {
 	require.Len(t, forSub, 1)
 	assert.Equal(t, disc.Id, forSub[0].Id)
 
+	// The subscription-targeted discount must NOT leak into the order-level list.
+	forOrderSubTargeted, err := rs.Discount.ActiveForOrder(ctx, orgId, orderId)
+	require.NoError(t, err)
+	assert.Empty(t, forOrderSubTargeted, "subscription-targeted discount is not order-level")
+
+	// Order-only discount (order_id set, no subscription) — ActiveForOrder returns it.
+	orderOnlyDisc, err := domain.NewDiscount(domain.NewDiscountInput{
+		OrgId: orgId, CouponId: coupon.Id, CustomerId: custId, OrderId: orderId,
+	})
+	require.NoError(t, err)
+	_, err = rs.Discount.Create(ctx, orderOnlyDisc)
+	require.NoError(t, err)
+
+	forOrder, err := rs.Discount.ActiveForOrder(ctx, orgId, orderId)
+	require.NoError(t, err)
+	require.Len(t, forOrder, 1)
+	assert.Equal(t, orderOnlyDisc.Id, forOrder[0].Id)
+
 	byCoupon, err := rs.Discount.CountByCoupon(ctx, orgId, coupon.Id)
 	require.NoError(t, err)
-	assert.Equal(t, 1, byCoupon)
+	assert.Equal(t, 2, byCoupon)
 	byCust, err := rs.Discount.CountByCouponAndCustomer(ctx, orgId, coupon.Id, custId)
 	require.NoError(t, err)
-	assert.Equal(t, 1, byCust)
+	assert.Equal(t, 2, byCust)
 }
 
 // ---- coupon_reservation (ephemeral capacity holds) ----

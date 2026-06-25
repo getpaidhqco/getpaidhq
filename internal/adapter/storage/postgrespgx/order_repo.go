@@ -43,9 +43,9 @@ func (r *OrderRepo) Create(ctx context.Context, entity domain.Order) (domain.Ord
 	row := orderRowFromDomain(entity)
 	q := dbFromCtx(ctx, r.pool)
 	_, err := q.Exec(ctx,
-		`INSERT INTO orders (`+orderColumns+`) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
+		`INSERT INTO orders (`+orderColumns+`) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
 		row.OrgId, row.Id, row.CustomerId, row.Reference, row.Status, row.SessionId,
-		row.CartId, row.Currency, row.Total, row.Metadata, row.CreatedAt, row.UpdatedAt, row.PaymentSession)
+		row.CartId, row.Currency, row.Total, row.Metadata, row.CreatedAt, row.UpdatedAt, row.PaymentSession, row.Config)
 	if err != nil {
 		return domain.Order{}, err
 	}
@@ -59,10 +59,10 @@ func (r *OrderRepo) Update(ctx context.Context, entity domain.Order) (domain.Ord
 	// a routine order update (e.g. CompleteOrder) cannot clobber a stored session.
 	_, err := q.Exec(ctx,
 		`UPDATE orders SET customer_id=$3, reference=$4, status=$5, session_id=$6, cart_id=$7,
-		        currency=$8, total=$9, metadata=$10, updated_at=$11
+		        currency=$8, total=$9, metadata=$10, updated_at=$11, config=$12
 		 WHERE org_id=$1 AND id=$2`,
 		row.OrgId, row.Id, row.CustomerId, row.Reference, row.Status, row.SessionId,
-		row.CartId, row.Currency, row.Total, row.Metadata, row.UpdatedAt)
+		row.CartId, row.Currency, row.Total, row.Metadata, row.UpdatedAt, row.Config)
 	if err != nil {
 		return domain.Order{}, err
 	}

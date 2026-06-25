@@ -423,6 +423,7 @@ func (s *CouponService) Consume(ctx context.Context, in ConsumeInput) (domain.Di
 			CouponCodeId:   r.CouponCodeId,
 			CustomerId:     r.CustomerId,
 			SubscriptionId: in.SubscriptionId,
+			OrderId:        in.OrderId,
 			StartCycle:     in.StartCycle,
 		})
 		if err != nil {

@@ -37,6 +37,12 @@ type ReminderConfigResolver interface {
 	ResolveReminderConfig(ctx context.Context, orgId string) (domain.ReminderConfig, error)
 }
 
+// InvoiceSettingsResolver resolves the per-tenant invoice numbering/format.
+// Invoice builds depend only on this read method.
+type InvoiceSettingsResolver interface {
+	ResolveInvoiceSettings(ctx context.Context, orgId string) (domain.InvoiceSettings, error)
+}
+
 // GatewayFactory creates payment gateway instances from configuration.
 type GatewayFactory interface {
 	NewGateway(ctx context.Context, orgId string, id string) (PaymentGateway, error)

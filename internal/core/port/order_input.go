@@ -15,6 +15,7 @@ type CreateOrderInput struct {
 	PspId           domain.Gateway
 	PaymentMethodId string
 	CouponCode      string
+	Config          domain.OrderConfig
 	Metadata        map[string]string
 	Options         map[string]string
 }
@@ -32,6 +33,9 @@ type CreateOrderInputCustomer struct {
 // CreateOrderResult is the result of a successful OrderService.CreateOrder call.
 type CreateOrderResult struct {
 	Order domain.Order
+	// Invoice is the order's combined open invoice, set only when the order was
+	// created with Config.UpfrontInvoice; nil otherwise.
+	Invoice *domain.Invoice
 }
 
 // CompleteOrderInput is the input for OrderService.Complete.

@@ -12,7 +12,8 @@ type invoiceRow struct {
 	OrgId          string               `gorm:"column:org_id;primaryKey"`
 	Id             string               `gorm:"column:id;primaryKey"`
 	Number         int64                `gorm:"column:number"`
-	SubscriptionId string               `gorm:"column:subscription_id"`
+	Reference      string               `gorm:"column:reference"`
+	SubscriptionId *string              `gorm:"column:subscription_id"`
 	CustomerId     string               `gorm:"column:customer_id"`
 	OrderId        string               `gorm:"column:order_id"`
 	Status         domain.InvoiceStatus `gorm:"column:status"`
@@ -36,7 +37,8 @@ func (r invoiceRow) toDomain() domain.Invoice {
 		OrgId:          r.OrgId,
 		Id:             r.Id,
 		Number:         r.Number,
-		SubscriptionId: r.SubscriptionId,
+		Reference:      r.Reference,
+		SubscriptionId: strOrEmpty(r.SubscriptionId),
 		CustomerId:     r.CustomerId,
 		OrderId:        r.OrderId,
 		Status:         r.Status,
@@ -67,7 +69,8 @@ func invoiceRowFromDomain(inv domain.Invoice) invoiceRow {
 		OrgId:          inv.OrgId,
 		Id:             inv.Id,
 		Number:         inv.Number,
-		SubscriptionId: inv.SubscriptionId,
+		Reference:      inv.Reference,
+		SubscriptionId: nilIfEmpty(inv.SubscriptionId),
 		CustomerId:     inv.CustomerId,
 		OrderId:        inv.OrderId,
 		Status:         inv.Status,

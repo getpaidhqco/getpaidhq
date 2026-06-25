@@ -17,7 +17,8 @@ type invoiceRow struct {
 	OrgId          string
 	Id             string
 	Number         int64
-	SubscriptionId string
+	Reference      string
+	SubscriptionId *string
 	CustomerId     string
 	OrderId        string
 	Status         string
@@ -33,10 +34,10 @@ type invoiceRow struct {
 	UpdatedAt      time.Time
 }
 
-const invoiceColumns = `org_id, id, number, subscription_id, customer_id, order_id, status, currency, subtotal, discount_total, total, cycle, period_start, period_end, metadata, created_at, updated_at`
+const invoiceColumns = `org_id, id, number, reference, subscription_id, customer_id, order_id, status, currency, subtotal, discount_total, total, cycle, period_start, period_end, metadata, created_at, updated_at`
 
 func (r *invoiceRow) scanInto(s scanner) error {
-	return s.Scan(&r.OrgId, &r.Id, &r.Number, &r.SubscriptionId, &r.CustomerId, &r.OrderId,
+	return s.Scan(&r.OrgId, &r.Id, &r.Number, &r.Reference, &r.SubscriptionId, &r.CustomerId, &r.OrderId,
 		&r.Status, &r.Currency, &r.Subtotal, &r.DiscountTotal, &r.Total, &r.Cycle,
 		&r.PeriodStart, &r.PeriodEnd, &r.Metadata, &r.CreatedAt, &r.UpdatedAt)
 }
@@ -48,7 +49,8 @@ func (r invoiceRow) toDomain() domain.Invoice {
 		OrgId:          r.OrgId,
 		Id:             r.Id,
 		Number:         r.Number,
-		SubscriptionId: r.SubscriptionId,
+		Reference:      r.Reference,
+		SubscriptionId: strOrEmpty(r.SubscriptionId),
 		CustomerId:     r.CustomerId,
 		OrderId:        r.OrderId,
 		Status:         domain.InvoiceStatus(r.Status),
@@ -70,7 +72,8 @@ func invoiceRowFromDomain(inv domain.Invoice) invoiceRow {
 		OrgId:          inv.OrgId,
 		Id:             inv.Id,
 		Number:         inv.Number,
-		SubscriptionId: inv.SubscriptionId,
+		Reference:      inv.Reference,
+		SubscriptionId: nilIfEmpty(inv.SubscriptionId),
 		CustomerId:     inv.CustomerId,
 		OrderId:        inv.OrderId,
 		Status:         string(inv.Status),

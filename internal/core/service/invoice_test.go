@@ -10,6 +10,37 @@ import (
 	"getpaidhq/internal/core/port"
 )
 
+// noopDiscountRepo is a no-op DiscountRepository: no active discounts for any
+// order or subscription. Lets InvoiceService run its (now unconditional) discount
+// resolution as a no-op in tests that don't exercise discounts.
+type noopDiscountRepo struct{ port.DiscountRepository }
+
+func (noopDiscountRepo) ActiveForOrder(_ context.Context, _, _ string) ([]domain.Discount, error) {
+	return nil, nil
+}
+
+func (noopDiscountRepo) ActiveForSubscription(_ context.Context, _, _ string) ([]domain.Discount, error) {
+	return nil, nil
+}
+
+// noopCouponRepo is a no-op CouponRepository (FindById only matters when a
+// discount exists, which the no-op discount repo never produces).
+type noopCouponRepo struct{ port.CouponRepository }
+
+// noopReservationRepo is a no-op CouponReservationRepository: no reservations.
+type noopReservationRepo struct{ port.CouponReservationRepository }
+
+func (noopReservationRepo) FindByOrder(_ context.Context, _, _ string) ([]domain.CouponReservation, error) {
+	return nil, nil
+}
+
+// defaultSettingsResolver resolves the default InvoiceSettings for any org.
+type defaultSettingsResolver struct{}
+
+func (defaultSettingsResolver) ResolveInvoiceSettings(_ context.Context, _ string) (domain.InvoiceSettings, error) {
+	return domain.DefaultInvoiceSettings(), nil
+}
+
 // mapPriceRepo resolves prices by id (the single-value fakePriceRepo can't back a
 // multi-item order).
 type mapPriceRepo struct {
@@ -46,7 +77,7 @@ func TestInvoiceService_BuildForBillingPeriod_Multiline(t *testing.T) {
 	es := &usageEventStore{count: 100} // 100 units measured for each meter
 	usage := newUsageSvc(meters, customers, &usageSubRepo{metered: []domain.Subscription{sub}}, es)
 
-	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, usage, nil, silentLogger{}, nil, nil)
+	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, &fakeSubRepo{}, usage, noopTx{}, silentLogger{}, noopDiscountRepo{}, noopCouponRepo{}, noopReservationRepo{}, defaultSettingsResolver{})
 	inv, err := svc.BuildForBillingPeriod(context.Background(), sub)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
@@ -75,7 +106,28 @@ func TestInvoiceService_BuildForBillingPeriod_Multiline(t *testing.T) {
 func newInvoiceServiceForTest(price domain.Price, usage *UsageService) *InvoiceService {
 	orderRepo := &fakeOrderRepo{items: []domain.OrderItem{{Id: "oi_1", PriceId: "price_1", Quantity: 1}}}
 	priceRepo := &fakePriceRepo{byId: price}
-	return NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, usage, nil, silentLogger{}, nil, nil)
+	return NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, &fakeSubRepo{}, usage, noopTx{}, silentLogger{}, noopDiscountRepo{}, noopCouponRepo{}, noopReservationRepo{}, defaultSettingsResolver{})
+}
+
+// fakeInvoiceSettingsResolver returns a fixed InvoiceSettings for reference tests.
+type fakeInvoiceSettingsResolver struct{ cfg domain.InvoiceSettings }
+
+func (r fakeInvoiceSettingsResolver) ResolveInvoiceSettings(_ context.Context, _ string) (domain.InvoiceSettings, error) {
+	return r.cfg, nil
+}
+
+func TestInvoiceService_BuildForBillingPeriod_FormatsReference(t *testing.T) {
+	price := domain.Price{OrgId: "org_1", Id: "price_1", Category: domain.PriceCategorySubscription, Scheme: domain.Fixed, UnitPrice: 1000}
+	orderRepo := &fakeOrderRepo{items: []domain.OrderItem{{Id: "oi_1", PriceId: "price_1", Quantity: 1}}}
+	priceRepo := &fakePriceRepo{byId: price}
+	resolver := fakeInvoiceSettingsResolver{cfg: domain.InvoiceSettings{Prefix: "INV-", Padding: 6}}
+	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, &fakeSubRepo{}, noopUsage{}, noopTx{}, silentLogger{}, noopDiscountRepo{}, noopCouponRepo{}, noopReservationRepo{}, resolver)
+
+	sub := domain.Subscription{OrgId: "org_1", Id: "sub_1", CustomerId: "cus_1", Status: domain.SubscriptionStatusActive}
+	inv, err := svc.BuildForBillingPeriod(context.Background(), sub)
+	require.NoError(t, err)
+	require.EqualValues(t, 1, inv.Number)
+	require.Equal(t, "INV-000001", inv.Reference)
 }
 
 func TestInvoiceService_BuildForBillingPeriod_Trial(t *testing.T) {
@@ -118,7 +170,7 @@ func TestInvoiceService_BuildForBillingPeriod_NonTrialBaseLine(t *testing.T) {
 
 func TestInvoiceService_CounterMethods(t *testing.T) {
 	repo := newFakeInvoiceRepo()
-	svc := NewInvoiceService(repo, nil, nil, nil, nil, silentLogger{}, nil, nil)
+	svc := NewInvoiceService(repo, nil, nil, &fakeSubRepo{}, noopUsage{}, noopTx{}, silentLogger{}, noopDiscountRepo{}, noopCouponRepo{}, noopReservationRepo{}, defaultSettingsResolver{})
 	ctx := context.Background()
 
 	first, err := svc.NextInvoiceNumber(ctx, "org_1")
@@ -185,6 +237,9 @@ func (r *minimalInvoiceRepo) FindById(_ context.Context, _, _ string) (domain.In
 	return r.inv, nil
 }
 func (r *minimalInvoiceRepo) FindBySubscriptionCycle(_ context.Context, _, _ string, _ int) (domain.Invoice, error) {
+	return domain.Invoice{}, port.ErrNotFound
+}
+func (r *minimalInvoiceRepo) FindOrderInvoice(_ context.Context, _, _ string) (domain.Invoice, error) {
 	return domain.Invoice{}, port.ErrNotFound
 }
 func (r *minimalInvoiceRepo) FindBySubscriptionId(_ context.Context, _, _ string, _ domain.Pagination) ([]domain.Invoice, int, error) {

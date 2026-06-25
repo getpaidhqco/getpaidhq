@@ -21,8 +21,16 @@ type Order struct {
 	// PaymentSession is the PSP session payload (arbitrary shape); nil when no
 	// session has been initialized yet. Stored as a nullable JSONB column.
 	PaymentSession any
-	CreatedAt      time.Time
-	UpdatedAt      time.Time
+	// Config holds order-level configuration flags. Stored as a JSONB column.
+	Config    OrderConfig
+	CreatedAt time.Time
+	UpdatedAt time.Time
+}
+
+// OrderConfig holds order-level configuration flags, persisted as the
+// orders.config JSONB column.
+type OrderConfig struct {
+	UpfrontInvoice bool `json:"upfront_invoice"`
 }
 
 // SetMetadata merges the existing metadata with the specified values.
