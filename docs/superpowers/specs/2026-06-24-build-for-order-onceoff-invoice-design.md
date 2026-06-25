@@ -33,13 +33,18 @@ type OrderConfig struct {
 
 ---
 
-## 3. Invoice number + response
+## 3. Invoice identity: number + reference
 
-The human-readable invoice number already exists on `main`: `domain.Invoice.Number int64`, the `invoices.number` column, the org-scoped `invoice_counters` table, and `InvoiceRepository.NextInvoiceNumber(orgId)` (increment + return). `BuildForBillingPeriod` already sets `inv.Number` from it **inside the build tx** (so the counter bump and the invoice insert are atomic). **`BuildForOrder` does the same** — `inv.Number, _ = NextInvoiceNumber(orgId)` in the tx. No new column/method; use what's merged.
+An invoice has three identifiers:
+- **`Id`** — internal system id (`inv_…`); URLs and relations.
+- **`Number`** (`int64`, already on `main`) — the raw **counter value**, from the org-scoped `invoice_counters` + `InvoiceRepository.NextInvoiceNumber(orgId)` (set inside the build tx so the counter bump and the insert are atomic). It is *just the counter value* — **not** the public identity and **not** relied on for uniqueness (numbering scope may become per-customer/other downstream; a single per-org sequence is not assumed permanent).
+- **`Reference`** (text) — **NEW**: the **public, searchable identity** a customer copies off the invoice and searches by. **Stored and indexed** (`(org_id, reference)`); the durable identity lives here. Its default form derives from the number; a configurable/scoped format is downstream, and because `reference` is stored, that needs no model change later.
+
+Both `Number` and `Reference` are set at build, in the tx, by **`BuildForOrder`** and **`BuildForBillingPeriod`** (the latter updated to also set `Reference`).
 
 When `upfront_invoice = true`, the `CreateOrder` response includes the invoice:
 ```json
-"invoice": { "id": "inv_…", "number": 42, "url": "" }
+"invoice": { "id": "inv_…", "number": 42, "reference": "INV-000042", "url": "" }
 ```
 `url` is a **placeholder** (empty for now; it will point at the hosted invoice page when that exists). When `upfront_invoice = false` there is no invoice yet, so the field is omitted/null.
 
@@ -62,10 +67,10 @@ Today `NewDiscount` enforces "exactly one of subscription or order" — inconsis
 One invoice per order, covering its **first bill**: each subscription's first-period (cycle-0) base/usage line(s) **plus** every one-time line. Built by a single `InvoiceService.BuildForOrder(ctx, order)`:
 
 1. Idempotency: `FindOrderInvoice(orgId, orderId)` — the invoice for this order (`order_id` set, `cycle = 0`). If found, return it.
-2. Gather the order's lines (`FindOrderItemsByOrderId`): recurring lines contribute their first-period base/usage line; one-time lines contribute a base line. One `domain.Invoice` (`OrgId`, `OrderId`, `CustomerId`, `Currency`, `Cycle: 0`, period = first period / order time).
+2. Gather the order's lines (`FindOrderItemsByOrderId`): recurring lines contribute their first-period base/usage line; one-time lines contribute a base line. One `domain.Invoice` (`OrgId`, `OrderId`, `CustomerId`, `Currency`, `Cycle: 0`, period = first period / order time). `Number` + `Reference` are assigned in the tx (step 5).
 3. **Subscription linkage:** if the order has exactly one subscription, set `SubscriptionId` on the invoice (so it **is** that subscription's cycle-0 invoice — the recurring engine's `FindBySubscriptionCycle(sub, 0)` finds it and never rebuilds/recharges cycle 0). Pure one-time order → `SubscriptionId` NULL. (Multi-subscription orders: each subscription owns its own cycle-0 invoice; one-time lines combine onto the first — an edge, kept explicit.)
 4. **Discount:** apply via `domain.ApplyDiscounts(lines, applied, cycle=0, currency)`. Resolve discounts from the committed `Discount` (post-payment) **or** the order's live reservation's coupon when building `open` pre-payment, so the bill total *is* the discounted amount.
-5. Persist (`invoiceRepository.Create`) inside the ambient tx.
+5. In the tx: `inv.Number = NextInvoiceNumber(orgId)`, set `inv.Reference` (default form from the number), then `invoiceRepository.Create`.
 
 `BuildForOrder` reuses the subscription builder's per-line + discount mechanics (shared helper). `BuildForBillingPeriod` stays **recurring-only** for cycles ≥ 1 (unchanged).
 
@@ -111,7 +116,7 @@ All within the order-completion transaction (the merged `RunInTx` ctx fix lets n
 ## 10. Data model & migrations
 
 - `orders`: `+ config JSONB` (typed `OrderConfig`). `domain.Order.Config` + both mappers + conformance.
-- `invoices`: `subscription_id` → **nullable** (`DROP NOT NULL`) for pure-once-off invoices (`order_id` stays `NOT NULL`). Confirm empty `subscription_id` writes NULL, not `""`. (The `number`/counter columns are already on `main`.)
+- `invoices`: `+ reference TEXT` (public searchable identity) with index `(org_id, reference)`; `subscription_id` → **nullable** (`DROP NOT NULL`) for pure-once-off invoices (`order_id` stays `NOT NULL`); confirm empty `subscription_id` writes NULL, not `""`. `domain.Invoice.Reference`; both adapters map it; conformance round-trips it. (The `number`/counter columns are already on `main`; `reference` is new. `BuildForBillingPeriod` is updated to also set `Reference`.)
 - **No discounts migration.**
 - `InvoiceRepository.FindOrderInvoice(orgId, orderId)` (the order's cycle-0 invoice) — port + both adapters + conformance.
 
@@ -121,13 +126,13 @@ All within the order-completion transaction (the merged `RunInTx` ctx fix lets n
 
 | Layer | Change |
 | --- | --- |
-| `core/domain` | `Order.Config` (`OrderConfig`, validated); `NewDiscount` order-always; the combined-invoice build helpers. |
-| `core/service` | `InvoiceService.BuildForOrder` + shared discount/line helper + reservation-coupon resolution; `CouponService.Consume` order-always; `OrderService.CreateOrder` persists `Config` and, if `UpfrontInvoice`, builds the open invoice + returns it; `OrderService.CompleteOrder` orchestration (§8); `OrderService` gains `*InvoiceService`. |
+| `core/domain` | `Order.Config` (`OrderConfig`, validated); `Invoice.Reference`; `NewDiscount` order-always; the combined-invoice build helpers. |
+| `core/service` | `InvoiceService.BuildForOrder` (sets `Number`+`Reference`) + shared discount/line helper + reservation-coupon resolution; `BuildForBillingPeriod` also sets `Reference`; `CouponService.Consume` order-always; `OrderService.CreateOrder` persists `Config` and, if `UpfrontInvoice`, builds the open invoice + returns it; `OrderService.CompleteOrder` orchestration (§8); `OrderService` gains `*InvoiceService`. |
 | `core/port` | `CreateOrderInput.Config`; `InvoiceRepository.FindOrderInvoice`; `CreateOrderResult` carries the optional invoice. |
-| `adapter/storage/{postgresgorm,postgrespgx}` | `orders.config`; `invoices.subscription_id` nullable; `FindOrderInvoice`; `ActiveForOrder` sub-null. Both drivers + conformance. |
+| `adapter/storage/{postgresgorm,postgrespgx}` | `orders.config`; `invoices.reference` (+ index) + `subscription_id` nullable; `FindOrderInvoice`; `ActiveForOrder` sub-null. Both drivers + conformance. |
 | `adapter/http` | `CreateOrderRequest.upfront_invoice`; `CreateOrderResponse` returns `invoice {id, number, url}` when raised. |
 | `config/app.go` | inject `*InvoiceService` into `OrderService`. |
-| `schemas/app/migrations` | `orders.config`; `invoices.subscription_id` nullable. |
+| `schemas/app/migrations` | `orders.config`; `invoices.reference` + index; `invoices.subscription_id` nullable. |
 
 No workflow-engine code change. Parity preserved.
 
@@ -148,8 +153,8 @@ No workflow-engine code change. Parity preserved.
 
 ## 13. Testing
 
-- **domain:** `NewDiscount` (order-only ✓, order+sub ✓, missing order ✗, sub-only ✗); `OrderConfig` validation; `Invoice.Number` set via `NextInvoiceNumber`.
-- **storage (both drivers, conformance):** `orders.config` round-trips; NULL `subscription_id` round-trips; `FindOrderInvoice` returns the order's cycle-0 invoice; `ActiveForOrder` excludes sub-targeted discounts sharing the order_id.
+- **domain:** `NewDiscount` (order-only ✓, order+sub ✓, missing order ✗, sub-only ✗); `OrderConfig` validation; `Invoice.Number` (counter) + `Invoice.Reference` set at build.
+- **storage (both drivers, conformance):** `orders.config` round-trips; `invoices.reference` round-trips and is searchable by `(org_id, reference)`; NULL `subscription_id` round-trips; `FindOrderInvoice` returns the order's cycle-0 invoice; `ActiveForOrder` excludes sub-targeted discounts sharing the order_id.
 - **service:** `BuildForOrder` — combined lines (sub first period + once-off), discount once, idempotent, sets `SubscriptionId` for a single-sub order. `CompleteOrder` — mixed `$100/mo + $50` → one combined paid `$150` invoice, `Payment.InvoiceId` set, sub `CyclesProcessed=1`; pure once-off+coupon → one paid discounted invoice, reservation consumed; `upfront_invoice` → open invoice at create, paid on completion; idempotent re-complete.
 - **engine parity (integration, both engines):** after activation the recurring engine bills cycle 1 next, never rebuilds/recharges cycle 0 (the combined invoice is reused).
 - **e2e:** mixed cart with a coupon → `/pay` (or complete) → one combined paid discounted invoice; subscription recurs from cycle 1; `upfront_invoice` → open invoice returned, then settled.
@@ -166,5 +171,5 @@ No workflow-engine code change. Parity preserved.
 | Mixed cart | **one combined invoice** (all first-bill lines) | Paid once for one cart → one bill. |
 | Subscription first invoice | = the combined order invoice (`subscription_id`+`cycle 0`) | Subscription owns its first bill; engine bills 1+; idempotent. |
 | Discount ownership | `order_id` always, `subscription_id` optional | Order is topmost owner; mirrors `invoices`; no migration. |
-| Invoice number | reuse `main`'s `Invoice.Number` + `NextInvoiceNumber` (org counter) | Already built; `BuildForOrder` sets it in-tx like `BuildForBillingPeriod`; `url` placeholder until the hosted page exists. |
+| Invoice identity | `Number` (counter value, from `main`) **and** `Reference` (text, stored + indexed) | `Reference` is the public, searchable identity (survives format changes, encodes future per-entity scope); `Number` is just the counter, not relied on for uniqueness. `url` placeholder until the hosted page exists. |
 | Engine parity | no per-engine change | Activation owns cycle 0; recurring bills ≥1; replay-safe. |
