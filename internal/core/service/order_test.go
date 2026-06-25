@@ -233,6 +233,27 @@ func newOrderServiceForTest(
 	return NewOrderService(tx, engine, nil, &fakePriceRepo{}, nil, orderRepo, custRepo, subRepo, payRepo, pmRepo, nil, nil, ps, silentLogger{}, nil, nil)
 }
 
+// newOrderServiceWithInvoice wires an invoice-aware OrderService for CompleteOrder
+// tests: a real InvoiceService (over a fake invoice repo + the given order
+// items/prices) so the combined invoice is built and settled, plus an optional
+// CouponService.
+func newOrderServiceWithInvoice(
+	tx port.TxManager,
+	engine port.Engine,
+	orderRepo port.OrderRepository,
+	custRepo port.CustomerRepository,
+	subRepo port.SubscriptionRepository,
+	pmRepo port.PaymentMethodRepository,
+	payRepo port.PaymentRepository,
+	ps port.PubSub,
+	priceRepo port.PriceRepository,
+	invRepo *fakeInvoiceRepo,
+	coupons *CouponService,
+) *OrderService {
+	invSvc := NewInvoiceService(invRepo, orderRepo, priceRepo, subRepo, nil, tx, silentLogger{}, nil, nil, nil)
+	return NewOrderService(tx, engine, nil, priceRepo, nil, orderRepo, custRepo, subRepo, payRepo, pmRepo, nil, nil, ps, silentLogger{}, coupons, invSvc)
+}
+
 func pendingOrder() domain.Order {
 	return domain.Order{OrgId: "org_1", Id: "ord_1", CustomerId: "cust_1", Status: domain.OrderStatusPending}
 }
@@ -287,14 +308,23 @@ func TestOrderService_CompleteOrder_HappyPath(t *testing.T) {
 		{OrgId: "org_1", Id: "sub_2", Status: domain.SubscriptionStatusPending},
 	}
 
-	t.Run("existing payment method, first payment charged, activates all subs", func(t *testing.T) {
-		orderRepo := &fakeOrderRepo{order: pendingOrder()}
+	t.Run("existing payment method, first payment charged, builds+settles one invoice", func(t *testing.T) {
+		// Single $50 one-time line so BuildForOrder has something to invoice. With
+		// two subscriptions the combined invoice carries no single SubscriptionId,
+		// so the one order payment links to the invoice (not a sub).
+		orderRepo := &fakeOrderRepo{order: pendingOrder(), items: []domain.OrderItem{
+			{OrgId: "org_1", Id: "oi_1", OrderId: "ord_1", PriceId: "price_1", Quantity: 1},
+		}}
+		priceRepo := &mapPriceRepo{byId: map[string]domain.Price{
+			"price_1": {OrgId: "org_1", Id: "price_1", Scheme: domain.Fixed, UnitPrice: 5000},
+		}}
 		custRepo := &fakeCustomerRepo{paymentMethod: domain.PaymentMethod{Id: "pm_1"}}
 		subRepo := &fakeSubRepo{byOrderId: subs}
 		payRepo := &fakePaymentRepo{}
+		invRepo := newFakeInvoiceRepo()
 		engine := &recordingEngine{}
 		ps := &recordingPubSub{}
-		svc := newOrderServiceForTest(&fakeTxManager{}, engine, orderRepo, custRepo, subRepo, &fakePaymentMethodRepo{}, payRepo, ps)
+		svc := newOrderServiceWithInvoice(&fakeTxManager{}, engine, orderRepo, custRepo, subRepo, &fakePaymentMethodRepo{}, payRepo, ps, priceRepo, invRepo, nil)
 
 		got, err := svc.CompleteOrder(context.Background(), port.CompleteOrderInput{
 			OrgId: "org_1", Id: "ord_1", PaymentMethodId: "pm_1",
@@ -303,13 +333,18 @@ func TestOrderService_CompleteOrder_HappyPath(t *testing.T) {
 
 		require.NoError(t, err)
 		assert.Equal(t, domain.OrderStatusCompleted, got.Status)
-		assert.Len(t, payRepo.created, 2, "one payment per activated subscription")
+		require.Len(t, payRepo.created, 1, "exactly one payment for the order")
+		require.Len(t, invRepo.byOrder, 1, "exactly one combined invoice")
+		inv := invRepo.byOrder["ord_1"]
+		assert.Equal(t, inv.Id, payRepo.created[0].InvoiceId, "payment links to the combined invoice")
+		assert.Equal(t, domain.InvoiceStatusPaid, invRepo.byId[inv.Id].Status, "invoice settled to paid")
 		assert.Len(t, subRepo.updated, 2, "both subscriptions updated")
 		assert.Len(t, engine.started, 2, "a workflow started per activated subscription")
 		assert.True(t, ps.hasTopic(port.TopicOrderCompleted))
-		// The activated subs carry the resolved payment method id.
+		// The activated subs carry the resolved payment method id and reached cycle 1.
 		for _, s := range subRepo.updated {
 			assert.Equal(t, "pm_1", s.PaymentMethodId)
+			assert.Equal(t, 1, s.CyclesProcessed, "first charge advances the sub to cycle 1")
 		}
 	})
 
@@ -355,6 +390,50 @@ func TestOrderService_CompleteOrder_HappyPath(t *testing.T) {
 		assert.Equal(t, pmRepo.created[0].Id, subRepo.updated[0].PaymentMethodId)
 		assert.Len(t, engine.started, 1)
 	})
+}
+
+// CompleteOrder builds exactly ONE combined invoice for a mixed order (a
+// $100/mo subscription + a $50 one-time line), links the single order payment
+// to it, settles it to paid, and advances the subscription to cycle 1.
+func TestOrderService_CompleteOrder_MixedInvoice(t *testing.T) {
+	const orgId = "org_1"
+	plan := domain.Price{
+		OrgId: orgId, Id: "price_plan", Category: domain.PriceCategorySubscription,
+		Scheme: domain.Fixed, UnitPrice: 10000, Currency: domain.USD,
+		BillingInterval: domain.BillingIntervalMonth, BillingIntervalQty: 1,
+	}
+	oneTime := domain.Price{OrgId: orgId, Id: "price_setup", Scheme: domain.Fixed, UnitPrice: 5000, Currency: domain.USD}
+	priceRepo := &mapPriceRepo{byId: map[string]domain.Price{"price_plan": plan, "price_setup": oneTime}}
+
+	orderRepo := &fakeOrderRepo{order: pendingOrder(), items: []domain.OrderItem{
+		{OrgId: orgId, Id: "oi_plan", OrderId: "ord_1", ProductId: "prod_a", PriceId: "price_plan", Quantity: 1},
+		{OrgId: orgId, Id: "oi_setup", OrderId: "ord_1", ProductId: "prod_b", PriceId: "price_setup", Quantity: 1},
+	}}
+	// Exactly one subscription so the combined invoice IS its cycle-0 invoice.
+	sub := domain.NewSubscriptionFromLines(orgId, "ord_1", "cust_1", []domain.Price{plan})
+	subRepo := &fakeSubRepo{byOrderId: []domain.Subscription{sub}}
+	custRepo := &fakeCustomerRepo{paymentMethod: domain.PaymentMethod{Id: "pm_1"}}
+	payRepo := &fakePaymentRepo{}
+	invRepo := newFakeInvoiceRepo()
+	engine := &recordingEngine{}
+	ps := &recordingPubSub{}
+	svc := newOrderServiceWithInvoice(&fakeTxManager{}, engine, orderRepo, custRepo, subRepo, &fakePaymentMethodRepo{}, payRepo, ps, priceRepo, invRepo, nil)
+
+	_, err := svc.CompleteOrder(context.Background(), port.CompleteOrderInput{
+		OrgId: orgId, Id: "ord_1", PaymentMethodId: "pm_1",
+		Payment: port.CompleteOrderInputPayment{Amount: 15000, Currency: "USD"},
+	})
+	require.NoError(t, err)
+
+	require.Len(t, invRepo.byOrder, 1, "exactly one combined invoice")
+	inv := invRepo.byOrder["ord_1"]
+	assert.EqualValues(t, 15000, inv.Total, "100/mo + 50 one-time = 15000c")
+	assert.Equal(t, domain.InvoiceStatusPaid, invRepo.byId[inv.Id].Status)
+	require.Len(t, payRepo.created, 1, "one order payment")
+	assert.Equal(t, inv.Id, payRepo.created[0].InvoiceId)
+	assert.Equal(t, sub.Id, payRepo.created[0].SubscriptionId, "single-sub order links the payment to the sub")
+	require.Len(t, subRepo.updated, 1)
+	assert.Equal(t, 1, subRepo.updated[0].CyclesProcessed, "subscription advanced to cycle 1")
 }
 
 // InitOrderPayment initialises the PSP session once and is idempotent: a second

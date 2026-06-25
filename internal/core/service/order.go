@@ -431,14 +431,19 @@ func (s *OrderService) ListOrderSubscriptions(ctx context.Context, orgId string,
 	return subscriptions, nil
 }
 
-// CompleteOrder marks a pending order as completed and activates subscriptions.
-// No payment is involved - subscriptions start charging using the specified payment methods.
+// CompleteOrder marks a pending order completed: it activates every
+// subscription on the order, consumes the order's coupon reservation (if any)
+// into an order-owned Discount, builds the ONE combined cycle-0 invoice
+// (subscription first-period line(s) + every one-time line), and — when the
+// caller charged a first payment — persists a single order Payment linked to
+// that invoice and settles the invoice to paid.
 //
-// DB writes (order update, payment method find/create, payment+subscription
-// state per sub) run inside a single transaction. Post-commit side effects
-// (subscription workflow starts and the order.completed pubsub event) fire
-// only after the tx commits — running them inside would orphan workflows
-// and pubsub messages on rollback.
+// All DB writes (order update, payment method find/create, subscription
+// activation, coupon consume, invoice build+settle, payment) run inside a single
+// transaction; the nested RunInTx of Consume/BuildForOrder join it (ambient-tx
+// reuse). Post-commit side effects (subscription workflow starts and the
+// order.completed pubsub event) fire only after the tx commits — running them
+// inside would orphan workflows and pubsub messages on rollback.
 func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrderInput) (domain.Order, error) {
 	s.logger.Infof("Completing order [%s][%s]", input.OrgId, input.Id)
 
@@ -516,6 +521,25 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 			s.logger.Info("no subscriptions to process", err.Error())
 		}
 
+		// A first charge happened iff the caller passed a positive amount. We build
+		// the Payment value in memory now (no InvoiceId yet) so SetActive can use
+		// its Amount/CompletedAt to advance each subscription's first period. The
+		// single order Payment is persisted later, after BuildForOrder, linked to
+		// the combined invoice.
+		firstPaymentCharged := input.Payment.Amount > 0
+		var payment domain.Payment
+		if firstPaymentCharged {
+			payment = domain.Payment{
+				OrgId:       input.OrgId,
+				Recurring:   len(subscriptions) > 0,
+				Status:      domain.PaymentStatusSucceeded,
+				Currency:    input.Payment.Currency,
+				Amount:      input.Payment.Amount,
+				NetAmount:   input.Payment.Amount,
+				CompletedAt: input.Payment.CompletedAt,
+			}
+		}
+
 		activated = make([]domain.Subscription, 0, len(subscriptions))
 		for _, subscription := range subscriptions {
 			s.logger.Debugf("Setting subscription [%s] to active", subscription.Id)
@@ -523,38 +547,9 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 			subscription.PaymentMethodId = paymentMethod.Id
 			subscription.SetMetadata(input.Metadata)
 
-			firstPaymentCharged := input.Payment.Amount > 0
-			var payment domain.Payment
-			if firstPaymentCharged {
-				payment = domain.Payment{
-					OrgId:          input.OrgId,
-					Id:             lib.GenerateId("pmt"),
-					Psp:            subscription.PspId,
-					Recurring:      true,
-					PspId:          input.Payment.PspId,
-					Reference:      input.Payment.Reference,
-					OrderId:        input.Id,
-					SubscriptionId: subscription.Id,
-					Status:         domain.PaymentStatusSucceeded,
-					Currency:       input.Payment.Currency,
-					Amount:         input.Payment.Amount,
-					PspFee:         0,
-					PlatformFee:    0,
-					NetAmount:      input.Payment.Amount,
-					Metadata:       input.Payment.Metadata,
-					CompletedAt:    input.Payment.CompletedAt,
-					CreatedAt:      time.Now().UTC(),
-					UpdatedAt:      time.Now().UTC(),
-				}
-				payment, err = s.paymentRepository.Create(ctx, payment)
-				if err != nil {
-					s.logger.Error("Failed to create payment", err.Error())
-					return err
-				}
-			}
-
 			// The subscription carries its own cadence + trial (derived from its
-			// lines at construction), so activation needs no price lookup.
+			// lines at construction), so activation needs no price lookup. SetActive
+			// reads payment.Amount/CompletedAt to advance the first period.
 			subscription.SetActive(payment)
 			s.logger.Infof("Subscription [%s] activated. firstPaymentCharged=%t", subscription.Id, firstPaymentCharged)
 			newSub, err := s.subscriptionRepository.Update(ctx, subscription)
@@ -565,16 +560,74 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 			activated = append(activated, newSub)
 		}
 
-		// Convert the order's coupon reservation (if any) into an active Discount
-		// on the first activated subscription. No-op when the order has no
-		// reservation, so coupon-less orders are unaffected.
-		if len(activated) > 0 && s.coupons != nil {
-			if _, err := s.coupons.Consume(ctx, ConsumeInput{
-				OrgId:          input.OrgId,
-				OrderId:        order.Id,
-				SubscriptionId: activated[0].Id,
-				StartCycle:     activated[0].CyclesProcessed, // 0 at activation
-			}); err != nil {
+		// Convert the order's coupon reservation (if any) into an active Discount,
+		// for ALL orders — subscription and pure one-time alike. A subscription
+		// order anchors the discount on its (single) sub; a one-time order owns the
+		// discount via OrderId only. No-op when the order has no reservation, so
+		// coupon-less orders are unaffected. Consumed BEFORE BuildForOrder so the
+		// committed Discount is visible to BuildForOrder's ActiveForOrder.
+		if s.coupons != nil {
+			consume := ConsumeInput{
+				OrgId:      input.OrgId,
+				OrderId:    order.Id,
+				StartCycle: 0,
+			}
+			if len(activated) > 0 {
+				consume.SubscriptionId = activated[0].Id
+			}
+			if _, err := s.coupons.Consume(ctx, consume); err != nil {
+				return err
+			}
+		}
+
+		// Build the one combined cycle-0 invoice for the order (sub first-period
+		// line(s) + every one-time line, with the order discount applied). Returns
+		// the already-built invoice when upfront_invoice opened it at create time.
+		// An order with no billable items returns port.ErrNotFound → no invoice,
+		// no payment-link, no settlement. Guarded so unit-test harnesses that pass
+		// a nil invoiceService behave as before.
+		if s.invoiceService == nil {
+			return nil
+		}
+		inv, err := s.invoiceService.BuildForOrder(ctx, order)
+		if err != nil {
+			if errors.Is(err, port.ErrNotFound) {
+				return nil // nothing to invoice
+			}
+			s.logger.Error("Failed to build order invoice", err.Error())
+			return err
+		}
+
+		if firstPaymentCharged {
+			// Persist ONE Payment for the order, linked to the combined invoice.
+			// A single-subscription order links the payment to that sub; a
+			// multi-sub or pure one-time order leaves SubscriptionId empty (the
+			// combined invoice itself carries no single SubscriptionId in those
+			// cases).
+			payment.Id = lib.GenerateId("pmt")
+			payment.PspId = input.Payment.PspId
+			payment.Reference = input.Payment.Reference
+			payment.Metadata = input.Payment.Metadata
+			payment.OrderId = order.Id
+			payment.InvoiceId = inv.Id
+			payment.CreatedAt = time.Now().UTC()
+			payment.UpdatedAt = time.Now().UTC()
+			if len(activated) == 1 {
+				payment.SubscriptionId = activated[0].Id
+				payment.Psp = activated[0].PspId
+			}
+			if _, err := s.paymentRepository.Create(ctx, payment); err != nil {
+				s.logger.Error("Failed to create payment", err.Error())
+				return err
+			}
+
+			// Open then settle the invoice — it is paid by this first charge.
+			if _, err := s.invoiceService.MarkOpen(ctx, order.OrgId, inv.Id); err != nil {
+				s.logger.Error("Failed to open order invoice", err.Error())
+				return err
+			}
+			if _, err := s.invoiceService.MarkSettled(ctx, order.OrgId, inv.Id); err != nil {
+				s.logger.Error("Failed to settle order invoice", err.Error())
 				return err
 			}
 		}
