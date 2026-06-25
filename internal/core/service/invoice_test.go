@@ -108,9 +108,31 @@ func TestInvoiceService_BuildForBillingPeriod_NonTrialBaseLine(t *testing.T) {
 	if len(inv.LineItems) != 1 || inv.Total != 1000 {
 		t.Fatalf("active sub should bill base line 1000, got lines=%d total=%d", len(inv.LineItems), inv.Total)
 	}
+	if inv.Number != 1 {
+		t.Errorf("first created invoice number = %d, want 1", inv.Number)
+	}
 	if inv.LineItems[0].Kind != domain.InvoiceLineKindBase {
 		t.Errorf("expected base line kind, got %s", inv.LineItems[0].Kind)
 	}
+}
+
+func TestInvoiceService_CounterMethods(t *testing.T) {
+	repo := newFakeInvoiceRepo()
+	svc := NewInvoiceService(repo, nil, nil, nil, nil, silentLogger{}, nil, nil)
+	ctx := context.Background()
+
+	first, err := svc.NextInvoiceNumber(ctx, "org_1")
+	require.NoError(t, err)
+	require.EqualValues(t, 1, first)
+
+	require.NoError(t, svc.SetInvoiceCounter(ctx, "org_1", 41))
+	next, err := svc.NextInvoiceNumber(ctx, "org_1")
+	require.NoError(t, err)
+	require.EqualValues(t, 42, next)
+
+	otherOrg, err := svc.NextInvoiceNumber(ctx, "org_2")
+	require.NoError(t, err)
+	require.EqualValues(t, 1, otherOrg)
 }
 
 func TestInvoiceService_BuildForBillingPeriod_Metered(t *testing.T) {
@@ -148,6 +170,12 @@ type minimalInvoiceRepo struct {
 func (r *minimalInvoiceRepo) Create(_ context.Context, in domain.Invoice) (domain.Invoice, error) {
 	r.inv = in
 	return in, nil
+}
+func (r *minimalInvoiceRepo) NextInvoiceNumber(_ context.Context, _ string) (int64, error) {
+	return 1, nil
+}
+func (r *minimalInvoiceRepo) SetInvoiceCounter(_ context.Context, _ string, _ int64) error {
+	return nil
 }
 func (r *minimalInvoiceRepo) Update(_ context.Context, in domain.Invoice) (domain.Invoice, error) {
 	r.inv = in

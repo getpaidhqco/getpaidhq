@@ -21,6 +21,7 @@ type InvoiceLineItemResponse struct {
 
 type InvoiceResponse struct {
 	Id             string                    `json:"id"`
+	Number         int64                     `json:"number"`
 	SubscriptionId string                    `json:"subscription_id"`
 	CustomerId     string                    `json:"customer_id"`
 	OrderId        string                    `json:"order_id"`
@@ -53,6 +54,7 @@ func NewInvoiceResponse(inv domain.Invoice) InvoiceResponse {
 	}
 	return InvoiceResponse{
 		Id:             inv.Id,
+		Number:         inv.Number,
 		SubscriptionId: inv.SubscriptionId,
 		CustomerId:     inv.CustomerId,
 		OrderId:        inv.OrderId,

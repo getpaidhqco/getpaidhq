@@ -32,8 +32,8 @@ func (r *InvoiceRepo) Create(ctx context.Context, entity domain.Invoice) (domain
 		q := dbFromCtx(ctx, r.pool)
 		if _, err := q.Exec(ctx,
 			`INSERT INTO invoices (`+invoiceColumns+`)
-			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)`,
-			row.OrgId, row.Id, row.SubscriptionId, row.CustomerId, row.OrderId,
+			 VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17)`,
+			row.OrgId, row.Id, row.Number, row.SubscriptionId, row.CustomerId, row.OrderId,
 			row.Status, row.Currency, row.Subtotal, row.DiscountTotal, row.Total,
 			row.Cycle, row.PeriodStart, row.PeriodEnd, row.Metadata, row.CreatedAt, row.UpdatedAt); err != nil {
 			return err
@@ -55,6 +55,31 @@ func (r *InvoiceRepo) Create(ctx context.Context, entity domain.Invoice) (domain
 		return domain.Invoice{}, err
 	}
 	return r.FindById(ctx, entity.OrgId, entity.Id)
+}
+
+func (r *InvoiceRepo) NextInvoiceNumber(ctx context.Context, orgId string) (int64, error) {
+	q := dbFromCtx(ctx, r.pool)
+	var next int64
+	err := q.QueryRow(ctx, `
+		INSERT INTO invoice_counters (org_id, value, created_at, updated_at)
+		VALUES ($1, 1, NOW(), NOW())
+		ON CONFLICT (org_id) DO UPDATE
+		SET value = invoice_counters.value + 1, updated_at = NOW()
+		RETURNING value`, orgId).Scan(&next)
+	if err != nil {
+		return 0, err
+	}
+	return next, nil
+}
+
+func (r *InvoiceRepo) SetInvoiceCounter(ctx context.Context, orgId string, value int64) error {
+	q := dbFromCtx(ctx, r.pool)
+	_, err := q.Exec(ctx, `
+		INSERT INTO invoice_counters (org_id, value, created_at, updated_at)
+		VALUES ($1, $2, NOW(), NOW())
+		ON CONFLICT (org_id) DO UPDATE
+		SET value = EXCLUDED.value, updated_at = NOW()`, orgId, value)
+	return err
 }
 
 func (r *InvoiceRepo) FindById(ctx context.Context, orgId string, id string) (domain.Invoice, error) {
@@ -137,11 +162,11 @@ func (r *InvoiceRepo) Update(ctx context.Context, entity domain.Invoice) (domain
 	// written at Create time and not mutated here. created_at is intentionally
 	// not in the SET list — every $N below is referenced.
 	_, err := q.Exec(ctx,
-		`UPDATE invoices SET subscription_id=$3, customer_id=$4, order_id=$5, status=$6,
-		        currency=$7, subtotal=$8, discount_total=$9, total=$10, cycle=$11,
-		        period_start=$12, period_end=$13, metadata=$14, updated_at=$15
+		`UPDATE invoices SET number=$3, subscription_id=$4, customer_id=$5, order_id=$6, status=$7,
+		        currency=$8, subtotal=$9, discount_total=$10, total=$11, cycle=$12,
+		        period_start=$13, period_end=$14, metadata=$15, updated_at=$16
 		 WHERE org_id=$1 AND id=$2`,
-		row.OrgId, row.Id, row.SubscriptionId, row.CustomerId, row.OrderId, row.Status,
+		row.OrgId, row.Id, row.Number, row.SubscriptionId, row.CustomerId, row.OrderId, row.Status,
 		row.Currency, row.Subtotal, row.DiscountTotal, row.Total, row.Cycle,
 		row.PeriodStart, row.PeriodEnd, row.Metadata, row.UpdatedAt)
 	if err != nil {
