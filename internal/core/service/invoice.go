@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -72,6 +73,10 @@ func NewInvoiceService(
 func (s *InvoiceService) reference(ctx context.Context, orgId string, number int64) string {
 	cfg, err := s.invoiceSettingsResolver.ResolveInvoiceSettings(ctx, orgId)
 	if err != nil {
+		// The resolver already absorbs not-found/parse errors and returns the
+		// default; an error reaching here is unexpected (e.g. a settings-store
+		// outage), so surface it rather than silently using the default prefix.
+		s.logger.Error("resolve invoice settings, using default", "orgId", orgId, "err", err.Error())
 		cfg = domain.DefaultInvoiceSettings()
 	}
 	return cfg.FormatReference(number)
@@ -418,6 +423,23 @@ func (s *InvoiceService) MarkOpen(ctx context.Context, orgId, invoiceId string) 
 // MarkSettled flips an invoice to paid after a succeeded Payment.
 func (s *InvoiceService) MarkSettled(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
 	return s.transition(ctx, orgId, invoiceId, (*domain.Invoice).MarkPaid)
+}
+
+// SettleOrderInvoice opens then settles an order's combined invoice — it is paid
+// by the order's first charge. A no-op when invoiceId is empty (an order with
+// nothing to invoice). Idempotent from open when upfront_invoice already opened
+// it. Shared by both order-completion paths so they settle identically.
+func (s *InvoiceService) SettleOrderInvoice(ctx context.Context, orgId, invoiceId string) error {
+	if invoiceId == "" {
+		return nil
+	}
+	if _, err := s.MarkOpen(ctx, orgId, invoiceId); err != nil {
+		return fmt.Errorf("open order invoice %s: %w", invoiceId, err)
+	}
+	if _, err := s.MarkSettled(ctx, orgId, invoiceId); err != nil {
+		return fmt.Errorf("settle order invoice %s: %w", invoiceId, err)
+	}
+	return nil
 }
 
 // FindCurrentCycle returns the invoice built for a subscription's cycle, or

@@ -215,8 +215,8 @@ func NewApp() (*App, error) {
 	usageService := service.NewUsageService(meterRepo, customerRepo, subRepo, orderRepo, priceRepo, ingestor, eventStore, pubsub, logger)
 	meterService := service.NewMeterService(meterRepo, pubsub, logger)
 	// Per-tenant invoice-settings resolver (port.InvoiceSettingsResolver). Consumed
-	// by the invoice-settings HTTP handler below; a later task also passes it to
-	// the invoice builder as the reference-format resolver. Construct once, reuse.
+	// by the invoice-settings HTTP handler below and passed to the invoice builder
+	// as the reference-format resolver. Construct once, reuse.
 	invoiceSettingsService := service.NewInvoiceSettingsService(settingRepo, logger)
 	invoiceService := service.NewInvoiceService(invoiceRepo, orderRepo, priceRepo, subRepo, usageService, txManager, logger, discountRepo, couponRepo, couponReservationRepo, invoiceSettingsService)
 	couponService := service.NewCouponService(couponRepo, couponCodeRepo, discountRepo, priorPaymentChecker, txManager, logger, couponReservationRepo)

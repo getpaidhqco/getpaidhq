@@ -35,7 +35,7 @@ type CreateOrderResult struct {
 	Order domain.Order
 	// Invoice is the order's combined open invoice, set only when the order was
 	// created with Config.UpfrontInvoice; nil otherwise.
-	Invoice *domain.Invoice `json:"invoice,omitempty"`
+	Invoice *domain.Invoice
 }
 
 // CompleteOrderInput is the input for OrderService.Complete.

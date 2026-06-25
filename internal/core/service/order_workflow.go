@@ -232,16 +232,11 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 				return err
 			}
 
-			// The combined invoice is paid by this first charge — open then settle
-			// it. When upfront_invoice already opened it, MarkOpen is idempotent and
-			// MarkSettled drives it to paid.
-			if s.invoiceService != nil && invoiceId != "" {
-				if _, err := s.invoiceService.MarkOpen(ctx, orgId, invoiceId); err != nil {
-					s.logger.Error("Failed to open order invoice", err.Error())
-					return err
-				}
-				if _, err := s.invoiceService.MarkSettled(ctx, orgId, invoiceId); err != nil {
-					s.logger.Error("Failed to settle order invoice", err.Error())
+			// The combined invoice is paid by this first charge — open then settle it
+			// (no-op when there was nothing to invoice; idempotent from open when
+			// upfront_invoice already opened it).
+			if s.invoiceService != nil {
+				if err := s.invoiceService.SettleOrderInvoice(ctx, orgId, invoiceId); err != nil {
 					return err
 				}
 			}

@@ -622,12 +622,7 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 			}
 
 			// Open then settle the invoice — it is paid by this first charge.
-			if _, err := s.invoiceService.MarkOpen(ctx, order.OrgId, inv.Id); err != nil {
-				s.logger.Error("Failed to open order invoice", err.Error())
-				return err
-			}
-			if _, err := s.invoiceService.MarkSettled(ctx, order.OrgId, inv.Id); err != nil {
-				s.logger.Error("Failed to settle order invoice", err.Error())
+			if err := s.invoiceService.SettleOrderInvoice(ctx, order.OrgId, inv.Id); err != nil {
 				return err
 			}
 		}
