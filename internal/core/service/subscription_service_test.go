@@ -45,7 +45,7 @@ func newSubscriptionService(subRepo port.SubscriptionRepository, setting port.Se
 	// The subscription service's own price repo backs cadence grouping in
 	// CreateSubscriptionsForOrder; give it a monthly recurring price.
 	subPriceRepo := &fakePriceRepo{byId: domain.Price{Id: "price_1", Category: domain.PriceCategorySubscription, BillingInterval: domain.BillingIntervalMonth, BillingIntervalQty: 1, UnitPrice: 1000}}
-	svc, err := NewSubscriptionService(nil, setting, nil, subRepo, customer, order, payment, subPriceRepo, nil, invoiceSvc, ps, lib.ErrorReporter{}, silentLogger{}, nil)
+	svc, err := NewSubscriptionService(nil, setting, nil, subRepo, customer, order, payment, subPriceRepo, nil, invoiceSvc, ps, lib.ErrorReporter{}, silentLogger{}, noopTx{})
 	if err != nil {
 		panic(err)
 	}

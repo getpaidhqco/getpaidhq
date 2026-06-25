@@ -333,6 +333,35 @@ func (noopInvoicing) SettleOrderInvoice(ctx context.Context, orgId, invoiceId st
 	return nil
 }
 
+// noopBillingInvoicing satisfies service.BillingInvoicing for handler tests that
+// don't exercise per-cycle invoicing but must wire a real (non-nil) dependency.
+// FindCurrentCycle returns port.ErrNotFound, preserving the old "no invoice" no-op.
+type noopBillingInvoicing struct{}
+
+func (noopBillingInvoicing) BuildForBillingPeriod(ctx context.Context, sub domain.Subscription) (domain.Invoice, error) {
+	return domain.Invoice{}, nil
+}
+
+func (noopBillingInvoicing) FindCurrentCycle(ctx context.Context, orgId, subscriptionId string, cycle int) (domain.Invoice, error) {
+	return domain.Invoice{}, port.ErrNotFound
+}
+
+func (noopBillingInvoicing) MarkOpen(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
+	return domain.Invoice{}, nil
+}
+
+func (noopBillingInvoicing) MarkSettled(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
+	return domain.Invoice{}, nil
+}
+
+func (noopBillingInvoicing) MarkUncollectible(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
+	return domain.Invoice{}, nil
+}
+
+func (noopBillingInvoicing) Void(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
+	return domain.Invoice{}, nil
+}
+
 // recordingEngine is an inert port.Engine implementation, recording the calls
 // the orchestration services make through it.
 type recordingEngine struct {

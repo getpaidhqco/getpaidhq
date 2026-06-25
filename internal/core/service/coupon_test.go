@@ -241,3 +241,33 @@ func (noopInvoicing) MarkOpen(ctx context.Context, orgId, invoiceId string) (dom
 func (noopInvoicing) SettleOrderInvoice(ctx context.Context, orgId, invoiceId string) error {
 	return nil
 }
+
+// noopBillingInvoicing is a BillingInvoicing that has no current-cycle invoice
+// (FindCurrentCycle returns port.ErrNotFound) — for subscription/dunning tests
+// that don't exercise per-cycle invoicing but must wire a real (non-nil) dep.
+// Preserves the old "nil invoiceService → no-op" behaviour.
+type noopBillingInvoicing struct{}
+
+func (noopBillingInvoicing) BuildForBillingPeriod(ctx context.Context, sub domain.Subscription) (domain.Invoice, error) {
+	return domain.Invoice{}, nil
+}
+
+func (noopBillingInvoicing) FindCurrentCycle(ctx context.Context, orgId, subscriptionId string, cycle int) (domain.Invoice, error) {
+	return domain.Invoice{}, port.ErrNotFound
+}
+
+func (noopBillingInvoicing) MarkOpen(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
+	return domain.Invoice{}, nil
+}
+
+func (noopBillingInvoicing) MarkSettled(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
+	return domain.Invoice{}, nil
+}
+
+func (noopBillingInvoicing) MarkUncollectible(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
+	return domain.Invoice{}, nil
+}
+
+func (noopBillingInvoicing) Void(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error) {
+	return domain.Invoice{}, nil
+}

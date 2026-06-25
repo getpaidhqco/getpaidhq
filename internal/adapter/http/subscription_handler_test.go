@@ -28,7 +28,7 @@ func newSubscriptionHandlerForTest(
 		// no gateway factory needed for the handler-level cases (they don't
 		// trigger charge attempts).
 		service.NewGatewayFactory(&fakePspRepo{}, fakeSecretCipher{}, silentLogger{}, map[domain.Gateway]port.GatewayAdapter{}),
-		nil, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{}, nil,
+		noopBillingInvoicing{}, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{}, noopTxManager{},
 	)
 	if err != nil {
 		t.Fatalf("NewSubscriptionService: %v", err)

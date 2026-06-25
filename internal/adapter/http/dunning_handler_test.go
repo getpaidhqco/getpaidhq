@@ -38,7 +38,7 @@ func newDunningHandlerForTest(
 	subSvc, err := service.NewSubscriptionService(
 		&fakeSessionRepo{}, &fakeSettingRepo{}, &fakeCartRepo{},
 		subRepo, custRepo, &fakeOrderRepo{}, &fakePaymentRepo{}, nil,
-		factory, nil, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{}, nil,
+		factory, noopBillingInvoicing{}, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{}, noopTxManager{},
 	)
 	if err != nil {
 		t.Fatalf("NewSubscriptionService: %v", err)
@@ -47,7 +47,7 @@ func newDunningHandlerForTest(
 
 	dunningSvc := service.NewDunningService(
 		dunningRepo, subRepo, custRepo, &fakePaymentRepo{},
-		subSvc, nil, factory, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{},
+		subSvc, noopBillingInvoicing{}, factory, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{},
 	)
 	dunningOrch, err := service.NewDunningOrchestrationService(
 		dunningSvc, dunEngine, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{},
