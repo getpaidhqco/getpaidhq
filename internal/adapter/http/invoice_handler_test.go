@@ -31,9 +31,16 @@ func (r *fakeInvoiceRepoHTTP) FindBySubscriptionId(_ context.Context, _, _ strin
 	return r.list, len(r.list), nil
 }
 
+// hDefaultSettingsResolver resolves the default InvoiceSettings for any org.
+type hDefaultSettingsResolver struct{}
+
+func (hDefaultSettingsResolver) ResolveInvoiceSettings(_ context.Context, _ string) (domain.InvoiceSettings, error) {
+	return domain.DefaultInvoiceSettings(), nil
+}
+
 func newInvoiceHandlerForTest(t *testing.T, repo *fakeInvoiceRepoHTTP) *InvoiceHandler {
 	t.Helper()
-	svc := service.NewInvoiceService(repo, nil, nil, nil, nil, nil, silentLogger{}, nil, nil, nil, nil)
+	svc := service.NewInvoiceService(repo, nil, nil, &fakeSubRepo{}, nil, nil, silentLogger{}, &hFakeDiscountRepo{}, &hFakeCouponRepo{}, &hFakeReservationRepo{}, hDefaultSettingsResolver{})
 	return NewInvoiceHandler(svc, silentLogger{}, newRealAuthz(t))
 }
 

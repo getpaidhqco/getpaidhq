@@ -17,17 +17,17 @@ import (
 // subscription's Price via the order-item + price repos (the domain is ID-only —
 // nothing is embedded on the Subscription aggregate).
 type InvoiceService struct {
-	invoiceRepository      port.InvoiceRepository
-	orderRepository        port.OrderRepository
-	priceRepository        port.PriceRepository
-	subscriptionRepository port.SubscriptionRepository
-	usageService           *UsageService
-	tx                     port.TxManager
-	logger                 port.Logger
-	discounts              port.DiscountRepository
-	coupons                port.CouponRepository
-	reservations           port.CouponReservationRepository
-	invoiceSettings        port.InvoiceSettingsResolver
+	invoiceRepository           port.InvoiceRepository
+	orderRepository             port.OrderRepository
+	priceRepository             port.PriceRepository
+	subscriptionRepository      port.SubscriptionRepository
+	usageService                *UsageService
+	tx                          port.TxManager
+	logger                      port.Logger
+	discountRepository          port.DiscountRepository
+	couponRepository            port.CouponRepository
+	couponReservationRepository port.CouponReservationRepository
+	invoiceSettingsResolver     port.InvoiceSettingsResolver
 }
 
 func NewInvoiceService(
@@ -38,33 +38,31 @@ func NewInvoiceService(
 	usageService *UsageService,
 	tx port.TxManager,
 	logger port.Logger,
-	discounts port.DiscountRepository,
-	coupons port.CouponRepository,
-	reservations port.CouponReservationRepository,
-	invoiceSettings port.InvoiceSettingsResolver,
+	discountRepository port.DiscountRepository,
+	couponRepository port.CouponRepository,
+	couponReservationRepository port.CouponReservationRepository,
+	invoiceSettingsResolver port.InvoiceSettingsResolver,
 ) *InvoiceService {
 	return &InvoiceService{
-		invoiceRepository:      invoiceRepository,
-		orderRepository:        orderRepository,
-		priceRepository:        priceRepository,
-		subscriptionRepository: subscriptionRepository,
-		usageService:           usageService,
-		tx:                     tx,
-		logger:                 logger,
-		discounts:              discounts,
-		coupons:                coupons,
-		reservations:           reservations,
-		invoiceSettings:        invoiceSettings,
+		invoiceRepository:           invoiceRepository,
+		orderRepository:             orderRepository,
+		priceRepository:             priceRepository,
+		subscriptionRepository:      subscriptionRepository,
+		usageService:                usageService,
+		tx:                          tx,
+		logger:                      logger,
+		discountRepository:          discountRepository,
+		couponRepository:            couponRepository,
+		couponReservationRepository: couponReservationRepository,
+		invoiceSettingsResolver:     invoiceSettingsResolver,
 	}
 }
 
 // reference resolves the org's invoice settings and formats the human reference.
 func (s *InvoiceService) reference(ctx context.Context, orgId string, number int64) string {
-	cfg := domain.DefaultInvoiceSettings()
-	if s.invoiceSettings != nil {
-		if c, err := s.invoiceSettings.ResolveInvoiceSettings(ctx, orgId); err == nil {
-			cfg = c
-		}
+	cfg, err := s.invoiceSettingsResolver.ResolveInvoiceSettings(ctx, orgId)
+	if err != nil {
+		cfg = domain.DefaultInvoiceSettings()
 	}
 	return cfg.FormatReference(number)
 }
@@ -178,15 +176,13 @@ func (s *InvoiceService) BuildForOrder(ctx context.Context, order domain.Order) 
 	// engine won't rebuild cycle 0. A pure one-time order has no subscription.
 	var sub domain.Subscription
 	var hasSub bool
-	if s.subscriptionRepository != nil {
-		subs, serr := s.subscriptionRepository.FindByOrderId(ctx, order.OrgId, order.Id)
-		if serr != nil {
-			return domain.Invoice{}, serr
-		}
-		if len(subs) == 1 {
-			sub = subs[0]
-			hasSub = true
-		}
+	subs, serr := s.subscriptionRepository.FindByOrderId(ctx, order.OrgId, order.Id)
+	if serr != nil {
+		return domain.Invoice{}, serr
+	}
+	if len(subs) == 1 {
+		sub = subs[0]
+		hasSub = true
 	}
 
 	now := time.Now().UTC()
@@ -302,12 +298,9 @@ func (s *InvoiceService) addItemLine(ctx context.Context, inv *domain.Invoice, p
 //     creates the real Discount and BuildForOrder returns the existing invoice,
 //     so totals stay consistent.
 //
-// No-op when the discount/coupon repos aren't wired (unit tests).
+// No-op when the order has neither a committed discount nor a reservation.
 func (s *InvoiceService) applyOrderDiscounts(ctx context.Context, order domain.Order, inv *domain.Invoice, productByPrice map[string]string) error {
-	if s.discounts == nil || s.coupons == nil {
-		return nil // not wired (unit tests without discounts)
-	}
-	ds, err := s.discounts.ActiveForOrder(ctx, order.OrgId, order.Id)
+	ds, err := s.discountRepository.ActiveForOrder(ctx, order.OrgId, order.Id)
 	if err != nil {
 		return err
 	}
@@ -316,16 +309,16 @@ func (s *InvoiceService) applyOrderDiscounts(ctx context.Context, order domain.O
 	if len(ds) > 0 {
 		// Committed discounts (post-completion / billing path).
 		for _, d := range ds {
-			c, err := s.coupons.FindById(ctx, order.OrgId, d.CouponId)
+			c, err := s.couponRepository.FindById(ctx, order.OrgId, d.CouponId)
 			if err != nil {
 				return err
 			}
 			applied = append(applied, domain.AppliedDiscount{Discount: d, Coupon: c})
 		}
-	} else if s.reservations != nil {
+	} else {
 		// No committed discount yet — fall back to the order's live reservation
 		// so a pre-payment (open) invoice is still discounted.
-		rs, rerr := s.reservations.FindByOrder(ctx, order.OrgId, order.Id)
+		rs, rerr := s.couponReservationRepository.FindByOrder(ctx, order.OrgId, order.Id)
 		if rerr != nil {
 			return rerr
 		}
@@ -333,7 +326,7 @@ func (s *InvoiceService) applyOrderDiscounts(ctx context.Context, order domain.O
 			return nil
 		}
 		r := rs[0]
-		c, cerr := s.coupons.FindById(ctx, order.OrgId, r.CouponId)
+		c, cerr := s.couponRepository.FindById(ctx, order.OrgId, r.CouponId)
 		if cerr != nil {
 			return cerr
 		}
@@ -375,12 +368,9 @@ func (s *InvoiceService) SetInvoiceCounter(ctx context.Context, orgId string, va
 
 // applyDiscounts resolves the subscription's active discounts and writes each
 // line's DiscountTotal via the pure domain.ApplyDiscounts, scoped to the current
-// cycle. No-op when the discount/coupon repos aren't wired (unit tests).
+// cycle. No-op when the subscription has no active discounts.
 func (s *InvoiceService) applyDiscounts(ctx context.Context, sub domain.Subscription, inv *domain.Invoice, productByPrice map[string]string) error {
-	if s.discounts == nil || s.coupons == nil {
-		return nil // not wired (unit tests without discounts)
-	}
-	ds, err := s.discounts.ActiveForSubscription(ctx, sub.OrgId, sub.Id)
+	ds, err := s.discountRepository.ActiveForSubscription(ctx, sub.OrgId, sub.Id)
 	if err != nil {
 		return err
 	}
@@ -389,7 +379,7 @@ func (s *InvoiceService) applyDiscounts(ctx context.Context, sub domain.Subscrip
 	}
 	applied := make([]domain.AppliedDiscount, 0, len(ds))
 	for _, d := range ds {
-		c, err := s.coupons.FindById(ctx, sub.OrgId, d.CouponId)
+		c, err := s.couponRepository.FindById(ctx, sub.OrgId, d.CouponId)
 		if err != nil {
 			return err
 		}

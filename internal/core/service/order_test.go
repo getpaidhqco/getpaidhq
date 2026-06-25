@@ -250,7 +250,7 @@ func newOrderServiceWithInvoice(
 	invRepo *fakeInvoiceRepo,
 	coupons *CouponService,
 ) *OrderService {
-	invSvc := NewInvoiceService(invRepo, orderRepo, priceRepo, subRepo, nil, tx, silentLogger{}, nil, nil, nil, nil)
+	invSvc := NewInvoiceService(invRepo, orderRepo, priceRepo, subRepo, nil, tx, silentLogger{}, noopDiscountRepo{}, noopCouponRepo{}, noopReservationRepo{}, defaultSettingsResolver{})
 	return NewOrderService(tx, engine, nil, priceRepo, nil, orderRepo, custRepo, subRepo, payRepo, pmRepo, nil, nil, ps, silentLogger{}, coupons, invSvc)
 }
 
@@ -515,7 +515,7 @@ func TestOrderService_CreateOrder_UpfrontInvoice(t *testing.T) {
 		subRepo := &fakeSubRepo{}
 		custRepo := &fakeCustomerRepo{customer: domain.Customer{OrgId: "org_1", Id: "cust_1"}}
 		invRepo := newFakeInvoiceRepo()
-		invSvc := NewInvoiceService(invRepo, orderRepo, price, subRepo, nil, nil, silentLogger{}, nil, nil, nil, nil)
+		invSvc := NewInvoiceService(invRepo, orderRepo, price, subRepo, nil, nil, silentLogger{}, noopDiscountRepo{}, noopCouponRepo{}, noopReservationRepo{}, defaultSettingsResolver{})
 		svc := NewOrderService(
 			nil, &recordingEngine{}, nil, price, &fakeCartRepo{}, orderRepo,
 			custRepo, subRepo, nil, nil, prod, nil, &recordingPubSub{}, silentLogger{}, nil, invSvc,

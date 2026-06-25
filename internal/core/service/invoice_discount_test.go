@@ -69,7 +69,7 @@ func TestInvoiceDiscount_RepeatingHalfOff(t *testing.T) {
 	coupons := &findByIdCouponRepo{byId: map[string]domain.Coupon{coupon.Id: coupon}}
 
 	build := func(cycle int) domain.Invoice {
-		svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, nil, nil, nil, silentLogger{}, discounts, coupons, nil, nil)
+		svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, &fakeSubRepo{}, nil, nil, silentLogger{}, discounts, coupons, noopReservationRepo{}, defaultSettingsResolver{})
 		sub := domain.Subscription{
 			OrgId: orgId, Id: "sub_1", OrderId: "ord_1", CustomerId: "cus_1",
 			Status: domain.SubscriptionStatusActive, Currency: "USD", CyclesProcessed: cycle,

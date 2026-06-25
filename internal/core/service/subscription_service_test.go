@@ -41,7 +41,7 @@ func newSubscriptionService(subRepo port.SubscriptionRepository, setting port.Se
 	// the charge-handler tests assert against.
 	invOrderRepo := &fakeOrderRepo{items: []domain.OrderItem{{Id: "oi_1", PriceId: "price_1", Quantity: 1}}}
 	invPriceRepo := &fakePriceRepo{byId: domain.Price{Id: "price_1", UnitPrice: 1000}}
-	invoiceSvc := NewInvoiceService(newFakeInvoiceRepo(), invOrderRepo, invPriceRepo, nil, nil, nil, silentLogger{}, nil, nil, nil, nil)
+	invoiceSvc := NewInvoiceService(newFakeInvoiceRepo(), invOrderRepo, invPriceRepo, &fakeSubRepo{}, nil, nil, silentLogger{}, noopDiscountRepo{}, noopCouponRepo{}, noopReservationRepo{}, defaultSettingsResolver{})
 	// The subscription service's own price repo backs cadence grouping in
 	// CreateSubscriptionsForOrder; give it a monthly recurring price.
 	subPriceRepo := &fakePriceRepo{byId: domain.Price{Id: "price_1", Category: domain.PriceCategorySubscription, BillingInterval: domain.BillingIntervalMonth, BillingIntervalQty: 1, UnitPrice: 1000}}
