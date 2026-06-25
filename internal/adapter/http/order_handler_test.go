@@ -99,7 +99,7 @@ func newOrderHandlerForTest(
 	factory := service.NewGatewayFactory(&fakePspRepo{}, fakeSecretCipher{}, silentLogger{}, map[domain.Gateway]port.GatewayAdapter{})
 	svc := service.NewOrderService(
 		noopTxManager{}, engine, sessionRepo, priceRepo, cartRepo, orderRepo,
-		custRepo, subRepo, payRepo, pmRepo, productRepo, factory, newPubSub(), silentLogger{}, coupons,
+		custRepo, subRepo, payRepo, pmRepo, productRepo, factory, newPubSub(), silentLogger{}, coupons, nil,
 	)
 	// Each existing test gets a fresh store (idempo no-ops without the header);
 	// idempotency tests inject one shared store across two requests.
@@ -527,7 +527,7 @@ func newOrderHandlerForPayTest(t *testing.T, order domain.Order, gw port.Payment
 	svc := service.NewOrderService(
 		noopTxManager{}, &recordingEngine{}, &fakeSessionRepo{}, &fakePriceRepo{}, &fakeCartRepo{},
 		orderRepo, &fakeCustomerRepo{}, &fakeSubRepo{}, &fakePaymentRepo{}, &fakePaymentMethodRepo{},
-		&fakeProductRepo{}, factory, newPubSub(), silentLogger{}, nil,
+		&fakeProductRepo{}, factory, newPubSub(), silentLogger{}, nil, nil,
 	)
 	idemMW := middleware.NewIdempotencyMiddleware(newFakeIdemStore(), idempo.Options{})
 	return NewOrderHandler(svc, silentLogger{}, newRealAuthz(t), idemMW), orderRepo

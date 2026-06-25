@@ -71,8 +71,12 @@ type fakeOrderRepo struct {
 	items        []domain.OrderItem
 	findErr      error
 	updateErr    error
+	created      []domain.Order
 	updated      []domain.Order
 	forUpdateHit int
+	// hasCreated flips once Create is called, so FindById reflects the created
+	// order (carrying its persisted Config) instead of the seeded r.order.
+	hasCreated bool
 }
 
 func (r *fakeOrderRepo) FindById(_ context.Context, _, _ string) (domain.Order, error) {
@@ -80,6 +84,18 @@ func (r *fakeOrderRepo) FindById(_ context.Context, _, _ string) (domain.Order, 
 		return domain.Order{}, r.findErr
 	}
 	return r.order, nil
+}
+
+func (r *fakeOrderRepo) Create(_ context.Context, o domain.Order) (domain.Order, error) {
+	r.created = append(r.created, o)
+	r.order = o
+	r.hasCreated = true
+	return o, nil
+}
+
+func (r *fakeOrderRepo) CreateOrderItem(_ context.Context, oi domain.OrderItem) (domain.OrderItem, error) {
+	r.items = append(r.items, oi)
+	return oi, nil
 }
 
 func (r *fakeOrderRepo) FindByIdForUpdate(ctx context.Context, orgId string, id string) (domain.Order, error) {
@@ -214,7 +230,7 @@ func newOrderServiceForTest(
 ) *OrderService {
 	// session/cart/price/product repos and gateway factory are unused by
 	// CompleteOrder.
-	return NewOrderService(tx, engine, nil, &fakePriceRepo{}, nil, orderRepo, custRepo, subRepo, payRepo, pmRepo, nil, nil, ps, silentLogger{}, nil)
+	return NewOrderService(tx, engine, nil, &fakePriceRepo{}, nil, orderRepo, custRepo, subRepo, payRepo, pmRepo, nil, nil, ps, silentLogger{}, nil, nil)
 }
 
 func pendingOrder() domain.Order {
@@ -348,7 +364,7 @@ func TestOrderService_InitOrderPayment(t *testing.T) {
 		orderRepo := &fakeOrderRepo{order: order}
 		factory := &initPaymentFactory{gw: gw}
 		svc := NewOrderService(nil, nil, nil, &fakePriceRepo{}, &fakeCartRepo{}, orderRepo,
-			&fakeCustomerRepo{}, nil, nil, nil, nil, factory, &recordingPubSub{}, silentLogger{}, nil)
+			&fakeCustomerRepo{}, nil, nil, nil, nil, factory, &recordingPubSub{}, silentLogger{}, nil, nil)
 		return svc, orderRepo
 	}
 
@@ -393,7 +409,7 @@ func TestOrderService_CreateOrder_RejectsArchivedProduct(t *testing.T) {
 	prod := &fakeProductRepo{byId: domain.Product{OrgId: "org_1", Id: "prod_1", Status: domain.ProductStatusArchived}}
 	price := &fakePriceRepo{byId: domain.Price{OrgId: "org_1", Id: "price_1", UnitPrice: 1000}}
 	orderRepo := &fakeOrderRepo{}
-	svc := NewOrderService(nil, nil, nil, price, &fakeCartRepo{}, orderRepo, &fakeCustomerRepo{}, nil, nil, nil, prod, nil, &recordingPubSub{}, silentLogger{}, nil)
+	svc := NewOrderService(nil, nil, nil, price, &fakeCartRepo{}, orderRepo, &fakeCustomerRepo{}, nil, nil, nil, prod, nil, &recordingPubSub{}, silentLogger{}, nil, nil)
 
 	_, err := svc.CreateOrder(context.Background(), port.CreateOrderInput{
 		OrgId:     "org_1",
@@ -405,4 +421,58 @@ func TestOrderService_CreateOrder_RejectsArchivedProduct(t *testing.T) {
 	require.ErrorAs(t, err, &ce)
 	assert.Equal(t, lib.ConflictError, ce.Type)
 	assert.Empty(t, orderRepo.updated, "archived product must be rejected before the order is created")
+}
+
+// CreateOrder persists the order's Config and, when upfront_invoice is set,
+// builds the combined invoice open at create time and returns it. A one-time
+// (non-recurring) price keeps the order free of subscriptions, so the invoice is
+// a pure one-time order invoice.
+func TestOrderService_CreateOrder_UpfrontInvoice(t *testing.T) {
+	newSvc := func() (*OrderService, *fakeOrderRepo, *fakeInvoiceRepo) {
+		prod := &fakeProductRepo{byId: domain.Product{OrgId: "org_1", Id: "prod_1", Name: "Plan", Status: domain.ProductStatusActive}}
+		// one-time price: no billing interval, no metric → not recurring.
+		price := &fakePriceRepo{byId: domain.Price{OrgId: "org_1", Id: "price_1", UnitPrice: 1000, UnitCount: 1}}
+		orderRepo := &fakeOrderRepo{}
+		subRepo := &fakeSubRepo{}
+		custRepo := &fakeCustomerRepo{customer: domain.Customer{OrgId: "org_1", Id: "cust_1"}}
+		invRepo := newFakeInvoiceRepo()
+		invSvc := NewInvoiceService(invRepo, orderRepo, price, subRepo, nil, nil, silentLogger{}, nil, nil, nil)
+		svc := NewOrderService(
+			nil, &recordingEngine{}, nil, price, &fakeCartRepo{}, orderRepo,
+			custRepo, subRepo, nil, nil, prod, nil, &recordingPubSub{}, silentLogger{}, nil, invSvc,
+		)
+		return svc, orderRepo, invRepo
+	}
+
+	input := func(upfront bool) port.CreateOrderInput {
+		return port.CreateOrderInput{
+			OrgId:     "org_1",
+			Currency:  "USD",
+			Customer:  port.CreateOrderInputCustomer{Id: "cust_1"},
+			CartItems: []domain.CartItem{{ProductId: "prod_1", PriceId: "price_1", Quantity: 1}},
+			Config:    domain.OrderConfig{UpfrontInvoice: upfront},
+		}
+	}
+
+	t.Run("upfront_invoice true returns an open invoice", func(t *testing.T) {
+		svc, orderRepo, _ := newSvc()
+
+		res, err := svc.CreateOrder(context.Background(), input(true))
+		require.NoError(t, err)
+		require.NotNil(t, res.Invoice, "upfront order must return an invoice")
+		assert.Equal(t, domain.InvoiceStatusOpen, res.Invoice.Status)
+		assert.Equal(t, res.Order.Id, res.Invoice.OrderId)
+		require.Len(t, orderRepo.created, 1)
+		assert.True(t, orderRepo.created[0].Config.UpfrontInvoice, "Config.UpfrontInvoice persisted on the order")
+	})
+
+	t.Run("upfront_invoice false returns no invoice", func(t *testing.T) {
+		svc, orderRepo, _ := newSvc()
+
+		res, err := svc.CreateOrder(context.Background(), input(false))
+		require.NoError(t, err)
+		assert.Nil(t, res.Invoice, "non-upfront order must not return an invoice")
+		require.Len(t, orderRepo.created, 1)
+		assert.False(t, orderRepo.created[0].Config.UpfrontInvoice, "Config.UpfrontInvoice persisted as false")
+	})
 }

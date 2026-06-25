@@ -292,7 +292,7 @@ func NewApp() (*App, error) {
 	if err != nil {
 		return nil, err
 	}
-	orderService := service.NewOrderService(txManager, engine, sessionRepo, priceRepo, cartRepo, orderRepo, customerRepo, subRepo, paymentRepo, paymentMethodRepo, productRepo, gatewayFactory, pubsub, logger, couponService)
+	orderService := service.NewOrderService(txManager, engine, sessionRepo, priceRepo, cartRepo, orderRepo, customerRepo, subRepo, paymentRepo, paymentMethodRepo, productRepo, gatewayFactory, pubsub, logger, couponService, invoiceService)
 	customerService, err := service.NewCustomerService(customerRepo, paymentMethodRepo, pubsub, logger, scheduler)
 	if err != nil {
 		return nil, err

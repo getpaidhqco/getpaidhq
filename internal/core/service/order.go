@@ -36,6 +36,7 @@ type OrderService struct {
 	pubsub                  port.PubSub
 	logger                  port.Logger
 	coupons                 *CouponService
+	invoiceService          *InvoiceService
 }
 
 func NewOrderService(
@@ -54,6 +55,7 @@ func NewOrderService(
 	pubsub port.PubSub,
 	logger port.Logger,
 	coupons *CouponService,
+	invoiceService *InvoiceService,
 ) *OrderService {
 	return &OrderService{
 		tx:                      tx,
@@ -71,6 +73,7 @@ func NewOrderService(
 		paymentRepository:       paymentRepository,
 		pubsub:                  pubsub,
 		coupons:                 coupons,
+		invoiceService:          invoiceService,
 	}
 }
 
@@ -209,6 +212,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		Currency:   currency,
 		Total:      orderCart.Total,
 		Metadata:   input.Metadata,
+		Config:     input.Config,
 		CreatedAt:  time.Now().UTC(),
 		UpdatedAt:  time.Now().UTC(),
 	})
@@ -293,9 +297,29 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 
 	newOrder, _ := s.orderRepository.FindById(ctx, orgId, order.Id)
 
-	return port.CreateOrderResult{
-		Order: newOrder,
-	}, nil
+	result := port.CreateOrderResult{Order: newOrder}
+
+	// When the order opts into upfront invoicing, build the combined cycle-0
+	// invoice now and open it. The order's items and subscriptions are already
+	// committed above, so BuildForOrder (which queries them by order id) sees a
+	// complete order. BuildForOrder is idempotent on the order and opens its own
+	// tx; an empty order (nothing to invoice) returns port.ErrNotFound, which we
+	// treat as "no invoice".
+	if input.Config.UpfrontInvoice && s.invoiceService != nil {
+		inv, err := s.invoiceService.BuildForOrder(ctx, newOrder)
+		if err != nil && !errors.Is(err, port.ErrNotFound) {
+			return port.CreateOrderResult{}, err
+		}
+		if err == nil {
+			opened, oerr := s.invoiceService.MarkOpen(ctx, newOrder.OrgId, inv.Id)
+			if oerr != nil {
+				return port.CreateOrderResult{}, oerr
+			}
+			result.Invoice = &opened
+		}
+	}
+
+	return result, nil
 }
 
 // InitOrderPayment initialises (or returns) the PSP payment session for an

@@ -101,6 +101,7 @@ func buildOrderService(t *testing.T, db *gorm.DB, coupons *service.CouponService
 		noopPubSub{},
 		logger,
 		coupons,
+		nil, // invoiceService — this flow does not opt into upfront invoicing
 	)
 }
 
