@@ -38,9 +38,23 @@ type OrderConfig struct {
 An invoice has three identifiers:
 - **`Id`** — internal system id (`inv_…`); URLs and relations.
 - **`Number`** (`int64`, already on `main`) — the raw **counter value**, from the org-scoped `invoice_counters` + `InvoiceRepository.NextInvoiceNumber(orgId)` (set inside the build tx so the counter bump and the insert are atomic). It is *just the counter value* — **not** the public identity and **not** relied on for uniqueness (numbering scope may become per-customer/other downstream; a single per-org sequence is not assumed permanent).
-- **`Reference`** (text) — **NEW**: the **public, searchable identity** a customer copies off the invoice and searches by. **Stored and indexed** (`(org_id, reference)`); the durable identity lives here. Its default form derives from the number; a configurable/scoped format is downstream, and because `reference` is stored, that needs no model change later.
+- **`Reference`** (text) — **NEW**: the **public, searchable identity** a customer copies off the invoice and searches by. **Stored and indexed** (`(org_id, reference)`); the durable identity lives here. Its format is **org-configurable** (§3.1): `reference = prefix + leftpad(number, padding)`, computed and **stored at build** — so a later format change never rewrites already-issued invoices.
 
 Both `Number` and `Reference` are set at build, in the tx, by **`BuildForOrder`** and **`BuildForBillingPeriod`** (the latter updated to also set `Reference`).
+
+### 3.1 Invoice settings (reference format)
+
+Reference formatting is driven by a per-org **`InvoiceSettings`** object stored in the **existing settings store** (the `settings` table + `SettingService`, keyed `(org_id, parent_id, id)`) — the UI invoice-config page owns it; **no new table**.
+
+```go
+type InvoiceSettings struct {
+    Prefix  string `json:"prefix"`  // "INV-"
+    Padding int    `json:"padding"` // 6 → 000042
+    // future invoice settings land here
+}
+```
+
+One setting row per org (e.g. `id = "invoice"`) holds the whole object. At build, `BuildForOrder` / `BuildForBillingPeriod` load it (defaults `INV-` / `6` when unset) and set `reference = Prefix + leftpad(Number, Padding)`. The *starting* number is the separate, already-merged `SetInvoiceCounter(orgId, value)`. `InvoiceService` gains read access to settings (`SettingRepository`), wired in `app.go`.
 
 When `upfront_invoice = true`, the `CreateOrder` response includes the invoice — **`id` and `url` only** (number/reference are read from the invoice resource itself):
 ```json
@@ -70,7 +84,7 @@ One invoice per order, covering its **first bill**: each subscription's first-pe
 2. Gather the order's lines (`FindOrderItemsByOrderId`): recurring lines contribute their first-period base/usage line; one-time lines contribute a base line. One `domain.Invoice` (`OrgId`, `OrderId`, `CustomerId`, `Currency`, `Cycle: 0`, period = first period / order time). `Number` + `Reference` are assigned in the tx (step 5).
 3. **Subscription linkage:** if the order has exactly one subscription, set `SubscriptionId` on the invoice (so it **is** that subscription's cycle-0 invoice — the recurring engine's `FindBySubscriptionCycle(sub, 0)` finds it and never rebuilds/recharges cycle 0). Pure one-time order → `SubscriptionId` NULL. (Multi-subscription orders: each subscription owns its own cycle-0 invoice; one-time lines combine onto the first — an edge, kept explicit.)
 4. **Discount:** apply via `domain.ApplyDiscounts(lines, applied, cycle=0, currency)`. Resolve discounts from the committed `Discount` (post-payment) **or** the order's live reservation's coupon when building `open` pre-payment, so the bill total *is* the discounted amount.
-5. In the tx: `inv.Number = NextInvoiceNumber(orgId)`, set `inv.Reference` (default form from the number), then `invoiceRepository.Create`.
+5. In the tx: `inv.Number = NextInvoiceNumber(orgId)`; `inv.Reference = format(Number, InvoiceSettings)` (load the org's `InvoiceSettings` from the settings store, §3.1); then `invoiceRepository.Create`.
 
 `BuildForOrder` reuses the subscription builder's per-line + discount mechanics (shared helper). `BuildForBillingPeriod` stays **recurring-only** for cycles ≥ 1 (unchanged).
 
@@ -126,12 +140,12 @@ All within the order-completion transaction (the merged `RunInTx` ctx fix lets n
 
 | Layer | Change |
 | --- | --- |
-| `core/domain` | `Order.Config` (`OrderConfig`, validated); `Invoice.Reference`; `NewDiscount` order-always; the combined-invoice build helpers. |
-| `core/service` | `InvoiceService.BuildForOrder` (sets `Number`+`Reference`) + shared discount/line helper + reservation-coupon resolution; `BuildForBillingPeriod` also sets `Reference`; `CouponService.Consume` order-always; `OrderService.CreateOrder` persists `Config` and, if `UpfrontInvoice`, builds the open invoice + returns it; `OrderService.CompleteOrder` orchestration (§8); `OrderService` gains `*InvoiceService`. |
+| `core/domain` | `Order.Config` (`OrderConfig`, validated); `Invoice.Reference`; `InvoiceSettings` (+ `format`/defaults); `NewDiscount` order-always; the combined-invoice build helpers. |
+| `core/service` | `InvoiceService.BuildForOrder` (sets `Number`+`Reference`) + shared discount/line helper + reservation-coupon resolution; `BuildForBillingPeriod` also sets `Reference`; both load `InvoiceSettings` (via `SettingRepository`) to format the reference, so `InvoiceService` gains a `SettingRepository` dep; `CouponService.Consume` order-always; `OrderService.CreateOrder` persists `Config` and, if `UpfrontInvoice`, builds the open invoice + returns it; `OrderService.CompleteOrder` orchestration (§8); `OrderService` gains `*InvoiceService`. |
 | `core/port` | `CreateOrderInput.Config`; `InvoiceRepository.FindOrderInvoice`; `CreateOrderResult` carries the optional invoice. |
 | `adapter/storage/{postgresgorm,postgrespgx}` | `orders.config`; `invoices.reference` (+ index) + `subscription_id` nullable; `FindOrderInvoice`; `ActiveForOrder` sub-null. Both drivers + conformance. |
 | `adapter/http` | `CreateOrderRequest.upfront_invoice`; `CreateOrderResponse` returns `invoice {id, url}` when raised. |
-| `config/app.go` | inject `*InvoiceService` into `OrderService`. |
+| `config/app.go` | inject `*InvoiceService` into `OrderService`; inject `SettingRepository` into `InvoiceService`. |
 | `schemas/app/migrations` | `orders.config`; `invoices.reference` + index; `invoices.subscription_id` nullable. |
 
 No workflow-engine code change. Parity preserved.
@@ -155,7 +169,7 @@ No workflow-engine code change. Parity preserved.
 
 - **domain:** `NewDiscount` (order-only ✓, order+sub ✓, missing order ✗, sub-only ✗); `OrderConfig` validation; `Invoice.Number` (counter) + `Invoice.Reference` set at build.
 - **storage (both drivers, conformance):** `orders.config` round-trips; `invoices.reference` round-trips and is searchable by `(org_id, reference)`; NULL `subscription_id` round-trips; `FindOrderInvoice` returns the order's cycle-0 invoice; `ActiveForOrder` excludes sub-targeted discounts sharing the order_id.
-- **service:** `BuildForOrder` — combined lines (sub first period + once-off), discount once, idempotent, sets `SubscriptionId` for a single-sub order. `CompleteOrder` — mixed `$100/mo + $50` → one combined paid `$150` invoice, `Payment.InvoiceId` set, sub `CyclesProcessed=1`; pure once-off+coupon → one paid discounted invoice, reservation consumed; `upfront_invoice` → open invoice at create, paid on completion; idempotent re-complete.
+- **service:** `reference` is formatted per the org's `InvoiceSettings` (prefix + padding; defaults `INV-`/6 when unset); `BuildForOrder` — combined lines (sub first period + once-off), discount once, idempotent, sets `SubscriptionId` for a single-sub order. `CompleteOrder` — mixed `$100/mo + $50` → one combined paid `$150` invoice, `Payment.InvoiceId` set, sub `CyclesProcessed=1`; pure once-off+coupon → one paid discounted invoice, reservation consumed; `upfront_invoice` → open invoice at create, paid on completion; idempotent re-complete.
 - **engine parity (integration, both engines):** after activation the recurring engine bills cycle 1 next, never rebuilds/recharges cycle 0 (the combined invoice is reused).
 - **e2e:** mixed cart with a coupon → `/pay` (or complete) → one combined paid discounted invoice; subscription recurs from cycle 1; `upfront_invoice` → open invoice returned, then settled.
 
