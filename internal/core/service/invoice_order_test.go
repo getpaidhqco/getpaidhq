@@ -29,7 +29,7 @@ func TestInvoiceService_BuildForOrder_Mixed(t *testing.T) {
 	sub := domain.Subscription{OrgId: orgId, Id: "sub_1", OrderId: "ord_1", CustomerId: "cus_1", Status: domain.SubscriptionStatusActive, Currency: "USD"}
 	subRepo := &fakeSubRepo{byOrderId: []domain.Subscription{sub}}
 
-	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, subRepo, nil, nil, silentLogger{}, noopDiscountRepo{}, noopCouponRepo{}, noopReservationRepo{}, defaultSettingsResolver{})
+	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, subRepo, noopUsage{}, noopTx{}, silentLogger{}, noopDiscountRepo{}, noopCouponRepo{}, noopReservationRepo{}, defaultSettingsResolver{})
 
 	order := domain.Order{OrgId: orgId, Id: "ord_1", CustomerId: "cus_1", Currency: "USD"}
 	inv, err := svc.BuildForOrder(context.Background(), order)
@@ -74,7 +74,7 @@ func TestInvoiceService_BuildForOrder_PureOneTimeWithDiscount(t *testing.T) {
 	coupons := &findByIdCouponRepo{byId: map[string]domain.Coupon{coupon.Id: coupon}}
 	subRepo := &fakeSubRepo{} // no subscriptions on the order
 
-	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, subRepo, nil, nil, silentLogger{}, discounts, coupons, noopReservationRepo{}, defaultSettingsResolver{})
+	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, subRepo, noopUsage{}, noopTx{}, silentLogger{}, discounts, coupons, noopReservationRepo{}, defaultSettingsResolver{})
 
 	order := domain.Order{OrgId: orgId, Id: "ord_2", CustomerId: "cus_1", Currency: "USD"}
 	inv, err := svc.BuildForOrder(context.Background(), order)
@@ -115,7 +115,7 @@ func TestInvoiceService_BuildForOrder_ReservationDiscount(t *testing.T) {
 	}}
 	subRepo := &fakeSubRepo{} // no subscriptions on the order
 
-	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, subRepo, nil, nil, silentLogger{}, discounts, coupons, reservations, defaultSettingsResolver{})
+	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, priceRepo, subRepo, noopUsage{}, noopTx{}, silentLogger{}, discounts, coupons, reservations, defaultSettingsResolver{})
 
 	order := domain.Order{OrgId: orgId, Id: "ord_r", CustomerId: "cus_1", Currency: "USD"}
 	inv, err := svc.BuildForOrder(context.Background(), order)
@@ -134,7 +134,7 @@ func TestInvoiceService_BuildForOrder_Idempotent(t *testing.T) {
 	}}
 	priceRepo := &mapPriceRepo{byId: map[string]domain.Price{"price_x": price}}
 	repo := newFakeInvoiceRepo()
-	svc := NewInvoiceService(repo, orderRepo, priceRepo, &fakeSubRepo{}, nil, nil, silentLogger{}, noopDiscountRepo{}, noopCouponRepo{}, noopReservationRepo{}, defaultSettingsResolver{})
+	svc := NewInvoiceService(repo, orderRepo, priceRepo, &fakeSubRepo{}, noopUsage{}, noopTx{}, silentLogger{}, noopDiscountRepo{}, noopCouponRepo{}, noopReservationRepo{}, defaultSettingsResolver{})
 
 	order := domain.Order{OrgId: orgId, Id: "ord_3", CustomerId: "cus_1", Currency: "USD"}
 	first, err := svc.BuildForOrder(context.Background(), order)
@@ -150,7 +150,7 @@ func TestInvoiceService_BuildForOrder_Idempotent(t *testing.T) {
 func TestInvoiceService_BuildForOrder_NoItems(t *testing.T) {
 	const orgId = "org_1"
 	orderRepo := &fakeOrderRepo{items: nil}
-	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, &mapPriceRepo{}, &fakeSubRepo{}, nil, nil, silentLogger{}, noopDiscountRepo{}, noopCouponRepo{}, noopReservationRepo{}, defaultSettingsResolver{})
+	svc := NewInvoiceService(newFakeInvoiceRepo(), orderRepo, &mapPriceRepo{}, &fakeSubRepo{}, noopUsage{}, noopTx{}, silentLogger{}, noopDiscountRepo{}, noopCouponRepo{}, noopReservationRepo{}, defaultSettingsResolver{})
 
 	order := domain.Order{OrgId: orgId, Id: "ord_empty", CustomerId: "cus_1", Currency: "USD"}
 	_, err := svc.BuildForOrder(context.Background(), order)

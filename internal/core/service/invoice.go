@@ -12,6 +12,16 @@ import (
 	"getpaidhq/internal/lib"
 )
 
+// MeteredUsageReader is the narrow read InvoiceService needs from usage: a
+// metered price's usage for a billing window. Defined here (not in port/) because
+// the return type MeteredUsage lives in this package — a port-level interface would
+// import-cycle. *UsageService satisfies it (assertion below).
+type MeteredUsageReader interface {
+	MeteredUsageForSubscription(ctx context.Context, sub domain.Subscription, price domain.Price, from, to time.Time) (MeteredUsage, error)
+}
+
+var _ MeteredUsageReader = (*UsageService)(nil)
+
 // InvoiceService builds and persists the per-cycle invoice and flips its status
 // after settlement. Narrow — no workflow engine, no signaling. It resolves the
 // subscription's Price via the order-item + price repos (the domain is ID-only —
@@ -21,7 +31,7 @@ type InvoiceService struct {
 	orderRepository             port.OrderRepository
 	priceRepository             port.PriceRepository
 	subscriptionRepository      port.SubscriptionRepository
-	usageService                *UsageService
+	usageService                MeteredUsageReader
 	tx                          port.TxManager
 	logger                      port.Logger
 	discountRepository          port.DiscountRepository
@@ -35,7 +45,7 @@ func NewInvoiceService(
 	orderRepository port.OrderRepository,
 	priceRepository port.PriceRepository,
 	subscriptionRepository port.SubscriptionRepository,
-	usageService *UsageService,
+	usageService MeteredUsageReader,
 	tx port.TxManager,
 	logger port.Logger,
 	discountRepository port.DiscountRepository,
@@ -137,11 +147,7 @@ func (s *InvoiceService) BuildForBillingPeriod(ctx context.Context, sub domain.S
 		created, e = s.invoiceRepository.Create(ctx, inv)
 		return e
 	}
-	if s.tx != nil {
-		err = s.tx.RunInTx(ctx, run)
-	} else {
-		err = run(ctx) // tests without a TxManager
-	}
+	err = s.tx.RunInTx(ctx, run)
 	if err != nil {
 		return domain.Invoice{}, err
 	}
@@ -241,11 +247,7 @@ func (s *InvoiceService) BuildForOrder(ctx context.Context, order domain.Order) 
 		created, e = s.invoiceRepository.Create(ctx, inv)
 		return e
 	}
-	if s.tx != nil {
-		err = s.tx.RunInTx(ctx, run)
-	} else {
-		err = run(ctx) // tests without a TxManager
-	}
+	err = s.tx.RunInTx(ctx, run)
 	if err != nil {
 		return domain.Invoice{}, err
 	}
@@ -260,7 +262,7 @@ func (s *InvoiceService) BuildForOrder(ctx context.Context, order domain.Order) 
 func (s *InvoiceService) addItemLine(ctx context.Context, inv *domain.Invoice, price domain.Price, it domain.OrderItem, hasSub bool, sub domain.Subscription, periodStart, periodEnd time.Time) error {
 	if price.IsMetered() {
 		var units decimal.Decimal
-		if hasSub && s.usageService != nil {
+		if hasSub {
 			usage, uerr := s.usageService.MeteredUsageForSubscription(ctx, sub, price, periodStart, periodEnd)
 			if uerr != nil {
 				return uerr

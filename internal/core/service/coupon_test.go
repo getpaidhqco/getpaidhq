@@ -203,3 +203,11 @@ func (r *fakeCouponReservationRepo) ExistsLiveForCustomer(_ context.Context, _, 
 type noopTx struct{}
 
 func (noopTx) RunInTx(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }
+
+// noopUsage is a MeteredUsageReader that reports zero usage — for invoice tests
+// that don't exercise metered billing but must wire a real (non-nil) reader.
+type noopUsage struct{}
+
+func (noopUsage) MeteredUsageForSubscription(ctx context.Context, sub domain.Subscription, price domain.Price, from, to time.Time) (MeteredUsage, error) {
+	return MeteredUsage{}, nil
+}
