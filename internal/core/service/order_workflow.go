@@ -26,6 +26,8 @@ type OrderWorkflowService struct {
 	tx                      port.TxManager
 	pubsub                  port.PubSub
 	logger                  port.Logger
+	invoiceService          *InvoiceService
+	coupons                 *CouponService
 }
 
 func NewOrderWorkflowService(
@@ -38,6 +40,8 @@ func NewOrderWorkflowService(
 	tx port.TxManager,
 	pubsub port.PubSub,
 	logger port.Logger,
+	invoiceService *InvoiceService,
+	coupons *CouponService,
 ) *OrderWorkflowService {
 	return &OrderWorkflowService{
 		orderRepository:         orderRepository,
@@ -49,6 +53,8 @@ func NewOrderWorkflowService(
 		tx:                      tx,
 		pubsub:                  pubsub,
 		logger:                  logger,
+		invoiceService:          invoiceService,
+		coupons:                 coupons,
 	}
 }
 
@@ -95,6 +101,7 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 			OrgId:          orgId,
 			Id:             lib.GenerateId("payment_method"),
 			Psp:            string(paymentCtx.Psp),
+			Status:         domain.PaymentMethodStatusActive,
 			Token:          domain.Secret(paymentCtx.PaymentMethod.Token),
 			Name:           "Default",
 			CustomerId:     order.CustomerId,
@@ -156,6 +163,47 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 			}
 		}
 
+		// Convert the order's coupon reservation (if any) into an active Discount,
+		// for ALL orders — subscription and pure one-time alike. A subscription
+		// order anchors the discount on its (single) activated sub; a one-time
+		// order owns the discount via OrderId only. No-op when the order has no
+		// reservation. Consumed BEFORE BuildForOrder so the committed Discount is
+		// visible to BuildForOrder's ActiveForOrder. Guarded for unit harnesses
+		// that pass a nil coupon service.
+		if s.coupons != nil {
+			consume := ConsumeInput{
+				OrgId:      orgId,
+				OrderId:    orderId,
+				StartCycle: 0,
+			}
+			if subscriptionId != "" {
+				consume.SubscriptionId = subscriptionId
+			}
+			if _, err := s.coupons.Consume(ctx, consume); err != nil {
+				return err
+			}
+		}
+
+		// Build the ONE combined cycle-0 invoice for the order (sub first-period
+		// line(s) + every one-time line, with the order discount applied). Returns
+		// the already-built invoice when upfront_invoice opened it at create time
+		// (idempotent on the order). An order with no billable items returns
+		// port.ErrNotFound → no invoice, no payment-link, no settlement. Guarded
+		// so unit-test harnesses with a nil invoiceService behave as before.
+		var invoiceId string
+		if s.invoiceService != nil {
+			inv, berr := s.invoiceService.BuildForOrder(ctx, order)
+			if berr != nil {
+				if !errors.Is(berr, port.ErrNotFound) {
+					s.logger.Error("Failed to build order invoice", berr.Error())
+					return berr
+				}
+				// nothing to invoice — leave invoiceId empty
+			} else {
+				invoiceId = inv.Id
+			}
+		}
+
 		if paymentCtx.Payment.Amount > 0 {
 			payment := domain.Payment{
 				OrgId:          orgId,
@@ -165,6 +213,7 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 				Reference:      paymentCtx.Payment.Reference,
 				OrderId:        orderId,
 				SubscriptionId: subscriptionId,
+				InvoiceId:      invoiceId,
 				Status:         domain.PaymentStatusSucceeded,
 				Recurring:      recurringPayment,
 				Currency:       paymentCtx.Payment.Currency,
@@ -181,6 +230,20 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 			if err != nil {
 				s.logger.Error("Failed to create payment", err.Error())
 				return err
+			}
+
+			// The combined invoice is paid by this first charge — open then settle
+			// it. When upfront_invoice already opened it, MarkOpen is idempotent and
+			// MarkSettled drives it to paid.
+			if s.invoiceService != nil && invoiceId != "" {
+				if _, err := s.invoiceService.MarkOpen(ctx, orgId, invoiceId); err != nil {
+					s.logger.Error("Failed to open order invoice", err.Error())
+					return err
+				}
+				if _, err := s.invoiceService.MarkSettled(ctx, orgId, invoiceId); err != nil {
+					s.logger.Error("Failed to settle order invoice", err.Error())
+					return err
+				}
 			}
 		}
 

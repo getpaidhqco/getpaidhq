@@ -89,6 +89,30 @@ func buildWiredOrderService(t *testing.T, db *gorm.DB, coupons *service.CouponSe
 	)
 }
 
+// buildWiredOrderWorkflowService wires the webhook-path OrderWorkflowService off
+// the testcontainer db with a REAL InvoiceService + CouponService — mirroring
+// app.go's NewOrderWorkflowService argument order. This is the PSP-webhook
+// completion path (CompleteCheckoutSession); driving it with the real invoice +
+// coupon machinery proves the webhook path builds + settles the ONE combined
+// invoice and consumes the reservation, at parity with OrderService.CompleteOrder.
+func buildWiredOrderWorkflowService(t *testing.T, db *gorm.DB, coupons *service.CouponService, invoices *service.InvoiceService) *service.OrderWorkflowService {
+	t.Helper()
+	logger := noopLogger{}
+	return service.NewOrderWorkflowService(
+		NewOrderRepo(db),
+		NewCustomerRepo(db),
+		NewSubscriptionRepo(db),
+		NewPaymentMethodRepo(db),
+		NewPaymentRepo(db),
+		NewPriceRepo(db),
+		NewTxManager(db),
+		noopPubSub{},
+		logger,
+		invoices,
+		coupons,
+	)
+}
+
 // seedOneTimePrice seeds a one-time (non-recurring) price of unitPrice cents on a
 // fresh product/variant, returning the product and price ids. A one-time line
 // starts no subscription — it is billed once on the combined invoice.
@@ -513,4 +537,193 @@ func TestOrderInvoicing_CustomInvoiceSettings_E2E(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, domain.InvoiceSettings{Prefix: "ACME-", Padding: 4}.FormatReference(inv.Number), inv.Reference)
 	assert.Equal(t, "ACME-", inv.Reference[:5], "custom prefix honoured")
+}
+
+// TestOrderInvoicing_Webhook_MixedCart_E2E drives the PSP-WEBHOOK completion path
+// (OrderWorkflowService.CompleteCheckoutSession) — the path both engines call —
+// for a recurring $100/mo + one-time $50 cart paid $150 via webhook. It proves the
+// webhook path is now at parity with CompleteOrder: exactly ONE combined invoice,
+// settled paid, two line items, the persisted Payment linked to it (InvoiceId
+// set), and the subscription active with CyclesProcessed == 1 (cycle 0 owned by
+// the order; the engine bills cycle 1 next — no double-charge).
+func TestOrderInvoicing_Webhook_MixedCart_E2E(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	orgId := uniqueOrg(t)
+	cleanupOrg(t, db, orgId)
+
+	subProductId, subPriceId := seedSubscriptionPrice(t, db, orgId, 0)
+	require.NoError(t, db.Model(&priceRow{}).
+		Where("org_id = ? AND id = ?", orgId, subPriceId).
+		Updates(map[string]any{
+			"unit_price":       10000,
+			"billing_interval": string(domain.BillingIntervalMonth),
+			"cycles":           0,
+		}).Error)
+	oneTimeProductId, oneTimePriceId := seedOneTimePrice(t, db, orgId, 5000)
+
+	customer := seedCustomer(t, db, orgId)
+	pspConfigId := seedMemoryPsp(t, db, orgId)
+	pm := seedPaymentMethod(t, db, orgId, customer.Id)
+
+	coupons := buildCouponService(t, db)
+	invoices := buildWiredInvoiceService(t, db)
+	orders := buildWiredOrderService(t, db, coupons, invoices)
+	workflow := buildWiredOrderWorkflowService(t, db, coupons, invoices)
+
+	// CreateOrder leaves the order PENDING with its subscription + items committed.
+	created, err := orders.CreateOrder(ctx, port.CreateOrderInput{
+		OrgId:           orgId,
+		Customer:        port.CreateOrderInputCustomer{Id: customer.Id},
+		Currency:        "USD",
+		PspId:           domain.Gateway(pspConfigId),
+		PaymentMethodId: pm.Id,
+		CartItems: []domain.CartItem{
+			{ProductId: subProductId, PriceId: subPriceId, Quantity: 1},
+			{ProductId: oneTimeProductId, PriceId: oneTimePriceId, Quantity: 1},
+		},
+	})
+	require.NoError(t, err)
+	orderId := created.Order.Id
+
+	// Drive the webhook completion path (NOT CompleteOrder).
+	completed, err := workflow.CompleteCheckoutSession(ctx, port.CompleteCheckoutSessionInput{
+		OrgId:   orgId,
+		OrderId: orderId,
+		PaymentContext: domain.PaymentWebhookContext{
+			OrgId:   orgId,
+			OrderId: orderId,
+			Psp:     domain.Memory,
+			Payment: domain.GatewayPayment{
+				Amount:    15000,
+				Currency:  "USD",
+				PspId:     "psp_pay_webhook",
+				Reference: "ref-webhook-mixed",
+				PaidAt:    time.Now().UTC(),
+			},
+			PaymentMethod: domain.GatewayPaymentMethod{Token: "tok_webhook", Type: "card", Name: "Default"},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, domain.OrderStatusCompleted, completed.Status)
+
+	subs, err := NewSubscriptionRepo(db).FindByOrderId(ctx, orgId, orderId)
+	require.NoError(t, err)
+	require.Len(t, subs, 1, "the recurring line yields one subscription")
+	sub := subs[0]
+	assert.Equal(t, domain.SubscriptionStatusActive, sub.Status)
+	assert.Equal(t, 1, sub.CyclesProcessed, "cycle 0 owned by the order; engine bills cycle 1 next")
+
+	inv, err := NewInvoiceRepo(db).FindOrderInvoice(ctx, orgId, orderId)
+	require.NoError(t, err)
+	assert.Equal(t, int64(15000), inv.Total, "$100 recurring + $50 one-time")
+	assert.Equal(t, domain.InvoiceStatusPaid, inv.Status)
+	assert.Equal(t, 0, inv.Cycle)
+	require.Len(t, inv.LineItems, 2, "one base line per cart line")
+
+	all, total, err := NewInvoiceRepo(db).List(ctx, orgId, domain.Pagination{Page: 1, Limit: 50})
+	require.NoError(t, err)
+	require.Equal(t, 1, total, "exactly one invoice for the order")
+	require.Len(t, all, 1)
+
+	payments, ptotal, err := NewPaymentRepo(db).FindBySubscriptionId(ctx, orgId, sub.Id, domain.Pagination{Page: 1, Limit: 10})
+	require.NoError(t, err)
+	require.Equal(t, 1, ptotal)
+	assert.Equal(t, inv.Id, payments[0].InvoiceId, "webhook payment links to the combined invoice")
+	assert.Equal(t, int64(15000), payments[0].Amount)
+}
+
+// TestOrderInvoicing_Webhook_OneTimeCoupon_E2E drives the PSP-webhook completion
+// path for a pure one-time $200 line with a 25%-off coupon reserved at CreateOrder.
+// It proves the webhook path consumes the reservation into an order-owned Discount
+// and settles the ONE discounted invoice ($150) paid — coupons are no longer
+// orphaned on the webhook path.
+func TestOrderInvoicing_Webhook_OneTimeCoupon_E2E(t *testing.T) {
+	db := testDB(t)
+	ctx := context.Background()
+	orgId := uniqueOrg(t)
+	cleanupOrg(t, db, orgId)
+
+	productId, priceId := seedOneTimePrice(t, db, orgId, 20000)
+	customer := seedCustomer(t, db, orgId)
+	pspConfigId := seedMemoryPsp(t, db, orgId)
+	pm := seedPaymentMethod(t, db, orgId, customer.Id)
+
+	coupons := buildCouponService(t, db)
+	invoices := buildWiredInvoiceService(t, db)
+	orders := buildWiredOrderService(t, db, coupons, invoices)
+	workflow := buildWiredOrderWorkflowService(t, db, coupons, invoices)
+
+	coupon, err := coupons.Create(ctx, orgId, port.CreateCouponInput{
+		Name:         "Quarter off",
+		DiscountType: string(domain.DiscountTypePercentage),
+		PercentOff:   decimal.NewFromInt(25),
+		Duration:     string(domain.DurationOnce),
+	})
+	require.NoError(t, err)
+	_, err = coupons.CreateCode(ctx, orgId, coupon.Id, port.CreateCouponCodeInput{Code: "QUARTER25"})
+	require.NoError(t, err)
+
+	created, err := orders.CreateOrder(ctx, port.CreateOrderInput{
+		OrgId:           orgId,
+		Customer:        port.CreateOrderInputCustomer{Id: customer.Id},
+		Currency:        "USD",
+		PspId:           domain.Gateway(pspConfigId),
+		PaymentMethodId: pm.Id,
+		CartItems:       []domain.CartItem{{ProductId: productId, PriceId: priceId, Quantity: 1}},
+		CouponCode:      "QUARTER25",
+	})
+	require.NoError(t, err)
+	orderId := created.Order.Id
+
+	reservations, err := NewCouponReservationRepo(db).FindByOrder(ctx, orgId, orderId)
+	require.NoError(t, err)
+	require.Len(t, reservations, 1, "CreateOrder holds one reservation")
+
+	_, err = workflow.CompleteCheckoutSession(ctx, port.CompleteCheckoutSessionInput{
+		OrgId:   orgId,
+		OrderId: orderId,
+		PaymentContext: domain.PaymentWebhookContext{
+			OrgId:   orgId,
+			OrderId: orderId,
+			Psp:     domain.Memory,
+			Payment: domain.GatewayPayment{
+				Amount:    15000,
+				Currency:  "USD",
+				PspId:     "psp_pay_webhook_coupon",
+				Reference: "ref-webhook-coupon",
+				PaidAt:    time.Now().UTC(),
+			},
+			PaymentMethod: domain.GatewayPaymentMethod{Token: "tok_webhook", Type: "card", Name: "Default"},
+		},
+	})
+	require.NoError(t, err)
+
+	subs, err := NewSubscriptionRepo(db).FindByOrderId(ctx, orgId, orderId)
+	require.NoError(t, err)
+	require.Empty(t, subs, "a one-time-only order starts no subscription")
+
+	inv, err := NewInvoiceRepo(db).FindOrderInvoice(ctx, orgId, orderId)
+	require.NoError(t, err)
+	assert.Equal(t, int64(5000), inv.DiscountTotal, "25%% of $200")
+	assert.Equal(t, int64(15000), inv.Total)
+	assert.Equal(t, domain.InvoiceStatusPaid, inv.Status)
+	assert.Empty(t, inv.SubscriptionId, "no subscription anchors this invoice")
+
+	ds, err := NewDiscountRepo(db).ActiveForOrder(ctx, orgId, orderId)
+	require.NoError(t, err)
+	require.Len(t, ds, 1, "the reservation consumes into exactly one order-owned Discount")
+	assert.Equal(t, orderId, ds[0].OrderId, "order owns the discount")
+	assert.Empty(t, ds[0].SubscriptionId, "a one-time order's discount targets no subscription")
+	assert.Equal(t, coupon.Id, ds[0].CouponId)
+
+	gone, err := NewCouponReservationRepo(db).FindByOrder(ctx, orgId, orderId)
+	require.NoError(t, err)
+	assert.Empty(t, gone, "no leftover reservation after consume")
+
+	payments, ptotal, err := NewPaymentRepo(db).List(ctx, orgId, domain.Pagination{Page: 1, Limit: 10})
+	require.NoError(t, err)
+	require.Equal(t, 1, ptotal)
+	assert.Equal(t, orderId, payments[0].OrderId)
+	assert.Equal(t, inv.Id, payments[0].InvoiceId, "webhook payment links to the discounted invoice")
 }
