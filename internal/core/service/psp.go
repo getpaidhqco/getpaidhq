@@ -36,9 +36,6 @@ func NewPspService(
 // ever reaches the database. Nothing is written to the settings table —
 // gateway credentials are deliberately NOT readable back through any API.
 func (s *PspService) CreateGateway(ctx context.Context, input port.CreateGatewayInput) (domain.PspConfig, error) {
-	if s.cipher == nil {
-		return domain.PspConfig{}, lib.NewCustomError(lib.InternalError, "SECRETS_ENCRYPTION_KEY is not configured; cannot store gateway credentials", nil)
-	}
 	if len(input.Credentials) == 0 {
 		return domain.PspConfig{}, lib.NewCustomError(lib.BadRequestError, "credentials are required", nil)
 	}
