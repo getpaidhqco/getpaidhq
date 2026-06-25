@@ -177,7 +177,7 @@ import (
 
 const (
 	InvoiceSettingsSettingParent = "billing"          // mirror ReminderConfigSettingParent
-	InvoiceSettingsSettingId     = "invoice_numbering"
+	InvoiceSettingsSettingId     = "invoice" // the org's invoice settings (numbering is the only field today; more join the same blob)
 )
 
 type InvoiceSettings struct {
