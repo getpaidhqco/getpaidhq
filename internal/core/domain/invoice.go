@@ -24,6 +24,7 @@ var ErrInvalidInvoiceTransition = errors.New("invalid invoice status transition"
 type Invoice struct {
 	OrgId          string
 	Id             string
+	Number         int64
 	SubscriptionId string
 	CustomerId     string
 	OrderId        string

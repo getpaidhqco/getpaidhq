@@ -11,6 +11,7 @@ import (
 type invoiceRow struct {
 	OrgId          string               `gorm:"column:org_id;primaryKey"`
 	Id             string               `gorm:"column:id;primaryKey"`
+	Number         int64                `gorm:"column:number"`
 	SubscriptionId string               `gorm:"column:subscription_id"`
 	CustomerId     string               `gorm:"column:customer_id"`
 	OrderId        string               `gorm:"column:order_id"`
@@ -34,6 +35,7 @@ func (r invoiceRow) toDomain() domain.Invoice {
 	return domain.Invoice{
 		OrgId:          r.OrgId,
 		Id:             r.Id,
+		Number:         r.Number,
 		SubscriptionId: r.SubscriptionId,
 		CustomerId:     r.CustomerId,
 		OrderId:        r.OrderId,
@@ -64,6 +66,7 @@ func invoiceRowFromDomain(inv domain.Invoice) invoiceRow {
 	return invoiceRow{
 		OrgId:          inv.OrgId,
 		Id:             inv.Id,
+		Number:         inv.Number,
 		SubscriptionId: inv.SubscriptionId,
 		CustomerId:     inv.CustomerId,
 		OrderId:        inv.OrderId,

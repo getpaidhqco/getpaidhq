@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -36,19 +37,25 @@ type fakeInvoiceRepo struct {
 	port.InvoiceRepository
 	byCycle map[int]domain.Invoice
 	byId    map[string]domain.Invoice
+	mu      sync.Mutex
+	counter map[string]int64
 }
 
 func newFakeInvoiceRepo() *fakeInvoiceRepo {
-	return &fakeInvoiceRepo{byCycle: map[int]domain.Invoice{}, byId: map[string]domain.Invoice{}}
+	return &fakeInvoiceRepo{byCycle: map[int]domain.Invoice{}, byId: map[string]domain.Invoice{}, counter: map[string]int64{}}
 }
 
 func (r *fakeInvoiceRepo) Create(_ context.Context, inv domain.Invoice) (domain.Invoice, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.byCycle[inv.Cycle] = inv
 	r.byId[inv.Id] = inv
 	return inv, nil
 }
 
 func (r *fakeInvoiceRepo) FindBySubscriptionCycle(_ context.Context, _, _ string, cycle int) (domain.Invoice, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if inv, ok := r.byCycle[cycle]; ok {
 		return inv, nil
 	}
@@ -56,6 +63,8 @@ func (r *fakeInvoiceRepo) FindBySubscriptionCycle(_ context.Context, _, _ string
 }
 
 func (r *fakeInvoiceRepo) FindById(_ context.Context, _, id string) (domain.Invoice, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	if inv, ok := r.byId[id]; ok {
 		return inv, nil
 	}
@@ -63,9 +72,25 @@ func (r *fakeInvoiceRepo) FindById(_ context.Context, _, id string) (domain.Invo
 }
 
 func (r *fakeInvoiceRepo) Update(_ context.Context, inv domain.Invoice) (domain.Invoice, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.byId[inv.Id] = inv
 	r.byCycle[inv.Cycle] = inv
 	return inv, nil
+}
+
+func (r *fakeInvoiceRepo) NextInvoiceNumber(_ context.Context, orgId string) (int64, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.counter[orgId]++
+	return r.counter[orgId], nil
+}
+
+func (r *fakeInvoiceRepo) SetInvoiceCounter(_ context.Context, orgId string, value int64) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.counter[orgId] = value
+	return nil
 }
 
 func TestSubscriptionService_ChargeForBillingPeriod(t *testing.T) {

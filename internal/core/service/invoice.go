@@ -110,6 +110,10 @@ func (s *InvoiceService) BuildForBillingPeriod(ctx context.Context, sub domain.S
 	var created domain.Invoice
 	run := func(ctx context.Context) error {
 		var e error
+		inv.Number, e = s.invoiceRepository.NextInvoiceNumber(ctx, sub.OrgId)
+		if e != nil {
+			return e
+		}
 		created, e = s.invoiceRepository.Create(ctx, inv)
 		return e
 	}
@@ -123,6 +127,17 @@ func (s *InvoiceService) BuildForBillingPeriod(ctx context.Context, sub domain.S
 	}
 	s.logger.Infof("[%s][%s] invoice %s built for cycle %d total=%d", sub.OrgId, sub.Id, created.Id, created.Cycle, created.Total)
 	return created, nil
+}
+
+// NextInvoiceNumber increments and returns the org-scoped invoice counter.
+func (s *InvoiceService) NextInvoiceNumber(ctx context.Context, orgId string) (int64, error) {
+	return s.invoiceRepository.NextInvoiceNumber(ctx, orgId)
+}
+
+// SetInvoiceCounter sets the org-scoped counter value regardless of the
+// current value. The next NextInvoiceNumber call returns value+1.
+func (s *InvoiceService) SetInvoiceCounter(ctx context.Context, orgId string, value int64) error {
+	return s.invoiceRepository.SetInvoiceCounter(ctx, orgId, value)
 }
 
 // applyDiscounts resolves the subscription's active discounts and writes each

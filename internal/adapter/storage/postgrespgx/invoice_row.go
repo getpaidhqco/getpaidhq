@@ -16,6 +16,7 @@ import (
 type invoiceRow struct {
 	OrgId          string
 	Id             string
+	Number         int64
 	SubscriptionId string
 	CustomerId     string
 	OrderId        string
@@ -32,10 +33,10 @@ type invoiceRow struct {
 	UpdatedAt      time.Time
 }
 
-const invoiceColumns = `org_id, id, subscription_id, customer_id, order_id, status, currency, subtotal, discount_total, total, cycle, period_start, period_end, metadata, created_at, updated_at`
+const invoiceColumns = `org_id, id, number, subscription_id, customer_id, order_id, status, currency, subtotal, discount_total, total, cycle, period_start, period_end, metadata, created_at, updated_at`
 
 func (r *invoiceRow) scanInto(s scanner) error {
-	return s.Scan(&r.OrgId, &r.Id, &r.SubscriptionId, &r.CustomerId, &r.OrderId,
+	return s.Scan(&r.OrgId, &r.Id, &r.Number, &r.SubscriptionId, &r.CustomerId, &r.OrderId,
 		&r.Status, &r.Currency, &r.Subtotal, &r.DiscountTotal, &r.Total, &r.Cycle,
 		&r.PeriodStart, &r.PeriodEnd, &r.Metadata, &r.CreatedAt, &r.UpdatedAt)
 }
@@ -46,6 +47,7 @@ func (r invoiceRow) toDomain() domain.Invoice {
 	return domain.Invoice{
 		OrgId:          r.OrgId,
 		Id:             r.Id,
+		Number:         r.Number,
 		SubscriptionId: r.SubscriptionId,
 		CustomerId:     r.CustomerId,
 		OrderId:        r.OrderId,
@@ -67,6 +69,7 @@ func invoiceRowFromDomain(inv domain.Invoice) invoiceRow {
 	return invoiceRow{
 		OrgId:          inv.OrgId,
 		Id:             inv.Id,
+		Number:         inv.Number,
 		SubscriptionId: inv.SubscriptionId,
 		CustomerId:     inv.CustomerId,
 		OrderId:        inv.OrderId,
