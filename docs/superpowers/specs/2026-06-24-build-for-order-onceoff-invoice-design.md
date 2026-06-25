@@ -54,7 +54,7 @@ type InvoiceSettings struct {
 }
 ```
 
-One setting row per org (e.g. `id = "invoice"`) holds the whole object. At build, `BuildForOrder` / `BuildForBillingPeriod` load it (defaults `INV-` / `6` when unset) and set `reference = Prefix + leftpad(Number, Padding)`. The *starting* number is the separate, already-merged `SetInvoiceCounter(orgId, value)`. `InvoiceService` gains read access to settings (`SettingRepository`), wired in `app.go`.
+One setting row per org (e.g. `id = "invoice"`) holds the whole object. At build, `BuildForOrder` / `BuildForBillingPeriod` load it (defaults `INV-` / `6` when unset) and set `reference = Prefix + leftpad(Number, Padding)`. The *starting* number is the separate, already-merged `SetInvoiceCounter(orgId, value)`. `InvoiceSettings` follows the project's org-config pattern exactly (like `ReminderConfig`/`DunningConfig`): domain owns the type + `Default`/`Parse`/`Marshal` + setting-key constants; a narrow **`port.InvoiceSettingsResolver`** abstracts the read; a dedicated **`InvoiceSettingsService`** implements it over `port.SettingRepository`; `InvoiceService` depends on the **resolver port** (never `SettingRepository` directly). A `GET/PUT` invoice-settings handler (mirroring `reminder_config_handler.go`) backs the UI page.
 
 When `upfront_invoice = true`, the `CreateOrder` response includes the invoice — **`id` and `url` only** (number/reference are read from the invoice resource itself):
 ```json
@@ -141,7 +141,7 @@ All within the order-completion transaction (the merged `RunInTx` ctx fix lets n
 | Layer | Change |
 | --- | --- |
 | `core/domain` | `Order.Config` (`OrderConfig`, validated); `Invoice.Reference`; `InvoiceSettings` (+ `format`/defaults); `NewDiscount` order-always; the combined-invoice build helpers. |
-| `core/service` | `InvoiceService.BuildForOrder` (sets `Number`+`Reference`) + shared discount/line helper + reservation-coupon resolution; `BuildForBillingPeriod` also sets `Reference`; both load `InvoiceSettings` (via `SettingRepository`) to format the reference, so `InvoiceService` gains a `SettingRepository` dep; `CouponService.Consume` order-always; `OrderService.CreateOrder` persists `Config` and, if `UpfrontInvoice`, builds the open invoice + returns it; `OrderService.CompleteOrder` orchestration (§8); `OrderService` gains `*InvoiceService`. |
+| `core/service` | `InvoiceService.BuildForOrder` (sets `Number`+`Reference`) + shared discount/line helper + reservation-coupon resolution; `BuildForBillingPeriod` also sets `Reference`; both load `InvoiceSettings` via the narrow `port.InvoiceSettingsResolver` (impl `InvoiceSettingsService` over the settings store — mirrors `ReminderConfig`) to format the reference; `CouponService.Consume` order-always; `OrderService.CreateOrder` persists `Config` and, if `UpfrontInvoice`, builds the open invoice + returns it; `OrderService.CompleteOrder` orchestration (§8); `OrderService` gains `*InvoiceService`. |
 | `core/port` | `CreateOrderInput.Config`; `InvoiceRepository.FindOrderInvoice`; `CreateOrderResult` carries the optional invoice. |
 | `adapter/storage/{postgresgorm,postgrespgx}` | `orders.config`; `invoices.reference` (+ index) + `subscription_id` nullable; `FindOrderInvoice`; `ActiveForOrder` sub-null. Both drivers + conformance. |
 | `adapter/http` | `CreateOrderRequest.upfront_invoice`; `CreateOrderResponse` returns `invoice {id, url}` when raised. |

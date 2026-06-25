@@ -17,13 +17,15 @@
 ## File structure
 
 - **Migrations:** `00007_orders_config.sql`, `00008_invoices_reference_and_nullable_subscription.sql`.
-- **Domain:** `order.go` (`OrderConfig`), `invoice.go` (`Reference`), `invoice_settings.go` (new — `InvoiceSettings` + `FormatReference`), `discount.go` (`NewDiscount` rule).
-- **Port:** `repository.go` (`InvoiceRepository.FindOrderInvoice`), `order_input.go` (`CreateOrderInput.Config`, `CreateOrderResult.Invoice`).
-- **Service:** `invoice.go` (`BuildForOrder`, reference formatting, `SettingRepository` dep), `coupon.go` (`Consume` order-always), `order.go` (`CreateOrder` config + upfront invoice; `CompleteOrder` orchestration; `*InvoiceService` dep).
-- **Storage (×2 drivers):** `order_row.go`/`order_repo.go` (config), `invoice_row.go`/`invoice_repo.go` (reference, nullable subscription_id, `FindOrderInvoice`), `discount_repo.go` (`ActiveForOrder`).
-- **HTTP:** `order_handler.go`/`request.go` (`upfront_invoice`, invoice in response).
-- **Wiring:** `config/app.go`, `config/repos.go`.
+- **Domain:** `order.go` (`OrderConfig`), `invoice.go` (`Reference`), `invoice_settings.go` (new — `InvoiceSettings` + `Default*`/`Parse*`/`Marshal`/`FormatReference` + setting-key constants — **mirrors `reminder_config.go`**), `discount.go` (`NewDiscount` rule).
+- **Port:** `repository.go` (`InvoiceRepository.FindOrderInvoice`), `order_input.go` (`CreateOrderInput.Config`, `CreateOrderResult.Invoice`), `service.go` (`InvoiceSettingsResolver` narrow port — **mirrors `ReminderConfigResolver`**).
+- **Service:** `invoice_settings.go` (new — `InvoiceSettingsService` over `SettingRepository`, `Resolve*`/`Set*` — **mirrors `reminder_config.go`**), `invoice.go` (`BuildForOrder`, reference formatting via the `InvoiceSettingsResolver` **port**), `coupon.go` (`Consume` order-always), `order.go` (`CreateOrder` config + upfront invoice; `CompleteOrder` orchestration; `*InvoiceService` dep).
+- **Storage (×2 drivers):** `order_row.go`/`order_repo.go` (config), `invoice_row.go`/`invoice_repo.go` (reference, nullable subscription_id, `FindOrderInvoice`), `discount_repo.go` (`ActiveForOrder`). InvoiceSettings persists through the **existing** `settings` store — no new table/repo.
+- **HTTP:** `order_handler.go`/`request.go` (`upfront_invoice`, invoice in response); `invoice_settings_handler.go` (new — GET/PUT org invoice settings — **mirrors `reminder_config_handler.go`**).
+- **Wiring:** `config/app.go` (`InvoiceSettingsService`; resolver → `InvoiceService`; handler + routes), `config/server.go` (route group), `config/repos.go`.
 - **Tests:** `storagetest/conformance.go`, service `*_test.go`, http `*_test.go`.
+
+**DDD/hexagonal note:** org-level configuration follows the existing `ReminderConfig`/`DunningConfig` pattern exactly — domain owns the typed value + parsing + defaults + setting-key constants; a **narrow Resolver port** abstracts the read; a dedicated `*ConfigService` implements it over `port.SettingRepository`; consumers (here `InvoiceService`) depend on the **resolver port**, never on `SettingRepository` directly.
 
 ---
 
@@ -148,51 +150,124 @@ git commit -am "feat(discount): order-owned (order_id always, subscription_id op
 
 ---
 
-### Task 6: `InvoiceSettings` domain + reference formatter
+### Task 6: `InvoiceSettings` domain — mirror `reminder_config.go`
 
-**Files:** Create `internal/core/domain/invoice_settings.go` (+ `invoice_settings_test.go`)
+**Files:** Create `internal/core/domain/invoice_settings.go` (+ `invoice_settings_test.go`). **Read `internal/core/domain/reminder_config.go` first and follow it exactly** (constants → struct → `Default*` → `Parse*` → `Marshal`).
 
-- [ ] **Step 1 (TDD): test** — `FormatReference`:
+- [ ] **Step 1 (TDD): test** — defaults, parse round-trip (`Marshal`→`ParseInvoiceSettings`), and `FormatReference`:
 ```go
-func TestFormatReference(t *testing.T) {
-	s := InvoiceSettings{Prefix: "INV-", Padding: 6}
-	assert.Equal(t, "INV-000042", s.FormatReference(42))
-	// defaults when zero-value
-	assert.Equal(t, "INV-000042", InvoiceSettings{}.WithDefaults().FormatReference(42))
+func TestInvoiceSettings(t *testing.T) {
+	assert.Equal(t, "INV-000042", DefaultInvoiceSettings().FormatReference(42))
+	s := InvoiceSettings{Prefix: "ACME-", Padding: 4}
+	raw, err := s.Marshal(); require.NoError(t, err)
+	got, err := ParseInvoiceSettings(raw); require.NoError(t, err)
+	assert.Equal(t, s, got)
+	assert.Equal(t, "ACME-0042", got.FormatReference(42))
 }
 ```
 
-- [ ] **Step 2: impl**
+- [ ] **Step 2: impl** (mirror `reminder_config.go` — same constant style, `Default*`, `Parse*`, `Marshal`):
 ```go
 package domain
 
-import "fmt"
+import (
+	"encoding/json"
+	"fmt"
+)
+
+const (
+	InvoiceSettingsSettingParent = "billing"          // mirror ReminderConfigSettingParent
+	InvoiceSettingsSettingId     = "invoice_numbering"
+)
 
 type InvoiceSettings struct {
 	Prefix  string `json:"prefix"`
 	Padding int    `json:"padding"`
 }
 
-func (s InvoiceSettings) WithDefaults() InvoiceSettings {
-	if s.Prefix == "" { s.Prefix = "INV-" }
-	if s.Padding <= 0 { s.Padding = 6 }
-	return s
+func DefaultInvoiceSettings() InvoiceSettings { return InvoiceSettings{Prefix: "INV-", Padding: 6} }
+
+func ParseInvoiceSettings(raw string) (InvoiceSettings, error) {
+	out := DefaultInvoiceSettings()
+	if raw == "" {
+		return out, nil
+	}
+	if err := json.Unmarshal([]byte(raw), &out); err != nil {
+		return DefaultInvoiceSettings(), err
+	}
+	if out.Prefix == "" { out.Prefix = "INV-" }
+	if out.Padding <= 0 { out.Padding = 6 }
+	return out, nil
+}
+
+func (s InvoiceSettings) Marshal() (string, error) {
+	b, err := json.Marshal(s)
+	return string(b), err
 }
 
 func (s InvoiceSettings) FormatReference(number int64) string {
-	s = s.WithDefaults()
 	return fmt.Sprintf("%s%0*d", s.Prefix, s.Padding, number)
 }
 ```
 
-- [ ] **Step 3:** `go test ./internal/core/domain/ -run FormatReference`. Commit:
+- [ ] **Step 3:** `go test ./internal/core/domain/ -run InvoiceSettings`. Commit:
 ```bash
-git commit -am "feat(invoice): InvoiceSettings + FormatReference"
+git commit -am "feat(invoice): InvoiceSettings domain config (mirrors reminder_config)"
 ```
 
 ---
 
 ## Phase B — Service layer
+
+### Task 6b: `InvoiceSettingsResolver` port + `InvoiceSettingsService` — mirror `ReminderConfig`
+
+**Files:** `internal/core/port/service.go`; create `internal/core/service/invoice_settings.go` (+ test). **Read `port.ReminderConfigResolver` and `service/reminder_config.go` and mirror them exactly.**
+
+- [ ] **Step 1: port** — add to `port/service.go` next to `ReminderConfigResolver`:
+```go
+// InvoiceSettingsResolver resolves the per-tenant invoice numbering/format.
+// Invoice builds depend only on this read method.
+type InvoiceSettingsResolver interface {
+	ResolveInvoiceSettings(ctx context.Context, orgId string) (domain.InvoiceSettings, error)
+}
+```
+
+- [ ] **Step 2: service** (mirror `ReminderConfigService`: `settings port.SettingRepository` + `logger`; `Resolve*` via `FindById(orgId, parent, id)` → default on `ErrNotFound` → `Parse*`; `Set*` via `Marshal()` + `settings.Upsert(...)` with the domain constants, `Type: "json"`):
+```go
+var _ port.InvoiceSettingsResolver = (*InvoiceSettingsService)(nil)
+
+type InvoiceSettingsService struct {
+	settings port.SettingRepository
+	logger   port.Logger
+}
+
+func NewInvoiceSettingsService(settings port.SettingRepository, logger port.Logger) *InvoiceSettingsService { ... }
+
+func (s *InvoiceSettingsService) ResolveInvoiceSettings(ctx context.Context, orgId string) (domain.InvoiceSettings, error) { /* FindById(orgId, domain.InvoiceSettingsSettingParent, domain.InvoiceSettingsSettingId) → default on ErrNotFound → ParseInvoiceSettings */ }
+
+func (s *InvoiceSettingsService) SetInvoiceSettings(ctx context.Context, orgId string, cfg domain.InvoiceSettings) error { /* cfg.Marshal() → settings.Upsert(domain.Setting{OrgId, ParentId: ...SettingParent, Id: ...SettingId, Type: "json", Value}) */ }
+```
+
+- [ ] **Step 3 (TDD):** service test with a fake `SettingRepository`: unset → `DefaultInvoiceSettings`; after `SetInvoiceSettings` → resolves the saved value.
+
+- [ ] **Step 4:** `make test`. Commit:
+```bash
+git commit -am "feat(invoice): InvoiceSettingsResolver port + InvoiceSettingsService (mirrors reminder config)"
+```
+
+---
+
+### Task 6c: `InvoiceSettingsHandler` (UI config surface) — mirror `reminder_config_handler.go`
+
+**Files:** create `internal/adapter/http/invoice_settings_handler.go` (+ test); `internal/config/app.go`, `internal/config/server.go`. **Mirror `reminder_config_handler.go` + its route registration + Cedar action.**
+
+- [ ] **Step 1:** handler with `GET` (resolve) and `PUT` (set) the org invoice settings, authz-guarded like the reminder-config handler (reuse/add a Cedar action consistent with the reminder-config one). DTO: `{ prefix string, padding int }`.
+- [ ] **Step 2:** `RegisterRoutes` + wire `NewInvoiceSettingsHandler(invoiceSettingsService, logger, authz)` in `app.go`/`server.go`.
+- [ ] **Step 3 (TDD):** http test: PUT then GET round-trips; unauthorised → 403; unset GET → defaults.
+- [ ] **Step 4:** `go test ./internal/adapter/http/ -run InvoiceSettings`. Commit:
+```bash
+git commit -am "feat(http): invoice settings GET/PUT (mirrors reminder config handler)"
+```
 
 ### Task 7: `CouponService.Consume` sets the order always
 
@@ -209,26 +284,23 @@ git commit -am "feat(coupon): Consume creates an order-owned Discount (optionall
 
 ---
 
-### Task 8: `InvoiceService` — `SettingRepository` dep + reference on `BuildForBillingPeriod`
+### Task 8: `InvoiceService` — `InvoiceSettingsResolver` port + reference on `BuildForBillingPeriod`
 
 **Files:** `internal/core/service/invoice.go` (+ `invoice_test.go`); `internal/config/app.go`
 
-- [ ] **Step 1:** add `settings port.SettingRepository` to `InvoiceService` + constructor param (wire in `app.go`). Add a helper:
-```go
-// invoiceSettings loads the org's InvoiceSettings from the settings store
-// (parent = orgId, id = "invoice"); returns defaults when unset/malformed.
-func (s *InvoiceService) invoiceSettings(ctx context.Context, orgId string) domain.InvoiceSettings {
-	var out domain.InvoiceSettings
-	if s.settings != nil {
-		if st, err := s.settings.FindById(ctx, orgId, orgId, "invoice"); err == nil {
-			_ = json.Unmarshal([]byte(st.Value), &out)
-		}
-	}
-	return out.WithDefaults()
-}
-```
+- [ ] **Step 1:** add `invoiceSettings port.InvoiceSettingsResolver` to `InvoiceService` + constructor param (wired in `app.go`, Task 13). **Depend on the narrow resolver port, never on `SettingRepository` directly** (matches how the billing sweep depends on `ReminderConfigResolver`). When the resolver is nil (unit tests), fall back to `domain.DefaultInvoiceSettings()`.
 
-- [ ] **Step 2:** in `BuildForBillingPeriod`, after `inv.Number = NextInvoiceNumber(...)`, set `inv.Reference = s.invoiceSettings(ctx, sub.OrgId).FormatReference(inv.Number)`.
+- [ ] **Step 2:** in `BuildForBillingPeriod`, after `inv.Number = NextInvoiceNumber(...)`:
+```go
+cfg := domain.DefaultInvoiceSettings()
+if s.invoiceSettings != nil {
+	if c, err := s.invoiceSettings.ResolveInvoiceSettings(ctx, sub.OrgId); err == nil {
+		cfg = c
+	}
+}
+inv.Reference = cfg.FormatReference(inv.Number)
+```
+(Factor this into a small private `reference(ctx, orgId, number)` helper reused by `BuildForOrder`.)
 
 - [ ] **Step 3 (TDD):** extend an invoice service test to assert a built invoice has `Reference == "INV-000001"` (counter starts at 1) with default settings.
 
@@ -343,7 +415,7 @@ git commit -am "feat(http): upfront_invoice request flag; invoice {id,url} in cr
 
 **Files:** `internal/config/app.go`
 
-- [ ] **Step 1:** construct `InvoiceService` with the `SettingRepository` and `SubscriptionRepository` deps (added in Tasks 8–9). Pass the `*InvoiceService` into `NewOrderService`. Ensure construction order: `InvoiceService` before `OrderService`.
+- [ ] **Step 1:** construct `invoiceSettingsService := service.NewInvoiceSettingsService(settingRepo, logger)` (the `settingRepo` already exists in `app.go` — used by `reminderConfigService`). Construct `InvoiceService` with the `InvoiceSettingsResolver` (the `invoiceSettingsService`) and `SubscriptionRepository` deps (Tasks 8–9). Pass the `*InvoiceService` into `NewOrderService`. Construction order: `invoiceSettingsService` → `InvoiceService` → `OrderService`. Also wire `InvoiceSettingsHandler` (Task 6c) into `Handlers` + routes.
 
 - [ ] **Step 2:** `go build ./...` + `make test`. Commit:
 ```bash
