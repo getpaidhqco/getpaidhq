@@ -218,7 +218,7 @@ func NewApp() (*App, error) {
 	// by the invoice-settings HTTP handler below; a later task also passes it to
 	// the invoice builder as the reference-format resolver. Construct once, reuse.
 	invoiceSettingsService := service.NewInvoiceSettingsService(settingRepo, logger)
-	invoiceService := service.NewInvoiceService(invoiceRepo, orderRepo, priceRepo, usageService, txManager, logger, discountRepo, couponRepo)
+	invoiceService := service.NewInvoiceService(invoiceRepo, orderRepo, priceRepo, usageService, txManager, logger, discountRepo, couponRepo, invoiceSettingsService)
 	couponService := service.NewCouponService(couponRepo, couponCodeRepo, discountRepo, priorPaymentChecker, txManager, logger, couponReservationRepo)
 	subService, err := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, priceRepo, gatewayFactory, invoiceService, pubsub, reporter, logger, txManager)
 	if err != nil {

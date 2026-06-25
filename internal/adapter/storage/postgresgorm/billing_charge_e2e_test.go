@@ -91,7 +91,7 @@ func buildSubscriptionService(t *testing.T, db *gorm.DB) *service.SubscriptionSe
 	// invoice. Mirror app.go's narrow-service wiring.
 	usageEventStore := NewEventStore(db)
 	usageService := service.NewUsageService(NewMeterRepo(db), NewCustomerRepo(db), NewSubscriptionRepo(db), NewOrderRepo(db), NewPriceRepo(db), usageEventStore, usageEventStore, pubsub, logger)
-	invoiceService := service.NewInvoiceService(NewInvoiceRepo(db), NewOrderRepo(db), NewPriceRepo(db), usageService, NewTxManager(db), logger, NewDiscountRepo(db), NewCouponRepo(db))
+	invoiceService := service.NewInvoiceService(NewInvoiceRepo(db), NewOrderRepo(db), NewPriceRepo(db), usageService, NewTxManager(db), logger, NewDiscountRepo(db), NewCouponRepo(db), nil)
 
 	svc, err := service.NewSubscriptionService(
 		NewSessionRepo(db),

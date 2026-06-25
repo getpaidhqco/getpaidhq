@@ -24,6 +24,7 @@ type InvoiceService struct {
 	logger            port.Logger
 	discounts         port.DiscountRepository
 	coupons           port.CouponRepository
+	invoiceSettings   port.InvoiceSettingsResolver
 }
 
 func NewInvoiceService(
@@ -35,6 +36,7 @@ func NewInvoiceService(
 	logger port.Logger,
 	discounts port.DiscountRepository,
 	coupons port.CouponRepository,
+	invoiceSettings port.InvoiceSettingsResolver,
 ) *InvoiceService {
 	return &InvoiceService{
 		invoiceRepository: invoiceRepository,
@@ -45,7 +47,19 @@ func NewInvoiceService(
 		logger:            logger,
 		discounts:         discounts,
 		coupons:           coupons,
+		invoiceSettings:   invoiceSettings,
 	}
+}
+
+// reference resolves the org's invoice settings and formats the human reference.
+func (s *InvoiceService) reference(ctx context.Context, orgId string, number int64) string {
+	cfg := domain.DefaultInvoiceSettings()
+	if s.invoiceSettings != nil {
+		if c, err := s.invoiceSettings.ResolveInvoiceSettings(ctx, orgId); err == nil {
+			cfg = c
+		}
+	}
+	return cfg.FormatReference(number)
 }
 
 // BuildForBillingPeriod builds (or returns the already-built) invoice for the
@@ -114,6 +128,7 @@ func (s *InvoiceService) BuildForBillingPeriod(ctx context.Context, sub domain.S
 		if e != nil {
 			return e
 		}
+		inv.Reference = s.reference(ctx, sub.OrgId, inv.Number)
 		created, e = s.invoiceRepository.Create(ctx, inv)
 		return e
 	}
