@@ -25,6 +25,7 @@ type Invoice struct {
 	OrgId          string
 	Id             string
 	Number         int64
+	Reference      string
 	SubscriptionId string
 	CustomerId     string
 	OrderId        string

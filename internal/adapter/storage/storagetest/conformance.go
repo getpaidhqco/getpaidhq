@@ -495,7 +495,7 @@ func testInvoice(t *testing.T, ctx context.Context, rs RepoSet) {
 	subId := lib.GenerateId("sub")
 
 	inv := domain.Invoice{
-		OrgId: orgId, Id: lib.GenerateId("inv"), SubscriptionId: subId, CustomerId: cust.Id,
+		OrgId: orgId, Id: lib.GenerateId("inv"), Reference: "INV-2026-0001", SubscriptionId: subId, CustomerId: cust.Id,
 		OrderId: lib.GenerateId("ord"), Status: domain.InvoiceStatusDraft, Currency: "USD",
 		Cycle: 3, PeriodStart: now(), PeriodEnd: now().Add(720 * time.Hour),
 		Metadata: map[string]string{"reason": "renewal"}, CreatedAt: now(), UpdatedAt: now(),
@@ -523,6 +523,30 @@ func testInvoice(t *testing.T, ctx context.Context, rs RepoSet) {
 	assert.Equal(t, inv.Id, got.Id)
 	require.Len(t, got.LineItems, 2, "line items persisted atomically with the invoice")
 	assert.Equal(t, "renewal", got.Metadata["reason"])
+	assert.Equal(t, "INV-2026-0001", got.Reference, "reference round-trips")
+	assert.Equal(t, subId, got.SubscriptionId, "subscription id round-trips")
+
+	// Order-only invoice: no subscription. The empty SubscriptionId must persist
+	// as SQL NULL and read back as "" on both drivers (subscription_id is nullable).
+	orderOnly := domain.Invoice{
+		OrgId: orgId, Id: lib.GenerateId("inv"), Reference: "INV-2026-0002", SubscriptionId: "", CustomerId: cust.Id,
+		OrderId: lib.GenerateId("ord"), Status: domain.InvoiceStatusDraft, Currency: "USD",
+		Cycle: 0, PeriodStart: now(), PeriodEnd: now().Add(720 * time.Hour),
+		Metadata: map[string]string{"reason": "one-off"}, CreatedAt: now(), UpdatedAt: now(),
+	}
+	orderOnly.AddLine(domain.InvoiceLineItem{
+		OrgId: orgId, Id: lib.GenerateId("ili"), InvoiceId: orderOnly.Id, PriceId: price.Id,
+		Kind: domain.InvoiceLineKindBase, Description: "One-off charge",
+		Quantity: decimal.NewFromInt(1), UnitAmount: decimal.NewFromInt(4200), Total: 4200,
+		CreatedAt: now(), UpdatedAt: now(),
+	})
+	_, err = rs.Invoice.Create(ctx, orderOnly)
+	require.NoError(t, err)
+	gotOrderOnly, err := rs.Invoice.FindById(ctx, orgId, orderOnly.Id)
+	require.NoError(t, err)
+	assert.Equal(t, "", gotOrderOnly.SubscriptionId, "order-only invoice reads back empty subscription id (NULL)")
+	assert.Equal(t, "INV-2026-0002", gotOrderOnly.Reference, "reference round-trips for order-only invoice")
+	assert.Equal(t, orderOnly.OrderId, gotOrderOnly.OrderId)
 
 	byCycle, err := rs.Invoice.FindBySubscriptionCycle(ctx, orgId, subId, 3)
 	require.NoError(t, err)
