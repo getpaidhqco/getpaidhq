@@ -64,8 +64,18 @@ func (r *DiscountRepo) ActiveForSubscription(ctx context.Context, orgId, subscri
 	return r.activeBy(ctx, orgId, "subscription_id", subscriptionId)
 }
 
+// ActiveForOrder returns only order-level discounts (subscription_id IS NULL),
+// so a subscription-targeted discount never leaks into a one-time order invoice.
 func (r *DiscountRepo) ActiveForOrder(ctx context.Context, orgId, orderId string) ([]domain.Discount, error) {
-	return r.activeBy(ctx, orgId, "order_id", orderId)
+	q := dbFromCtx(ctx, r.pool)
+	rows, err := q.Query(ctx,
+		`SELECT `+discountColumns+` FROM discounts
+		 WHERE org_id = $1 AND status = $2 AND order_id = $3 AND subscription_id IS NULL`,
+		orgId, string(domain.DiscountStatusActive), orderId)
+	if err != nil {
+		return nil, err
+	}
+	return r.collect(rows)
 }
 
 // activeBy lists active discounts scoped to org and a single equality on the

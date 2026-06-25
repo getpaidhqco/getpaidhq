@@ -22,7 +22,7 @@ func TestDiscountRepo(t *testing.T) {
 	coupon := seedCoupon(t, db, orgId)
 
 	d, err := domain.NewDiscount(domain.NewDiscountInput{
-		OrgId: orgId, CouponId: coupon.Id, CustomerId: "cus_1", SubscriptionId: "sub_1",
+		OrgId: orgId, CouponId: coupon.Id, CustomerId: "cus_1", OrderId: "ord_1", SubscriptionId: "sub_1",
 	})
 	require.NoError(t, err)
 	_, err = repo.Create(ctx, d)

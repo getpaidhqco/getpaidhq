@@ -717,11 +717,13 @@ func testCoupon(t *testing.T, ctx context.Context, rs RepoSet) {
 	require.NoError(t, err)
 	assert.Equal(t, 1, byCode.TimesRedeemed)
 
-	// Discount referencing the coupon, scoped to a subscription.
+	// Discount referencing the coupon, owned by an order and targeting a
+	// subscription (order_id + subscription_id both set).
+	orderId := lib.GenerateId("ord")
 	subId := lib.GenerateId("sub")
 	custId := lib.GenerateId("cus")
 	disc, err := domain.NewDiscount(domain.NewDiscountInput{
-		OrgId: orgId, CouponId: coupon.Id, CustomerId: custId, SubscriptionId: subId,
+		OrgId: orgId, CouponId: coupon.Id, CustomerId: custId, OrderId: orderId, SubscriptionId: subId,
 	})
 	require.NoError(t, err)
 	_, err = rs.Discount.Create(ctx, disc)
@@ -736,12 +738,30 @@ func testCoupon(t *testing.T, ctx context.Context, rs RepoSet) {
 	require.Len(t, forSub, 1)
 	assert.Equal(t, disc.Id, forSub[0].Id)
 
+	// The subscription-targeted discount must NOT leak into the order-level list.
+	forOrderSubTargeted, err := rs.Discount.ActiveForOrder(ctx, orgId, orderId)
+	require.NoError(t, err)
+	assert.Empty(t, forOrderSubTargeted, "subscription-targeted discount is not order-level")
+
+	// Order-only discount (order_id set, no subscription) — ActiveForOrder returns it.
+	orderOnlyDisc, err := domain.NewDiscount(domain.NewDiscountInput{
+		OrgId: orgId, CouponId: coupon.Id, CustomerId: custId, OrderId: orderId,
+	})
+	require.NoError(t, err)
+	_, err = rs.Discount.Create(ctx, orderOnlyDisc)
+	require.NoError(t, err)
+
+	forOrder, err := rs.Discount.ActiveForOrder(ctx, orgId, orderId)
+	require.NoError(t, err)
+	require.Len(t, forOrder, 1)
+	assert.Equal(t, orderOnlyDisc.Id, forOrder[0].Id)
+
 	byCoupon, err := rs.Discount.CountByCoupon(ctx, orgId, coupon.Id)
 	require.NoError(t, err)
-	assert.Equal(t, 1, byCoupon)
+	assert.Equal(t, 2, byCoupon)
 	byCust, err := rs.Discount.CountByCouponAndCustomer(ctx, orgId, coupon.Id, custId)
 	require.NoError(t, err)
-	assert.Equal(t, 1, byCust)
+	assert.Equal(t, 2, byCust)
 }
 
 // ---- coupon_reservation (ephemeral capacity holds) ----

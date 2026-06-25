@@ -23,8 +23,8 @@ type Discount struct {
 	CouponCodeId string
 	CustomerId   string
 
-	SubscriptionId string // exactly one of these two is set
-	OrderId        string
+	OrderId        string // always set — the order owns the discount
+	SubscriptionId string // set when the discount targets a subscription's recurring invoices
 
 	StartCycle int
 	Status     DiscountStatus
@@ -49,13 +49,8 @@ type NewDiscountInput struct {
 }
 
 func NewDiscount(in NewDiscountInput) (Discount, error) {
-	if in.OrgId == "" || in.CouponId == "" || in.CustomerId == "" {
-		return Discount{}, lib.NewCustomError(lib.BadRequestError, "discount requires org, coupon and customer", nil)
-	}
-	hasSub := in.SubscriptionId != ""
-	hasOrder := in.OrderId != ""
-	if hasSub == hasOrder { // both set or neither set
-		return Discount{}, lib.NewCustomError(lib.BadRequestError, "discount needs exactly one of subscription or order", nil)
+	if in.OrgId == "" || in.CouponId == "" || in.CustomerId == "" || in.OrderId == "" {
+		return Discount{}, lib.NewCustomError(lib.BadRequestError, "discount requires org, coupon, customer and order", nil)
 	}
 	if in.StartCycle < 0 {
 		return Discount{}, lib.NewCustomError(lib.BadRequestError, "start_cycle must be >= 0", nil)

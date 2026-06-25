@@ -59,6 +59,7 @@ func TestInvoiceDiscount_RepeatingHalfOff(t *testing.T) {
 		OrgId:          orgId,
 		CouponId:       coupon.Id,
 		CustomerId:     "cus_1",
+		OrderId:        "ord_1",
 		SubscriptionId: "sub_1",
 		StartCycle:     0,
 	})
