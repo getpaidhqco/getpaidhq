@@ -214,6 +214,10 @@ func NewApp() (*App, error) {
 	}
 	usageService := service.NewUsageService(meterRepo, customerRepo, subRepo, orderRepo, priceRepo, ingestor, eventStore, pubsub, logger)
 	meterService := service.NewMeterService(meterRepo, pubsub, logger)
+	// Per-tenant invoice-settings resolver (port.InvoiceSettingsResolver). Consumed
+	// by the invoice-settings HTTP handler below; a later task also passes it to
+	// the invoice builder as the reference-format resolver. Construct once, reuse.
+	invoiceSettingsService := service.NewInvoiceSettingsService(settingRepo, logger)
 	invoiceService := service.NewInvoiceService(invoiceRepo, orderRepo, priceRepo, usageService, txManager, logger, discountRepo, couponRepo)
 	couponService := service.NewCouponService(couponRepo, couponCodeRepo, discountRepo, priorPaymentChecker, txManager, logger, couponReservationRepo)
 	subService, err := service.NewSubscriptionService(sessionRepo, settingRepo, cartRepo, subRepo, customerRepo, orderRepo, paymentRepo, priceRepo, gatewayFactory, invoiceService, pubsub, reporter, logger, txManager)
@@ -313,27 +317,28 @@ func NewApp() (*App, error) {
 	customerHandler := handler.NewCustomerHandler(customerService, logger, authzEngine)
 	idemMW := middleware.NewIdempotencyMiddleware(repos.idempotencyStore, idempo.Options{Logger: lib.GetSlogLogger()})
 	handlers := Handlers{
-		Health:         handler.NewHealthHandler(logger),
-		Order:          handler.NewOrderHandler(orderService, logger, authzEngine, idemMW),
-		Subscription:   handler.NewSubscriptionHandler(subOrchestrationService, logger, authzEngine),
-		Customer:       customerHandler,
-		Product:        handler.NewProductHandler(productService, logger, authzEngine),
-		Cart:           handler.NewCartHandler(cartService, logger, authzEngine),
-		Session:        handler.NewSessionHandler(sessionService, logger, authzEngine),
-		Webhook:        handler.NewWebhookHandler(webhookService, logger),
-		WebhookSub:     handler.NewWebhookSubscriptionHandler(webhookSubService, logger, authzEngine),
-		Org:            handler.NewOrgHandler(orgService, logger),
-		Psp:            handler.NewPspHandler(pspService, logger, authzEngine),
-		PaymentMethod:  handler.NewPaymentMethodHandler(customerService),
-		Dunning:        handler.NewDunningHandler(dunningOrchestrationService, subService, logger, authzEngine, trustedProxies),
-		ApiKey:         handler.NewApiKeyHandler(apiKeyService, logger, authzEngine),
-		ReminderConfig: handler.NewReminderConfigHandler(reminderConfigService, logger),
-		Usage:          handler.NewUsageHandler(usageService, logger, authzEngine),
-		Meter:          handler.NewMeterHandler(meterService, logger, authzEngine),
-		Invoice:        handler.NewInvoiceHandler(invoiceService, logger, authzEngine),
-		Coupon:         handler.NewCouponHandler(couponService, logger, authzEngine),
-		Payment:        handler.NewPaymentHandler(paymentService, logger, authzEngine),
-		Setting:        handler.NewSettingHandler(settingService, logger, authzEngine),
+		Health:          handler.NewHealthHandler(logger),
+		Order:           handler.NewOrderHandler(orderService, logger, authzEngine, idemMW),
+		Subscription:    handler.NewSubscriptionHandler(subOrchestrationService, logger, authzEngine),
+		Customer:        customerHandler,
+		Product:         handler.NewProductHandler(productService, logger, authzEngine),
+		Cart:            handler.NewCartHandler(cartService, logger, authzEngine),
+		Session:         handler.NewSessionHandler(sessionService, logger, authzEngine),
+		Webhook:         handler.NewWebhookHandler(webhookService, logger),
+		WebhookSub:      handler.NewWebhookSubscriptionHandler(webhookSubService, logger, authzEngine),
+		Org:             handler.NewOrgHandler(orgService, logger),
+		Psp:             handler.NewPspHandler(pspService, logger, authzEngine),
+		PaymentMethod:   handler.NewPaymentMethodHandler(customerService),
+		Dunning:         handler.NewDunningHandler(dunningOrchestrationService, subService, logger, authzEngine, trustedProxies),
+		ApiKey:          handler.NewApiKeyHandler(apiKeyService, logger, authzEngine),
+		ReminderConfig:  handler.NewReminderConfigHandler(reminderConfigService, logger),
+		InvoiceSettings: handler.NewInvoiceSettingsHandler(invoiceSettingsService, logger, authzEngine),
+		Usage:           handler.NewUsageHandler(usageService, logger, authzEngine),
+		Meter:           handler.NewMeterHandler(meterService, logger, authzEngine),
+		Invoice:         handler.NewInvoiceHandler(invoiceService, logger, authzEngine),
+		Coupon:          handler.NewCouponHandler(couponService, logger, authzEngine),
+		Payment:         handler.NewPaymentHandler(paymentService, logger, authzEngine),
+		Setting:         handler.NewSettingHandler(settingService, logger, authzEngine),
 	}
 
 	port := env.ServerPort

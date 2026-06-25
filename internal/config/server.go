@@ -14,27 +14,28 @@ import (
 )
 
 type Handlers struct {
-	Health         *handler.HealthHandler
-	Order          *handler.OrderHandler
-	Subscription   *handler.SubscriptionHandler
-	Customer       *handler.CustomerHandler
-	Product        *handler.ProductHandler
-	Cart           *handler.CartHandler
-	Session        *handler.SessionHandler
-	Webhook        *handler.WebhookHandler
-	WebhookSub     *handler.WebhookSubscriptionHandler
-	Org            *handler.OrgHandler
-	Psp            *handler.PspHandler
-	PaymentMethod  *handler.PaymentMethodHandler
-	Dunning        *handler.DunningHandler
-	ApiKey         *handler.ApiKeyHandler
-	ReminderConfig *handler.ReminderConfigHandler
-	Usage          *handler.UsageHandler
-	Meter          *handler.MeterHandler
-	Invoice        *handler.InvoiceHandler
-	Payment        *handler.PaymentHandler
-	Setting        *handler.SettingHandler
-	Coupon         *handler.CouponHandler
+	Health          *handler.HealthHandler
+	Order           *handler.OrderHandler
+	Subscription    *handler.SubscriptionHandler
+	Customer        *handler.CustomerHandler
+	Product         *handler.ProductHandler
+	Cart            *handler.CartHandler
+	Session         *handler.SessionHandler
+	Webhook         *handler.WebhookHandler
+	WebhookSub      *handler.WebhookSubscriptionHandler
+	Org             *handler.OrgHandler
+	Psp             *handler.PspHandler
+	PaymentMethod   *handler.PaymentMethodHandler
+	Dunning         *handler.DunningHandler
+	ApiKey          *handler.ApiKeyHandler
+	ReminderConfig  *handler.ReminderConfigHandler
+	InvoiceSettings *handler.InvoiceSettingsHandler
+	Usage           *handler.UsageHandler
+	Meter           *handler.MeterHandler
+	Invoice         *handler.InvoiceHandler
+	Payment         *handler.PaymentHandler
+	Setting         *handler.SettingHandler
+	Coupon          *handler.CouponHandler
 }
 
 type ServerDeps struct {
@@ -252,6 +253,9 @@ func registerAll(api *fuego.Server, h Handlers) {
 	}
 	if h.ReminderConfig != nil {
 		h.ReminderConfig.RegisterRoutes(api)
+	}
+	if h.InvoiceSettings != nil {
+		h.InvoiceSettings.RegisterRoutes(api)
 	}
 	if h.Usage != nil {
 		h.Usage.RegisterRoutes(api)
