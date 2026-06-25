@@ -37,12 +37,13 @@ type fakeInvoiceRepo struct {
 	port.InvoiceRepository
 	byCycle map[int]domain.Invoice
 	byId    map[string]domain.Invoice
+	byOrder map[string]domain.Invoice
 	mu      sync.Mutex
 	counter map[string]int64
 }
 
 func newFakeInvoiceRepo() *fakeInvoiceRepo {
-	return &fakeInvoiceRepo{byCycle: map[int]domain.Invoice{}, byId: map[string]domain.Invoice{}, counter: map[string]int64{}}
+	return &fakeInvoiceRepo{byCycle: map[int]domain.Invoice{}, byId: map[string]domain.Invoice{}, byOrder: map[string]domain.Invoice{}, counter: map[string]int64{}}
 }
 
 func (r *fakeInvoiceRepo) Create(_ context.Context, inv domain.Invoice) (domain.Invoice, error) {
@@ -50,7 +51,19 @@ func (r *fakeInvoiceRepo) Create(_ context.Context, inv domain.Invoice) (domain.
 	defer r.mu.Unlock()
 	r.byCycle[inv.Cycle] = inv
 	r.byId[inv.Id] = inv
+	if inv.OrderId != "" {
+		r.byOrder[inv.OrderId] = inv
+	}
 	return inv, nil
+}
+
+func (r *fakeInvoiceRepo) FindOrderInvoice(_ context.Context, _, orderId string) (domain.Invoice, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if inv, ok := r.byOrder[orderId]; ok {
+		return inv, nil
+	}
+	return domain.Invoice{}, port.ErrNotFound
 }
 
 func (r *fakeInvoiceRepo) FindBySubscriptionCycle(_ context.Context, _, _ string, cycle int) (domain.Invoice, error) {
@@ -116,7 +129,7 @@ func TestSubscriptionService_ChargeForBillingPeriod(t *testing.T) {
 		er := lib.NewErrorReporter(silentLogger{})
 		or := &fakeOrderRepo{items: []domain.OrderItem{{Id: "oi_1", PriceId: "price_1", Quantity: 1}}}
 		pr := &fakePriceRepo{byId: domain.Price{Id: "price_1", UnitPrice: 1000}}
-		is := NewInvoiceService(newFakeInvoiceRepo(), or, pr, nil, nil, silentLogger{}, nil, nil, nil)
+		is := NewInvoiceService(newFakeInvoiceRepo(), or, pr, nil, nil, nil, silentLogger{}, nil, nil, nil)
 		svc, _ := NewSubscriptionService(nil, nil, nil, sr, cr, or, nil, pr, gf, is, &recordingPubSub{}, er, silentLogger{}, nil)
 		return sr, cr, gf, svc
 	}
