@@ -42,9 +42,9 @@ An invoice has three identifiers:
 
 Both `Number` and `Reference` are set at build, in the tx, by **`BuildForOrder`** and **`BuildForBillingPeriod`** (the latter updated to also set `Reference`).
 
-When `upfront_invoice = true`, the `CreateOrder` response includes the invoice:
+When `upfront_invoice = true`, the `CreateOrder` response includes the invoice — **`id` and `url` only** (number/reference are read from the invoice resource itself):
 ```json
-"invoice": { "id": "inv_…", "number": 42, "reference": "INV-000042", "url": "" }
+"invoice": { "id": "inv_…", "url": "" }
 ```
 `url` is a **placeholder** (empty for now; it will point at the hosted invoice page when that exists). When `upfront_invoice = false` there is no invoice yet, so the field is omitted/null.
 
@@ -79,7 +79,7 @@ One invoice per order, covering its **first bill**: each subscription's first-pe
 ## 6. When the invoice is built & settled
 
 - **`upfront_invoice = false` (default):** order created `pending`, no invoice. On **payment confirmation** — `CompleteOrder` (supplied/charged payment) or the payment-success path (`/pay` → PSP webhook) — `BuildForOrder` builds the combined invoice, it is marked **`paid`**, the `Payment.InvoiceId` is linked, and the reservation is consumed → `Discount`.
-- **`upfront_invoice = true`:** at `CreateOrder`, `BuildForOrder` builds the combined invoice **`open`** (discount from the live reservation); the response returns its number/url. On payment confirmation it is marked **`paid`** and linked; the reservation is consumed.
+- **`upfront_invoice = true`:** at `CreateOrder`, `BuildForOrder` builds the combined invoice **`open`** (discount from the live reservation); the response returns its id/url. On payment confirmation it is marked **`paid`** and linked; the reservation is consumed.
 
 Either way: **one** combined invoice, discount applied once, settled when paid. No invoice is ever built that isn't either paid or a deliberately-raised open invoice.
 
@@ -130,7 +130,7 @@ All within the order-completion transaction (the merged `RunInTx` ctx fix lets n
 | `core/service` | `InvoiceService.BuildForOrder` (sets `Number`+`Reference`) + shared discount/line helper + reservation-coupon resolution; `BuildForBillingPeriod` also sets `Reference`; `CouponService.Consume` order-always; `OrderService.CreateOrder` persists `Config` and, if `UpfrontInvoice`, builds the open invoice + returns it; `OrderService.CompleteOrder` orchestration (§8); `OrderService` gains `*InvoiceService`. |
 | `core/port` | `CreateOrderInput.Config`; `InvoiceRepository.FindOrderInvoice`; `CreateOrderResult` carries the optional invoice. |
 | `adapter/storage/{postgresgorm,postgrespgx}` | `orders.config`; `invoices.reference` (+ index) + `subscription_id` nullable; `FindOrderInvoice`; `ActiveForOrder` sub-null. Both drivers + conformance. |
-| `adapter/http` | `CreateOrderRequest.upfront_invoice`; `CreateOrderResponse` returns `invoice {id, number, url}` when raised. |
+| `adapter/http` | `CreateOrderRequest.upfront_invoice`; `CreateOrderResponse` returns `invoice {id, url}` when raised. |
 | `config/app.go` | inject `*InvoiceService` into `OrderService`. |
 | `schemas/app/migrations` | `orders.config`; `invoices.reference` + index; `invoices.subscription_id` nullable. |
 
