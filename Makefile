@@ -8,7 +8,9 @@
 COMPOSE := docker compose -f docker/docker-compose.yml
 BIN     := main
 
-DATABASE_URL ?= $(shell grep -E '^DATABASE_URL=' .env | cut -d= -f2-)
+DATABASE_URL           ?= $(shell grep -E '^DATABASE_URL='           .env | cut -d= -f2-)
+USAGE_DATABASE_URL     ?= $(shell grep -E '^USAGE_DATABASE_URL='     .env | cut -d= -f2-)
+REPORTING_DATABASE_URL ?= $(shell grep -E '^REPORTING_DATABASE_URL=' .env | cut -d= -f2-)
 
 .DEFAULT_GOAL := help
 
@@ -104,17 +106,29 @@ define goose
 	GOOSE_DRIVER=$(GOOSE_DRIVER) GOOSE_DBSTRING="$(2)" GOOSE_MIGRATION_DIR=$(1) $(GOOSE) $(3)
 endef
 
+# $(call goose-optional,<migration-dir>,<dbstring>,<args...>,<label>)
+# Like goose, but skips with a notice when the dbstring is empty — for the
+# optional reporting/usage stores, which aren't always configured locally
+# (so db-migrate-all doesn't fail when they're unset).
+define goose-optional
+	@if [ -z "$(strip $(2))" ]; then \
+		echo "  skip: $(4) DB not configured (set its *_DATABASE_URL in .env)"; \
+	else \
+		GOOSE_DRIVER=$(GOOSE_DRIVER) GOOSE_DBSTRING="$(2)" GOOSE_MIGRATION_DIR=$(1) $(GOOSE) $(3); \
+	fi
+endef
+
 .PHONY: db-migrate
 db-migrate: ## Apply operational migrations -> DATABASE_URL
 	$(call goose,schemas/app/migrations,$(DATABASE_URL),up)
 
 .PHONY: db-migrate-reporting
 db-migrate-reporting: ## Apply reporting migrations -> REPORTING_DATABASE_URL
-	$(call goose,schemas/reporting/migrations,$(REPORTING_DATABASE_URL),up)
+	$(call goose-optional,schemas/reporting/migrations,$(REPORTING_DATABASE_URL),up,reporting)
 
 .PHONY: db-migrate-usage
 db-migrate-usage: ## Apply usage-store migrations -> USAGE_DATABASE_URL
-	$(call goose,schemas/usage/migrations,$(USAGE_DATABASE_URL),up)
+	$(call goose-optional,schemas/usage/migrations,$(USAGE_DATABASE_URL),up,usage)
 
 .PHONY: db-migrate-all
 db-migrate-all: db-migrate db-migrate-reporting db-migrate-usage ## Apply all three schemas
@@ -125,11 +139,11 @@ db-migrate-status: ## Show operational migration status
 
 .PHONY: db-migrate-status-reporting
 db-migrate-status-reporting: ## Show reporting migration status
-	$(call goose,schemas/reporting/migrations,$(REPORTING_DATABASE_URL),status)
+	$(call goose-optional,schemas/reporting/migrations,$(REPORTING_DATABASE_URL),status,reporting)
 
 .PHONY: db-migrate-status-usage
 db-migrate-status-usage: ## Show usage-store migration status
-	$(call goose,schemas/usage/migrations,$(USAGE_DATABASE_URL),status)
+	$(call goose-optional,schemas/usage/migrations,$(USAGE_DATABASE_URL),status,usage)
 
 .PHONY: db-migrate-down
 db-migrate-down: ## Roll back the last operational migration
@@ -137,11 +151,11 @@ db-migrate-down: ## Roll back the last operational migration
 
 .PHONY: db-migrate-down-reporting
 db-migrate-down-reporting: ## Roll back the last reporting migration
-	$(call goose,schemas/reporting/migrations,$(REPORTING_DATABASE_URL),down)
+	$(call goose-optional,schemas/reporting/migrations,$(REPORTING_DATABASE_URL),down,reporting)
 
 .PHONY: db-migrate-down-usage
 db-migrate-down-usage: ## Roll back the last usage-store migration
-	$(call goose,schemas/usage/migrations,$(USAGE_DATABASE_URL),down)
+	$(call goose-optional,schemas/usage/migrations,$(USAGE_DATABASE_URL),down,usage)
 
 .PHONY: db-migrate-create
 db-migrate-create: ## Scaffold a new operational migration: make db-migrate-create name=add_foo
