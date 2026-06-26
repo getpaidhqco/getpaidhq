@@ -102,20 +102,6 @@ func TestPspService_CreateGateway(t *testing.T) {
 		assert.Empty(t, psp.created)
 	})
 
-	t.Run("nil cipher (no SECRETS_ENCRYPTION_KEY) is a clear error", func(t *testing.T) {
-		psp := &fakePspRepo{}
-		svc := NewPspService(psp, nil, silentLogger{}, &recordingPubSub{})
-
-		_, err := svc.CreateGateway(context.Background(), port.CreateGatewayInput{
-			OrgId: "org_1", PspId: domain.Paystack,
-			Credentials: map[string]domain.Secret{"api_key": "sk_test"},
-		})
-
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "SECRETS_ENCRYPTION_KEY")
-		assert.Empty(t, psp.created, "nothing stored without a cipher")
-	})
-
 	t.Run("encrypt failure short-circuits before the row is written", func(t *testing.T) {
 		psp := &fakePspRepo{}
 		svc := NewPspService(psp, &fakeSecretCipher{encryptErr: errors.New("hsm down")}, silentLogger{}, &recordingPubSub{})

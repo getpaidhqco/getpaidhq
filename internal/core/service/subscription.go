@@ -11,6 +11,20 @@ import (
 	"time"
 )
 
+// BillingInvoicing is the narrow per-cycle invoice capability the subscription
+// billing + dunning flows need. Defined consumer-side so their tests can fake it
+// cheaply; *InvoiceService satisfies it.
+type BillingInvoicing interface {
+	BuildForBillingPeriod(ctx context.Context, sub domain.Subscription) (domain.Invoice, error)
+	FindCurrentCycle(ctx context.Context, orgId, subscriptionId string, cycle int) (domain.Invoice, error)
+	MarkOpen(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error)
+	MarkSettled(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error)
+	MarkUncollectible(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error)
+	Void(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error)
+}
+
+var _ BillingInvoicing = (*InvoiceService)(nil)
+
 // SubscriptionService is the narrow subscription service. It owns all
 // subscription operations that do NOT signal the workflow engine: CRUD,
 // charge-result handling (called from activities), and the DB-side of the
@@ -30,15 +44,13 @@ type SubscriptionService struct {
 	paymentRepository      port.PaymentRepository
 	priceRepository        port.PriceRepository
 	gatewayFactory         port.GatewayFactory
-	invoiceService         *InvoiceService
+	invoiceService         BillingInvoicing
 	pubsub                 port.PubSub
 	errorReporter          lib.ErrorReporter
 	logger                 port.Logger
 	// tx wraps lifecycle state transitions in a SQL transaction so the
 	// FindByIdForUpdate-then-Update sequence is atomic and SELECT FOR
-	// UPDATE actually holds. May be nil in tests that don't drive a
-	// transition path; transitionInTx falls back to running the
-	// closure without a tx in that case.
+	// UPDATE actually holds.
 	tx port.TxManager
 }
 
@@ -56,7 +68,7 @@ func NewSubscriptionService(
 	paymentRepository port.PaymentRepository,
 	priceRepository port.PriceRepository,
 	gatewayFactory port.GatewayFactory,
-	invoiceService *InvoiceService,
+	invoiceService BillingInvoicing,
 	pubsub port.PubSub,
 	errorReporter lib.ErrorReporter,
 	logger port.Logger,
@@ -88,15 +100,9 @@ func NewSubscriptionService(
 	}, nil
 }
 
-// transitionInTx runs `fn` inside a SQL transaction when one is
-// available (production wiring). In tests that don't wire a
-// TxManager we just call fn directly — the underlying fake repos
-// don't honor isolation anyway, so the call-site semantics are
-// preserved.
+// transitionInTx runs `fn` inside a SQL transaction so the
+// FindByIdForUpdate-then-Update sequence is atomic.
 func (s *SubscriptionService) transitionInTx(ctx context.Context, fn func(context.Context) error) error {
-	if s.tx == nil {
-		return fn(ctx)
-	}
 	return s.tx.RunInTx(ctx, fn)
 }
 
@@ -396,9 +402,6 @@ func (s *SubscriptionService) CancelSubscription(ctx context.Context, input port
 // collection open invoice).
 func (s *SubscriptionService) applyOutstandingInvoiceAction(ctx context.Context, sub domain.Subscription, action port.OutstandingInvoiceAction) {
 	if action == port.OutstandingInvoiceKeep {
-		return
-	}
-	if s.invoiceService == nil {
 		return
 	}
 	inv, err := s.invoiceService.FindCurrentCycle(ctx, sub.OrgId, sub.Id, sub.CyclesProcessed)

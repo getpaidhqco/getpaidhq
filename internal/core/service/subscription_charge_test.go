@@ -130,7 +130,7 @@ func TestSubscriptionService_ChargeForBillingPeriod(t *testing.T) {
 		or := &fakeOrderRepo{items: []domain.OrderItem{{Id: "oi_1", PriceId: "price_1", Quantity: 1}}}
 		pr := &fakePriceRepo{byId: domain.Price{Id: "price_1", UnitPrice: 1000}}
 		is := NewInvoiceService(newFakeInvoiceRepo(), or, pr, &fakeSubRepo{}, noopUsage{}, noopTx{}, silentLogger{}, noopDiscountRepo{}, noopCouponRepo{}, noopReservationRepo{}, defaultSettingsResolver{})
-		svc, _ := NewSubscriptionService(nil, nil, nil, sr, cr, or, nil, pr, gf, is, &recordingPubSub{}, er, silentLogger{}, nil)
+		svc, _ := NewSubscriptionService(nil, nil, nil, sr, cr, or, nil, pr, gf, is, &recordingPubSub{}, er, silentLogger{}, noopTx{})
 		return sr, cr, gf, svc
 	}
 

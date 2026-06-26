@@ -22,7 +22,7 @@ type DunningService struct {
 	customerRepository     port.CustomerRepository
 	paymentRepository      port.PaymentRepository
 	subscriptionService    port.SubscriptionService
-	invoiceService         *InvoiceService
+	invoiceService         BillingInvoicing
 	gatewayFactory         port.GatewayFactory
 	pubsub                 port.PubSub
 	errorReporter          lib.ErrorReporter
@@ -35,7 +35,7 @@ func NewDunningService(
 	customerRepository port.CustomerRepository,
 	paymentRepository port.PaymentRepository,
 	subscriptionService port.SubscriptionService,
-	invoiceService *InvoiceService,
+	invoiceService BillingInvoicing,
 	gatewayFactory port.GatewayFactory,
 	pubsub port.PubSub,
 	errorReporter lib.ErrorReporter,
@@ -760,12 +760,8 @@ func (s *DunningService) GetCustomerDunningHistory(ctx context.Context, orgId, c
 }
 
 // writeOffCurrentInvoice marks the subscription's current-cycle invoice
-// uncollectible when dunning ends collection. No-op if absent/terminal or if
-// no invoice service is wired (some unit tests).
+// uncollectible when dunning ends collection. No-op if absent/terminal.
 func (s *DunningService) writeOffCurrentInvoice(ctx context.Context, sub domain.Subscription) {
-	if s.invoiceService == nil {
-		return
-	}
 	inv, err := s.invoiceService.FindCurrentCycle(ctx, sub.OrgId, sub.Id, sub.CyclesProcessed)
 	if err != nil {
 		return

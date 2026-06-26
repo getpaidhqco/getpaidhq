@@ -179,18 +179,15 @@ func NewApp() (*App, error) {
 	apiKeyAuth := apikey.NewApiKeyMiddleware(logger, env.ApiKeyPepper, apiKeyRepo)
 	authenticators := []port.Authenticator{clerkAuth, apiKeyAuth}
 
-	// Cipher for stored PSP credentials. Optional at boot: with no
-	// SECRETS_ENCRYPTION_KEY the cipher is nil and configuring/using a
-	// gateway fails with a clear error at that point instead of the whole
-	// server refusing to start. A key that is SET but invalid is a config
-	// bug and does fail boot.
-	var secretCipher port.SecretCipher
-	if env.SecretsEncryptionKey != "" {
-		cipher, err := crypto.NewAesGcmCipher(env.SecretsEncryptionKey)
-		if err != nil {
-			return nil, err
-		}
-		secretCipher = cipher
+	// Cipher for stored PSP credentials. SECRETS_ENCRYPTION_KEY is REQUIRED —
+	// gateway credentials must be encrypted at rest, so the server refuses to
+	// start without a valid key.
+	if env.SecretsEncryptionKey == "" {
+		return nil, fmt.Errorf("SECRETS_ENCRYPTION_KEY is required (gateway credentials must be encrypted at rest)")
+	}
+	secretCipher, err := crypto.NewAesGcmCipher(env.SecretsEncryptionKey)
+	if err != nil {
+		return nil, err
 	}
 
 	// Payment gateway adapters

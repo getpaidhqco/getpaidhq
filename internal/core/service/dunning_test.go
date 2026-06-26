@@ -164,7 +164,7 @@ func newDunningServiceForTest(dr port.DunningRepository, sr port.SubscriptionRep
 	// customer/payment repos, subscription service and gateway factory are
 	// unused by UpdateCampaignWithAttemptResult; ErrorReporter is a struct so a
 	// zero value (also unused here) stands in.
-	return NewDunningService(dr, sr, nil, nil, nil, nil, nil, ps, lib.ErrorReporter{}, silentLogger{})
+	return NewDunningService(dr, sr, nil, nil, nil, noopBillingInvoicing{}, nil, ps, lib.ErrorReporter{}, silentLogger{})
 }
 
 // standardEscalation: suspend at attempt 3, final notice at 4, cancel at 5.
