@@ -28,10 +28,10 @@ var (
 	rn5AllowedHeaders = map[string]string{
 		"POST": "Accept,Authorization,Content-Type,X-Api-Key",
 	}
-	rn97AllowedHeaders = map[string]string{
+	rn98AllowedHeaders = map[string]string{
 		"POST": "Accept,Authorization,Content-Type,X-Api-Key",
 	}
-	rn102AllowedHeaders = map[string]string{
+	rn103AllowedHeaders = map[string]string{
 		"PATCH": "Accept,Authorization,Content-Type,X-Api-Key",
 	}
 	rn18AllowedHeaders = map[string]string{
@@ -60,7 +60,7 @@ var (
 	rn25AllowedHeaders = map[string]string{
 		"POST": "Accept,Authorization,Content-Type,X-Api-Key",
 	}
-	rn104AllowedHeaders = map[string]string{
+	rn105AllowedHeaders = map[string]string{
 		"PUT": "Accept,Authorization,Content-Type,X-Api-Key",
 	}
 	rn60AllowedHeaders = map[string]string{
@@ -117,6 +117,9 @@ var (
 	rn15AllowedHeaders = map[string]string{
 		"POST": "Accept,Authorization,Content-Type,X-Api-Key",
 	}
+	rn95AllowedHeaders = map[string]string{
+		"POST": "Accept,Authorization,Content-Type,X-Api-Key",
+	}
 	rn87AllowedHeaders = map[string]string{
 		"GET": "Accept,Authorization,X-Api-Key",
 	}
@@ -129,7 +132,7 @@ var (
 	rn1AllowedHeaders = map[string]string{
 		"POST": "Accept,Authorization,Content-Type,X-Api-Key",
 	}
-	rn107AllowedHeaders = map[string]string{
+	rn108AllowedHeaders = map[string]string{
 		"POST": "Accept,Authorization,Content-Type,X-Api-Key",
 	}
 	rn88AllowedHeaders = map[string]string{
@@ -158,7 +161,7 @@ var (
 	rn9AllowedHeaders = map[string]string{
 		"POST": "Accept,Authorization,X-Api-Key",
 	}
-	rn99AllowedHeaders = map[string]string{
+	rn100AllowedHeaders = map[string]string{
 		"POST": "Accept,Authorization,X-Api-Key",
 	}
 	rn40AllowedHeaders = map[string]string{
@@ -184,7 +187,7 @@ var (
 		"GET":   "Accept,Authorization,X-Api-Key",
 		"PATCH": "Accept,Authorization,Content-Type,X-Api-Key",
 	}
-	rn105AllowedHeaders = map[string]string{
+	rn106AllowedHeaders = map[string]string{
 		"PATCH": "Accept,Authorization,Content-Type,X-Api-Key",
 	}
 	rn12AllowedHeaders = map[string]string{
@@ -199,7 +202,7 @@ var (
 	rn90AllowedHeaders = map[string]string{
 		"GET": "Accept,Authorization,X-Api-Key",
 	}
-	rn98AllowedHeaders = map[string]string{
+	rn99AllowedHeaders = map[string]string{
 		"PUT": "Accept,Authorization,Content-Type,X-Api-Key",
 	}
 	rn79AllowedHeaders = map[string]string{
@@ -518,7 +521,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 								default:
 									s.notAllowed(w, r, notAllowedParams{
 										allowedMethods: "POST",
-										allowedHeaders: rn97AllowedHeaders,
+										allowedHeaders: rn98AllowedHeaders,
 										acceptPost:     "application/json",
 										acceptPatch:    "",
 									})
@@ -570,7 +573,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 							default:
 								s.notAllowed(w, r, notAllowedParams{
 									allowedMethods: "PATCH",
-									allowedHeaders: rn102AllowedHeaders,
+									allowedHeaders: rn103AllowedHeaders,
 									acceptPost:     "",
 									acceptPatch:    "application/json",
 								})
@@ -839,7 +842,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 										default:
 											s.notAllowed(w, r, notAllowedParams{
 												allowedMethods: "PUT",
-												allowedHeaders: rn104AllowedHeaders,
+												allowedHeaders: rn105AllowedHeaders,
 												acceptPost:     "",
 												acceptPatch:    "",
 											})
@@ -1442,6 +1445,33 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 									return
 								}
 
+							case 'p': // Prefix: "pay"
+
+								if l := len("pay"); len(elem) >= l && elem[0:l] == "pay" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch r.Method {
+									case "POST":
+										s.handlePayOrderRequest([1]string{
+											args[0],
+										}, elemIsEscaped, w, r)
+									default:
+										s.notAllowed(w, r, notAllowedParams{
+											allowedMethods: "POST",
+											allowedHeaders: rn95AllowedHeaders,
+											acceptPost:     "application/json",
+											acceptPatch:    "",
+										})
+									}
+
+									return
+								}
+
 							case 's': // Prefix: "subscriptions"
 
 								if l := len("subscriptions"); len(elem) >= l && elem[0:l] == "subscriptions" {
@@ -1627,7 +1657,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 									default:
 										s.notAllowed(w, r, notAllowedParams{
 											allowedMethods: "POST",
-											allowedHeaders: rn107AllowedHeaders,
+											allowedHeaders: rn108AllowedHeaders,
 											acceptPost:     "application/json",
 											acceptPatch:    "",
 										})
@@ -1912,7 +1942,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 										default:
 											s.notAllowed(w, r, notAllowedParams{
 												allowedMethods: "POST",
-												allowedHeaders: rn99AllowedHeaders,
+												allowedHeaders: rn100AllowedHeaders,
 												acceptPost:     "",
 												acceptPatch:    "",
 											})
@@ -2204,7 +2234,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 									default:
 										s.notAllowed(w, r, notAllowedParams{
 											allowedMethods: "PATCH",
-											allowedHeaders: rn105AllowedHeaders,
+											allowedHeaders: rn106AllowedHeaders,
 											acceptPost:     "",
 											acceptPatch:    "application/json",
 										})
@@ -2353,7 +2383,7 @@ func (s *Server) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 									default:
 										s.notAllowed(w, r, notAllowedParams{
 											allowedMethods: "PUT",
-											allowedHeaders: rn98AllowedHeaders,
+											allowedHeaders: rn99AllowedHeaders,
 											acceptPost:     "",
 											acceptPatch:    "",
 										})
@@ -3820,6 +3850,31 @@ func (s *Server) FindPath(method string, u *url.URL) (r Route, _ bool) {
 										r.operationID = "completeOrder"
 										r.operationGroup = ""
 										r.pathPattern = "/api/orders/{id}/complete"
+										r.args = args
+										r.count = 1
+										return r, true
+									default:
+										return
+									}
+								}
+
+							case 'p': // Prefix: "pay"
+
+								if l := len("pay"); len(elem) >= l && elem[0:l] == "pay" {
+									elem = elem[l:]
+								} else {
+									break
+								}
+
+								if len(elem) == 0 {
+									// Leaf node.
+									switch method {
+									case "POST":
+										r.name = PayOrderOperation
+										r.summary = "Initialise an order's payment session"
+										r.operationID = "payOrder"
+										r.operationGroup = ""
+										r.pathPattern = "/api/orders/{id}/pay"
 										r.args = args
 										r.count = 1
 										return r, true

@@ -76,6 +76,7 @@ const (
 	ListVariantPricesOperation                 OperationName = "ListVariantPrices"
 	ListWebhookSubscriptionsOperation          OperationName = "ListWebhookSubscriptions"
 	PauseSubscriptionOperation                 OperationName = "PauseSubscription"
+	PayOrderOperation                          OperationName = "PayOrder"
 	ReceiveWebhookOperation                    OperationName = "ReceiveWebhook"
 	RemoveItemFromCartOperation                OperationName = "RemoveItemFromCart"
 	ResumeSubscriptionOperation                OperationName = "ResumeSubscription"

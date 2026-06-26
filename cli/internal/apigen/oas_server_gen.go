@@ -65,6 +65,7 @@ type Handler interface {
 	// # Middlewares:
 	//
 	//  - `github.com/go-fuego/fuego.defaultLogger.middleware`
+	//  - `main.main.func1`
 	//
 	// POST /api/orders/{id}/complete
 	CompleteOrder(ctx context.Context, req *CompleteOrderRequest, params CompleteOrderParams) (CompleteOrderRes, error)
@@ -173,6 +174,7 @@ type Handler interface {
 	// # Middlewares:
 	//
 	//  - `github.com/go-fuego/fuego.defaultLogger.middleware`
+	//  - `main.main.func1`
 	//
 	// POST /api/orders
 	CreateOrder(ctx context.Context, req *CreateOrderRequest, params CreateOrderParams) (CreateOrderRes, error)
@@ -461,6 +463,7 @@ type Handler interface {
 	// # Middlewares:
 	//
 	//  - `github.com/go-fuego/fuego.defaultLogger.middleware`
+	//  - `main.main.func1`
 	//
 	// GET /api/orders/{id}
 	GetOrder(ctx context.Context, params GetOrderParams) (GetOrderRes, error)
@@ -713,6 +716,7 @@ type Handler interface {
 	// # Middlewares:
 	//
 	//  - `github.com/go-fuego/fuego.defaultLogger.middleware`
+	//  - `main.main.func1`
 	//
 	// GET /api/orders/{id}/subscriptions
 	ListOrderSubscriptions(ctx context.Context, params ListOrderSubscriptionsParams) (ListOrderSubscriptionsRes, error)
@@ -725,6 +729,7 @@ type Handler interface {
 	// # Middlewares:
 	//
 	//  - `github.com/go-fuego/fuego.defaultLogger.middleware`
+	//  - `main.main.func1`
 	//
 	// GET /api/orders
 	ListOrders(ctx context.Context, params ListOrdersParams) (ListOrdersRes, error)
@@ -848,6 +853,19 @@ type Handler interface {
 	//
 	// PUT /api/subscriptions/{id}/pause
 	PauseSubscription(ctx context.Context, req *PauseSubscriptionRequest, params PauseSubscriptionParams) (PauseSubscriptionRes, error)
+	// PayOrder implements payOrder operation.
+	//
+	// # Controller:
+	//
+	// `getpaidhq/internal/adapter/http.(*OrderHandler).Pay`
+	//
+	// # Middlewares:
+	//
+	//  - `github.com/go-fuego/fuego.defaultLogger.middleware`
+	//  - `main.main.func1`
+	//
+	// POST /api/orders/{id}/pay
+	PayOrder(ctx context.Context, req *PayOrderRequest, params PayOrderParams) (PayOrderRes, error)
 	// ReceiveWebhook implements receiveWebhook operation.
 	//
 	// # Controller:

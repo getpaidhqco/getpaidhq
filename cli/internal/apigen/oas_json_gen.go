@@ -6019,6 +6019,12 @@ func (s *CreateOrderRequest) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.CouponCode.Set {
+			e.FieldStart("coupon_code")
+			s.CouponCode.Encode(e)
+		}
+	}
+	{
 		e.FieldStart("customer")
 		s.Customer.Encode(e)
 	}
@@ -6050,16 +6056,24 @@ func (s *CreateOrderRequest) encodeFields(e *jx.Encoder) {
 			s.SessionID.Encode(e)
 		}
 	}
+	{
+		if s.UpfrontInvoice.Set {
+			e.FieldStart("upfront_invoice")
+			s.UpfrontInvoice.Encode(e)
+		}
+	}
 }
 
-var jsonFieldsNameOfCreateOrderRequest = [7]string{
+var jsonFieldsNameOfCreateOrderRequest = [9]string{
 	0: "cart",
-	1: "customer",
-	2: "metadata",
-	3: "options",
-	4: "payment_method_id",
-	5: "psp_id",
-	6: "session_id",
+	1: "coupon_code",
+	2: "customer",
+	3: "metadata",
+	4: "options",
+	5: "payment_method_id",
+	6: "psp_id",
+	7: "session_id",
+	8: "upfront_invoice",
 }
 
 // Decode decodes CreateOrderRequest from json.
@@ -6067,7 +6081,7 @@ func (s *CreateOrderRequest) Decode(d *jx.Decoder) error {
 	if s == nil {
 		return errors.New("invalid: unable to decode CreateOrderRequest to nil")
 	}
-	var requiredBitSet [1]uint8
+	var requiredBitSet [2]uint8
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
@@ -6081,8 +6095,18 @@ func (s *CreateOrderRequest) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"cart\"")
 			}
+		case "coupon_code":
+			if err := func() error {
+				s.CouponCode.Reset()
+				if err := s.CouponCode.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"coupon_code\"")
+			}
 		case "customer":
-			requiredBitSet[0] |= 1 << 1
+			requiredBitSet[0] |= 1 << 2
 			if err := func() error {
 				if err := s.Customer.Decode(d); err != nil {
 					return err
@@ -6122,7 +6146,7 @@ func (s *CreateOrderRequest) Decode(d *jx.Decoder) error {
 				return errors.Wrap(err, "decode field \"payment_method_id\"")
 			}
 		case "psp_id":
-			requiredBitSet[0] |= 1 << 5
+			requiredBitSet[0] |= 1 << 6
 			if err := func() error {
 				v, err := d.Str()
 				s.PspID = string(v)
@@ -6143,6 +6167,16 @@ func (s *CreateOrderRequest) Decode(d *jx.Decoder) error {
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"session_id\"")
 			}
+		case "upfront_invoice":
+			if err := func() error {
+				s.UpfrontInvoice.Reset()
+				if err := s.UpfrontInvoice.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"upfront_invoice\"")
+			}
 		default:
 			return d.Skip()
 		}
@@ -6152,8 +6186,9 @@ func (s *CreateOrderRequest) Decode(d *jx.Decoder) error {
 	}
 	// Validate required fields.
 	var failures []validate.FieldError
-	for i, mask := range [1]uint8{
-		0b00100010,
+	for i, mask := range [2]uint8{
+		0b01000100,
+		0b00000000,
 	} {
 		if result := (requiredBitSet[i] & mask) ^ mask; result != 0 {
 			// Mask only required fields and check equality to mask using XOR.
@@ -6746,22 +6781,22 @@ func (s *CreateOrderResponse) Encode(e *jx.Encoder) {
 // encodeFields encodes fields.
 func (s *CreateOrderResponse) encodeFields(e *jx.Encoder) {
 	{
+		if s.Invoice.Set {
+			e.FieldStart("invoice")
+			s.Invoice.Encode(e)
+		}
+	}
+	{
 		if s.Order.Set {
 			e.FieldStart("order")
 			s.Order.Encode(e)
 		}
 	}
-	{
-		if len(s.Psp) != 0 {
-			e.FieldStart("psp")
-			e.Raw(s.Psp)
-		}
-	}
 }
 
 var jsonFieldsNameOfCreateOrderResponse = [2]string{
-	0: "order",
-	1: "psp",
+	0: "invoice",
+	1: "order",
 }
 
 // Decode decodes CreateOrderResponse from json.
@@ -6772,6 +6807,16 @@ func (s *CreateOrderResponse) Decode(d *jx.Decoder) error {
 
 	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
 		switch string(k) {
+		case "invoice":
+			if err := func() error {
+				s.Invoice.Reset()
+				if err := s.Invoice.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"invoice\"")
+			}
 		case "order":
 			if err := func() error {
 				s.Order.Reset()
@@ -6781,17 +6826,6 @@ func (s *CreateOrderResponse) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"order\"")
-			}
-		case "psp":
-			if err := func() error {
-				v, err := d.RawAppend(nil)
-				s.Psp = jx.Raw(v)
-				if err != nil {
-					return err
-				}
-				return nil
-			}(); err != nil {
-				return errors.Wrap(err, "decode field \"psp\"")
 			}
 		default:
 			return d.Skip()
@@ -6813,6 +6847,86 @@ func (s *CreateOrderResponse) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *CreateOrderResponse) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *CreateOrderResponseInvoice) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *CreateOrderResponseInvoice) encodeFields(e *jx.Encoder) {
+	{
+		if s.ID.Set {
+			e.FieldStart("id")
+			s.ID.Encode(e)
+		}
+	}
+	{
+		if s.URL.Set {
+			e.FieldStart("url")
+			s.URL.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfCreateOrderResponseInvoice = [2]string{
+	0: "id",
+	1: "url",
+}
+
+// Decode decodes CreateOrderResponseInvoice from json.
+func (s *CreateOrderResponseInvoice) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode CreateOrderResponseInvoice to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "id":
+			if err := func() error {
+				s.ID.Reset()
+				if err := s.ID.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"id\"")
+			}
+		case "url":
+			if err := func() error {
+				s.URL.Reset()
+				if err := s.URL.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"url\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode CreateOrderResponseInvoice")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *CreateOrderResponseInvoice) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *CreateOrderResponseInvoice) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -17612,6 +17726,12 @@ func (s *InvoiceResponse) encodeFields(e *jx.Encoder) {
 		}
 	}
 	{
+		if s.Number.Set {
+			e.FieldStart("number")
+			s.Number.Encode(e)
+		}
+	}
+	{
 		if s.OrderID.Set {
 			e.FieldStart("order_id")
 			s.OrderID.Encode(e)
@@ -17661,7 +17781,7 @@ func (s *InvoiceResponse) encodeFields(e *jx.Encoder) {
 	}
 }
 
-var jsonFieldsNameOfInvoiceResponse = [15]string{
+var jsonFieldsNameOfInvoiceResponse = [16]string{
 	0:  "created_at",
 	1:  "currency",
 	2:  "customer_id",
@@ -17669,14 +17789,15 @@ var jsonFieldsNameOfInvoiceResponse = [15]string{
 	4:  "id",
 	5:  "line_items",
 	6:  "metadata",
-	7:  "order_id",
-	8:  "period_end",
-	9:  "period_start",
-	10: "status",
-	11: "subscription_id",
-	12: "subtotal",
-	13: "total",
-	14: "updated_at",
+	7:  "number",
+	8:  "order_id",
+	9:  "period_end",
+	10: "period_start",
+	11: "status",
+	12: "subscription_id",
+	13: "subtotal",
+	14: "total",
+	15: "updated_at",
 }
 
 // Decode decodes InvoiceResponse from json.
@@ -17763,6 +17884,16 @@ func (s *InvoiceResponse) Decode(d *jx.Decoder) error {
 				return nil
 			}(); err != nil {
 				return errors.Wrap(err, "decode field \"metadata\"")
+			}
+		case "number":
+			if err := func() error {
+				s.Number.Reset()
+				if err := s.Number.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"number\"")
 			}
 		case "order_id":
 			if err := func() error {
@@ -22800,6 +22931,55 @@ func (s *OptNilCancelSubscriptionRequestOutstandingInvoice) UnmarshalJSON(data [
 	return s.Decode(d)
 }
 
+// Encode encodes CreateOrderResponseInvoice as json.
+func (o OptNilCreateOrderResponseInvoice) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	if o.Null {
+		e.Null()
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes CreateOrderResponseInvoice from json.
+func (o *OptNilCreateOrderResponseInvoice) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptNilCreateOrderResponseInvoice to nil")
+	}
+	if d.Next() == jx.Null {
+		if err := d.Null(); err != nil {
+			return err
+		}
+
+		var v CreateOrderResponseInvoice
+		o.Value = v
+		o.Set = true
+		o.Null = true
+		return nil
+	}
+	o.Set = true
+	o.Null = false
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptNilCreateOrderResponseInvoice) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptNilCreateOrderResponseInvoice) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
 // Encode encodes CreateOrderResponseOrderCustomerMetadata as json.
 func (o OptNilCreateOrderResponseOrderCustomerMetadata) Encode(e *jx.Encoder) {
 	if !o.Set {
@@ -24084,6 +24264,40 @@ func (s OptOrderResponseMetadata) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *OptOrderResponseMetadata) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes PayOrderRequestOptions as json.
+func (o OptPayOrderRequestOptions) Encode(e *jx.Encoder) {
+	if !o.Set {
+		return
+	}
+	o.Value.Encode(e)
+}
+
+// Decode decodes PayOrderRequestOptions from json.
+func (o *OptPayOrderRequestOptions) Decode(d *jx.Decoder) error {
+	if o == nil {
+		return errors.New("invalid: unable to decode OptPayOrderRequestOptions to nil")
+	}
+	o.Set = true
+	o.Value = make(PayOrderRequestOptions)
+	if err := o.Value.Decode(d); err != nil {
+		return err
+	}
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s OptPayOrderRequestOptions) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *OptPayOrderRequestOptions) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }
@@ -27012,6 +27226,284 @@ func (s *PauseSubscriptionRequest) MarshalJSON() ([]byte, error) {
 
 // UnmarshalJSON implements stdjson.Unmarshaler.
 func (s *PauseSubscriptionRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes PayOrderBadRequest as json.
+func (s *PayOrderBadRequest) Encode(e *jx.Encoder) {
+	unwrapped := (*ApiError)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes PayOrderBadRequest from json.
+func (s *PayOrderBadRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode PayOrderBadRequest to nil")
+	}
+	var unwrapped ApiError
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = PayOrderBadRequest(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *PayOrderBadRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *PayOrderBadRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode encodes PayOrderInternalServerError as json.
+func (s *PayOrderInternalServerError) Encode(e *jx.Encoder) {
+	unwrapped := (*ApiError)(s)
+
+	unwrapped.Encode(e)
+}
+
+// Decode decodes PayOrderInternalServerError from json.
+func (s *PayOrderInternalServerError) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode PayOrderInternalServerError to nil")
+	}
+	var unwrapped ApiError
+	if err := func() error {
+		if err := unwrapped.Decode(d); err != nil {
+			return err
+		}
+		return nil
+	}(); err != nil {
+		return errors.Wrap(err, "alias")
+	}
+	*s = PayOrderInternalServerError(unwrapped)
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *PayOrderInternalServerError) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *PayOrderInternalServerError) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *PayOrderRequest) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *PayOrderRequest) encodeFields(e *jx.Encoder) {
+	{
+		if s.Options.Set {
+			e.FieldStart("options")
+			s.Options.Encode(e)
+		}
+	}
+	{
+		if s.Psp.Set {
+			e.FieldStart("psp")
+			s.Psp.Encode(e)
+		}
+	}
+}
+
+var jsonFieldsNameOfPayOrderRequest = [2]string{
+	0: "options",
+	1: "psp",
+}
+
+// Decode decodes PayOrderRequest from json.
+func (s *PayOrderRequest) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode PayOrderRequest to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "options":
+			if err := func() error {
+				s.Options.Reset()
+				if err := s.Options.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"options\"")
+			}
+		case "psp":
+			if err := func() error {
+				s.Psp.Reset()
+				if err := s.Psp.Decode(d); err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"psp\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode PayOrderRequest")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *PayOrderRequest) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *PayOrderRequest) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s PayOrderRequestOptions) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields implements json.Marshaler.
+func (s PayOrderRequestOptions) encodeFields(e *jx.Encoder) {
+	for k, elem := range s {
+		e.FieldStart(k)
+
+		if len(elem) != 0 {
+			e.Raw(elem)
+		}
+	}
+}
+
+// Decode decodes PayOrderRequestOptions from json.
+func (s *PayOrderRequestOptions) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode PayOrderRequestOptions to nil")
+	}
+	m := s.init()
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		var elem jx.Raw
+		if err := func() error {
+			v, err := d.RawAppend(nil)
+			elem = jx.Raw(v)
+			if err != nil {
+				return err
+			}
+			return nil
+		}(); err != nil {
+			return errors.Wrapf(err, "decode field %q", k)
+		}
+		m[string(k)] = elem
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode PayOrderRequestOptions")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s PayOrderRequestOptions) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *PayOrderRequestOptions) UnmarshalJSON(data []byte) error {
+	d := jx.DecodeBytes(data)
+	return s.Decode(d)
+}
+
+// Encode implements json.Marshaler.
+func (s *PayOrderResponse) Encode(e *jx.Encoder) {
+	e.ObjStart()
+	s.encodeFields(e)
+	e.ObjEnd()
+}
+
+// encodeFields encodes fields.
+func (s *PayOrderResponse) encodeFields(e *jx.Encoder) {
+	{
+		if len(s.Psp) != 0 {
+			e.FieldStart("psp")
+			e.Raw(s.Psp)
+		}
+	}
+}
+
+var jsonFieldsNameOfPayOrderResponse = [1]string{
+	0: "psp",
+}
+
+// Decode decodes PayOrderResponse from json.
+func (s *PayOrderResponse) Decode(d *jx.Decoder) error {
+	if s == nil {
+		return errors.New("invalid: unable to decode PayOrderResponse to nil")
+	}
+
+	if err := d.ObjBytes(func(d *jx.Decoder, k []byte) error {
+		switch string(k) {
+		case "psp":
+			if err := func() error {
+				v, err := d.RawAppend(nil)
+				s.Psp = jx.Raw(v)
+				if err != nil {
+					return err
+				}
+				return nil
+			}(); err != nil {
+				return errors.Wrap(err, "decode field \"psp\"")
+			}
+		default:
+			return d.Skip()
+		}
+		return nil
+	}); err != nil {
+		return errors.Wrap(err, "decode PayOrderResponse")
+	}
+
+	return nil
+}
+
+// MarshalJSON implements stdjson.Marshaler.
+func (s *PayOrderResponse) MarshalJSON() ([]byte, error) {
+	e := jx.Encoder{}
+	s.Encode(&e)
+	return e.Bytes(), nil
+}
+
+// UnmarshalJSON implements stdjson.Unmarshaler.
+func (s *PayOrderResponse) UnmarshalJSON(data []byte) error {
 	d := jx.DecodeBytes(data)
 	return s.Decode(d)
 }

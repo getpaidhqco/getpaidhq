@@ -2428,17 +2428,24 @@ func (*CreateOrderInternalServerError) createOrderRes() {}
 // Ref: #/components/schemas/CreateOrderRequest
 type CreateOrderRequest struct {
 	Cart            OptCreateOrderRequestCart     `json:"cart"`
+	CouponCode      OptNilString                  `json:"coupon_code"`
 	Customer        CreateOrderRequestCustomer    `json:"customer"`
 	Metadata        OptCreateOrderRequestMetadata `json:"metadata"`
 	Options         OptCreateOrderRequestOptions  `json:"options"`
 	PaymentMethodID OptString                     `json:"payment_method_id"`
 	PspID           string                        `json:"psp_id"`
 	SessionID       OptString                     `json:"session_id"`
+	UpfrontInvoice  OptBool                       `json:"upfront_invoice"`
 }
 
 // GetCart returns the value of Cart.
 func (s *CreateOrderRequest) GetCart() OptCreateOrderRequestCart {
 	return s.Cart
+}
+
+// GetCouponCode returns the value of CouponCode.
+func (s *CreateOrderRequest) GetCouponCode() OptNilString {
+	return s.CouponCode
 }
 
 // GetCustomer returns the value of Customer.
@@ -2471,9 +2478,19 @@ func (s *CreateOrderRequest) GetSessionID() OptString {
 	return s.SessionID
 }
 
+// GetUpfrontInvoice returns the value of UpfrontInvoice.
+func (s *CreateOrderRequest) GetUpfrontInvoice() OptBool {
+	return s.UpfrontInvoice
+}
+
 // SetCart sets the value of Cart.
 func (s *CreateOrderRequest) SetCart(val OptCreateOrderRequestCart) {
 	s.Cart = val
+}
+
+// SetCouponCode sets the value of CouponCode.
+func (s *CreateOrderRequest) SetCouponCode(val OptNilString) {
+	s.CouponCode = val
 }
 
 // SetCustomer sets the value of Customer.
@@ -2504,6 +2521,11 @@ func (s *CreateOrderRequest) SetPspID(val string) {
 // SetSessionID sets the value of SessionID.
 func (s *CreateOrderRequest) SetSessionID(val OptString) {
 	s.SessionID = val
+}
+
+// SetUpfrontInvoice sets the value of UpfrontInvoice.
+func (s *CreateOrderRequest) SetUpfrontInvoice(val OptBool) {
+	s.UpfrontInvoice = val
 }
 
 type CreateOrderRequestCart struct {
@@ -2672,8 +2694,13 @@ func (s *CreateOrderRequestOptions) init() CreateOrderRequestOptions {
 // CreateOrderResponse schema.
 // Ref: #/components/schemas/CreateOrderResponse
 type CreateOrderResponse struct {
-	Order OptCreateOrderResponseOrder `json:"order"`
-	Psp   jx.Raw                      `json:"psp"`
+	Invoice OptNilCreateOrderResponseInvoice `json:"invoice"`
+	Order   OptCreateOrderResponseOrder      `json:"order"`
+}
+
+// GetInvoice returns the value of Invoice.
+func (s *CreateOrderResponse) GetInvoice() OptNilCreateOrderResponseInvoice {
+	return s.Invoice
 }
 
 // GetOrder returns the value of Order.
@@ -2681,9 +2708,9 @@ func (s *CreateOrderResponse) GetOrder() OptCreateOrderResponseOrder {
 	return s.Order
 }
 
-// GetPsp returns the value of Psp.
-func (s *CreateOrderResponse) GetPsp() jx.Raw {
-	return s.Psp
+// SetInvoice sets the value of Invoice.
+func (s *CreateOrderResponse) SetInvoice(val OptNilCreateOrderResponseInvoice) {
+	s.Invoice = val
 }
 
 // SetOrder sets the value of Order.
@@ -2691,12 +2718,32 @@ func (s *CreateOrderResponse) SetOrder(val OptCreateOrderResponseOrder) {
 	s.Order = val
 }
 
-// SetPsp sets the value of Psp.
-func (s *CreateOrderResponse) SetPsp(val jx.Raw) {
-	s.Psp = val
+func (*CreateOrderResponse) createOrderRes() {}
+
+type CreateOrderResponseInvoice struct {
+	ID  OptString `json:"id"`
+	URL OptString `json:"url"`
 }
 
-func (*CreateOrderResponse) createOrderRes() {}
+// GetID returns the value of ID.
+func (s *CreateOrderResponseInvoice) GetID() OptString {
+	return s.ID
+}
+
+// GetURL returns the value of URL.
+func (s *CreateOrderResponseInvoice) GetURL() OptString {
+	return s.URL
+}
+
+// SetID sets the value of ID.
+func (s *CreateOrderResponseInvoice) SetID(val OptString) {
+	s.ID = val
+}
+
+// SetURL sets the value of URL.
+func (s *CreateOrderResponseInvoice) SetURL(val OptString) {
+	s.URL = val
+}
 
 type CreateOrderResponseOrder struct {
 	CartID     OptString                           `json:"cart_id"`
@@ -7605,6 +7652,7 @@ type InvoiceResponse struct {
 	ID             OptString                      `json:"id"`
 	LineItems      []InvoiceResponseLineItemsItem `json:"line_items"`
 	Metadata       OptInvoiceResponseMetadata     `json:"metadata"`
+	Number         OptInt64                       `json:"number"`
 	OrderID        OptString                      `json:"order_id"`
 	PeriodEnd      OptDateTime                    `json:"period_end"`
 	PeriodStart    OptDateTime                    `json:"period_start"`
@@ -7648,6 +7696,11 @@ func (s *InvoiceResponse) GetLineItems() []InvoiceResponseLineItemsItem {
 // GetMetadata returns the value of Metadata.
 func (s *InvoiceResponse) GetMetadata() OptInvoiceResponseMetadata {
 	return s.Metadata
+}
+
+// GetNumber returns the value of Number.
+func (s *InvoiceResponse) GetNumber() OptInt64 {
+	return s.Number
 }
 
 // GetOrderID returns the value of OrderID.
@@ -7723,6 +7776,11 @@ func (s *InvoiceResponse) SetLineItems(val []InvoiceResponseLineItemsItem) {
 // SetMetadata sets the value of Metadata.
 func (s *InvoiceResponse) SetMetadata(val OptInvoiceResponseMetadata) {
 	s.Metadata = val
+}
+
+// SetNumber sets the value of Number.
+func (s *InvoiceResponse) SetNumber(val OptInt64) {
+	s.Number = val
 }
 
 // SetOrderID sets the value of OrderID.
@@ -11774,6 +11832,74 @@ func (o OptNilCancelSubscriptionRequestOutstandingInvoice) Or(d CancelSubscripti
 	return d
 }
 
+// NewOptNilCreateOrderResponseInvoice returns new OptNilCreateOrderResponseInvoice with value set to v.
+func NewOptNilCreateOrderResponseInvoice(v CreateOrderResponseInvoice) OptNilCreateOrderResponseInvoice {
+	return OptNilCreateOrderResponseInvoice{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptNilCreateOrderResponseInvoice is optional nullable CreateOrderResponseInvoice.
+type OptNilCreateOrderResponseInvoice struct {
+	Value CreateOrderResponseInvoice
+	Set   bool
+	Null  bool
+}
+
+// IsSet returns true if OptNilCreateOrderResponseInvoice was set.
+func (o OptNilCreateOrderResponseInvoice) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptNilCreateOrderResponseInvoice) Reset() {
+	var v CreateOrderResponseInvoice
+	o.Value = v
+	o.Set = false
+	o.Null = false
+}
+
+// SetTo sets value to v.
+func (o *OptNilCreateOrderResponseInvoice) SetTo(v CreateOrderResponseInvoice) {
+	o.Set = true
+	o.Null = false
+	o.Value = v
+}
+
+// IsNull returns true if value is Null.
+func (o OptNilCreateOrderResponseInvoice) IsNull() bool { return o.Null }
+
+// SetToNull sets value to null.
+func (o *OptNilCreateOrderResponseInvoice) SetToNull() {
+	o.Set = true
+	o.Null = true
+	var v CreateOrderResponseInvoice
+	o.Value = v
+}
+
+// IsEmpty returns true if the field was omitted from the payload (not Set and not Null).
+func (o OptNilCreateOrderResponseInvoice) IsEmpty() bool {
+	return !o.Set && !o.Null
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptNilCreateOrderResponseInvoice) Get() (v CreateOrderResponseInvoice, ok bool) {
+	if o.Null {
+		return v, false
+	}
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptNilCreateOrderResponseInvoice) Or(d CreateOrderResponseInvoice) CreateOrderResponseInvoice {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
 // NewOptNilCreateOrderResponseOrderCustomerMetadata returns new OptNilCreateOrderResponseOrderCustomerMetadata with value set to v.
 func NewOptNilCreateOrderResponseOrderCustomerMetadata(v CreateOrderResponseOrderCustomerMetadata) OptNilCreateOrderResponseOrderCustomerMetadata {
 	return OptNilCreateOrderResponseOrderCustomerMetadata{
@@ -13472,6 +13598,52 @@ func (o OptOrderResponseMetadata) Get() (v OrderResponseMetadata, ok bool) {
 
 // Or returns value if set, or given parameter if does not.
 func (o OptOrderResponseMetadata) Or(d OrderResponseMetadata) OrderResponseMetadata {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return d
+}
+
+// NewOptPayOrderRequestOptions returns new OptPayOrderRequestOptions with value set to v.
+func NewOptPayOrderRequestOptions(v PayOrderRequestOptions) OptPayOrderRequestOptions {
+	return OptPayOrderRequestOptions{
+		Value: v,
+		Set:   true,
+	}
+}
+
+// OptPayOrderRequestOptions is optional PayOrderRequestOptions.
+type OptPayOrderRequestOptions struct {
+	Value PayOrderRequestOptions
+	Set   bool
+}
+
+// IsSet returns true if OptPayOrderRequestOptions was set.
+func (o OptPayOrderRequestOptions) IsSet() bool { return o.Set }
+
+// Reset unsets value.
+func (o *OptPayOrderRequestOptions) Reset() {
+	var v PayOrderRequestOptions
+	o.Value = v
+	o.Set = false
+}
+
+// SetTo sets value to v.
+func (o *OptPayOrderRequestOptions) SetTo(v PayOrderRequestOptions) {
+	o.Set = true
+	o.Value = v
+}
+
+// Get returns value and boolean that denotes whether value was set.
+func (o OptPayOrderRequestOptions) Get() (v PayOrderRequestOptions, ok bool) {
+	if !o.Set {
+		return v, false
+	}
+	return o.Value, true
+}
+
+// Or returns value if set, or given parameter if does not.
+func (o OptPayOrderRequestOptions) Or(d PayOrderRequestOptions) PayOrderRequestOptions {
 	if v, ok := o.Get(); ok {
 		return v
 	}
@@ -15543,6 +15715,87 @@ func (s *PauseSubscriptionRequest) GetReason() OptString {
 func (s *PauseSubscriptionRequest) SetReason(val OptString) {
 	s.Reason = val
 }
+
+type PayOrderBadRequest ApiError
+
+func (*PayOrderBadRequest) payOrderRes() {}
+
+// PayOrderDef is default response for PayOrder operation.
+type PayOrderDef struct {
+	StatusCode int
+}
+
+// GetStatusCode returns the value of StatusCode.
+func (s *PayOrderDef) GetStatusCode() int {
+	return s.StatusCode
+}
+
+// SetStatusCode sets the value of StatusCode.
+func (s *PayOrderDef) SetStatusCode(val int) {
+	s.StatusCode = val
+}
+
+func (*PayOrderDef) payOrderRes() {}
+
+type PayOrderInternalServerError ApiError
+
+func (*PayOrderInternalServerError) payOrderRes() {}
+
+// PayOrderRequest schema.
+// Ref: #/components/schemas/PayOrderRequest
+type PayOrderRequest struct {
+	Options OptPayOrderRequestOptions `json:"options"`
+	Psp     OptString                 `json:"psp"`
+}
+
+// GetOptions returns the value of Options.
+func (s *PayOrderRequest) GetOptions() OptPayOrderRequestOptions {
+	return s.Options
+}
+
+// GetPsp returns the value of Psp.
+func (s *PayOrderRequest) GetPsp() OptString {
+	return s.Psp
+}
+
+// SetOptions sets the value of Options.
+func (s *PayOrderRequest) SetOptions(val OptPayOrderRequestOptions) {
+	s.Options = val
+}
+
+// SetPsp sets the value of Psp.
+func (s *PayOrderRequest) SetPsp(val OptString) {
+	s.Psp = val
+}
+
+type PayOrderRequestOptions map[string]jx.Raw
+
+func (s *PayOrderRequestOptions) init() PayOrderRequestOptions {
+	m := *s
+	if m == nil {
+		m = map[string]jx.Raw{}
+		*s = m
+	}
+	return m
+}
+
+// PayOrderResponse schema.
+// Ref: #/components/schemas/PayOrderResponse
+type PayOrderResponse struct {
+	Psp jx.Raw `json:"psp"`
+}
+
+// GetPsp returns the value of Psp.
+func (s *PayOrderResponse) GetPsp() jx.Raw {
+	return s.Psp
+}
+
+// SetPsp sets the value of Psp.
+func (s *PayOrderResponse) SetPsp(val jx.Raw) {
+	s.Psp = val
+}
+
+func (*PayOrderResponse) payOrderRes() {}
 
 // PaymentMethodResponse schema.
 // Ref: #/components/schemas/PaymentMethodResponse

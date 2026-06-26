@@ -86,6 +86,7 @@ type Invoker interface {
 	// # Middlewares:
 	//
 	//  - `github.com/go-fuego/fuego.defaultLogger.middleware`
+	//  - `main.main.func1`
 	//
 	// POST /api/orders/{id}/complete
 	CompleteOrder(ctx context.Context, request *CompleteOrderRequest, params CompleteOrderParams) (CompleteOrderRes, error)
@@ -194,6 +195,7 @@ type Invoker interface {
 	// # Middlewares:
 	//
 	//  - `github.com/go-fuego/fuego.defaultLogger.middleware`
+	//  - `main.main.func1`
 	//
 	// POST /api/orders
 	CreateOrder(ctx context.Context, request *CreateOrderRequest, params CreateOrderParams) (CreateOrderRes, error)
@@ -482,6 +484,7 @@ type Invoker interface {
 	// # Middlewares:
 	//
 	//  - `github.com/go-fuego/fuego.defaultLogger.middleware`
+	//  - `main.main.func1`
 	//
 	// GET /api/orders/{id}
 	GetOrder(ctx context.Context, params GetOrderParams) (GetOrderRes, error)
@@ -734,6 +737,7 @@ type Invoker interface {
 	// # Middlewares:
 	//
 	//  - `github.com/go-fuego/fuego.defaultLogger.middleware`
+	//  - `main.main.func1`
 	//
 	// GET /api/orders/{id}/subscriptions
 	ListOrderSubscriptions(ctx context.Context, params ListOrderSubscriptionsParams) (ListOrderSubscriptionsRes, error)
@@ -746,6 +750,7 @@ type Invoker interface {
 	// # Middlewares:
 	//
 	//  - `github.com/go-fuego/fuego.defaultLogger.middleware`
+	//  - `main.main.func1`
 	//
 	// GET /api/orders
 	ListOrders(ctx context.Context, params ListOrdersParams) (ListOrdersRes, error)
@@ -869,6 +874,19 @@ type Invoker interface {
 	//
 	// PUT /api/subscriptions/{id}/pause
 	PauseSubscription(ctx context.Context, request *PauseSubscriptionRequest, params PauseSubscriptionParams) (PauseSubscriptionRes, error)
+	// PayOrder invokes payOrder operation.
+	//
+	// # Controller:
+	//
+	// `getpaidhq/internal/adapter/http.(*OrderHandler).Pay`
+	//
+	// # Middlewares:
+	//
+	//  - `github.com/go-fuego/fuego.defaultLogger.middleware`
+	//  - `main.main.func1`
+	//
+	// POST /api/orders/{id}/pay
+	PayOrder(ctx context.Context, request *PayOrderRequest, params PayOrderParams) (PayOrderRes, error)
 	// ReceiveWebhook invokes receiveWebhook operation.
 	//
 	// # Controller:
@@ -1795,6 +1813,7 @@ func (c *Client) sendCancelSubscription(ctx context.Context, request *CancelSubs
 // # Middlewares:
 //
 //   - `github.com/go-fuego/fuego.defaultLogger.middleware`
+//   - `main.main.func1`
 //
 // POST /api/orders/{id}/complete
 func (c *Client) CompleteOrder(ctx context.Context, request *CompleteOrderRequest, params CompleteOrderParams) (CompleteOrderRes, error) {
@@ -3211,6 +3230,7 @@ func (c *Client) sendCreateMeter(ctx context.Context, request *CreateMeterReques
 // # Middlewares:
 //
 //   - `github.com/go-fuego/fuego.defaultLogger.middleware`
+//   - `main.main.func1`
 //
 // POST /api/orders
 func (c *Client) CreateOrder(ctx context.Context, request *CreateOrderRequest, params CreateOrderParams) (CreateOrderRes, error) {
@@ -7055,6 +7075,7 @@ func (c *Client) sendGetMeter(ctx context.Context, params GetMeterParams) (res G
 // # Middlewares:
 //
 //   - `github.com/go-fuego/fuego.defaultLogger.middleware`
+//   - `main.main.func1`
 //
 // GET /api/orders/{id}
 func (c *Client) GetOrder(ctx context.Context, params GetOrderParams) (GetOrderRes, error) {
@@ -11053,6 +11074,7 @@ func (c *Client) sendListMeters(ctx context.Context, params ListMetersParams) (r
 // # Middlewares:
 //
 //   - `github.com/go-fuego/fuego.defaultLogger.middleware`
+//   - `main.main.func1`
 //
 // GET /api/orders/{id}/subscriptions
 func (c *Client) ListOrderSubscriptions(ctx context.Context, params ListOrderSubscriptionsParams) (ListOrderSubscriptionsRes, error) {
@@ -11220,6 +11242,7 @@ func (c *Client) sendListOrderSubscriptions(ctx context.Context, params ListOrde
 // # Middlewares:
 //
 //   - `github.com/go-fuego/fuego.defaultLogger.middleware`
+//   - `main.main.func1`
 //
 // GET /api/orders
 func (c *Client) ListOrders(ctx context.Context, params ListOrdersParams) (ListOrdersRes, error) {
@@ -13578,6 +13601,177 @@ func (c *Client) sendPauseSubscription(ctx context.Context, request *PauseSubscr
 
 	stage = "DecodeResponse"
 	result, err := decodePauseSubscriptionResponse(resp)
+	if err != nil {
+		return res, errors.Wrap(err, "decode response")
+	}
+
+	return result, nil
+}
+
+// PayOrder invokes payOrder operation.
+//
+// # Controller:
+//
+// `getpaidhq/internal/adapter/http.(*OrderHandler).Pay`
+//
+// # Middlewares:
+//
+//   - `github.com/go-fuego/fuego.defaultLogger.middleware`
+//   - `main.main.func1`
+//
+// POST /api/orders/{id}/pay
+func (c *Client) PayOrder(ctx context.Context, request *PayOrderRequest, params PayOrderParams) (PayOrderRes, error) {
+	res, err := c.sendPayOrder(ctx, request, params)
+	return res, err
+}
+
+func (c *Client) sendPayOrder(ctx context.Context, request *PayOrderRequest, params PayOrderParams) (res PayOrderRes, err error) {
+	otelAttrs := []attribute.KeyValue{
+		otelogen.OperationID("payOrder"),
+		semconv.HTTPRequestMethodKey.String("POST"),
+		semconv.URLTemplateKey.String("/api/orders/{id}/pay"),
+	}
+	otelAttrs = append(otelAttrs, c.cfg.Attributes...)
+
+	// Run stopwatch.
+	startTime := time.Now()
+	defer func() {
+		// Use floating point division here for higher precision (instead of Millisecond method).
+		elapsedDuration := time.Since(startTime)
+		c.duration.Record(ctx, float64(elapsedDuration)/float64(time.Millisecond), metric.WithAttributes(otelAttrs...))
+	}()
+
+	// Increment request counter.
+	c.requests.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+
+	// Start a span for this request.
+	ctx, span := c.cfg.Tracer.Start(ctx, PayOrderOperation,
+		trace.WithAttributes(otelAttrs...),
+		clientSpanKind,
+	)
+	// Track stage for error reporting.
+	var stage string
+	defer func() {
+		if err != nil {
+			span.RecordError(err)
+			span.SetStatus(codes.Error, stage)
+			c.errors.Add(ctx, 1, metric.WithAttributes(otelAttrs...))
+		}
+		span.End()
+	}()
+
+	stage = "BuildURL"
+	u := uri.Clone(c.requestURL(ctx))
+	var pathParts [3]string
+	pathParts[0] = "/api/orders/"
+	{
+		// Encode "id" parameter.
+		e := uri.NewPathEncoder(uri.PathEncoderConfig{
+			Param:   "id",
+			Style:   uri.PathStyleSimple,
+			Explode: false,
+		})
+		if err := func() error {
+			return e.EncodeValue(conv.StringToString(params.ID))
+		}(); err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		encoded, err := e.Result()
+		if err != nil {
+			return res, errors.Wrap(err, "encode path")
+		}
+		pathParts[1] = encoded
+	}
+	pathParts[2] = "/pay"
+	uri.AddPathParts(u, pathParts[:]...)
+
+	stage = "EncodeRequest"
+	r, err := ht.NewRequest(ctx, "POST", u)
+	if err != nil {
+		return res, errors.Wrap(err, "create request")
+	}
+	if err := encodePayOrderRequest(request, r); err != nil {
+		return res, errors.Wrap(err, "encode request")
+	}
+
+	stage = "EncodeHeaderParams"
+	h := uri.NewHeaderEncoder(r.Header)
+	{
+		cfg := uri.HeaderParameterEncodingConfig{
+			Name:    "Accept",
+			Explode: false,
+		}
+		if err := h.EncodeParam(cfg, func(e uri.Encoder) error {
+			if val, ok := params.Accept.Get(); ok {
+				return e.EncodeValue(conv.StringToString(val))
+			}
+			return nil
+		}); err != nil {
+			return res, errors.Wrap(err, "encode header")
+		}
+	}
+
+	{
+		type bitset = [1]uint8
+		var satisfied bitset
+		{
+			stage = "Security:BearerAuth"
+			switch err := c.securityBearerAuth(ctx, PayOrderOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 0
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"BearerAuth\"")
+			}
+		}
+		{
+			stage = "Security:ApiKeyAuth"
+			switch err := c.securityApiKeyAuth(ctx, PayOrderOperation, r); {
+			case err == nil: // if NO error
+				satisfied[0] |= 1 << 1
+			case errors.Is(err, ogenerrors.ErrSkipClientSecurity):
+				// Skip this security.
+			default:
+				return res, errors.Wrap(err, "security \"ApiKeyAuth\"")
+			}
+		}
+
+		if ok := func() bool {
+		nextRequirement:
+			for _, requirement := range []bitset{
+				{0b00000001},
+				{0b00000010},
+			} {
+				for i, mask := range requirement {
+					if satisfied[i]&mask != mask {
+						continue nextRequirement
+					}
+				}
+				return true
+			}
+			return false
+		}(); !ok {
+			return res, ogenerrors.ErrSecurityRequirementIsNotSatisfied
+		}
+	}
+
+	stage = "SendRequest"
+	resp, err := c.cfg.Client.Do(r)
+	if err != nil {
+		return res, errors.Wrap(err, "do request")
+	}
+	body := resp.Body
+	defer func() {
+		// Drain the body to EOF before closing, so the underlying
+		// connection can be reused by the Transport regardless of the
+		// response status code. See https://github.com/ogen-go/ogen/issues/1670.
+		_, _ = io.Copy(io.Discard, body)
+		_ = body.Close()
+	}()
+
+	stage = "DecodeResponse"
+	result, err := decodePayOrderResponse(resp)
 	if err != nil {
 		return res, errors.Wrap(err, "decode response")
 	}

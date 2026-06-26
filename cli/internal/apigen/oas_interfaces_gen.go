@@ -281,6 +281,10 @@ type PauseSubscriptionRes interface {
 	pauseSubscriptionRes()
 }
 
+type PayOrderRes interface {
+	payOrderRes()
+}
+
 type ReceiveWebhookRes interface {
 	receiveWebhookRes()
 }

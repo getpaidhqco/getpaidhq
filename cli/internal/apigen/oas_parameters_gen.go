@@ -10702,6 +10702,121 @@ func decodePauseSubscriptionParams(args [1]string, argsEscaped bool, r *http.Req
 	return params, nil
 }
 
+// PayOrderParams is parameters of payOrder operation.
+type PayOrderParams struct {
+	Accept OptString `json:",omitempty,omitzero"`
+	ID     string
+}
+
+func unpackPayOrderParams(packed middleware.Parameters) (params PayOrderParams) {
+	{
+		key := middleware.ParameterKey{
+			Name: "Accept",
+			In:   "header",
+		}
+		if v, ok := packed[key]; ok {
+			params.Accept = v.(OptString)
+		}
+	}
+	{
+		key := middleware.ParameterKey{
+			Name: "id",
+			In:   "path",
+		}
+		params.ID = packed[key].(string)
+	}
+	return params
+}
+
+func decodePayOrderParams(args [1]string, argsEscaped bool, r *http.Request) (params PayOrderParams, _ error) {
+	h := uri.NewHeaderDecoder(r.Header)
+	// Decode header: Accept.
+	if err := func() error {
+		cfg := uri.HeaderParameterDecodingConfig{
+			Name:    "Accept",
+			Explode: false,
+		}
+		if err := h.HasParam(cfg); err == nil {
+			if err := h.DecodeParam(cfg, func(d uri.Decoder) error {
+				var paramsDotAcceptVal string
+				if err := func() error {
+					val, err := d.DecodeValue()
+					if err != nil {
+						return err
+					}
+
+					c, err := conv.ToString(val)
+					if err != nil {
+						return err
+					}
+
+					paramsDotAcceptVal = c
+					return nil
+				}(); err != nil {
+					return err
+				}
+				params.Accept.SetTo(paramsDotAcceptVal)
+				return nil
+			}); err != nil {
+				return err
+			}
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "Accept",
+			In:   "header",
+			Err:  err,
+		}
+	}
+	// Decode path: id.
+	if err := func() error {
+		param := args[0]
+		if argsEscaped {
+			unescaped, err := url.PathUnescape(args[0])
+			if err != nil {
+				return errors.Wrap(err, "unescape path")
+			}
+			param = unescaped
+		}
+		if len(param) > 0 {
+			d := uri.NewPathDecoder(uri.PathDecoderConfig{
+				Param:   "id",
+				Value:   param,
+				Style:   uri.PathStyleSimple,
+				Explode: false,
+			})
+
+			if err := func() error {
+				val, err := d.DecodeValue()
+				if err != nil {
+					return err
+				}
+
+				c, err := conv.ToString(val)
+				if err != nil {
+					return err
+				}
+
+				params.ID = c
+				return nil
+			}(); err != nil {
+				return err
+			}
+		} else {
+			return validate.ErrFieldRequired
+		}
+		return nil
+	}(); err != nil {
+		return params, &ogenerrors.DecodeParamError{
+			Name: "id",
+			In:   "path",
+			Err:  err,
+		}
+	}
+	return params, nil
+}
+
 // ReceiveWebhookParams is parameters of receiveWebhook operation.
 type ReceiveWebhookParams struct {
 	// PSP identifier.

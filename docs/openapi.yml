@@ -525,6 +525,8 @@ components:
           type: string
         session_id:
           type: string
+        upfront_invoice:
+          type: boolean
       required:
       - customer
       - psp_id
@@ -532,6 +534,14 @@ components:
     CreateOrderResponse:
       description: CreateOrderResponse schema
       properties:
+        invoice:
+          nullable: true
+          properties:
+            id:
+              type: string
+            url:
+              type: string
+          type: object
         order:
           properties:
             cart_id:
@@ -736,7 +746,6 @@ components:
               format: int64
               type: integer
           type: object
-        psp: {}
       type: object
     CreateOrgRequest:
       description: CreateOrgRequest schema
@@ -1529,6 +1538,9 @@ components:
           additionalProperties:
             type: string
           type: object
+        number:
+          format: int64
+          type: integer
         order_id:
           type: string
         period_end:
@@ -1853,6 +1865,20 @@ components:
       properties:
         reason:
           type: string
+      type: object
+    PayOrderRequest:
+      description: PayOrderRequest schema
+      properties:
+        options:
+          additionalProperties: {}
+          type: object
+        psp:
+          type: string
+      type: object
+    PayOrderResponse:
+      description: PayOrderResponse schema
+      properties:
+        psp: {}
       type: object
     PaymentMethodResponse:
       description: PaymentMethodResponse schema
@@ -5093,7 +5119,8 @@ paths:
   /api/orders:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*OrderHandler).List`\n\n####
-        Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
+        Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n-
+        `main.main.func1`\n\n---\n\n"
       operationId: listOrders
       parameters:
       - description: Page number (0-based)
@@ -5161,7 +5188,8 @@ paths:
       - Orders
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*OrderHandler).CreateOrder`\n\n####
-        Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
+        Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n-
+        `main.main.func1`\n\n---\n\n"
       operationId: createOrder
       parameters:
       - in: header
@@ -5213,7 +5241,8 @@ paths:
   /api/orders/{id}:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*OrderHandler).Get`\n\n####
-        Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
+        Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n-
+        `main.main.func1`\n\n---\n\n"
       operationId: getOrder
       parameters:
       - in: header
@@ -5263,7 +5292,8 @@ paths:
   /api/orders/{id}/complete:
     post:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*OrderHandler).CompleteOrder`\n\n####
-        Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
+        Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n-
+        `main.main.func1`\n\n---\n\n"
       operationId: completeOrder
       parameters:
       - in: header
@@ -5317,10 +5347,69 @@ paths:
       - api
       - orders
       - Orders
+  /api/orders/{id}/pay:
+    post:
+      description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*OrderHandler).Pay`\n\n####
+        Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n-
+        `main.main.func1`\n\n---\n\n"
+      operationId: payOrder
+      parameters:
+      - in: header
+        name: Accept
+        schema:
+          type: string
+      - in: path
+        name: id
+        required: true
+        schema:
+          type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PayOrderRequest'
+        description: Request body for handler.PayOrderRequest
+        required: true
+      responses:
+        "200":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PayOrderResponse'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/PayOrderResponse'
+          description: OK
+        "400":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+          description: Bad Request _(validation or deserialization error)_
+        "500":
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+            application/xml:
+              schema:
+                $ref: '#/components/schemas/ApiError'
+          description: Internal Server Error _(panics)_
+        default:
+          description: ""
+      summary: Initialise an order's payment session
+      tags:
+      - api
+      - orders
+      - Orders
   /api/orders/{id}/subscriptions:
     get:
       description: "#### Controller: \n\n`getpaidhq/internal/adapter/http.(*OrderHandler).ListSubscriptions`\n\n####
-        Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n\n---\n\n"
+        Middlewares:\n\n- `github.com/go-fuego/fuego.defaultLogger.middleware`\n-
+        `main.main.func1`\n\n---\n\n"
       operationId: listOrderSubscriptions
       parameters:
       - in: header

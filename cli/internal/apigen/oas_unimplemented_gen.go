@@ -82,6 +82,7 @@ func (UnimplementedHandler) CancelSubscription(ctx context.Context, req *CancelS
 // # Middlewares:
 //
 //   - `github.com/go-fuego/fuego.defaultLogger.middleware`
+//   - `main.main.func1`
 //
 // POST /api/orders/{id}/complete
 func (UnimplementedHandler) CompleteOrder(ctx context.Context, req *CompleteOrderRequest, params CompleteOrderParams) (r CompleteOrderRes, _ error) {
@@ -217,6 +218,7 @@ func (UnimplementedHandler) CreateMeter(ctx context.Context, req *CreateMeterReq
 // # Middlewares:
 //
 //   - `github.com/go-fuego/fuego.defaultLogger.middleware`
+//   - `main.main.func1`
 //
 // POST /api/orders
 func (UnimplementedHandler) CreateOrder(ctx context.Context, req *CreateOrderRequest, params CreateOrderParams) (r CreateOrderRes, _ error) {
@@ -577,6 +579,7 @@ func (UnimplementedHandler) GetMeter(ctx context.Context, params GetMeterParams)
 // # Middlewares:
 //
 //   - `github.com/go-fuego/fuego.defaultLogger.middleware`
+//   - `main.main.func1`
 //
 // GET /api/orders/{id}
 func (UnimplementedHandler) GetOrder(ctx context.Context, params GetOrderParams) (r GetOrderRes, _ error) {
@@ -892,6 +895,7 @@ func (UnimplementedHandler) ListMeters(ctx context.Context, params ListMetersPar
 // # Middlewares:
 //
 //   - `github.com/go-fuego/fuego.defaultLogger.middleware`
+//   - `main.main.func1`
 //
 // GET /api/orders/{id}/subscriptions
 func (UnimplementedHandler) ListOrderSubscriptions(ctx context.Context, params ListOrderSubscriptionsParams) (r ListOrderSubscriptionsRes, _ error) {
@@ -907,6 +911,7 @@ func (UnimplementedHandler) ListOrderSubscriptions(ctx context.Context, params L
 // # Middlewares:
 //
 //   - `github.com/go-fuego/fuego.defaultLogger.middleware`
+//   - `main.main.func1`
 //
 // GET /api/orders
 func (UnimplementedHandler) ListOrders(ctx context.Context, params ListOrdersParams) (r ListOrdersRes, _ error) {
@@ -1060,6 +1065,22 @@ func (UnimplementedHandler) ListWebhookSubscriptions(ctx context.Context, params
 //
 // PUT /api/subscriptions/{id}/pause
 func (UnimplementedHandler) PauseSubscription(ctx context.Context, req *PauseSubscriptionRequest, params PauseSubscriptionParams) (r PauseSubscriptionRes, _ error) {
+	return r, ht.ErrNotImplemented
+}
+
+// PayOrder implements payOrder operation.
+//
+// # Controller:
+//
+// `getpaidhq/internal/adapter/http.(*OrderHandler).Pay`
+//
+// # Middlewares:
+//
+//   - `github.com/go-fuego/fuego.defaultLogger.middleware`
+//   - `main.main.func1`
+//
+// POST /api/orders/{id}/pay
+func (UnimplementedHandler) PayOrder(ctx context.Context, req *PayOrderRequest, params PayOrderParams) (r PayOrderRes, _ error) {
 	return r, ht.ErrNotImplemented
 }
 
