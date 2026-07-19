@@ -91,8 +91,6 @@ type Env struct {
 	IdempotencyLockTTL      time.Duration `mapstructure:"IDEMPOTENCY_LOCK_TTL"`
 	IdempotencyRetentionTTL time.Duration `mapstructure:"IDEMPOTENCY_RETENTION_TTL"`
 
-	// Outbox relay purge pass: how often published rows are purged and how
-	// long they are retained. Zero values fall back to 10m / 24h.
 	OutboxPurgeInterval time.Duration `mapstructure:"OUTBOX_PURGE_INTERVAL"`
 	OutboxRetention     time.Duration `mapstructure:"OUTBOX_RETENTION"`
 

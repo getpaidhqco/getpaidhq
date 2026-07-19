@@ -1,4 +1,4 @@
-package service
+package pubsub
 
 import (
 	"context"
@@ -10,18 +10,33 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"getpaidhq/internal/core/domain"
+	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
 )
 
-// passthroughTx runs the callback without a real transaction.
+type noopLogger struct{}
+
+func (noopLogger) Debug(string, ...any)  {}
+func (noopLogger) Info(string, ...any)   {}
+func (noopLogger) Warn(string, ...any)   {}
+func (noopLogger) Error(string, ...any)  {}
+func (noopLogger) Sync() error           { return nil }
+func (noopLogger) Fatalf(string, ...any) {}
+func (noopLogger) Fatal(string, ...any)  {}
+func (noopLogger) Infof(string, ...any)  {}
+func (noopLogger) Debugf(string, ...any) {}
+func (noopLogger) Errorf(string, ...any) {}
+func (noopLogger) Panicf(string, ...any) {}
+func (noopLogger) Warnf(string, ...any)  {}
+
 type passthroughTx struct{}
 
 func (passthroughTx) RunInTx(ctx context.Context, fn func(context.Context) error) error {
 	return fn(ctx)
 }
 
-// fakeOutboxRepo is an in-memory port.OutboxRepository sufficient for relay
-// tests: ClaimPending applies the same pending predicate as the real adapters.
+// fakeOutboxRepo is an in-memory port.OutboxRepository applying the same
+// pending predicate as the real adapters.
 type fakeOutboxRepo struct {
 	events []domain.OutboxEvent
 }
@@ -47,8 +62,7 @@ func (f *fakeOutboxRepo) ClaimPending(_ context.Context, limit, maxAttempts int,
 }
 
 func (f *fakeOutboxRepo) MarkPublished(_ context.Context, id int64, at time.Time) error {
-	ev := f.byId(id)
-	ev.PublishedAt = &at
+	f.byId(id).PublishedAt = &at
 	return nil
 }
 
@@ -83,10 +97,9 @@ func (f *fakeOutboxRepo) byId(id int64) *domain.OutboxEvent {
 	panic("unknown outbox id")
 }
 
-// fakeRawPublisher fails topics listed in failTopics and records the rest.
 type fakeRawPublisher struct {
 	failTopics map[string]bool
-	published  []string // topics in publish order
+	published  []string
 }
 
 func (f *fakeRawPublisher) PublishPayload(topic string, _ []byte) error {
@@ -97,8 +110,19 @@ func (f *fakeRawPublisher) PublishPayload(topic string, _ []byte) error {
 	return nil
 }
 
-func newTestRelay(repo *fakeOutboxRepo, pub *fakeRawPublisher) *OutboxRelay {
-	return NewOutboxRelay(passthroughTx{}, repo, pub, silentLogger{}, 0, 0)
+type fakeDelegate struct {
+	subscribed []string
+}
+
+func (f *fakeDelegate) Publish(context.Context, string, string, any) error { return nil }
+func (f *fakeDelegate) Subscribe(topic string, _ func(string, []byte)) (port.PubSubSubscription, error) {
+	f.subscribed = append(f.subscribed, topic)
+	return nil, nil
+}
+func (f *fakeDelegate) Close() error { return nil }
+
+func newTestRelay(repo *fakeOutboxRepo, pub *fakeRawPublisher) *Relay {
+	return NewRelay(passthroughTx{}, repo, pub, noopLogger{}, 0, 0)
 }
 
 func pendingEvent(id int64, topic string) domain.OutboxEvent {
@@ -108,7 +132,7 @@ func pendingEvent(id int64, topic string) domain.OutboxEvent {
 	}
 }
 
-func TestOutboxRelay_SuccessMarksPublished(t *testing.T) {
+func TestRelay_SuccessMarksPublished(t *testing.T) {
 	repo := &fakeOutboxRepo{events: []domain.OutboxEvent{pendingEvent(1, "customer.created")}}
 	pub := &fakeRawPublisher{}
 
@@ -120,7 +144,7 @@ func TestOutboxRelay_SuccessMarksPublished(t *testing.T) {
 	assert.Zero(t, repo.events[0].Attempts)
 }
 
-func TestOutboxRelay_FailureBumpsAttemptsAndBackoff(t *testing.T) {
+func TestRelay_FailureBumpsAttemptsAndBackoff(t *testing.T) {
 	repo := &fakeOutboxRepo{events: []domain.OutboxEvent{pendingEvent(1, "customer.created")}}
 	pub := &fakeRawPublisher{failTopics: map[string]bool{"customer.created": true}}
 	relay := newTestRelay(repo, pub)
@@ -133,16 +157,15 @@ func TestOutboxRelay_FailureBumpsAttemptsAndBackoff(t *testing.T) {
 	assert.Equal(t, 1, ev.Attempts)
 	assert.Equal(t, "broker down", ev.LastError)
 	require.NotNil(t, ev.NextAttemptAt)
-	assert.True(t, ev.NextAttemptAt.After(time.Now().UTC()), "backoff deadline must be in the future")
+	assert.True(t, ev.NextAttemptAt.After(time.Now().UTC()))
 
-	// The row is backing off, so the next batch does not re-claim it.
 	n, err = relay.relayBatch(context.Background())
 	require.NoError(t, err)
-	assert.Zero(t, n)
+	assert.Zero(t, n, "backing-off row is not re-claimed")
 	assert.Equal(t, 1, repo.events[0].Attempts)
 }
 
-func TestOutboxRelay_FailingRowDoesNotBlockLaterRows(t *testing.T) {
+func TestRelay_FailingRowDoesNotBlockLaterRows(t *testing.T) {
 	repo := &fakeOutboxRepo{events: []domain.OutboxEvent{
 		pendingEvent(1, "bad.topic"),
 		pendingEvent(2, "customer.created"),
@@ -157,9 +180,9 @@ func TestOutboxRelay_FailingRowDoesNotBlockLaterRows(t *testing.T) {
 	assert.NotNil(t, repo.events[1].PublishedAt)
 }
 
-func TestOutboxRelay_MaxAttemptsExcluded(t *testing.T) {
+func TestRelay_MaxAttemptsExcluded(t *testing.T) {
 	ev := pendingEvent(1, "customer.created")
-	ev.Attempts = outboxMaxAttempts
+	ev.Attempts = relayMaxAttempts
 	repo := &fakeOutboxRepo{events: []domain.OutboxEvent{ev}}
 	pub := &fakeRawPublisher{}
 
@@ -169,7 +192,7 @@ func TestOutboxRelay_MaxAttemptsExcluded(t *testing.T) {
 	assert.Empty(t, pub.published)
 }
 
-func TestOutboxRelay_PurgeDeletesOnlyOldPublishedRows(t *testing.T) {
+func TestRelay_PurgeDeletesOnlyOldPublishedRows(t *testing.T) {
 	old := time.Now().UTC().Add(-48 * time.Hour)
 	fresh := time.Now().UTC()
 	oldPublished := pendingEvent(1, "a")
@@ -185,9 +208,9 @@ func TestOutboxRelay_PurgeDeletesOnlyOldPublishedRows(t *testing.T) {
 	assert.Len(t, repo.events, 2)
 }
 
-func TestOutboxBackoff(t *testing.T) {
-	assert.Equal(t, time.Second, outboxBackoff(0))
-	assert.Equal(t, 2*time.Second, outboxBackoff(1))
-	assert.Equal(t, 64*time.Second, outboxBackoff(6))
-	assert.Equal(t, outboxBackoffCap, outboxBackoff(20), "large attempt counts cap out")
+func TestBackoff(t *testing.T) {
+	assert.Equal(t, time.Second, backoff(0))
+	assert.Equal(t, 2*time.Second, backoff(1))
+	assert.Equal(t, 64*time.Second, backoff(6))
+	assert.Equal(t, relayBackoffCap, backoff(20))
 }

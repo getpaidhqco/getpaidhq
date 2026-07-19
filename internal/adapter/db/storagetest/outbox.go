@@ -25,9 +25,8 @@ func outboxEvent(orgId, topic string) domain.OutboxEvent {
 	}
 }
 
-// drainOutbox marks every claimable row published and purges everything, so
-// sequential outbox sub-scenarios don't observe each other's rows (ClaimPending
-// is deliberately not org-scoped).
+// drainOutbox empties the table so sub-scenarios don't observe each other's
+// rows (ClaimPending is not org-scoped).
 func drainOutbox(t *testing.T, ctx context.Context, rs RepoSet) {
 	t.Helper()
 	err := rs.Tx.RunInTx(ctx, func(ctx context.Context) error {
@@ -65,7 +64,7 @@ func testOutbox(t *testing.T, ctx context.Context, rs RepoSet) {
 			assert.Equal(t, second.EventId, evs[1].EventId)
 			assert.Equal(t, orgId, evs[0].OrgId)
 			assert.Equal(t, "customer.created", evs[0].Topic)
-			// jsonb normalizes encoding, so compare payloads semantically.
+			// jsonb normalizes encoding — compare semantically.
 			assert.JSONEq(t, string(first.Payload), string(evs[0].Payload))
 			assert.Zero(t, evs[0].Attempts)
 			assert.Nil(t, evs[0].PublishedAt)
@@ -123,7 +122,6 @@ func testOutbox(t *testing.T, ctx context.Context, rs RepoSet) {
 		require.Len(t, evs, 1)
 		id := evs[0].Id
 
-		// Backing-off row is excluded until its next_attempt_at passes.
 		next := now().Add(time.Hour)
 		require.NoError(t, rs.Outbox.RecordFailure(ctx, id, "broker down", next))
 		evs, err = rs.Outbox.ClaimPending(ctx, 10, outboxTestMaxAttempts, now())
@@ -137,7 +135,6 @@ func testOutbox(t *testing.T, ctx context.Context, rs RepoSet) {
 		assert.Equal(t, "broker down", evs[0].LastError)
 		require.NotNil(t, evs[0].NextAttemptAt)
 
-		// A row at max attempts is left for inspection, never claimed.
 		for i := 1; i < outboxTestMaxAttempts; i++ {
 			require.NoError(t, rs.Outbox.RecordFailure(ctx, id, "still down", next))
 		}

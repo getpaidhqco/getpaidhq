@@ -75,9 +75,7 @@ func (n *NatsPubSub) Publish(_ context.Context, orgId, topic string, message any
 	return n.PublishPayload(topic, data)
 }
 
-// PublishPayload publishes an already-encoded envelope verbatim. This is the
-// port.RawPublisher surface the outbox relay uses, so stored envelopes are
-// not wrapped a second time.
+// PublishPayload implements port.RawPublisher.
 func (n *NatsPubSub) PublishPayload(topic string, data []byte) error {
 	n.logger.Debug(fmt.Sprintf("[nats] publishing topic [%s]", topic))
 	return n.conn.Publish(topic, data)

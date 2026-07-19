@@ -8,9 +8,8 @@ import (
 	"getpaidhq/internal/core/domain"
 )
 
-// jsonbRaw stores pre-encoded JSON bytes in a jsonb column verbatim — unlike
-// serializer:json there is no marshal/unmarshal round-trip, which is the
-// point: the outbox payload must be delivered byte-for-byte as stored.
+// jsonbRaw stores pre-encoded JSON bytes in a jsonb column without a
+// marshal/unmarshal round-trip.
 type jsonbRaw []byte
 
 func (j jsonbRaw) Value() (driver.Value, error) {

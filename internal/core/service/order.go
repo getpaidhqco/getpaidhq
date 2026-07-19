@@ -644,9 +644,6 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 			}
 		}
 
-		// The order.completed event joins the transaction via the outbox: it is
-		// written (and delivered) iff the order commit succeeds, and a publish
-		// failure rolls the completion back.
 		return s.pubsub.Publish(ctx, order.OrgId, port.TopicOrderCompleted, order)
 	})
 	if err != nil {

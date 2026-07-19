@@ -18,10 +18,11 @@ the same transaction as the business write, and have a background relay deliver 
 ## Decisions
 
 - **Scope**: all publishes go through the outbox — one code path, durability everywhere.
-- **Placement**: the outbox is core behavior, not an adapter. `OutboxPubSub` and `OutboxRelay`
-  live in `internal/core/service` and depend only on ports (`port.OutboxRepository`,
-  `port.TxManager`, and a narrow raw-publish port implemented by the NATS adapter). NATS
-  becomes pure transport; any service holding `port.PubSub` gets durability by construction.
+- **Placement**: the outbox is default behavior, not an application service. `Outbox` and
+  `Relay` live in `internal/lib/pubsub` (the pubsub infrastructure package) and depend only
+  on ports (`port.OutboxRepository`, `port.TxManager`, and a narrow raw-publish port
+  implemented by the NATS adapter). NATS becomes pure transport; any service holding
+  `port.PubSub` gets durability by construction.
 - **Org scoping**: rows carry `org_id NOT NULL` (it is part of the stored envelope and needed
   for inspection and future per-org replay), but the relay is a single global queue — no
   per-org partitioning, ordering, or fairness in v1. NATS subjects carry no org id and
@@ -69,7 +70,7 @@ There is no status column. States are derived:
 Publish(ctx context.Context, orgId string, topic string, message any) error
 ```
 
-A new `OutboxPubSub` (`internal/core/service`) implements `port.PubSub`:
+A new `Outbox` (`internal/lib/pubsub`) implements `port.PubSub`:
 
 - `Publish` builds the `domain.PubSubPayload` envelope — the `evt_` id and `created_at`
   are generated at insert time (moved out of the NATS adapter) — and inserts a row via a
@@ -90,9 +91,9 @@ stay post-commit.
 
 ## Relay
 
-`OutboxRelay` (`internal/core/service`), a background goroutine started in `app.go`,
-holding `port.TxManager`, `port.OutboxRepository`, and the real NATS adapter through a
-narrow raw-publish port defined in `internal/core/port`
+`Relay` (`internal/lib/pubsub`), a background goroutine started in `app.go`, holding
+`port.TxManager`, `port.OutboxRepository`, and the real NATS adapter through a narrow
+raw-publish port defined in `internal/core/port`
 (`PublishPayload(topic string, data []byte) error`) so the stored envelope is not
 double-wrapped and core never imports the adapter.
 

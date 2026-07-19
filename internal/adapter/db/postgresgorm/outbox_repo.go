@@ -21,7 +21,7 @@ func NewOutboxRepo(db *gorm.DB) port.OutboxRepository {
 
 func (r *OutboxRepo) Create(ctx context.Context, ev domain.OutboxEvent) error {
 	row := outboxEventRowFromDomain(ev)
-	row.Id = 0 // BIGSERIAL assigns publish order
+	row.Id = 0
 	return dbFromCtx(ctx, r.db).Create(&row).Error
 }
 

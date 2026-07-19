@@ -443,7 +443,6 @@ func (s *SubscriptionService) UpdateBillingAnchor(ctx context.Context, input por
 	}
 	prorationDetails := subscription.UpdateBillingAnchor(input.BillingAnchor, string(input.ProrationMode), fixedBase)
 
-	// The anchor update and its billing_anchor.changed event commit together.
 	txErr := s.transitionInTx(ctx, func(ctx context.Context) error {
 		sub, err := s.subscriptionRepository.Update(ctx, subscription)
 		if err != nil {
@@ -549,9 +548,6 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 	}
 	payment.SetMetadata(subscription.Metadata)
 
-	// Payment, invoice settlement, subscription advance and the outbox events
-	// commit or roll back as one unit — the charge.success event can never
-	// outlive (or go missing from) the state it announces.
 	var newSub domain.Subscription
 	txErr := s.transitionInTx(ctx, func(ctx context.Context) error {
 		payment, err = s.paymentRepository.Create(ctx, payment)
@@ -694,9 +690,6 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 		"action", retryPolicy.FailureAction,
 	)
 
-	// Failed payment, invoice action, subscription state and the outbox events
-	// (charge.failed opens a DunningCampaign downstream) commit or roll back
-	// as one unit.
 	var newSub domain.Subscription
 	txErr := s.transitionInTx(ctx, func(ctx context.Context) error {
 		payment, err = s.paymentRepository.Create(ctx, payment)

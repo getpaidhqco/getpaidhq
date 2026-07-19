@@ -2,19 +2,15 @@ package domain
 
 import "time"
 
-// OutboxEvent is one durably-queued domain event awaiting delivery to the
-// message broker. Payload holds the fully-encoded PubSubPayload envelope so
-// the relay publishes the stored bytes verbatim (no double-wrapping).
-//
-// There is no status field — state is derived: pending (PublishedAt nil and
-// Attempts below the relay's max), failed / left for inspection (PublishedAt
-// nil, Attempts at max), published (PublishedAt set).
+// OutboxEvent is a durably-queued domain event awaiting broker delivery.
+// Payload holds the encoded PubSubPayload envelope. There is no status field:
+// pending, failed and published states are derived from PublishedAt/Attempts.
 type OutboxEvent struct {
-	Id            int64  // insertion order; assigned by the database
-	EventId       string // evt_<id> from the envelope
+	Id            int64
+	EventId       string
 	OrgId         string
 	Topic         string
-	Payload       []byte // encoded PubSubPayload envelope
+	Payload       []byte
 	Attempts      int
 	NextAttemptAt *time.Time
 	LastError     string

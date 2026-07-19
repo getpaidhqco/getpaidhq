@@ -7,9 +7,7 @@ import (
 )
 
 // PubSub defines the interface for publish/subscribe messaging. Publish takes
-// ctx so the outbox implementation can join the ambient transaction — an
-// event published inside RunInTx commits and rolls back with the business
-// write.
+// ctx so an event published inside RunInTx joins the ambient transaction.
 type PubSub interface {
 	Publish(ctx context.Context, orgId string, topic string, message any) error
 	Subscribe(topic string, handler func(topic string, data []byte)) (PubSubSubscription, error)
@@ -26,9 +24,8 @@ type PubSubSubscription interface {
 	Unsubscribe() error
 }
 
-// RawPublisher publishes an already-encoded envelope to a topic. Implemented
-// by the NATS adapter and used by the outbox relay, so stored envelopes go
-// out verbatim instead of being wrapped a second time.
+// RawPublisher publishes an encoded event envelope verbatim, without wrapping
+// it in a new envelope. The outbox relay delivers stored rows through this.
 type RawPublisher interface {
 	PublishPayload(topic string, data []byte) error
 }
