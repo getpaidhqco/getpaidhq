@@ -97,21 +97,22 @@ raw-publish port defined in `internal/core/port`
 (`PublishPayload(topic string, data []byte) error`) so the stored envelope is not
 double-wrapped and core never imports the adapter.
 
-Loop, every poll interval:
+Loop, every poll interval, one transaction **per row** (up to batchSize rows per pass):
 
 1. `RunInTx`:
    - `SELECT ... WHERE published_at IS NULL AND attempts < maxAttempts AND
      (next_attempt_at IS NULL OR next_attempt_at <= now())
-     ORDER BY id LIMIT batchSize FOR UPDATE SKIP LOCKED`
-   - For each row: publish the stored envelope bytes to the row's topic on NATS.
+     ORDER BY id LIMIT 1 FOR UPDATE SKIP LOCKED`
+   - publish the stored envelope bytes to the row's topic on NATS
      - success → set `published_at`
      - failure → `attempts++`, set `next_attempt_at` (exponential backoff), `last_error`
    - commit
-2. Every ~10 minutes, a purge pass deletes published rows older than 24h.
+2. On the purge interval, a purge pass deletes published rows older than the retention window.
 
 `SKIP LOCKED` makes concurrent server instances safe. Publishing inside the lock-holding
-transaction is deliberate: a crash after publish but before commit means the row is
-republished — at-least-once delivery.
+transaction is deliberate: a crash after publish but before commit means that row is
+republished — at-least-once delivery. Per-row transactions keep a failure from rolling
+back the marks of events already published earlier in the pass.
 
 Relay tuning values are constants, not env vars: poll interval 1s, batch size 100,
 max attempts 10. The purge pass is configurable via env (added to `lib.Env` /

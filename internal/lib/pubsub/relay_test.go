@@ -38,7 +38,8 @@ func (passthroughTx) RunInTx(ctx context.Context, fn func(context.Context) error
 // fakeOutboxRepo is an in-memory port.OutboxRepository applying the same
 // pending predicate as the real adapters.
 type fakeOutboxRepo struct {
-	events []domain.OutboxEvent
+	events      []domain.OutboxEvent
+	failMarkIds map[int64]bool
 }
 
 func (f *fakeOutboxRepo) Create(_ context.Context, ev domain.OutboxEvent) error {
@@ -62,6 +63,9 @@ func (f *fakeOutboxRepo) ClaimPending(_ context.Context, limit, maxAttempts int,
 }
 
 func (f *fakeOutboxRepo) MarkPublished(_ context.Context, id int64, at time.Time) error {
+	if f.failMarkIds[id] {
+		return errors.New("db down")
+	}
 	f.byId(id).PublishedAt = &at
 	return nil
 }
@@ -178,6 +182,23 @@ func TestRelay_FailingRowDoesNotBlockLaterRows(t *testing.T) {
 	assert.Equal(t, []string{"customer.created"}, pub.published)
 	assert.Nil(t, repo.events[0].PublishedAt)
 	assert.NotNil(t, repo.events[1].PublishedAt)
+}
+
+func TestRelay_MarkFailureDoesNotUnpublishEarlierRows(t *testing.T) {
+	repo := &fakeOutboxRepo{
+		events: []domain.OutboxEvent{
+			pendingEvent(1, "a.ok"),
+			pendingEvent(2, "b.mark-fails"),
+		},
+		failMarkIds: map[int64]bool{2: true},
+	}
+	pub := &fakeRawPublisher{}
+
+	n, err := newTestRelay(repo, pub).relayBatch(context.Background())
+	require.Error(t, err)
+	assert.Equal(t, 1, n)
+	assert.NotNil(t, repo.events[0].PublishedAt, "row 1's mark survives row 2's failure")
+	assert.Nil(t, repo.events[1].PublishedAt)
 }
 
 func TestRelay_MaxAttemptsExcluded(t *testing.T) {

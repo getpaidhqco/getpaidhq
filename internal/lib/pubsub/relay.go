@@ -14,13 +14,13 @@ const (
 	relayBackoffBase  = time.Second
 	relayBackoffCap   = 5 * time.Minute
 
-	defaultPurgeInterval = 10 * time.Minute
+	defaultPurgeInterval = 1 * time.Hour
 	defaultRetention     = 24 * time.Hour
 )
 
-// Relay drains the outbox to the broker. Rows are claimed FOR UPDATE SKIP
-// LOCKED and published inside the claiming transaction: a crash between
-// publish and commit republishes the row — at-least-once delivery.
+// Relay drains the outbox to the broker. Each row is claimed FOR UPDATE SKIP
+// LOCKED and published inside its own transaction: a crash between publish
+// and commit republishes that one row — at-least-once delivery.
 type Relay struct {
 	tx        port.TxManager
 	repo      port.OutboxRepository
@@ -108,30 +108,43 @@ func (r *Relay) drain() {
 	}
 }
 
+// relayBatch relays up to relayBatchSize rows, one transaction per row, so a
+// failed mark rolls back only its own row — never the marks of events already
+// published earlier in the batch.
 func (r *Relay) relayBatch(ctx context.Context) (int, error) {
-	var claimed int
+	for i := 0; i < relayBatchSize; i++ {
+		claimed, err := r.relayNext(ctx)
+		if err != nil {
+			return i, err
+		}
+		if !claimed {
+			return i, nil
+		}
+	}
+	return relayBatchSize, nil
+}
+
+// relayNext claims and delivers a single row in its own transaction.
+func (r *Relay) relayNext(ctx context.Context) (bool, error) {
+	var claimed bool
 	err := r.tx.RunInTx(ctx, func(ctx context.Context) error {
 		now := time.Now().UTC()
-		events, err := r.repo.ClaimPending(ctx, relayBatchSize, relayMaxAttempts, now)
+		events, err := r.repo.ClaimPending(ctx, 1, relayMaxAttempts, now)
 		if err != nil {
 			return err
 		}
-		claimed = len(events)
-		for _, ev := range events {
-			if err := r.publisher.PublishPayload(ev.Topic, ev.Payload); err != nil {
-				if recErr := r.repo.RecordFailure(ctx, ev.Id, err.Error(), now.Add(backoff(ev.Attempts))); recErr != nil {
-					return recErr
-				}
-				if ev.Attempts+1 >= relayMaxAttempts {
-					r.logger.Errorf("[outbox] event %s (topic %s) failed %d attempts, giving up: %v", ev.EventId, ev.Topic, ev.Attempts+1, err)
-				}
-				continue
-			}
-			if err := r.repo.MarkPublished(ctx, ev.Id, now); err != nil {
-				return err
-			}
+		if len(events) == 0 {
+			return nil
 		}
-		return nil
+		claimed = true
+		ev := events[0]
+		if err := r.publisher.PublishPayload(ev.Topic, ev.Payload); err != nil {
+			if ev.Attempts+1 >= relayMaxAttempts {
+				r.logger.Errorf("[outbox] event %s (topic %s) failed %d attempts, giving up: %v", ev.EventId, ev.Topic, ev.Attempts+1, err)
+			}
+			return r.repo.RecordFailure(ctx, ev.Id, err.Error(), now.Add(backoff(ev.Attempts)))
+		}
+		return r.repo.MarkPublished(ctx, ev.Id, now)
 	})
 	return claimed, err
 }
