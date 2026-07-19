@@ -10,7 +10,7 @@
 
 **Self-hostable subscription billing that plugs into any payment gateway.**
 
-[What it does](#what-it-does) · [Why it exists](#why-it-exists) · [How it's built](#how-its-built) · [API](openapi.yml)
+[What it does](#what-it-does) · [Why it exists](#why-it-exists) · [How it's built](#how-its-built) · [API](docs/openapi.yml)
 
 </div>
 
@@ -77,17 +77,19 @@ make run             # start the API
 
 The database schema is managed with [Goose](https://github.com/pressly/goose) migrations under `schemas/<db>/migrations/` (operational, reporting, usage); create new ones with `make db-migrate-create name=...`.
 
-Hatchet needs a token minted before the first run - the full bootstrap is in [docs/internal/local-dev-hatchet.md](docs/internal/local-dev-hatchet.md). Run `make help` to see every available target.
+Hatchet needs a token minted before the first run - see the bootstrap notes in [docker/docker-compose.yml](docker/docker-compose.yml) and the `HATCHET_CLIENT_*` vars in `.env.example`. Run `make help` to see every available target.
 
 The REST API is mounted under `/api`. The running server serves its live OpenAPI spec as JSON at `GET /openapi.json`. The committed contract is `docs/openapi.yml`, regenerated on demand with `make openapi` - the server never writes it on boot.
 
 ## CLI
 
-`gphq` is a command-line client for the API, covering every endpoint with table or JSON output. Install it with `make install-cli` (or `make build-cli` for a local `bin/gphq`), then point it at a server with `GPHQ_BASE_URL` and `GPHQ_API_KEY`. See [docs/cli/README.md](docs/cli/README.md) for the guide and command reference.
+`gphq` is a command-line client for the API, covering every endpoint with table or JSON output. Install it with `make install-cli` (or `make build-cli` for a local `bin/gphq`), then point it at a server with `GPHQ_BASE_URL` and `GPHQ_API_KEY`. Run `gphq --help` for the command reference.
 
 ## Documentation
 
-- [docs/](docs/README.md) - documentation index
+- [docs/architecture/system-hexagonal.md](docs/architecture/system-hexagonal.md) - architecture map
+- [docs/workflows/](docs/workflows/README.md) - billing, dunning, and workflow-engine docs
+- [docs/openapi.yml](docs/openapi.yml) - API contract
 
 ## License
 
