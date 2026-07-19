@@ -162,8 +162,8 @@ db-migrate-create: ## Scaffold a new operational migration: make db-migrate-crea
 	$(call goose,schemas/app/migrations,$(DATABASE_URL),-s create $(name) sql)
 
 .PHONY: db-seed
-db-seed: ## Seed the operational DB from schemas/app/seed.sql
-	psql -v ON_ERROR_STOP=1 "$(DATABASE_URL)" -f schemas/app/seed.sql
+db-seed: ## Apply dev seed data (idempotent, unversioned)
+	$(call goose,schemas/app/seed,$(DATABASE_URL),-no-versioning up)
 
 ## ---- Tunnels / deploy (AWS profiles + bastion PEM required) ----------------
 
