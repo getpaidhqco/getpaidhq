@@ -2,6 +2,7 @@ package workflows
 
 import (
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"testing"
 	"time"
 
@@ -10,13 +11,12 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 func TestIsPermanentCompleteOrderError(t *testing.T) {
 	assert.True(t, isPermanentCompleteOrderError(port.ErrNotFound))
-	assert.True(t, isPermanentCompleteOrderError(lib.NewCustomError(lib.ConflictError, "not pending", nil)))
-	assert.True(t, isPermanentCompleteOrderError(lib.NewCustomError(lib.BadRequestError, "invalid", nil)))
+	assert.True(t, isPermanentCompleteOrderError(errors2.NewCustomError(errors2.ConflictError, "not pending", nil)))
+	assert.True(t, isPermanentCompleteOrderError(errors2.NewCustomError(errors2.BadRequestError, "invalid", nil)))
 	assert.False(t, isPermanentCompleteOrderError(errors.New("db down")))
 	assert.False(t, isPermanentCompleteOrderError(nil))
 }

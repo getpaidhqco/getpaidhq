@@ -5,7 +5,7 @@ import (
 	"errors"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
+	errors2 "getpaidhq/internal/lib/errors"
 )
 
 // SubscriptionOrchestrationService wraps the narrow SubscriptionService and
@@ -58,10 +58,10 @@ func (s *SubscriptionOrchestrationService) PauseSubscription(ctx context.Context
 
 	err = s.engine.UpdateSubscriptionWorkflow(ctx, "subscription.paused", subscription)
 	if err != nil {
-		if _, ok := errors.AsType[lib.CustomError](err); ok {
+		if _, ok := errors.AsType[errors2.CustomError](err); ok {
 			return domain.Subscription{}, err
 		}
-		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
+		return domain.Subscription{}, errors2.NewCustomError(errors2.InternalError, "", err)
 	}
 
 	_ = s.pubsub.Publish(ctx, subscription.OrgId, port.TopicSubscriptionPaused, subscription)
@@ -76,10 +76,10 @@ func (s *SubscriptionOrchestrationService) ResumeSubscription(ctx context.Contex
 
 	err = s.engine.UpdateSubscriptionWorkflow(ctx, port.TopicSubscriptionResumed, newSub)
 	if err != nil {
-		if _, ok := errors.AsType[lib.CustomError](err); ok {
+		if _, ok := errors.AsType[errors2.CustomError](err); ok {
 			return domain.Subscription{}, err
 		}
-		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
+		return domain.Subscription{}, errors2.NewCustomError(errors2.InternalError, "", err)
 	}
 
 	_ = s.pubsub.Publish(ctx, newSub.OrgId, port.TopicSubscriptionResumed, newSub)
@@ -95,10 +95,10 @@ func (s *SubscriptionOrchestrationService) CancelSubscription(ctx context.Contex
 	s.logger.Debugf("Updating workflow for subscription %s [%s]", subscription.Id, port.TopicSubscriptionCancelled)
 	err = s.engine.UpdateSubscriptionWorkflow(ctx, port.TopicSubscriptionCancelled, subscription)
 	if err != nil {
-		if _, ok := errors.AsType[lib.CustomError](err); ok {
+		if _, ok := errors.AsType[errors2.CustomError](err); ok {
 			return domain.Subscription{}, err
 		}
-		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
+		return domain.Subscription{}, errors2.NewCustomError(errors2.InternalError, "", err)
 	}
 
 	_ = s.pubsub.Publish(ctx, subscription.OrgId, port.TopicSubscriptionCancelled, subscription)
@@ -112,15 +112,15 @@ func (s *SubscriptionOrchestrationService) UpdateWorkflowState(ctx context.Conte
 
 	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, id)
 	if err != nil {
-		return domain.Subscription{}, lib.NewCustomError(lib.NotFoundError, "Not found", err)
+		return domain.Subscription{}, errors2.NewCustomError(errors2.NotFoundError, "Not found", err)
 	}
 
 	err = s.engine.UpdateSubscriptionWorkflow(ctx, "refresh-state", subscription)
 	if err != nil {
-		if _, ok := errors.AsType[lib.CustomError](err); ok {
+		if _, ok := errors.AsType[errors2.CustomError](err); ok {
 			return domain.Subscription{}, err
 		}
-		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, err.Error(), err)
+		return domain.Subscription{}, errors2.NewCustomError(errors2.InternalError, err.Error(), err)
 	}
 
 	return subscription, nil

@@ -3,6 +3,7 @@ package temporal
 import (
 	"context"
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"getpaidhq/internal/lib/ids"
 
 	enums "go.temporal.io/api/enums/v1"
@@ -39,7 +40,7 @@ type Temporal struct {
 	logger        port.Logger
 	client        client.Client
 	worker        worker.Worker
-	errorReporter lib.ErrorReporter
+	errorReporter errors2.ErrorReporter
 	taskQueue     string
 }
 
@@ -49,7 +50,7 @@ func NewTemporalEngine(
 	orderActivities activities.OrderActivities,
 	webhookActivities activities.OutgoingWebhookActivities,
 	dunningActivities activities.DunningActivities,
-	errorReporter lib.ErrorReporter,
+	errorReporter errors2.ErrorReporter,
 ) *Temporal {
 	logger.Infof("Initializing Temporal engine [host=%s][namespace=%s][taskQueue=%s]", cfg.HostPort, cfg.Namespace, cfg.TaskQueue)
 

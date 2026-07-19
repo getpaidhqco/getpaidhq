@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"sync"
 	"testing"
 
@@ -11,7 +12,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 type chargeRecorderGateway struct {
@@ -126,7 +126,7 @@ func TestSubscriptionService_ChargeForBillingPeriod(t *testing.T) {
 		sr := &fakeSubRepo{sub: sub}
 		cr := &fakeCustomerRepo{customer: cus, paymentMethod: pm}
 		gf := &subscriptionChargeGatewayFactory{}
-		er := lib.NewErrorReporter(silentLogger{})
+		er := errors2.NewErrorReporter(silentLogger{})
 		or := &fakeOrderRepo{items: []domain.OrderItem{{Id: "oi_1", PriceId: "price_1", Quantity: 1}}}
 		pr := &fakePriceRepo{byId: domain.Price{Id: "price_1", UnitPrice: 1000}}
 		is := NewInvoiceService(newFakeInvoiceRepo(), or, pr, &fakeSubRepo{}, noopUsage{}, noopTx{}, silentLogger{}, noopDiscountRepo{}, noopCouponRepo{}, noopReservationRepo{}, defaultSettingsResolver{})

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"net/http"
 	"testing"
 
@@ -11,7 +12,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // newPaymentMethodHandlerForTest builds the standalone PaymentMethodHandler on
@@ -77,7 +77,7 @@ func TestPaymentMethodHandler_Get_NotFound(t *testing.T) {
 
 	rec := doJSON(t, ts, http.MethodGet, "/api/payment-methods/pm_x", nil)
 
-	assertErrorEnvelope(t, rec, http.StatusNotFound, string(lib.NotFoundError))
+	assertErrorEnvelope(t, rec, http.StatusNotFound, string(errors2.NotFoundError))
 }
 
 // TestPaymentMethodHandler_Get_AuthnGatedNotAuthzGated documents and pins an

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,7 +22,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // silentLogger drops everything. Mirrors the helper defined for service tests
@@ -119,7 +119,7 @@ func (f *fakeAuthenticator) Authenticate(_ context.Context, _ string) (port.Auth
 	if f.u.Id == "" {
 		// Default to onboarding-required so /api/organizations bypass path is
 		// also exercisable. Other paths still see this as an auth error.
-		return port.AuthUser{}, lib.NewCustomError(lib.AuthenticationError, "no user", nil)
+		return port.AuthUser{}, errors2.NewCustomError(errors2.AuthenticationError, "no user", nil)
 	}
 	return f.u, nil
 }

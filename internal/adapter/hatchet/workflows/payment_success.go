@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
+	errors2 "getpaidhq/internal/lib/errors"
 	"time"
 
 	"github.com/hatchet-dev/hatchet/pkg/worker"
@@ -87,10 +87,10 @@ func isPermanentCompleteOrderError(err error) bool {
 		return true
 	}
 
-	var custom lib.CustomError
+	var custom errors2.CustomError
 	if errors.As(err, &custom) {
 		switch custom.Type {
-		case lib.BadRequestError, lib.ConflictError, lib.NotFoundError, lib.ValidationError:
+		case errors2.BadRequestError, errors2.ConflictError, errors2.NotFoundError, errors2.ValidationError:
 			return true
 		}
 	}

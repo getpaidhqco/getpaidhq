@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"getpaidhq/internal/lib/errors"
 	"testing"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 func seedReservation(t *testing.T, rr *fakeCouponReservationRepo, c domain.Coupon, codeId, orderId string) domain.CouponReservation {
@@ -69,7 +69,7 @@ func TestCouponConsume_ConflictClearsReservation(t *testing.T) {
 	ccr.byId[code.Id] = code
 	seedReservation(t, rr, c, code.Id, "ord_1")
 	// Already consumed: the (org,coupon,subscription) unique index rejects the insert.
-	dr.createErr = lib.NewCustomError(lib.ConflictError, "discount already exists", nil)
+	dr.createErr = errors.NewCustomError(errors.ConflictError, "discount already exists", nil)
 
 	_, err := svc.Consume(context.Background(), ConsumeInput{
 		OrgId: "org_1", OrderId: "ord_1", SubscriptionId: "sub_1",

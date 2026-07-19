@@ -1,12 +1,13 @@
 package handler
 
 import (
+	"getpaidhq/internal/lib/errors"
+
 	"github.com/go-fuego/fuego"
 	"github.com/go-fuego/fuego/option"
 
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 type CustomerHandler struct {
@@ -35,7 +36,7 @@ func (cc *CustomerHandler) RegisterRoutes(s *fuego.Server) {
 func (cc *CustomerHandler) Create(c fuego.ContextWithBody[port.CreateCustomerInput]) (CustomerResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !cc.authz.Enforce(authUser, port.ActionCreateCustomer, "") {
-		return CustomerResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return CustomerResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	input, err := c.Body()
 	if err != nil {
@@ -52,7 +53,7 @@ func (cc *CustomerHandler) Create(c fuego.ContextWithBody[port.CreateCustomerInp
 func (cc *CustomerHandler) CreateCustomerPaymentMethod(c fuego.ContextWithBody[port.CreatePaymentMethodInput]) (PaymentMethodResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !cc.authz.Enforce(authUser, port.ActionCreatePaymentMethod, "") {
-		return PaymentMethodResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return PaymentMethodResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	input, err := c.Body()
 	if err != nil {
@@ -71,7 +72,7 @@ func (cc *CustomerHandler) CreateCustomerPaymentMethod(c fuego.ContextWithBody[p
 func (cc *CustomerHandler) UpdateCustomerPaymentMethod(c fuego.ContextWithBody[port.UpdatePaymentMethodInput]) (PaymentMethodResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !cc.authz.Enforce(authUser, port.ActionUpdatePaymentMethod, "") {
-		return PaymentMethodResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return PaymentMethodResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	input, err := c.Body()
 	if err != nil {

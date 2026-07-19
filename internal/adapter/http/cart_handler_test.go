@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"net/http"
 	"testing"
 
@@ -10,7 +11,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 func newCartHandlerForTest(
@@ -88,7 +88,7 @@ func TestCartHandler_AddProduct(t *testing.T) {
 			ProductId: "prod_1", PriceId: "price_1", Quantity: 1,
 		})
 
-		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors2.ForbiddenError))
 		assert.Empty(t, cart.updated, "service must not run when authz denies")
 	})
 }
@@ -124,7 +124,7 @@ func TestCartHandler_RemoveItem(t *testing.T) {
 
 		rec := doJSON(t, ts, http.MethodPost, "/api/carts/cart_1/remove", RemoveItemRequest{Id: "ci_1"})
 
-		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors2.ForbiddenError))
 		assert.Empty(t, cart.updated)
 	})
 }

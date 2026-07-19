@@ -2,10 +2,10 @@ package service
 
 import (
 	"context"
+	"getpaidhq/internal/lib/errors"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // MeterService manages BillableMetric (meter) definitions. Narrow — no workflow
@@ -38,16 +38,16 @@ var validRoundingModes = map[string]bool{"": true, "round": true, "ceil": true, 
 // distinct key for unique_count).
 func (s *MeterService) Create(ctx context.Context, in port.CreateMeterInput) (domain.BillableMetric, error) {
 	if in.Code == "" {
-		return domain.BillableMetric{}, lib.NewCustomError(lib.BadRequestError, "code is required", nil)
+		return domain.BillableMetric{}, errors.NewCustomError(errors.BadRequestError, "code is required", nil)
 	}
 	if !validAggregations[in.Aggregation] {
-		return domain.BillableMetric{}, lib.NewCustomError(lib.BadRequestError, "unknown aggregation type", nil)
+		return domain.BillableMetric{}, errors.NewCustomError(errors.BadRequestError, "unknown aggregation type", nil)
 	}
 	if in.Aggregation != domain.AggregationCount && in.FieldName == "" {
-		return domain.BillableMetric{}, lib.NewCustomError(lib.BadRequestError, "field_name is required for this aggregation", nil)
+		return domain.BillableMetric{}, errors.NewCustomError(errors.BadRequestError, "field_name is required for this aggregation", nil)
 	}
 	if !validRoundingModes[in.RoundingMode] {
-		return domain.BillableMetric{}, lib.NewCustomError(lib.BadRequestError, "rounding_mode must be one of round, ceil, floor", nil)
+		return domain.BillableMetric{}, errors.NewCustomError(errors.BadRequestError, "rounding_mode must be one of round, ceil, floor", nil)
 	}
 	if err := validateFiltersAndGroups(in.Filters, in.GroupBy); err != nil {
 		return domain.BillableMetric{}, err
@@ -73,7 +73,7 @@ func validateCarryOver(in port.CreateMeterInput) error {
 		// means. A flow weighted_sum would reset to zero each period and underbill
 		// every quiet period, so it is forbidden outright.
 		if in.Aggregation == domain.AggregationWeightedSum {
-			return lib.NewCustomError(lib.BadRequestError, "weighted_sum requires carry_over: true", nil)
+			return errors.NewCustomError(errors.BadRequestError, "weighted_sum requires carry_over: true", nil)
 		}
 		return nil
 	}
@@ -81,13 +81,13 @@ func validateCarryOver(in port.CreateMeterInput) error {
 	case domain.AggregationLatest, domain.AggregationMax,
 		domain.AggregationUniqueCount, domain.AggregationWeightedSum:
 	default:
-		return lib.NewCustomError(lib.BadRequestError, "aggregation "+string(in.Aggregation)+" is not supported for carry-over meters", nil)
+		return errors.NewCustomError(errors.BadRequestError, "aggregation "+string(in.Aggregation)+" is not supported for carry-over meters", nil)
 	}
 	if len(in.Filters) > 0 {
-		return lib.NewCustomError(lib.BadRequestError, "filters are not supported on carry-over meters", nil)
+		return errors.NewCustomError(errors.BadRequestError, "filters are not supported on carry-over meters", nil)
 	}
 	if len(in.GroupBy) > 0 {
-		return lib.NewCustomError(lib.BadRequestError, "group_by is not supported on carry-over meters", nil)
+		return errors.NewCustomError(errors.BadRequestError, "group_by is not supported on carry-over meters", nil)
 	}
 	return nil
 }
@@ -100,36 +100,36 @@ func validateFiltersAndGroups(filters []domain.MetricFilter, groupBy []string) e
 	seenField := map[string]bool{}
 	for _, f := range filters {
 		if f.Field == "" {
-			return lib.NewCustomError(lib.BadRequestError, "filter field is required", nil)
+			return errors.NewCustomError(errors.BadRequestError, "filter field is required", nil)
 		}
 		if seenField[f.Field] {
-			return lib.NewCustomError(lib.BadRequestError, "duplicate filter field: "+f.Field, nil)
+			return errors.NewCustomError(errors.BadRequestError, "duplicate filter field: "+f.Field, nil)
 		}
 		seenField[f.Field] = true
 		if len(f.Values) == 0 {
-			return lib.NewCustomError(lib.BadRequestError, "filter "+f.Field+" needs at least one value", nil)
+			return errors.NewCustomError(errors.BadRequestError, "filter "+f.Field+" needs at least one value", nil)
 		}
 		seenVal := map[string]bool{}
 		for _, v := range f.Values {
 			if v == "" {
-				return lib.NewCustomError(lib.BadRequestError, "filter "+f.Field+" has an empty value", nil)
+				return errors.NewCustomError(errors.BadRequestError, "filter "+f.Field+" has an empty value", nil)
 			}
 			if seenVal[v] {
-				return lib.NewCustomError(lib.BadRequestError, "filter "+f.Field+" has a duplicate value: "+v, nil)
+				return errors.NewCustomError(errors.BadRequestError, "filter "+f.Field+" has a duplicate value: "+v, nil)
 			}
 			seenVal[v] = true
 		}
 	}
 	if len(groupBy) > 1 {
-		return lib.NewCustomError(lib.BadRequestError, "at most one group_by dimension is supported", nil)
+		return errors.NewCustomError(errors.BadRequestError, "at most one group_by dimension is supported", nil)
 	}
 	seenKey := map[string]bool{}
 	for _, k := range groupBy {
 		if k == "" {
-			return lib.NewCustomError(lib.BadRequestError, "group_by key is required", nil)
+			return errors.NewCustomError(errors.BadRequestError, "group_by key is required", nil)
 		}
 		if seenKey[k] {
-			return lib.NewCustomError(lib.BadRequestError, "duplicate group_by key: "+k, nil)
+			return errors.NewCustomError(errors.BadRequestError, "duplicate group_by key: "+k, nil)
 		}
 		seenKey[k] = true
 	}

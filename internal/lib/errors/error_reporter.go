@@ -1,6 +1,7 @@
-package lib
+package errors
 
 import (
+	"getpaidhq/internal/lib"
 	"log/slog"
 )
 
@@ -8,11 +9,11 @@ import (
 // currently logs the error and is intended to be wired to a reporting
 // backend later.
 type ErrorReporter struct {
-	logger Logger
+	logger lib.Logger
 }
 
 // NewErrorReporter creates a new instance of ErrorReporter.
-func NewErrorReporter(logger Logger) ErrorReporter {
+func NewErrorReporter(logger lib.Logger) ErrorReporter {
 	return ErrorReporter{
 		logger: logger,
 	}

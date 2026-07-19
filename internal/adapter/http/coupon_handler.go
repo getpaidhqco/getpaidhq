@@ -1,13 +1,14 @@
 package handler
 
 import (
+	"getpaidhq/internal/lib/errors"
+
 	"github.com/go-fuego/fuego"
 	"github.com/go-fuego/fuego/option"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 type CouponHandler struct {
@@ -59,7 +60,7 @@ func couponResponse(c domain.Coupon) CouponResponse {
 func (h *CouponHandler) Create(c fuego.ContextWithBody[port.CreateCouponInput]) (CouponResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionCreateCoupon, "") {
-		return CouponResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return CouponResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	in, err := c.Body()
 	if err != nil {
@@ -75,7 +76,7 @@ func (h *CouponHandler) Create(c fuego.ContextWithBody[port.CreateCouponInput]) 
 func (h *CouponHandler) Get(c fuego.ContextNoBody) (CouponResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionGetCoupon, c.PathParam("id")) {
-		return CouponResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return CouponResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	coupon, err := h.service.Get(c.Context(), authUser.OrgId, c.PathParam("id"))
 	if err != nil {
@@ -87,7 +88,7 @@ func (h *CouponHandler) Get(c fuego.ContextNoBody) (CouponResponse, error) {
 func (h *CouponHandler) List(c fuego.ContextNoBody) (ListResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionListCoupons, "") {
-		return ListResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return ListResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	pagination := GetPagination(c)
 	coupons, total, err := h.service.List(c.Context(), authUser.OrgId, pagination)
@@ -107,7 +108,7 @@ func (h *CouponHandler) List(c fuego.ContextNoBody) (ListResponse, error) {
 func (h *CouponHandler) Update(c fuego.ContextWithBody[port.UpdateCouponInput]) (CouponResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionUpdateCoupon, c.PathParam("id")) {
-		return CouponResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return CouponResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	in, err := c.Body()
 	if err != nil {
@@ -123,7 +124,7 @@ func (h *CouponHandler) Update(c fuego.ContextWithBody[port.UpdateCouponInput]) 
 func (h *CouponHandler) Delete(c fuego.ContextNoBody) (CouponResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionDeleteCoupon, c.PathParam("id")) {
-		return CouponResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return CouponResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	if err := h.service.Delete(c.Context(), authUser.OrgId, c.PathParam("id")); err != nil {
 		return CouponResponse{}, NewApiErrorFromError(err)
@@ -151,7 +152,7 @@ func couponCodeResponse(c domain.CouponCode) CouponCodeResponse {
 func (h *CouponHandler) CreateCode(c fuego.ContextWithBody[port.CreateCouponCodeInput]) (CouponCodeResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionManageCouponCode, c.PathParam("id")) {
-		return CouponCodeResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return CouponCodeResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	in, err := c.Body()
 	if err != nil {
@@ -167,7 +168,7 @@ func (h *CouponHandler) CreateCode(c fuego.ContextWithBody[port.CreateCouponCode
 func (h *CouponHandler) ListCodes(c fuego.ContextNoBody) ([]CouponCodeResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionManageCouponCode, c.PathParam("id")) {
-		return nil, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return nil, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	codes, err := h.service.ListCodes(c.Context(), authUser.OrgId, c.PathParam("id"))
 	if err != nil {
@@ -183,7 +184,7 @@ func (h *CouponHandler) ListCodes(c fuego.ContextNoBody) ([]CouponCodeResponse, 
 func (h *CouponHandler) UpdateCode(c fuego.ContextWithBody[port.UpdateCouponCodeInput]) (CouponCodeResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionManageCouponCode, c.PathParam("id")) {
-		return CouponCodeResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return CouponCodeResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	in, err := c.Body()
 	if err != nil {
@@ -222,7 +223,7 @@ func discountResponse(d domain.Discount) DiscountResponse {
 func (h *CouponHandler) GetDiscount(c fuego.ContextNoBody) (DiscountResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionGetCoupon, c.PathParam("id")) {
-		return DiscountResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return DiscountResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	d, err := h.service.GetDiscount(c.Context(), authUser.OrgId, c.PathParam("id"))
 	if err != nil {

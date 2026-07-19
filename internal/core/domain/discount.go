@@ -1,10 +1,9 @@
 package domain
 
 import (
+	"getpaidhq/internal/lib/errors"
 	"getpaidhq/internal/lib/ids"
 	"time"
-
-	"getpaidhq/internal/lib"
 )
 
 type DiscountStatus string
@@ -51,10 +50,10 @@ type NewDiscountInput struct {
 
 func NewDiscount(in NewDiscountInput) (Discount, error) {
 	if in.OrgId == "" || in.CouponId == "" || in.CustomerId == "" || in.OrderId == "" {
-		return Discount{}, lib.NewCustomError(lib.BadRequestError, "discount requires org, coupon, customer and order", nil)
+		return Discount{}, errors.NewCustomError(errors.BadRequestError, "discount requires org, coupon, customer and order", nil)
 	}
 	if in.StartCycle < 0 {
-		return Discount{}, lib.NewCustomError(lib.BadRequestError, "start_cycle must be >= 0", nil)
+		return Discount{}, errors.NewCustomError(errors.BadRequestError, "start_cycle must be >= 0", nil)
 	}
 	redeemedAt := in.RedeemedAt
 	if redeemedAt.IsZero() {

@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/errors"
 	"getpaidhq/internal/lib/ids"
 )
 
@@ -45,16 +45,16 @@ func (s *CartService) AddProduct(ctx context.Context, input port.AddProductInput
 	product, err := s.productRepository.FindById(ctx, input.OrgId, input.ProductId)
 	if err != nil {
 		s.logger.Error("Product doesnt exist", "product_id", input.ProductId, err.Error())
-		return domain.Cart{}, lib.NewCustomError(
-			lib.NotFoundError, fmt.Sprintf("Product %s not found", input.ProductId),
+		return domain.Cart{}, errors.NewCustomError(
+			errors.NotFoundError, fmt.Sprintf("Product %s not found", input.ProductId),
 			err,
 		)
 	}
 
 	// Archived products are retired and cannot be sold — block adding them to a cart.
 	if product.IsArchived() {
-		return domain.Cart{}, lib.NewCustomError(
-			lib.ConflictError,
+		return domain.Cart{}, errors.NewCustomError(
+			errors.ConflictError,
 			fmt.Sprintf("Product %s is archived and cannot be sold", product.Id),
 			nil,
 		)
@@ -63,8 +63,8 @@ func (s *CartService) AddProduct(ctx context.Context, input port.AddProductInput
 	price, err := s.priceRepository.FindById(ctx, input.OrgId, input.PriceId)
 	if err != nil {
 		s.logger.Error("Price doesnt exist", "price_id", input.PriceId, err.Error())
-		return domain.Cart{}, lib.NewCustomError(
-			lib.NotFoundError, fmt.Sprintf("Price %s not found", input.PriceId),
+		return domain.Cart{}, errors.NewCustomError(
+			errors.NotFoundError, fmt.Sprintf("Price %s not found", input.PriceId),
 			err,
 		)
 	}

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"getpaidhq/internal/lib/errors"
 	"net/http"
 	"testing"
 	"time"
@@ -13,7 +14,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // ----- fakes -----
@@ -37,7 +37,7 @@ func (r *hFakeCouponRepo) Create(_ context.Context, c domain.Coupon) (domain.Cou
 func (r *hFakeCouponRepo) FindById(_ context.Context, _, id string) (domain.Coupon, error) {
 	c, ok := r.byId[id]
 	if !ok {
-		return domain.Coupon{}, lib.NewCustomError(lib.NotFoundError, "not found", nil)
+		return domain.Coupon{}, errors.NewCustomError(errors.NotFoundError, "not found", nil)
 	}
 	return c, nil
 }
@@ -103,7 +103,7 @@ func (r *hFakeCouponCodeRepo) IncrementRedeemed(_ context.Context, _, id string)
 func (r *hFakeCouponCodeRepo) FindByCode(_ context.Context, _, code string) (domain.CouponCode, error) {
 	c, ok := r.byCode[code]
 	if !ok {
-		return domain.CouponCode{}, lib.NewCustomError(lib.NotFoundError, "not found", nil)
+		return domain.CouponCode{}, errors.NewCustomError(errors.NotFoundError, "not found", nil)
 	}
 	return c, nil
 }
@@ -130,7 +130,7 @@ func (r *hFakeDiscountRepo) FindById(_ context.Context, _, id string) (domain.Di
 			return d, nil
 		}
 	}
-	return domain.Discount{}, lib.NewCustomError(lib.NotFoundError, "not found", nil)
+	return domain.Discount{}, errors.NewCustomError(errors.NotFoundError, "not found", nil)
 }
 func (r *hFakeDiscountRepo) CountByCoupon(_ context.Context, _, _ string) (int, error) {
 	return 0, nil
@@ -224,7 +224,7 @@ func TestCouponHandler_Create(t *testing.T) {
 			Name: "x", DiscountType: "percentage", PercentOff: decimal.NewFromInt(5), Duration: "once",
 		})
 
-		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors.ForbiddenError))
 	})
 }
 
@@ -259,7 +259,7 @@ func TestCouponHandler_Get(t *testing.T) {
 
 		rec := doJSON(t, ts, http.MethodGet, "/api/coupons/no_such_id", nil)
 
-		assertErrorEnvelope(t, rec, http.StatusNotFound, string(lib.NotFoundError))
+		assertErrorEnvelope(t, rec, http.StatusNotFound, string(errors.NotFoundError))
 	})
 }
 
@@ -381,6 +381,6 @@ func TestCouponHandler_GetDiscount(t *testing.T) {
 
 		rec := doJSON(t, ts, http.MethodGet, "/api/discounts/no_such_id", nil)
 
-		assertErrorEnvelope(t, rec, http.StatusNotFound, string(lib.NotFoundError))
+		assertErrorEnvelope(t, rec, http.StatusNotFound, string(errors.NotFoundError))
 	})
 }

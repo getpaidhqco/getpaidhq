@@ -4,7 +4,7 @@ import (
 	"context"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/errors"
 	"getpaidhq/internal/lib/ids"
 	"time"
 )
@@ -499,17 +499,17 @@ func validatePriceConfig(scheme domain.PriceScheme, tiers []domain.PriceTier, un
 	switch scheme {
 	case domain.Graduated, domain.Volume, domain.Tiered:
 		if len(tiers) == 0 {
-			return lib.NewCustomError(lib.BadRequestError, "tiers are required for graduated, volume, or tiered schemes", nil)
+			return errors.NewCustomError(errors.BadRequestError, "tiers are required for graduated, volume, or tiered schemes", nil)
 		}
 		if unitCount > 1 {
-			return lib.NewCustomError(lib.BadRequestError, "unit_count applies only to the fixed and package schemes", nil)
+			return errors.NewCustomError(errors.BadRequestError, "unit_count applies only to the fixed and package schemes", nil)
 		}
 	case domain.Package:
 		if billableMetricId == "" {
-			return lib.NewCustomError(lib.BadRequestError, "package scheme requires a billable metric — it bills started blocks of usage", nil)
+			return errors.NewCustomError(errors.BadRequestError, "package scheme requires a billable metric — it bills started blocks of usage", nil)
 		}
 		if len(tiers) > 0 {
-			return lib.NewCustomError(lib.BadRequestError, "package scheme is flat — tiers are not allowed", nil)
+			return errors.NewCustomError(errors.BadRequestError, "package scheme is flat — tiers are not allowed", nil)
 		}
 	}
 	return nil

@@ -2,13 +2,13 @@ package middleware
 
 import (
 	"encoding/json"
+	"getpaidhq/internal/lib/errors"
 	"math"
 	"net/http"
 	"strconv"
 	"time"
 
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // RateLimitConfig configures the HTTP rate-limit middleware. The actual
@@ -116,7 +116,7 @@ func (m *RateLimitMiddleware) writeTooManyRequests(w http.ResponseWriter, retryA
 	w.Header().Set("Retry-After", strconv.Itoa(seconds))
 	w.WriteHeader(http.StatusTooManyRequests)
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"code":    string(lib.RateLimitError),
+		"code":    string(errors.RateLimitError),
 		"message": "rate limit exceeded",
 		"details": nil,
 	})

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"getpaidhq/internal/lib/errors"
 
 	"github.com/go-fuego/fuego"
 	"github.com/go-fuego/fuego/option"
@@ -9,7 +10,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // SubscriptionHandler handles HTTP requests for subscriptions.
@@ -45,7 +45,7 @@ func (s *SubscriptionHandler) RegisterRoutes(srv *fuego.Server) {
 
 // denied returns the standard 403 envelope.
 func (s *SubscriptionHandler) denied() ApiError {
-	return NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+	return NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 }
 
 // renderDetails fetches the full SubscriptionDetails for a subscription Id.

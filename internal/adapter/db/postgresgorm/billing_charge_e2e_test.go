@@ -15,6 +15,7 @@ package postgresgorm
 
 import (
 	"context"
+	"getpaidhq/internal/lib/errors"
 	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
@@ -27,7 +28,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // noopLogger is a Logger that drops everything. The charge path is chatty
@@ -74,7 +74,7 @@ func buildSubscriptionService(t *testing.T, db *gorm.DB) *service.SubscriptionSe
 
 	logger := noopLogger{}
 	pubsub := noopPubSub{}
-	reporter := lib.NewErrorReporter(logger)
+	reporter := errors.NewErrorReporter(logger)
 
 	pspRepo := NewPspRepo(db)
 	settingRepo := NewSettingRepo(db)

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -19,7 +20,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // fakeIdemStore is an in-memory port.IdempotencyStore for HTTP idempotency
@@ -136,7 +136,7 @@ func TestOrderHandler_AuthzDenied_OnCreate(t *testing.T) {
 		Cart:     CartInput{Currency: "USD", Items: []CartItem{{ProductId: "prod_1", PriceId: "price_1", Quantity: 1}}},
 	})
 
-	assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+	assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors2.ForbiddenError))
 }
 
 func TestOrderHandler_CreateOrder_RequiresCartOrSession(t *testing.T) {
@@ -160,7 +160,7 @@ func TestOrderHandler_CreateOrder_RequiresCartOrSession(t *testing.T) {
 	// Fuego's error serializer pipeline replaces the human-readable message
 	// with the canonical HTTP title; the contract worth pinning here is the
 	// code + status, not the wording.
-	_ = assertErrorEnvelope(t, rec, http.StatusUnprocessableEntity, string(lib.ValidationError))
+	_ = assertErrorEnvelope(t, rec, http.StatusUnprocessableEntity, string(errors2.ValidationError))
 }
 
 func TestOrderHandler_CreateOrder_HappyPath(t *testing.T) {
@@ -413,7 +413,7 @@ func TestOrderHandler_CompleteOrder_InvalidCompletedAt(t *testing.T) {
 		Payment:         CompleteOrderRequestPayment{CompletedAt: "not-an-rfc3339"},
 	})
 
-	assertErrorEnvelope(t, rec, http.StatusUnprocessableEntity, string(lib.ValidationError))
+	assertErrorEnvelope(t, rec, http.StatusUnprocessableEntity, string(errors2.ValidationError))
 }
 
 // newCouponServiceForOrderTest builds a real CouponService over in-memory fakes
@@ -499,7 +499,7 @@ func TestOrderHandler_CreateOrder_CouponExhausted(t *testing.T) {
 		},
 	})
 
-	assertErrorEnvelope(t, rec, http.StatusConflict, string(lib.ConflictError))
+	assertErrorEnvelope(t, rec, http.StatusConflict, string(errors2.ConflictError))
 	require.Empty(t, res.created, "no reservation is recorded when the coupon is refused")
 }
 
@@ -696,7 +696,7 @@ func TestOrderHandler_Pay_NonPending_Conflict(t *testing.T) {
 
 	rec := doJSON(t, ts, http.MethodPost, "/api/orders/ord_1/pay", PayOrderRequest{Psp: "memory"})
 
-	assertErrorEnvelope(t, rec, http.StatusConflict, string(lib.ConflictError))
+	assertErrorEnvelope(t, rec, http.StatusConflict, string(errors2.ConflictError))
 	assert.Equal(t, 0, gw.calls, "no gateway call for a non-pending order")
 }
 
@@ -710,7 +710,7 @@ func TestOrderHandler_Pay_AuthzDenied(t *testing.T) {
 
 	rec := doJSON(t, ts, http.MethodPost, "/api/orders/ord_1/pay", PayOrderRequest{Psp: "memory"})
 
-	assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+	assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors2.ForbiddenError))
 	assert.Equal(t, 0, gw.calls, "denied requests never reach the service")
 }
 

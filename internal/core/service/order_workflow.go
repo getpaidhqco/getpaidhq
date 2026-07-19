@@ -5,7 +5,7 @@ import (
 	"errors"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
+	errors2 "getpaidhq/internal/lib/errors"
 	"getpaidhq/internal/lib/ids"
 	"time"
 )
@@ -84,7 +84,7 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 			return nil
 		}
 		if order.Status != domain.OrderStatusPending {
-			return lib.NewCustomError(lib.ConflictError, "Order is not pending", nil)
+			return errors2.NewCustomError(errors2.ConflictError, "Order is not pending", nil)
 		}
 
 		customer, err := s.customerRepository.FindById(ctx, orgId, order.CustomerId)

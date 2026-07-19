@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"getpaidhq/internal/lib/errors"
 	"net/http"
 	"testing"
 	"time"
@@ -13,7 +14,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // hNoopTx runs the closure inline — invoice writes need a (non-nil) TxManager.
@@ -63,7 +63,7 @@ func TestInvoiceHandler_AuthzGuards(t *testing.T) {
 	h.RegisterRoutes(ts.api())
 	for _, path := range []string{"/api/invoices", "/api/invoices/inv_1", "/api/subscriptions/sub_1/invoices"} {
 		rec := doJSON(t, ts, http.MethodGet, path, nil)
-		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors.ForbiddenError))
 	}
 }
 

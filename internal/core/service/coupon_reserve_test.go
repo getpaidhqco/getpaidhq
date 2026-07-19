@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"getpaidhq/internal/lib/errors"
 	"testing"
 
 	"github.com/shopspring/decimal"
@@ -10,7 +11,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 func TestCouponReserve_ValidCodeReservesOne(t *testing.T) {
@@ -39,9 +39,9 @@ func TestCouponReserve_CapReached(t *testing.T) {
 		OrgId: "org_1", CouponId: c.Id, CustomerId: "cus_1", OrderId: "ord_1", Currency: "USD",
 	})
 	require.Error(t, err)
-	var ce lib.CustomError
+	var ce errors.CustomError
 	require.ErrorAs(t, err, &ce)
-	assert.Equal(t, lib.ConflictError, ce.Type)
+	assert.Equal(t, errors.ConflictError, ce.Type)
 	assert.Contains(t, ce.Message, "cap_reached")
 	assert.Empty(t, rr.created, "no reservation created on refusal")
 }
@@ -52,7 +52,7 @@ func TestCouponReserve_UnknownCode(t *testing.T) {
 		OrgId: "org_1", Code: "NOPE", CustomerId: "cus_1", OrderId: "ord_1", Currency: "USD",
 	})
 	require.Error(t, err)
-	var ce lib.CustomError
+	var ce errors.CustomError
 	require.ErrorAs(t, err, &ce)
 	assert.Contains(t, ce.Message, "code_not_found")
 }

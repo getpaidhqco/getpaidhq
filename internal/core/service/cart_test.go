@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -10,7 +11,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // fakeCartRepo is shared by the cart and session tests in this package.
@@ -93,9 +93,9 @@ func TestCartService_AddProduct(t *testing.T) {
 		})
 
 		require.Error(t, err)
-		var ce lib.CustomError
+		var ce errors2.CustomError
 		require.ErrorAs(t, err, &ce)
-		assert.Equal(t, lib.ConflictError, ce.Type)
+		assert.Equal(t, errors2.ConflictError, ce.Type)
 		assert.Empty(t, cart.updated, "archived product must not reach the cart")
 	})
 

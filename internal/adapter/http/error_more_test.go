@@ -3,6 +3,7 @@ package handler
 import (
 	"encoding/json"
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -11,8 +12,6 @@ import (
 	"github.com/go-playground/validator/v10"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"getpaidhq/internal/lib"
 )
 
 // Fills the remaining branches in ApiErrorSerializer + fromFuegoError +
@@ -35,11 +34,11 @@ func TestApiErrorSerializer_FuegoSubtypes(t *testing.T) {
 		wantCode int
 		wantApi  string
 	}{
-		{"BadRequestError", fuego.BadRequestError{Status: http.StatusBadRequest, Title: "bad"}, http.StatusBadRequest, string(lib.BadRequestError)},
-		{"UnauthorizedError", fuego.UnauthorizedError{Status: http.StatusUnauthorized, Title: "no"}, http.StatusUnauthorized, string(lib.AuthenticationError)},
-		{"ForbiddenError", fuego.ForbiddenError{Status: http.StatusForbidden, Title: "nope"}, http.StatusForbidden, string(lib.ForbiddenError)},
-		{"ConflictError", fuego.ConflictError{Status: http.StatusConflict, Title: "clash"}, http.StatusConflict, string(lib.ConflictError)},
-		{"NotFoundError", fuego.NotFoundError{Status: http.StatusNotFound, Title: "gone"}, http.StatusNotFound, string(lib.NotFoundError)},
+		{"BadRequestError", fuego.BadRequestError{Status: http.StatusBadRequest, Title: "bad"}, http.StatusBadRequest, string(errors2.BadRequestError)},
+		{"UnauthorizedError", fuego.UnauthorizedError{Status: http.StatusUnauthorized, Title: "no"}, http.StatusUnauthorized, string(errors2.AuthenticationError)},
+		{"ForbiddenError", fuego.ForbiddenError{Status: http.StatusForbidden, Title: "nope"}, http.StatusForbidden, string(errors2.ForbiddenError)},
+		{"ConflictError", fuego.ConflictError{Status: http.StatusConflict, Title: "clash"}, http.StatusConflict, string(errors2.ConflictError)},
+		{"NotFoundError", fuego.NotFoundError{Status: http.StatusNotFound, Title: "gone"}, http.StatusNotFound, string(errors2.NotFoundError)},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -54,17 +53,17 @@ func TestApiErrorSerializer_HTTPError_Status401_500(t *testing.T) {
 	t.Run("401 maps to AuthenticationError", func(t *testing.T) {
 		code, got := serializeErr(t, fuego.HTTPError{Status: http.StatusUnauthorized, Title: "auth"})
 		assert.Equal(t, http.StatusUnauthorized, code)
-		assert.Equal(t, string(lib.AuthenticationError), got.Code)
+		assert.Equal(t, string(errors2.AuthenticationError), got.Code)
 	})
 	t.Run("500 maps to InternalError", func(t *testing.T) {
 		code, got := serializeErr(t, fuego.HTTPError{Status: http.StatusInternalServerError, Title: "boom"})
 		assert.Equal(t, http.StatusInternalServerError, code)
-		assert.Equal(t, string(lib.InternalError), got.Code)
+		assert.Equal(t, string(errors2.InternalError), got.Code)
 	})
 	t.Run("418 (unmapped) defaults to BadRequestError code, status 400", func(t *testing.T) {
 		code, got := serializeErr(t, fuego.HTTPError{Status: http.StatusTeapot, Title: "🫖"})
 		assert.Equal(t, http.StatusBadRequest, code)
-		assert.Equal(t, string(lib.BadRequestError), got.Code)
+		assert.Equal(t, string(errors2.BadRequestError), got.Code)
 	})
 }
 
@@ -100,7 +99,7 @@ func TestNewApiErrorFromError_ValidatorErrors(t *testing.T) {
 	require.True(t, ok)
 
 	got := NewApiErrorFromError(verrs)
-	assert.Equal(t, string(lib.BadRequestError), got.Code)
+	assert.Equal(t, string(errors2.BadRequestError), got.Code)
 	assert.Equal(t, "Input validation failed", got.Message)
 	require.NotNil(t, got.Details, "Details is the formatted field/message list")
 }
@@ -108,9 +107,9 @@ func TestNewApiErrorFromError_ValidatorErrors(t *testing.T) {
 func TestNewApiErrorFromError_CustomError_NilUnderlying(t *testing.T) {
 	// A CustomError with Err==nil exercises the branch that returns
 	// NewApiError(serr.Type, serr.Message, nil) instead of e.Err.Error().
-	ce := lib.NewCustomError(lib.AuthenticationError, "you shall not pass", nil)
+	ce := errors2.NewCustomError(errors2.AuthenticationError, "you shall not pass", nil)
 	got := NewApiErrorFromError(ce)
-	assert.Equal(t, string(lib.AuthenticationError), got.Code)
+	assert.Equal(t, string(errors2.AuthenticationError), got.Code)
 	assert.Equal(t, "you shall not pass", got.Message)
 	assert.Nil(t, got.Details, "no underlying error → nil details")
 }

@@ -3,13 +3,13 @@ package postgresgorm
 import (
 	"context"
 	"encoding/json"
+	"getpaidhq/internal/lib/errors"
 
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 type CouponRepo struct {
@@ -80,7 +80,7 @@ func (r *CouponRepo) DeleteIfUnreferenced(ctx context.Context, orgId, id string)
 		return err
 	}
 	if count > 0 {
-		return lib.NewCustomError(lib.BadRequestError, "coupon has discounts and cannot be deleted", nil)
+		return errors.NewCustomError(errors.BadRequestError, "coupon has discounts and cannot be deleted", nil)
 	}
 	return dbFromCtx(ctx, r.db).Scopes(OrgScope(orgId)).Where("id = ?", id).Delete(&couponRow{}).Error
 }

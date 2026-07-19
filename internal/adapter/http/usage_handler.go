@@ -2,13 +2,13 @@ package handler
 
 import (
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 
 	"github.com/go-fuego/fuego"
 	"github.com/go-fuego/fuego/option"
 
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 type UsageHandler struct {
@@ -60,7 +60,7 @@ func (h *UsageHandler) SubscriptionUsage(c fuego.ContextNoBody) (SubscriptionUsa
 	if err != nil {
 		// Repos return port.ErrNotFound (distinct from lib.ErrNotFound); map it to 404.
 		if errors.Is(err, port.ErrNotFound) {
-			return SubscriptionUsageResponse{}, NewApiError(lib.NotFoundError, "subscription not found", err)
+			return SubscriptionUsageResponse{}, NewApiError(errors2.NotFoundError, "subscription not found", err)
 		}
 		return SubscriptionUsageResponse{}, NewApiErrorFromError(err)
 	}

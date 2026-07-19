@@ -1,13 +1,14 @@
 package handler
 
 import (
+	"getpaidhq/internal/lib/errors"
+
 	"github.com/go-fuego/fuego"
 	"github.com/go-fuego/fuego/option"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // ProductHandler handles HTTP requests for products, variants, and prices.
@@ -52,7 +53,7 @@ func (s *ProductHandler) RegisterRoutes(srv *fuego.Server) {
 
 func enforce[B, P any](c fuego.Context[B, P], authz port.Authz, action port.Action) error {
 	if !authz.Enforce(AuthUserFrom(c), action, "") {
-		return NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	return nil
 }
@@ -84,7 +85,7 @@ func (s *ProductHandler) Create(c fuego.ContextWithBody[CreateProductRequest]) (
 		for j, p := range v.Prices {
 			tiers, terr := toDomainTiers(p.Tiers)
 			if terr != nil {
-				return ProductResponse{}, NewApiError(lib.BadRequestError, "invalid tier value", terr)
+				return ProductResponse{}, NewApiError(errors.BadRequestError, "invalid tier value", terr)
 			}
 			prices[j] = port.CreateProductPriceInput{
 				Label:              p.Label,
@@ -147,7 +148,7 @@ func parseProductStatusFilter[B, P any](c fuego.Context[B, P]) ([]domain.Product
 	case "all":
 		return nil, nil
 	default:
-		return nil, NewApiError(lib.BadRequestError, "status must be one of: active, archived, all", nil)
+		return nil, NewApiError(errors.BadRequestError, "status must be one of: active, archived, all", nil)
 	}
 }
 
@@ -255,7 +256,7 @@ func (s *ProductHandler) CreatePrice(c fuego.ContextWithBody[CreatePriceRequest]
 	}
 	tiers, err := toDomainTiers(input.Tiers)
 	if err != nil {
-		return PriceResponse{}, NewApiError(lib.BadRequestError, "invalid tier value", err)
+		return PriceResponse{}, NewApiError(errors.BadRequestError, "invalid tier value", err)
 	}
 	price, err := s.productService.CreateProductPrice(c.Context(), port.CreatePriceInput{
 		OrgId:              authUser.OrgId,
@@ -330,7 +331,7 @@ func (s *ProductHandler) UpdatePrice(c fuego.ContextWithBody[CreatePriceRequest]
 	}
 	tiers, err := toDomainTiers(input.Tiers)
 	if err != nil {
-		return PriceResponse{}, NewApiError(lib.BadRequestError, "invalid tier value", err)
+		return PriceResponse{}, NewApiError(errors.BadRequestError, "invalid tier value", err)
 	}
 	price, err := s.productService.UpdatePrice(c.Context(), authUser.OrgId, c.PathParam("priceId"), port.CreatePriceInput{
 		OrgId:              authUser.OrgId,

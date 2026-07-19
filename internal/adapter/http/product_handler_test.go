@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"net/http"
 	"testing"
 
@@ -10,7 +11,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 func newProductHandlerForTest(
@@ -51,7 +51,7 @@ func TestProductHandler_AuthzGuards(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := doJSON(t, ts, tt.method, tt.path, tt.body)
-			assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+			assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors2.ForbiddenError))
 		})
 	}
 	assert.Empty(t, prod.created, "no creates should leak past the authz guard")
@@ -168,7 +168,7 @@ func TestProductHandler_Delete(t *testing.T) {
 func TestProductHandler_Delete_conflict(t *testing.T) {
 	const msg = "Cannot delete a product that has existing orders."
 	prod := &fakeProductRepo{
-		deleteErr: lib.NewCustomError(lib.ConflictError, msg, errors.New("SQLSTATE 23503")),
+		deleteErr: errors2.NewCustomError(errors2.ConflictError, msg, errors.New("SQLSTATE 23503")),
 	}
 	h := newProductHandlerForTest(t, prod, &fakeVariantRepo{}, &fakePriceRepo{}, &fakeCartRepo{})
 

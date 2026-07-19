@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -15,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // nopLogger is a do-nothing port.Logger so the middleware's startup logs don't
@@ -214,7 +214,7 @@ func TestRateLimit_TooManyRequestsEnvelope(t *testing.T) {
 		Details any    `json:"details"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &env), "body=%s", rec.Body.String())
-	assert.Equal(t, string(lib.RateLimitError), env.Code)
+	assert.Equal(t, string(errors2.RateLimitError), env.Code)
 	assert.Equal(t, "rate limit exceeded", env.Message)
 	assert.Nil(t, env.Details)
 }

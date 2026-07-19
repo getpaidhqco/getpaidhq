@@ -1,12 +1,13 @@
 package handler
 
 import (
+	"getpaidhq/internal/lib/errors"
+
 	"github.com/go-fuego/fuego"
 	"github.com/go-fuego/fuego/option"
 
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 type CartHandler struct {
@@ -28,7 +29,7 @@ func (o *CartHandler) RegisterRoutes(s *fuego.Server) {
 func (o *CartHandler) AddProduct(c fuego.ContextWithBody[AddItemRequest]) (CartResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !o.authz.Enforce(authUser, port.ActionAddProductToCart, "") {
-		return CartResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return CartResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	input, err := c.Body()
 	if err != nil {
@@ -50,7 +51,7 @@ func (o *CartHandler) AddProduct(c fuego.ContextWithBody[AddItemRequest]) (CartR
 func (o *CartHandler) RemoveItem(c fuego.ContextWithBody[RemoveItemRequest]) (CartResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !o.authz.Enforce(authUser, port.ActionRemoveItemFromCart, "") {
-		return CartResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return CartResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	input, err := c.Body()
 	if err != nil {

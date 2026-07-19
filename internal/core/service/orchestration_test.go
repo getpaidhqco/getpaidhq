@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"sync"
 	"testing"
 
@@ -12,7 +13,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // fakeDunningEngine records port.DunningEngine calls.
@@ -121,8 +121,8 @@ func newDunningOrchestration(dr *fakeDunningRepo, sr *fakeSubRepo, cr *fakeCusto
 	}
 	// CreateCampaign validates the subscription + customer exist, so the narrow
 	// service needs both repos wired.
-	narrow := NewDunningService(dr, sr, cr, nil, nil, noopBillingInvoicing{}, nil, ps, lib.ErrorReporter{}, silentLogger{})
-	svc, err := NewDunningOrchestrationService(narrow, eng, ps, lib.ErrorReporter{}, silentLogger{})
+	narrow := NewDunningService(dr, sr, cr, nil, nil, noopBillingInvoicing{}, nil, ps, errors2.ErrorReporter{}, silentLogger{})
+	svc, err := NewDunningOrchestrationService(narrow, eng, ps, errors2.ErrorReporter{}, silentLogger{})
 	if err != nil {
 		panic(err)
 	}

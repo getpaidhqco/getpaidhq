@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
+	errors2 "getpaidhq/internal/lib/errors"
 	"getpaidhq/internal/lib/ids"
 	"time"
 )
@@ -45,7 +45,7 @@ type SubscriptionService struct {
 	gatewayFactory         port.GatewayFactory
 	invoiceService         BillingInvoicing
 	pubsub                 port.PubSub
-	errorReporter          lib.ErrorReporter
+	errorReporter          errors2.ErrorReporter
 	logger                 port.Logger
 	// tx wraps lifecycle state transitions in a SQL transaction so the
 	// FindByIdForUpdate-then-Update sequence is atomic and SELECT FOR
@@ -69,7 +69,7 @@ func NewSubscriptionService(
 	gatewayFactory port.GatewayFactory,
 	invoiceService BillingInvoicing,
 	pubsub port.PubSub,
-	errorReporter lib.ErrorReporter,
+	errorReporter errors2.ErrorReporter,
 	logger port.Logger,
 	tx port.TxManager,
 ) (*SubscriptionService, error) {
@@ -248,14 +248,14 @@ func (s *SubscriptionService) PauseSubscription(ctx context.Context, input port.
 	txErr := s.transitionInTx(ctx, func(ctx context.Context) error {
 		sub, err := s.subscriptionRepository.FindByIdForUpdate(ctx, input.OrgId, input.Id)
 		if err != nil {
-			if _, ok := errors.AsType[lib.CustomError](err); ok {
+			if _, ok := errors.AsType[errors2.CustomError](err); ok {
 				return err
 			}
-			return lib.NewCustomError(lib.InternalError, "", err)
+			return errors2.NewCustomError(errors2.InternalError, "", err)
 		}
 		if sub.Status == domain.SubscriptionStatusPaused {
 			subscription = sub
-			return lib.NewCustomError(lib.BadRequestError, "subscription is paused already", nil)
+			return errors2.NewCustomError(errors2.BadRequestError, "subscription is paused already", nil)
 		}
 		sub.Status = domain.SubscriptionStatusPaused
 		sub, err = s.subscriptionRepository.Update(ctx, sub)
@@ -270,7 +270,7 @@ func (s *SubscriptionService) PauseSubscription(ctx context.Context, input port.
 		// Pre-existing-paused returns the loaded subscription with the
 		// BadRequestError so handlers can render a useful body — keep
 		// that contract.
-		if _, ok := errors.AsType[lib.CustomError](txErr); ok && subscription.Id != "" {
+		if _, ok := errors.AsType[errors2.CustomError](txErr); ok && subscription.Id != "" {
 			return subscription, txErr
 		}
 		return domain.Subscription{}, txErr
@@ -298,16 +298,16 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input port
 	txErr := s.transitionInTx(ctx, func(ctx context.Context) error {
 		subscription, err := s.subscriptionRepository.FindByIdForUpdate(ctx, input.OrgId, input.Id)
 		if err != nil {
-			if _, ok := errors.AsType[lib.CustomError](err); ok {
+			if _, ok := errors.AsType[errors2.CustomError](err); ok {
 				return err
 			}
-			return lib.NewCustomError(lib.InternalError, "", err)
+			return errors2.NewCustomError(errors2.InternalError, "", err)
 		}
 
 		if subscription.Status != domain.SubscriptionStatusPaused &&
 			subscription.Status != domain.SubscriptionStatusPastDue {
 			newSub = subscription
-			return lib.NewCustomError(lib.BadRequestError, "subscription is not paused", nil)
+			return errors2.NewCustomError(errors2.BadRequestError, "subscription is not paused", nil)
 		}
 
 		behaviour := domain.ContinueExistingBillingPeriod
@@ -318,7 +318,7 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input port
 		if behaviour == domain.ContinueExistingBillingPeriod {
 			nextCharge := subscription.CalculateNextBillingDate()
 			if nextCharge.Before(time.Now().UTC()) {
-				return lib.NewCustomError(lib.BadRequestError, "can't continue existing billing period, start a new period", errors.New("next billing date is in the past"))
+				return errors2.NewCustomError(errors2.BadRequestError, "can't continue existing billing period, start a new period", errors.New("next billing date is in the past"))
 			}
 			subscription.RenewsAt = nextCharge
 		}
@@ -341,7 +341,7 @@ func (s *SubscriptionService) ResumeSubscription(ctx context.Context, input port
 	})
 	if txErr != nil {
 		s.logger.Error("ResumeSubscription failed", "err", txErr.Error())
-		if _, ok := errors.AsType[lib.CustomError](txErr); ok && newSub.Id != "" {
+		if _, ok := errors.AsType[errors2.CustomError](txErr); ok && newSub.Id != "" {
 			return newSub, txErr
 		}
 		return domain.Subscription{}, txErr
@@ -360,15 +360,15 @@ func (s *SubscriptionService) CancelSubscription(ctx context.Context, input port
 	txErr := s.transitionInTx(ctx, func(ctx context.Context) error {
 		sub, err := s.subscriptionRepository.FindByIdForUpdate(ctx, input.OrgId, input.Id)
 		if err != nil {
-			if _, ok := errors.AsType[lib.CustomError](err); ok {
+			if _, ok := errors.AsType[errors2.CustomError](err); ok {
 				return err
 			}
-			return lib.NewCustomError(lib.InternalError, "", err)
+			return errors2.NewCustomError(errors2.InternalError, "", err)
 		}
 
 		if sub.Status == domain.SubscriptionStatusCancelled {
 			subscription = sub
-			return lib.NewCustomError(lib.BadRequestError, "subscription is already cancelled", nil)
+			return errors2.NewCustomError(errors2.BadRequestError, "subscription is already cancelled", nil)
 		}
 
 		cancelledAt := time.Now().UTC()
@@ -384,7 +384,7 @@ func (s *SubscriptionService) CancelSubscription(ctx context.Context, input port
 	})
 	if txErr != nil {
 		s.logger.Error("CancelSubscription failed", "err", txErr.Error())
-		if _, ok := errors.AsType[lib.CustomError](txErr); ok && subscription.Id != "" {
+		if _, ok := errors.AsType[errors2.CustomError](txErr); ok && subscription.Id != "" {
 			return subscription, txErr
 		}
 		return domain.Subscription{}, txErr
@@ -426,10 +426,10 @@ func (s *SubscriptionService) UpdateBillingAnchor(ctx context.Context, input por
 	subscription, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
 	if err != nil {
 		s.logger.Error("Failed to find subscriptions", err.Error())
-		if _, ok := errors.AsType[lib.CustomError](err); ok {
+		if _, ok := errors.AsType[errors2.CustomError](err); ok {
 			return domain.ProrationDetails{}, err
 		}
-		return domain.ProrationDetails{}, lib.NewCustomError(lib.InternalError, "", err)
+		return domain.ProrationDetails{}, errors2.NewCustomError(errors2.InternalError, "", err)
 	}
 
 	// Proration credits the unused portion of the recurring flat fee. The

@@ -3,7 +3,7 @@ package paystack
 import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/errors"
 )
 
 // Adapter implements port.GatewayAdapter for Paystack.
@@ -40,7 +40,7 @@ func NewAdapter(
 func (a *Adapter) CreateGateway(config map[string]string, credentials map[string]domain.Secret) (port.PaymentGateway, error) {
 	c, err := ParseConfig(config, credentials)
 	if err != nil {
-		return nil, lib.NewCustomError(lib.ValidationError, "invalid config", err)
+		return nil, errors.NewCustomError(errors.ValidationError, "invalid config", err)
 	}
 	return NewPaystackGateway(a.logger, c), nil
 }

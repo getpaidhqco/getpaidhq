@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"net/http"
 	"testing"
 
@@ -10,7 +11,6 @@ import (
 
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 func newSessionHandlerForTest(
@@ -61,7 +61,7 @@ func TestSessionHandler_Create(t *testing.T) {
 			Currency: "USD", Country: "US",
 		})
 
-		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors2.ForbiddenError))
 		assert.Empty(t, sess.created, "service must not run when authz denies")
 	})
 
@@ -102,5 +102,5 @@ func TestSessionHandler_AuthzDeniedExplicit(t *testing.T) {
 
 	rec := doJSON(t, ts, http.MethodPost, "/api/sessions", CreateSessionRequest{Currency: "USD", Country: "US"})
 
-	assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+	assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors2.ForbiddenError))
 }

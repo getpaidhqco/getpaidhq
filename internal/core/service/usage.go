@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	errors2 "getpaidhq/internal/lib/errors"
 	"getpaidhq/internal/lib/ids"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // UsageService records usage events and aggregates them. Narrow — no workflow engine.
@@ -157,7 +157,7 @@ func (s *UsageService) buildEvent(ctx context.Context, in port.RecordEventInput,
 	if !ok {
 		m, err := s.meterRepository.FindByCode(ctx, in.OrgId, in.MetricCode)
 		if err != nil {
-			return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "unknown metric code", err)
+			return domain.MeterEvent{}, errors2.NewCustomError(errors2.BadRequestError, "unknown metric code", err)
 		}
 		metric = m
 		meterCache[in.MetricCode] = m
@@ -168,12 +168,12 @@ func (s *UsageService) buildEvent(ctx context.Context, in port.RecordEventInput,
 	// attached later if a customer with that external id is created). When the
 	// external id resolves now, we also store the internal customer_id.
 	if in.CustomerId == "" && in.ExternalCustomerId == "" {
-		return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "customer_id or external_customer_id is required", nil)
+		return domain.MeterEvent{}, errors2.NewCustomError(errors2.BadRequestError, "customer_id or external_customer_id is required", nil)
 	}
 	if in.CustomerId != "" {
 		if _, cerr := s.customerRepository.FindById(ctx, in.OrgId, in.CustomerId); cerr != nil {
 			if errors.Is(cerr, port.ErrNotFound) {
-				return domain.MeterEvent{}, lib.NewCustomError(lib.NotFoundError, "customer not found", cerr)
+				return domain.MeterEvent{}, errors2.NewCustomError(errors2.NotFoundError, "customer not found", cerr)
 			}
 			return domain.MeterEvent{}, cerr
 		}
@@ -187,14 +187,14 @@ func (s *UsageService) buildEvent(ctx context.Context, in port.RecordEventInput,
 	// customer and carry a metered price for this metric.
 	if in.SubscriptionId != "" {
 		if in.CustomerId == "" {
-			return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "subscription_id requires a known customer", nil)
+			return domain.MeterEvent{}, errors2.NewCustomError(errors2.BadRequestError, "subscription_id requires a known customer", nil)
 		}
 		metered, merr := s.subscriptionRepository.FindActiveMeteredForMeter(ctx, in.OrgId, in.CustomerId, metric.Id)
 		if merr != nil {
 			return domain.MeterEvent{}, merr
 		}
 		if !containsSubscription(metered, in.SubscriptionId) {
-			return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "subscription does not carry a metered price for this metric", nil)
+			return domain.MeterEvent{}, errors2.NewCustomError(errors2.BadRequestError, "subscription does not carry a metered price for this metric", nil)
 		}
 	}
 
@@ -205,30 +205,30 @@ func (s *UsageService) buildEvent(ctx context.Context, in port.RecordEventInput,
 		// docs/internal/billing-model/stock-billing-architecture-impact.md §4.
 		if op, hasOp := in.Metadata[domain.UsageOperationKey]; hasOp {
 			if op != domain.UsageOperationAdd && op != domain.UsageOperationRemove {
-				return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, `metadata.operation must be "add" or "remove"`, nil)
+				return domain.MeterEvent{}, errors2.NewCustomError(errors2.BadRequestError, `metadata.operation must be "add" or "remove"`, nil)
 			}
 			if in.Metadata[metric.FieldName] == "" {
-				return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "metadata is missing the identity field "+metric.FieldName, nil)
+				return domain.MeterEvent{}, errors2.NewCustomError(errors2.BadRequestError, "metadata is missing the identity field "+metric.FieldName, nil)
 			}
 		} else {
 			raw, ok := in.Metadata[metric.FieldName]
 			if !ok {
-				return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "metadata needs either an operation with the identity field "+metric.FieldName+", or a numeric level under "+metric.FieldName, nil)
+				return domain.MeterEvent{}, errors2.NewCustomError(errors2.BadRequestError, "metadata needs either an operation with the identity field "+metric.FieldName+", or a numeric level under "+metric.FieldName, nil)
 			}
 			v, perr := decimal.NewFromString(raw)
 			if perr != nil {
-				return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "metric field "+metric.FieldName+" is not numeric", perr)
+				return domain.MeterEvent{}, errors2.NewCustomError(errors2.BadRequestError, "metric field "+metric.FieldName+" is not numeric", perr)
 			}
 			value = v
 		}
 	} else if metric.Aggregation != domain.AggregationCount && metric.Aggregation != domain.AggregationUniqueCount {
 		raw, ok := in.Metadata[metric.FieldName]
 		if !ok {
-			return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "metadata is missing the metric field "+metric.FieldName, nil)
+			return domain.MeterEvent{}, errors2.NewCustomError(errors2.BadRequestError, "metadata is missing the metric field "+metric.FieldName, nil)
 		}
 		v, perr := decimal.NewFromString(raw)
 		if perr != nil {
-			return domain.MeterEvent{}, lib.NewCustomError(lib.BadRequestError, "metric field "+metric.FieldName+" is not numeric", perr)
+			return domain.MeterEvent{}, errors2.NewCustomError(errors2.BadRequestError, "metric field "+metric.FieldName+" is not numeric", perr)
 		}
 		value = v
 	}

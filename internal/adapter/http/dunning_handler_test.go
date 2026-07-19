@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"net/http"
 	"testing"
 	"time"
@@ -12,7 +13,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // nowPlusHour gives the dunning token tests a future expiry without polluting
@@ -38,7 +38,7 @@ func newDunningHandlerForTest(
 	subSvc, err := service.NewSubscriptionService(
 		&fakeSessionRepo{}, &fakeSettingRepo{}, &fakeCartRepo{},
 		subRepo, custRepo, &fakeOrderRepo{}, &fakePaymentRepo{}, nil,
-		factory, noopBillingInvoicing{}, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{}, noopTxManager{},
+		factory, noopBillingInvoicing{}, newPubSub(), errors2.NewErrorReporter(silentLogger{}), silentLogger{}, noopTxManager{},
 	)
 	if err != nil {
 		t.Fatalf("NewSubscriptionService: %v", err)
@@ -47,10 +47,10 @@ func newDunningHandlerForTest(
 
 	dunningSvc := service.NewDunningService(
 		dunningRepo, subRepo, custRepo, &fakePaymentRepo{},
-		subSvc, noopBillingInvoicing{}, factory, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{},
+		subSvc, noopBillingInvoicing{}, factory, newPubSub(), errors2.NewErrorReporter(silentLogger{}), silentLogger{},
 	)
 	dunningOrch, err := service.NewDunningOrchestrationService(
-		dunningSvc, dunEngine, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{},
+		dunningSvc, dunEngine, newPubSub(), errors2.NewErrorReporter(silentLogger{}), silentLogger{},
 	)
 	if err != nil {
 		t.Fatalf("NewDunningOrchestrationService: %v", err)
@@ -83,7 +83,7 @@ func TestDunningHandler_ListCampaigns(t *testing.T) {
 
 		rec := doJSON(t, ts, http.MethodGet, "/api/dunning/campaigns", nil)
 
-		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors2.ForbiddenError))
 	})
 }
 
@@ -170,7 +170,7 @@ func TestDunningHandler_VerifyPaymentToken(t *testing.T) {
 		rec := doJSON(t, ts, http.MethodPost, "/api/payment-tokens/verify", VerifyPaymentTokenRequest{TokenID: "tok_x"})
 
 		// VerifyPaymentUpdateToken wraps the repo error as NotFound (404).
-		assertErrorEnvelope(t, rec, http.StatusNotFound, string(lib.NotFoundError))
+		assertErrorEnvelope(t, rec, http.StatusNotFound, string(errors2.NotFoundError))
 	})
 }
 

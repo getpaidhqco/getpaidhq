@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"getpaidhq/internal/lib/errors"
 	"net/http"
 	"testing"
 
@@ -11,7 +12,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // fakeMeterRepo embeds the port interface; unimplemented methods nil-panic if hit.
@@ -57,7 +57,7 @@ func TestMeterHandler_AuthzGuards(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			rec := doJSON(t, ts, tt.method, tt.path, tt.body)
-			assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+			assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors.ForbiddenError))
 		})
 	}
 	assert.Zero(t, repo.createN, "no writes past the authz guard")

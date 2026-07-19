@@ -1,11 +1,10 @@
 package domain
 
 import (
+	"getpaidhq/internal/lib/errors"
 	"getpaidhq/internal/lib/ids"
 	"strings"
 	"time"
-
-	"getpaidhq/internal/lib"
 )
 
 // Restrictions are per-code eligibility gates, stored as a JSON column.
@@ -49,16 +48,16 @@ type NewCouponCodeInput struct {
 
 func NewCouponCode(in NewCouponCodeInput) (CouponCode, error) {
 	if in.OrgId == "" || in.CouponId == "" || strings.TrimSpace(in.Code) == "" {
-		return CouponCode{}, lib.NewCustomError(lib.BadRequestError, "coupon code requires org, coupon and code", nil)
+		return CouponCode{}, errors.NewCustomError(errors.BadRequestError, "coupon code requires org, coupon and code", nil)
 	}
 	if in.MaxRedemptions < 0 {
-		return CouponCode{}, lib.NewCustomError(lib.BadRequestError, "max_redemptions must be >= 0", nil)
+		return CouponCode{}, errors.NewCustomError(errors.BadRequestError, "max_redemptions must be >= 0", nil)
 	}
 	if in.Restrictions.MinimumAmount < 0 {
-		return CouponCode{}, lib.NewCustomError(lib.BadRequestError, "minimum_amount must be >= 0", nil)
+		return CouponCode{}, errors.NewCustomError(errors.BadRequestError, "minimum_amount must be >= 0", nil)
 	}
 	if in.Restrictions.MinimumAmount > 0 && len(in.Restrictions.MinimumAmountCurrency) != 3 {
-		return CouponCode{}, lib.NewCustomError(lib.BadRequestError, "minimum_amount requires a 3-letter currency", nil)
+		return CouponCode{}, errors.NewCustomError(errors.BadRequestError, "minimum_amount requires a 3-letter currency", nil)
 	}
 	return CouponCode{
 		OrgId:          in.OrgId,

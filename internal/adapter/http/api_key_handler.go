@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"getpaidhq/internal/lib/errors"
 	"time"
 
 	"github.com/go-fuego/fuego"
@@ -8,7 +9,6 @@ import (
 
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // ApiKeyHandler exposes CRUD for org-scoped API keys. The plaintext key
@@ -57,7 +57,7 @@ type ApiKeyCreateResponse struct {
 func (h *ApiKeyHandler) Create(c fuego.ContextWithBody[CreateApiKeyInput]) (ApiKeyCreateResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionCreateApiKey, "") {
-		return ApiKeyCreateResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return ApiKeyCreateResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	input, err := c.Body()
 	if err != nil {
@@ -83,7 +83,7 @@ func (h *ApiKeyHandler) Create(c fuego.ContextWithBody[CreateApiKeyInput]) (ApiK
 func (h *ApiKeyHandler) List(c fuego.ContextNoBody) (ListResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionListApiKeys, "") {
-		return ListResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return ListResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	pagination := GetPagination(c)
 
@@ -109,7 +109,7 @@ func (h *ApiKeyHandler) List(c fuego.ContextNoBody) (ListResponse, error) {
 func (h *ApiKeyHandler) Delete(c fuego.ContextNoBody) (EmptyResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !h.authz.Enforce(authUser, port.ActionDeleteApiKey, "") {
-		return EmptyResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return EmptyResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	if err := h.apiKeyService.Delete(c.Context(), authUser.OrgId, c.PathParam("id")); err != nil {
 		return EmptyResponse{}, NewApiErrorFromError(err)

@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"net/http"
 
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // ctxKey is an unexported type so collisions with other packages' keys are
@@ -155,7 +155,7 @@ func writeUnauthorized(w http.ResponseWriter) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(http.StatusUnauthorized)
 	_ = json.NewEncoder(w).Encode(map[string]any{
-		"code":    string(lib.AuthenticationError),
+		"code":    string(errors2.AuthenticationError),
 		"message": "unauthorized",
 		"details": nil,
 	})

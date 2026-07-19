@@ -3,9 +3,9 @@ package apikey
 import (
 	"context"
 	"getpaidhq/internal/lib/apikey"
+	"getpaidhq/internal/lib/errors"
 
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 type ApiKeyMiddleware struct {
@@ -37,7 +37,7 @@ func NewApiKeyMiddleware(
 // whether the key existed but had the wrong value.
 func (m ApiKeyMiddleware) Authenticate(ctx context.Context, token string) (port.AuthUser, error) {
 	if token == "" {
-		return port.AuthUser{}, lib.NewCustomError(lib.AuthenticationError, "not allowed", nil)
+		return port.AuthUser{}, errors.NewCustomError(errors.AuthenticationError, "not allowed", nil)
 	}
 
 	keyHash, err := apikey.Hash(token, m.pepper)
@@ -46,12 +46,12 @@ func (m ApiKeyMiddleware) Authenticate(ctx context.Context, token string) (port.
 		// problem — but surface as a generic authn failure so the
 		// shape of the response doesn't help fingerprint our setup.
 		m.logger.Error("api key hash failed (check API_KEY_PEPPER)", "err", err.Error())
-		return port.AuthUser{}, lib.NewCustomError(lib.AuthenticationError, "not allowed", nil)
+		return port.AuthUser{}, errors.NewCustomError(errors.AuthenticationError, "not allowed", nil)
 	}
 
 	apiKey, err := m.apiKeyRepository.FindByKey(ctx, keyHash)
 	if err != nil {
-		return port.AuthUser{}, lib.NewCustomError(lib.AuthenticationError, "not allowed", nil)
+		return port.AuthUser{}, errors.NewCustomError(errors.AuthenticationError, "not allowed", nil)
 	}
 
 	return port.AuthUser{

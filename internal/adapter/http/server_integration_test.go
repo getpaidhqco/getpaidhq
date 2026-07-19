@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"getpaidhq/internal/lib/errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -13,7 +14,6 @@ import (
 
 	"getpaidhq/internal/adapter/http/middleware"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // fixedAuthenticator returns a hard-coded AuthUser for every token. Mirrors
@@ -32,7 +32,7 @@ func (f fixedAuthenticator) Authenticate(_ context.Context, _ string) (port.Auth
 // handler. A request with no Authorization header is rejected before the
 // handler ever runs.
 func TestAuthnMiddleware_RejectsUnauthenticated(t *testing.T) {
-	authn := fixedAuthenticator{err: lib.NewCustomError(lib.AuthenticationError, "no token", nil)}
+	authn := fixedAuthenticator{err: errors.NewCustomError(errors.AuthenticationError, "no token", nil)}
 	wrap := middleware.NewAuthnWrapperMiddleware([]port.Authenticator{authn}, silentLogger{}).Handler()
 
 	ts := newTestServer(wrap)

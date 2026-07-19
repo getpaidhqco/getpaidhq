@@ -2,7 +2,7 @@ package domain
 
 import (
 	"encoding/json"
-	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/errors"
 	"strconv"
 	"time"
 )
@@ -52,6 +52,6 @@ func ParsePaymentMethodDetails(paymentMethodType PaymentMethodType, details any)
 		return cardDetail, nil
 
 	default:
-		return nil, lib.NewCustomError(lib.BadRequestError, "Invalid payment method type", nil)
+		return nil, errors.NewCustomError(errors.BadRequestError, "Invalid payment method type", nil)
 	}
 }

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"getpaidhq/internal/lib/errors"
 	"net/http"
 	"testing"
 
@@ -11,7 +12,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 type fakeSettingRepoHTTP struct {
@@ -80,7 +80,7 @@ func TestSettingHandler_AuthzGuards(t *testing.T) {
 	}
 	for _, tc := range cases {
 		rec := doJSON(t, ts, tc.method, tc.path, tc.body)
-		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors.ForbiddenError))
 	}
 	assert.Zero(t, repo.createN)
 }

@@ -1,12 +1,11 @@
 package domain
 
 import (
+	"getpaidhq/internal/lib/errors"
 	"getpaidhq/internal/lib/ids"
 	"time"
 
 	"github.com/shopspring/decimal"
-
-	"getpaidhq/internal/lib"
 )
 
 type DiscountType string
@@ -93,43 +92,43 @@ func NewCoupon(in NewCouponInput) (Coupon, error) {
 
 func (c Coupon) validate() error {
 	if c.OrgId == "" || c.Name == "" {
-		return lib.NewCustomError(lib.BadRequestError, "coupon requires org and name", nil)
+		return errors.NewCustomError(errors.BadRequestError, "coupon requires org and name", nil)
 	}
 	switch c.DiscountType {
 	case DiscountTypePercentage:
 		if c.AmountOff != 0 || c.Currency != "" {
-			return lib.NewCustomError(lib.BadRequestError, "percentage coupon must not set amount_off/currency", nil)
+			return errors.NewCustomError(errors.BadRequestError, "percentage coupon must not set amount_off/currency", nil)
 		}
 		if c.PercentOff.LessThanOrEqual(decimal.Zero) || c.PercentOff.GreaterThan(decimal.NewFromInt(100)) {
-			return lib.NewCustomError(lib.BadRequestError, "percent_off must be in (0,100]", nil)
+			return errors.NewCustomError(errors.BadRequestError, "percent_off must be in (0,100]", nil)
 		}
 	case DiscountTypeFixed:
 		if !c.PercentOff.IsZero() {
-			return lib.NewCustomError(lib.BadRequestError, "fixed coupon must not set percent_off", nil)
+			return errors.NewCustomError(errors.BadRequestError, "fixed coupon must not set percent_off", nil)
 		}
 		if c.AmountOff <= 0 {
-			return lib.NewCustomError(lib.BadRequestError, "amount_off must be > 0", nil)
+			return errors.NewCustomError(errors.BadRequestError, "amount_off must be > 0", nil)
 		}
 		if len(c.Currency) != 3 {
-			return lib.NewCustomError(lib.BadRequestError, "fixed coupon requires a 3-letter currency", nil)
+			return errors.NewCustomError(errors.BadRequestError, "fixed coupon requires a 3-letter currency", nil)
 		}
 	default:
-		return lib.NewCustomError(lib.BadRequestError, "discount_type must be percentage or fixed", nil)
+		return errors.NewCustomError(errors.BadRequestError, "discount_type must be percentage or fixed", nil)
 	}
 	switch c.Duration {
 	case DurationRepeating:
 		if c.DurationInCycles < 1 {
-			return lib.NewCustomError(lib.BadRequestError, "repeating coupon requires duration_in_cycles >= 1", nil)
+			return errors.NewCustomError(errors.BadRequestError, "repeating coupon requires duration_in_cycles >= 1", nil)
 		}
 	case DurationOnce, DurationForever:
 		if c.DurationInCycles != 0 {
-			return lib.NewCustomError(lib.BadRequestError, "duration_in_cycles only valid for repeating", nil)
+			return errors.NewCustomError(errors.BadRequestError, "duration_in_cycles only valid for repeating", nil)
 		}
 	default:
-		return lib.NewCustomError(lib.BadRequestError, "duration must be once, repeating or forever", nil)
+		return errors.NewCustomError(errors.BadRequestError, "duration must be once, repeating or forever", nil)
 	}
 	if c.MaxRedemptions < 0 {
-		return lib.NewCustomError(lib.BadRequestError, "max_redemptions must be >= 0", nil)
+		return errors.NewCustomError(errors.BadRequestError, "max_redemptions must be >= 0", nil)
 	}
 	return nil
 }

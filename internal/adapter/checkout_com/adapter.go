@@ -3,7 +3,7 @@ package checkout_com
 import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/errors"
 )
 
 // Adapter implements port.GatewayAdapter for Checkout.com.
@@ -22,7 +22,7 @@ func NewAdapter(logger port.Logger, webhookSecret string) *Adapter {
 func (a *Adapter) CreateGateway(config map[string]string, credentials map[string]domain.Secret) (port.PaymentGateway, error) {
 	c, err := ParseConfig(config, credentials)
 	if err != nil {
-		return nil, lib.NewCustomError(lib.ValidationError, "invalid config for CheckoutDotCom", err)
+		return nil, errors.NewCustomError(errors.ValidationError, "invalid config for CheckoutDotCom", err)
 	}
 	return NewCheckoutDotComGateway(a.logger, c), nil
 }

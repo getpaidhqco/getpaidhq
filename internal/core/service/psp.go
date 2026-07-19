@@ -3,11 +3,11 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"getpaidhq/internal/lib/errors"
 	"getpaidhq/internal/lib/ids"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 type PspService struct {
@@ -38,7 +38,7 @@ func NewPspService(
 // gateway credentials are deliberately NOT readable back through any API.
 func (s *PspService) CreateGateway(ctx context.Context, input port.CreateGatewayInput) (domain.PspConfig, error) {
 	if len(input.Credentials) == 0 {
-		return domain.PspConfig{}, lib.NewCustomError(lib.BadRequestError, "credentials are required", nil)
+		return domain.PspConfig{}, errors.NewCustomError(errors.BadRequestError, "credentials are required", nil)
 	}
 
 	id := ids.Generate("psp")

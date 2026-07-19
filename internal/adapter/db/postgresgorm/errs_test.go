@@ -3,12 +3,11 @@ package postgresgorm
 import (
 	"errors"
 	"fmt"
+	errors2 "getpaidhq/internal/lib/errors"
 	"testing"
 
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/stretchr/testify/require"
-
-	"getpaidhq/internal/lib"
 )
 
 // asConflictOnFK must turn a Postgres foreign-key violation (SQLSTATE 23503)
@@ -21,9 +20,9 @@ func TestAsConflictOnFK(t *testing.T) {
 		fk := &pgconn.PgError{Code: "23503", Message: "violates foreign key constraint"}
 		got := asConflictOnFK(fk, msg)
 
-		var ce lib.CustomError
+		var ce errors2.CustomError
 		require.True(t, errors.As(got, &ce), "want a lib.CustomError, got %T", got)
-		require.Equal(t, lib.ConflictError, ce.Type)
+		require.Equal(t, errors2.ConflictError, ce.Type)
 		require.Equal(t, msg, ce.Message)
 		require.ErrorIs(t, got, fk, "underlying driver error must remain in the chain")
 	})
@@ -32,9 +31,9 @@ func TestAsConflictOnFK(t *testing.T) {
 		fk := &pgconn.PgError{Code: "23503"}
 		got := asConflictOnFK(fmt.Errorf("gorm: %w", fk), msg)
 
-		var ce lib.CustomError
+		var ce errors2.CustomError
 		require.True(t, errors.As(got, &ce))
-		require.Equal(t, lib.ConflictError, ce.Type)
+		require.Equal(t, errors2.ConflictError, ce.Type)
 	})
 
 	t.Run("other Postgres errors pass through unchanged", func(t *testing.T) {

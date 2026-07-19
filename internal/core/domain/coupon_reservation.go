@@ -1,10 +1,9 @@
 package domain
 
 import (
+	"getpaidhq/internal/lib/errors"
 	"getpaidhq/internal/lib/ids"
 	"time"
-
-	"getpaidhq/internal/lib"
 )
 
 // CouponReservation is an ephemeral hold on a coupon code's redemption capacity
@@ -34,13 +33,13 @@ type NewCouponReservationInput struct {
 
 func NewCouponReservation(in NewCouponReservationInput) (CouponReservation, error) {
 	if in.OrgId == "" || in.CouponId == "" {
-		return CouponReservation{}, lib.NewCustomError(lib.ValidationError, "reservation requires org and coupon", nil)
+		return CouponReservation{}, errors.NewCustomError(errors.ValidationError, "reservation requires org and coupon", nil)
 	}
 	if in.OrderId == "" && in.CheckoutSessionId == "" {
-		return CouponReservation{}, lib.NewCustomError(lib.ValidationError, "reservation requires a holder (order or checkout session)", nil)
+		return CouponReservation{}, errors.NewCustomError(errors.ValidationError, "reservation requires a holder (order or checkout session)", nil)
 	}
 	if in.ExpiresAt.IsZero() {
-		return CouponReservation{}, lib.NewCustomError(lib.ValidationError, "reservation requires expires_at", nil)
+		return CouponReservation{}, errors.NewCustomError(errors.ValidationError, "reservation requires expires_at", nil)
 	}
 	now := time.Now().UTC()
 	return CouponReservation{

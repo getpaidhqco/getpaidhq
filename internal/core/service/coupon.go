@@ -3,12 +3,12 @@ package service
 import (
 	"context"
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"strings"
 	"time"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 type CouponService struct {
@@ -73,7 +73,7 @@ func (s *CouponService) Delete(ctx context.Context, orgId, id string) error {
 
 func (s *CouponService) CreateCode(ctx context.Context, orgId, couponId string, in port.CreateCouponCodeInput) (domain.CouponCode, error) {
 	if _, err := s.coupons.FindById(ctx, orgId, couponId); err != nil {
-		return domain.CouponCode{}, lib.NewCustomError(lib.NotFoundError, "coupon not found", err)
+		return domain.CouponCode{}, errors2.NewCustomError(errors2.NotFoundError, "coupon not found", err)
 	}
 	code, err := domain.NewCouponCode(domain.NewCouponCodeInput{
 		OrgId:          orgId,
@@ -264,7 +264,7 @@ func (s *CouponService) Redeem(ctx context.Context, in port.RedeemCouponInput) (
 			return err
 		}
 		if gate.reason != "" {
-			return lib.NewCustomError(lib.BadRequestError, "coupon refused: "+gate.reason, nil)
+			return errors2.NewCustomError(errors2.BadRequestError, "coupon refused: "+gate.reason, nil)
 		}
 
 		couponCodeId := ""
@@ -328,7 +328,7 @@ func (s *CouponService) Reserve(ctx context.Context, in ReserveInput) (domain.Co
 			cc, err := s.codes.FindByCodeForUpdate(ctx, in.OrgId, in.Code)
 			if err != nil {
 				if errors.Is(err, port.ErrNotFound) {
-					return lib.NewCustomError(lib.ValidationError, "coupon refused: code_not_found", nil)
+					return errors2.NewCustomError(errors2.ValidationError, "coupon refused: code_not_found", nil)
 				}
 				return err
 			}
@@ -336,7 +336,7 @@ func (s *CouponService) Reserve(ctx context.Context, in ReserveInput) (domain.Co
 		}
 		if _, err := s.coupons.FindByIdForUpdate(ctx, in.OrgId, couponId); err != nil {
 			if errors.Is(err, port.ErrNotFound) {
-				return lib.NewCustomError(lib.ValidationError, "coupon refused: code_not_found", nil)
+				return errors2.NewCustomError(errors2.ValidationError, "coupon refused: code_not_found", nil)
 			}
 			return err
 		}
@@ -346,7 +346,7 @@ func (s *CouponService) Reserve(ctx context.Context, in ReserveInput) (domain.Co
 			return err
 		}
 		if gate.reason != "" {
-			return lib.NewCustomError(refusalStatus(gate.reason), "coupon refused: "+gate.reason, nil)
+			return errors2.NewCustomError(refusalStatus(gate.reason), "coupon refused: "+gate.reason, nil)
 		}
 
 		ccId := ""
@@ -375,12 +375,12 @@ func (s *CouponService) Reserve(ctx context.Context, in ReserveInput) (domain.Co
 
 // refusalStatus maps a gate refusal reason to an API error code: capacity/usage
 // collisions are conflicts (409), everything else is a validation error (400).
-func refusalStatus(reason string) lib.CustomErrorType {
+func refusalStatus(reason string) errors2.CustomErrorType {
 	switch reason {
 	case "cap_reached", "code_cap_reached", "already_used":
-		return lib.ConflictError
+		return errors2.ConflictError
 	default:
-		return lib.ValidationError
+		return errors2.ValidationError
 	}
 }
 
@@ -388,8 +388,8 @@ func refusalStatus(reason string) lib.CustomErrorType {
 // lib.CustomError of ConflictError type — what asConflictOnUnique produces from
 // a Postgres unique violation).
 func isConflict(err error) bool {
-	var ce lib.CustomError
-	return errors.As(err, &ce) && ce.Type == lib.ConflictError
+	var ce errors2.CustomError
+	return errors.As(err, &ce) && ce.Type == errors2.ConflictError
 }
 
 // ConsumeInput converts an order's reservation into a Discount on the given

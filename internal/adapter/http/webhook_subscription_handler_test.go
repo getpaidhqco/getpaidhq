@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"getpaidhq/internal/lib/errors"
 	"net/http"
 	"testing"
 
@@ -8,7 +9,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 func newWebhookSubHandlerForTest(t *testing.T, repo *fakeWhSubRepo) *WebhookSubscriptionHandler {
@@ -48,7 +48,7 @@ func TestWebhookSubscriptionHandler_Create(t *testing.T) {
 			Url: "https://example.com/wh", Events: []string{"order.created"},
 		})
 
-		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors.ForbiddenError))
 	})
 }
 

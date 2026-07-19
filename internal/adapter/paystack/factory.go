@@ -2,11 +2,11 @@ package paystack
 
 import (
 	"context"
+	"getpaidhq/internal/lib/errors"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // PaystackFactory builds a Paystack gateway for an org from its stored PSP
@@ -46,7 +46,7 @@ func (s PaystackFactory) New(ctx context.Context, orgId string) (port.PaymentGat
 
 	config, err := ParseConfig(psp.Config, creds)
 	if err != nil {
-		return nil, lib.NewCustomError(lib.ValidationError, "invalid Config", err)
+		return nil, errors.NewCustomError(errors.ValidationError, "invalid Config", err)
 	}
 
 	return NewPaystackGateway(s.logger, config), nil

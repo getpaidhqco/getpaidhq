@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"getpaidhq/internal/lib/errors"
 	"net/http"
 	"strings"
 	"testing"
@@ -10,7 +11,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 func newPspHandlerForTest(
@@ -82,6 +82,6 @@ func TestPspHandler_Create(t *testing.T) {
 			Credentials: map[string]domain.Secret{"api_key": "sk_x"},
 		})
 
-		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors.ForbiddenError))
 	})
 }

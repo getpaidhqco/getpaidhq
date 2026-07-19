@@ -3,10 +3,10 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"getpaidhq/internal/lib/errors"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // DunningOrchestrationService wraps the narrow DunningService and adds
@@ -20,7 +20,7 @@ type DunningOrchestrationService struct {
 	*DunningService
 	dunningEngine port.DunningEngine
 	pubsub        port.PubSub
-	errorReporter lib.ErrorReporter
+	errorReporter errors.ErrorReporter
 	logger        port.Logger
 }
 
@@ -28,7 +28,7 @@ func NewDunningOrchestrationService(
 	dunning *DunningService,
 	dunningEngine port.DunningEngine,
 	pubsub port.PubSub,
-	errorReporter lib.ErrorReporter,
+	errorReporter errors.ErrorReporter,
 	logger port.Logger,
 ) (*DunningOrchestrationService, error) {
 	svc := &DunningOrchestrationService{
@@ -138,7 +138,7 @@ func (s *DunningOrchestrationService) StartDunningWorkflow(ctx context.Context, 
 	workflowId, runId, err := s.dunningEngine.StartDunningWorkflow(ctx, input)
 	if err != nil {
 		s.logger.Error("Failed to start dunning engine workflow", "err", err.Error())
-		return campaign, lib.NewCustomError(lib.InternalError, "Failed to start dunning workflow", err)
+		return campaign, errors.NewCustomError(errors.InternalError, "Failed to start dunning workflow", err)
 	}
 
 	campaign.WorkflowId = workflowId

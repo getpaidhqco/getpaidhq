@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 	"getpaidhq/internal/lib/apikey"
+	errors2 "getpaidhq/internal/lib/errors"
 	"testing"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -95,9 +95,9 @@ func TestApiKeyMiddleware_Authenticate(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Equal(t, port.AuthUser{}, user)
-		var ce lib.CustomError
+		var ce errors2.CustomError
 		require.ErrorAs(t, err, &ce)
-		assert.Equal(t, lib.AuthenticationError, ce.Type)
+		assert.Equal(t, errors2.AuthenticationError, ce.Type)
 		assert.Equal(t, "", repo.keyLookup, "repo must not be queried for an empty token")
 	})
 
@@ -107,9 +107,9 @@ func TestApiKeyMiddleware_Authenticate(t *testing.T) {
 
 		require.Error(t, err)
 		assert.Equal(t, port.AuthUser{}, user)
-		var ce lib.CustomError
+		var ce errors2.CustomError
 		require.ErrorAs(t, err, &ce)
-		assert.Equal(t, lib.AuthenticationError, ce.Type, "unknown key must look identical to any other authn failure")
+		assert.Equal(t, errors2.AuthenticationError, ce.Type, "unknown key must look identical to any other authn failure")
 	})
 
 	t.Run("repo error is hidden behind an opaque authentication error", func(t *testing.T) {
@@ -118,9 +118,9 @@ func TestApiKeyMiddleware_Authenticate(t *testing.T) {
 		_, err := newAuth(repo).Authenticate(context.Background(), "any")
 
 		require.Error(t, err)
-		var ce lib.CustomError
+		var ce errors2.CustomError
 		require.ErrorAs(t, err, &ce)
-		assert.Equal(t, lib.AuthenticationError, ce.Type, "internal failures must not leak as a distinct error to the caller")
+		assert.Equal(t, errors2.AuthenticationError, ce.Type, "internal failures must not leak as a distinct error to the caller")
 	})
 
 	t.Run("missing API_KEY_PEPPER fails closed", func(t *testing.T) {

@@ -3,12 +3,12 @@ package postgrespgx
 import (
 	"errors"
 	"fmt"
+	errors2 "getpaidhq/internal/lib/errors"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // pgForeignKeyViolation is the SQLSTATE Postgres returns when a DELETE or
@@ -44,7 +44,7 @@ func translateErr(err error) error {
 func asConflictOnFK(err error, msg string) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgForeignKeyViolation {
-		return lib.NewCustomError(lib.ConflictError, msg, err)
+		return errors2.NewCustomError(errors2.ConflictError, msg, err)
 	}
 	return err
 }
@@ -54,7 +54,7 @@ func asConflictOnFK(err error, msg string) error {
 func asConflictOnUnique(err error, msg string) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgUniqueViolation {
-		return lib.NewCustomError(lib.ConflictError, msg, err)
+		return errors2.NewCustomError(errors2.ConflictError, msg, err)
 	}
 	return err
 }

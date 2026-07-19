@@ -6,7 +6,7 @@ import (
 	"encoding/hex"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/errors"
 	"time"
 )
 
@@ -65,7 +65,7 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.
 	claimed, err := s.idempotencyRepo.Claim(ctx, hashHex, time.Now().Add(24*time.Hour))
 	if err != nil {
 		s.logger.Error("idempotency claim failed", "err", err.Error())
-		return lib.NewCustomError(lib.InternalError, "idempotency claim failed", err)
+		return errors.NewCustomError(errors.InternalError, "idempotency claim failed", err)
 	}
 	if !claimed {
 		// Already processed by a sibling delivery; nothing to do.
@@ -81,7 +81,7 @@ func (s *WebhookService) HandlePaymentWebhook(ctx context.Context, payload port.
 			s.logger.Error("idempotency release failed (event will be re-tried by PSP only if our row TTLs out)",
 				"key", hashHex, "err", relErr.Error())
 		}
-		return lib.NewCustomError(lib.InternalError, reason, cause)
+		return errors.NewCustomError(errors.InternalError, reason, cause)
 	}
 
 	parser := s.gatewayFactory.NewWebhookParser(payload.Psp)

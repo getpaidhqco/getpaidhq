@@ -2,6 +2,7 @@ package handler
 
 import (
 	"context"
+	"getpaidhq/internal/lib/errors"
 	"net/http"
 	"testing"
 
@@ -11,7 +12,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 type fakePaymentRepoHTTP struct {
@@ -41,7 +41,7 @@ func TestPaymentHandler_AuthzGuards(t *testing.T) {
 	h.RegisterRoutes(ts.api())
 	for _, path := range []string{"/api/payments", "/api/payments/pay_1"} {
 		rec := doJSON(t, ts, http.MethodGet, path, nil)
-		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors.ForbiddenError))
 	}
 }
 

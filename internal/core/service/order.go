@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
+	errors2 "getpaidhq/internal/lib/errors"
 	"getpaidhq/internal/lib/ids"
 	"time"
 
@@ -112,13 +112,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		session, err := s.sessionRepository.FindById(ctx, orgId, input.SessionId)
 		if err != nil {
 			s.logger.Error("Failed to find session id ", "id", input.SessionId, err.Error())
-			return port.CreateOrderResult{}, lib.NewCustomError(lib.NotFoundError, "session not found", nil)
+			return port.CreateOrderResult{}, errors2.NewCustomError(errors2.NotFoundError, "session not found", nil)
 		}
 
 		existingCart, err := s.cartRepository.FindById(ctx, orgId, session.CartId)
 		if err != nil {
 			s.logger.Error("Failed to find cart id ", "id", input.SessionId, err.Error())
-			return port.CreateOrderResult{}, lib.NewCustomError(lib.NotFoundError, "cart not found", nil)
+			return port.CreateOrderResult{}, errors2.NewCustomError(errors2.NotFoundError, "cart not found", nil)
 		}
 		orderCart = existingCart
 		currency = orderCart.Data.Currency
@@ -136,13 +136,13 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 			product, err := s.productRepository.FindById(ctx, orgId, item.ProductId)
 			if err != nil {
 				s.logger.Error("Failed to find product", err.Error())
-				return port.CreateOrderResult{}, lib.NewCustomError(lib.InternalError, "Can't add item to cart", err)
+				return port.CreateOrderResult{}, errors2.NewCustomError(errors2.InternalError, "Can't add item to cart", err)
 			}
 
 			price, err := s.priceRepository.FindById(ctx, orgId, item.PriceId)
 			if err != nil {
 				s.logger.Error("Failed to find price", err.Error())
-				return port.CreateOrderResult{}, lib.NewCustomError(lib.InternalError, "Can't add item to cart", err)
+				return port.CreateOrderResult{}, errors2.NewCustomError(errors2.InternalError, "Can't add item to cart", err)
 			}
 
 			orderCart.Data.Items = append(orderCart.Data.Items, domain.CartLineItem{
@@ -187,11 +187,11 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		product, err := s.productRepository.FindById(ctx, orgId, item.ProductId)
 		if err != nil {
 			s.logger.Error("Failed to find product", err.Error())
-			return port.CreateOrderResult{}, lib.NewCustomError(lib.NotFoundError, "Product not found", err)
+			return port.CreateOrderResult{}, errors2.NewCustomError(errors2.NotFoundError, "Product not found", err)
 		}
 		if product.IsArchived() {
-			return port.CreateOrderResult{}, lib.NewCustomError(
-				lib.ConflictError,
+			return port.CreateOrderResult{}, errors2.NewCustomError(
+				errors2.ConflictError,
 				fmt.Sprintf("Product %s is archived and cannot be sold", product.Id),
 				nil,
 			)
@@ -203,7 +203,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		customerEntity, err = s.customerRepository.FindById(ctx, orgId, input.Customer.Id)
 		if err != nil {
 			s.logger.Error("Failed to find customer", err.Error())
-			return port.CreateOrderResult{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+			return port.CreateOrderResult{}, errors2.NewCustomError(errors2.NotFoundError, "Customer not found", err)
 		}
 	} else {
 		customerEntity, err = s.customerRepository.Create(ctx, domain.Customer{
@@ -351,11 +351,11 @@ func (s *OrderService) InitOrderPayment(ctx context.Context, orgId, orderId, psp
 	order, err := s.orderRepository.FindById(ctx, orgId, orderId)
 	if err != nil {
 		s.logger.Error("Failed to find order", "id", orderId, "err", err.Error())
-		return port.InitPaymentResponse{}, lib.NewCustomError(lib.NotFoundError, "order not found", err)
+		return port.InitPaymentResponse{}, errors2.NewCustomError(errors2.NotFoundError, "order not found", err)
 	}
 
 	if order.Status != domain.OrderStatusPending {
-		return port.InitPaymentResponse{}, lib.NewCustomError(lib.ConflictError, "order is not pending", nil)
+		return port.InitPaymentResponse{}, errors2.NewCustomError(errors2.ConflictError, "order is not pending", nil)
 	}
 
 	// Already initialised — return the stored session without touching the gateway.
@@ -373,7 +373,7 @@ func (s *OrderService) InitOrderPayment(ctx context.Context, orgId, orderId, psp
 		cart, ferr = s.cartRepository.FindById(gctx, orgId, order.CartId)
 		if ferr != nil {
 			s.logger.Error("Failed to find cart", "id", order.CartId, "err", ferr.Error())
-			return lib.NewCustomError(lib.NotFoundError, "cart not found", ferr)
+			return errors2.NewCustomError(errors2.NotFoundError, "cart not found", ferr)
 		}
 		return nil
 	})
@@ -382,7 +382,7 @@ func (s *OrderService) InitOrderPayment(ctx context.Context, orgId, orderId, psp
 		customer, ferr = s.customerRepository.FindById(gctx, orgId, order.CustomerId)
 		if ferr != nil {
 			s.logger.Error("Failed to find customer", "id", order.CustomerId, "err", ferr.Error())
-			return lib.NewCustomError(lib.NotFoundError, "customer not found", ferr)
+			return errors2.NewCustomError(errors2.NotFoundError, "customer not found", ferr)
 		}
 		return nil
 	})
@@ -478,10 +478,10 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 		}
 
 		if order.Status != domain.OrderStatusPending {
-			return lib.NewCustomError(lib.BadRequestError, "Order is not pending", nil)
+			return errors2.NewCustomError(errors2.BadRequestError, "Order is not pending", nil)
 		}
 		if input.PaymentMethodId == "" && input.PaymentMethod.Token == "" {
-			return lib.NewCustomError(lib.BadRequestError, "You need to provide payment method or payment method ID", nil)
+			return errors2.NewCustomError(errors2.BadRequestError, "You need to provide payment method or payment method ID", nil)
 		}
 
 		order.Status = domain.OrderStatusCompleted
@@ -498,7 +498,7 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 			paymentMethod, err = s.customerRepository.FindPaymentMethodById(ctx, order.OrgId, input.PaymentMethodId)
 			if err != nil {
 				s.logger.Error("Failed to find payment method", err.Error())
-				return lib.NewCustomError(lib.NotFoundError, "Payment method not found", err)
+				return errors2.NewCustomError(errors2.NotFoundError, "Payment method not found", err)
 			}
 		}
 
@@ -507,7 +507,7 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 			if input.PaymentMethod.Details != nil {
 				details, err := domain.ParsePaymentMethodDetails(input.PaymentMethod.Type, input.PaymentMethod.Details)
 				if err != nil {
-					return lib.NewCustomError(lib.BadRequestError, "Invalid card details", err)
+					return errors2.NewCustomError(errors2.BadRequestError, "Invalid card details", err)
 				}
 				expireAt = details.GetExpiryDate()
 				s.logger.Debugf("This payment method expires at: %v", expireAt)

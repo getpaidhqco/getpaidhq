@@ -4,12 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"net/http"
 
 	"github.com/go-fuego/fuego"
 	"github.com/go-playground/validator/v10"
-
-	"getpaidhq/internal/lib"
 )
 
 // PassThroughApiError is the engine ErrorHandler wired into BuildServer. It
@@ -53,21 +52,21 @@ func (e ApiError) StatusCode() int {
 // to retry.
 func (e ApiError) GetHttpErrorCode() int {
 	switch e.Code {
-	case string(lib.BadRequestError):
+	case string(errors2.BadRequestError):
 		return http.StatusBadRequest
-	case string(lib.NotFoundError):
+	case string(errors2.NotFoundError):
 		return http.StatusNotFound
-	case string(lib.ValidationError):
+	case string(errors2.ValidationError):
 		return http.StatusUnprocessableEntity
-	case string(lib.InternalError):
+	case string(errors2.InternalError):
 		return http.StatusInternalServerError
-	case string(lib.AuthenticationError):
+	case string(errors2.AuthenticationError):
 		return http.StatusUnauthorized
-	case string(lib.ForbiddenError):
+	case string(errors2.ForbiddenError):
 		return http.StatusForbidden
-	case string(lib.ConflictError):
+	case string(errors2.ConflictError):
 		return http.StatusConflict
-	case string(lib.RateLimitError):
+	case string(errors2.RateLimitError):
 		return http.StatusTooManyRequests
 	default:
 		return http.StatusInternalServerError
@@ -77,7 +76,7 @@ func (e ApiError) GetHttpErrorCode() int {
 // NewApiError creates a new API error with the typed code, a human-readable
 // message, and optional details (a string, a slice, or any JSON-serializable
 // value).
-func NewApiError(code lib.CustomErrorType, message string, details any) ApiError {
+func NewApiError(code errors2.CustomErrorType, message string, details any) ApiError {
 	return ApiError{
 		Code:    string(code),
 		Message: message,
@@ -99,26 +98,26 @@ func NewApiError(code lib.CustomErrorType, message string, details any) ApiError
 //     handlers never panic on an unexpected error type.
 func NewApiErrorFromError(err error) ApiError {
 	if err == nil {
-		return NewApiError(lib.InternalError, "unknown error", nil)
+		return NewApiError(errors2.InternalError, "unknown error", nil)
 	}
 
 	var vErrs validator.ValidationErrors
 	if errors.As(err, &vErrs) {
-		return NewApiError(lib.BadRequestError, "Input validation failed", FormatValidationErrors(vErrs))
+		return NewApiError(errors2.BadRequestError, "Input validation failed", FormatValidationErrors(vErrs))
 	}
 
-	if serr, ok := errors.AsType[lib.CustomError](err); ok {
+	if serr, ok := errors.AsType[errors2.CustomError](err); ok {
 		if serr.Err == nil {
 			return NewApiError(serr.Type, serr.Message, nil)
 		}
 		return NewApiError(serr.Type, serr.Message, serr.Err.Error())
 	}
 
-	if errors.Is(err, lib.ErrNotFound) {
-		return NewApiError(lib.NotFoundError, err.Error(), nil)
+	if errors.Is(err, errors2.ErrNotFound) {
+		return NewApiError(errors2.NotFoundError, err.Error(), nil)
 	}
 
-	return NewApiError(lib.BadRequestError, err.Error(), err.Error())
+	return NewApiError(errors2.BadRequestError, err.Error(), err.Error())
 }
 
 // ApiErrorSerializer is wired into fuego.WithErrorSerializer so every error
@@ -159,20 +158,20 @@ func toApiError(err error) ApiError {
 }
 
 func fromFuegoError(e fuego.HTTPError) ApiError {
-	code := lib.BadRequestError
+	code := errors2.BadRequestError
 	switch e.StatusCode() {
 	case http.StatusNotFound:
-		code = lib.NotFoundError
+		code = errors2.NotFoundError
 	case http.StatusUnauthorized:
-		code = lib.AuthenticationError
+		code = errors2.AuthenticationError
 	case http.StatusForbidden:
-		code = lib.ForbiddenError
+		code = errors2.ForbiddenError
 	case http.StatusConflict:
-		code = lib.ConflictError
+		code = errors2.ConflictError
 	case http.StatusUnprocessableEntity:
-		code = lib.ValidationError
+		code = errors2.ValidationError
 	case http.StatusInternalServerError:
-		code = lib.InternalError
+		code = errors2.InternalError
 	}
 	msg := e.Title
 	if msg == "" {

@@ -3,6 +3,7 @@ package config
 import (
 	"context"
 	"fmt"
+	"getpaidhq/internal/lib/errors"
 	"io"
 	"os"
 	"os/signal"
@@ -90,7 +91,7 @@ type App struct {
 func NewApp() (*App, error) {
 	env := lib.NewEnv()
 	logger := lib.GetLogger()
-	reporter := lib.NewErrorReporter(logger)
+	reporter := errors.NewErrorReporter(logger)
 	httpValidator := lib.NewValidator()
 
 	// Parse trusted-proxy CIDRs once at boot. Malformed config fails the

@@ -6,7 +6,7 @@ import (
 	"errors"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
+	errors2 "getpaidhq/internal/lib/errors"
 	"getpaidhq/internal/lib/ids"
 	"time"
 )
@@ -53,10 +53,10 @@ func (s *CustomerService) Create(ctx context.Context, orgId string, input port.C
 	// path (no duplicate), so only a real lookup failure should abort.
 	exists, err := s.customerRepository.FindByEmail(ctx, orgId, input.Email)
 	if err != nil && !errors.Is(err, port.ErrNotFound) {
-		return domain.Customer{}, lib.NewCustomError(lib.InternalError, "Error creating customer", err)
+		return domain.Customer{}, errors2.NewCustomError(errors2.InternalError, "Error creating customer", err)
 	}
 	if exists.Id != "" {
-		return domain.Customer{}, lib.NewCustomError(lib.BadRequestError, "Customer already exists", nil)
+		return domain.Customer{}, errors2.NewCustomError(errors2.BadRequestError, "Customer already exists", nil)
 	}
 
 	customer := domain.Customer{
@@ -86,7 +86,7 @@ func (s *CustomerService) GetPaymentMethod(ctx context.Context, orgId string, id
 	paymentMethod, err := s.paymentMethodRepository.FindById(ctx, orgId, id)
 	if err != nil {
 		s.logger.Error("Failed to get payment method: ", err)
-		return domain.PaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Payment method not found", err)
+		return domain.PaymentMethod{}, errors2.NewCustomError(errors2.NotFoundError, "Payment method not found", err)
 	}
 
 	return paymentMethod, nil
@@ -97,7 +97,7 @@ func (s *CustomerService) CreatePaymentMethod(ctx context.Context, orgId string,
 	customer, err := s.customerRepository.FindById(ctx, orgId, input.CustomerId)
 	if err != nil {
 		s.logger.Error("Failed to get customer: ", err)
-		return domain.PaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+		return domain.PaymentMethod{}, errors2.NewCustomError(errors2.NotFoundError, "Customer not found", err)
 	}
 
 	var billingAddress = customer.BillingAddress
@@ -105,14 +105,14 @@ func (s *CustomerService) CreatePaymentMethod(ctx context.Context, orgId string,
 		billingAddress = input.BillingAddress
 	}
 	if billingAddress.IsEmpty() {
-		return domain.PaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Either specify billing address or add a default billing address to the customer.", nil)
+		return domain.PaymentMethod{}, errors2.NewCustomError(errors2.BadRequestError, "Either specify billing address or add a default billing address to the customer.", nil)
 	}
 
 	var expireAt time.Time
 	if input.Details != nil {
 		details, err := domain.ParsePaymentMethodDetails(input.Type, input.Details)
 		if err != nil {
-			return domain.PaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Invalid card details", err)
+			return domain.PaymentMethod{}, errors2.NewCustomError(errors2.BadRequestError, "Invalid card details", err)
 		}
 
 		expireAt = details.GetExpiryDate()
@@ -140,7 +140,7 @@ func (s *CustomerService) CreatePaymentMethod(ctx context.Context, orgId string,
 	newPaymentMethod, err := s.paymentMethodRepository.Create(ctx, paymentMethod)
 	if err != nil {
 		s.logger.Error("Failed to create payment method: ", "err", err)
-		return domain.PaymentMethod{}, lib.NewCustomError(lib.InternalError, "An internal error occurred", err)
+		return domain.PaymentMethod{}, errors2.NewCustomError(errors2.InternalError, "An internal error occurred", err)
 	}
 
 	if input.IsDefault {
@@ -150,7 +150,7 @@ func (s *CustomerService) CreatePaymentMethod(ctx context.Context, orgId string,
 		_, err = s.customerRepository.Update(ctx, customer)
 		if err != nil {
 			s.logger.Error("Failed to update customer: ", "err", err)
-			return domain.PaymentMethod{}, lib.NewCustomError(lib.InternalError, "An internal error occurred", err)
+			return domain.PaymentMethod{}, errors2.NewCustomError(errors2.InternalError, "An internal error occurred", err)
 		}
 	}
 
@@ -163,12 +163,12 @@ func (s *CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string,
 	customer, err := s.customerRepository.FindById(ctx, orgId, input.CustomerId)
 	if err != nil {
 		s.logger.Error("Failed to get customer: ", err)
-		return domain.PaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+		return domain.PaymentMethod{}, errors2.NewCustomError(errors2.NotFoundError, "Customer not found", err)
 	}
 
 	paymentMethod, err := s.paymentMethodRepository.FindById(ctx, orgId, input.PaymentMethodId)
 	if err != nil {
-		return domain.PaymentMethod{}, lib.NewCustomError(lib.NotFoundError, "Payment method not found", err)
+		return domain.PaymentMethod{}, errors2.NewCustomError(errors2.NotFoundError, "Payment method not found", err)
 	}
 
 	if !input.BillingAddress.IsEmpty() {
@@ -178,7 +178,7 @@ func (s *CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string,
 	if input.Details != nil {
 		details, err := domain.ParsePaymentMethodDetails(input.Type, input.Details)
 		if err != nil {
-			return domain.PaymentMethod{}, lib.NewCustomError(lib.BadRequestError, "Invalid card details", err)
+			return domain.PaymentMethod{}, errors2.NewCustomError(errors2.BadRequestError, "Invalid card details", err)
 		}
 
 		paymentMethod.ExpireAt = details.GetExpiryDate()
@@ -195,7 +195,7 @@ func (s *CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string,
 	newPaymentMethod, err := s.paymentMethodRepository.Update(ctx, paymentMethod)
 	if err != nil {
 		s.logger.Error("Failed to update payment method: ", "err", err)
-		return domain.PaymentMethod{}, lib.NewCustomError(lib.InternalError, "An internal error occurred", err)
+		return domain.PaymentMethod{}, errors2.NewCustomError(errors2.InternalError, "An internal error occurred", err)
 	}
 
 	if input.IsDefault {
@@ -205,7 +205,7 @@ func (s *CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string,
 		_, err = s.customerRepository.Update(ctx, customer)
 		if err != nil {
 			s.logger.Error("Failed to update customer: ", "err", err)
-			return domain.PaymentMethod{}, lib.NewCustomError(lib.InternalError, "An internal error occurred", err)
+			return domain.PaymentMethod{}, errors2.NewCustomError(errors2.InternalError, "An internal error occurred", err)
 		}
 	}
 
@@ -271,7 +271,7 @@ func (s *CustomerService) Get(ctx context.Context, orgId string, id string) (dom
 	customer, err := s.customerRepository.FindById(ctx, orgId, id)
 	if err != nil {
 		s.logger.Error("Failed to get customer: ", err)
-		return domain.Customer{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+		return domain.Customer{}, errors2.NewCustomError(errors2.NotFoundError, "Customer not found", err)
 	}
 
 	return customer, nil
@@ -281,7 +281,7 @@ func (s *CustomerService) List(ctx context.Context, orgId string, pagination dom
 	customers, total, err := s.customerRepository.List(ctx, orgId, pagination)
 	if err != nil {
 		s.logger.Error("Failed to list customers: ", err)
-		return nil, 0, lib.NewCustomError(lib.InternalError, "Error listing customers", err)
+		return nil, 0, errors2.NewCustomError(errors2.InternalError, "Error listing customers", err)
 	}
 
 	return customers, total, nil

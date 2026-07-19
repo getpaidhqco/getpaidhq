@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"getpaidhq/internal/lib/errors"
 	"net/http"
 	"time"
 
@@ -10,7 +11,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // OrderHandler handles HTTP requests for orders.
@@ -60,7 +60,7 @@ type CreateOrderInvoice struct {
 func (o *OrderHandler) CreateOrder(c fuego.ContextWithBody[CreateOrderRequest]) (CreateOrderResponse, error) {
 	authUser := AuthUserFrom(c)
 	if !o.authz.Enforce(authUser, port.ActionCreateOrder, "") {
-		return CreateOrderResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return CreateOrderResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 
 	input, err := c.Body()
@@ -69,10 +69,10 @@ func (o *OrderHandler) CreateOrder(c fuego.ContextWithBody[CreateOrderRequest]) 
 	}
 
 	if input.SessionId == "" && len(input.Cart.Items) == 0 {
-		return CreateOrderResponse{}, NewApiError(lib.ValidationError, "You must specify cart or session_id", nil)
+		return CreateOrderResponse{}, NewApiError(errors.ValidationError, "You must specify cart or session_id", nil)
 	}
 	if len(input.Cart.Items) > 0 && input.Cart.Currency == "" {
-		return CreateOrderResponse{}, NewApiError(lib.ValidationError, "Currency is required", nil)
+		return CreateOrderResponse{}, NewApiError(errors.ValidationError, "Currency is required", nil)
 	}
 
 	rsp, err := o.service.CreateOrder(c.Context(), port.CreateOrderInput{
@@ -118,7 +118,7 @@ func (o *OrderHandler) CompleteOrder(c fuego.ContextWithBody[CompleteOrderReques
 	id := c.PathParam("id")
 
 	if !o.authz.Enforce(authUser, port.ActionCreateOrder, "") {
-		return OrderResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return OrderResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 
 	input, err := c.Body()
@@ -130,7 +130,7 @@ func (o *OrderHandler) CompleteOrder(c fuego.ContextWithBody[CompleteOrderReques
 	if input.Payment.CompletedAt != "" {
 		parsed, perr := time.Parse(time.RFC3339, input.Payment.CompletedAt)
 		if perr != nil {
-			return OrderResponse{}, NewApiError(lib.ValidationError, "Invalid completed_at format", nil)
+			return OrderResponse{}, NewApiError(errors.ValidationError, "Invalid completed_at format", nil)
 		}
 		completedAt = parsed
 	}
@@ -193,7 +193,7 @@ func (o *OrderHandler) Pay(c fuego.ContextWithBody[PayOrderRequest]) (PayOrderRe
 	authUser := AuthUserFrom(c)
 	id := c.PathParam("id")
 	if !o.authz.Enforce(authUser, port.ActionCreateOrder, "") {
-		return PayOrderResponse{}, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return PayOrderResponse{}, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 	input, err := c.Body()
 	if err != nil {
@@ -211,7 +211,7 @@ func (o *OrderHandler) ListSubscriptions(c fuego.ContextNoBody) ([]SubscriptionR
 	id := c.PathParam("id")
 
 	if !o.authz.Enforce(authUser, port.ActionListOrderSubscriptions, "") {
-		return nil, NewApiError(lib.ForbiddenError, "You are not allowed to perform this action", nil)
+		return nil, NewApiError(errors.ForbiddenError, "You are not allowed to perform this action", nil)
 	}
 
 	subs, err := o.service.ListOrderSubscriptions(c.Context(), authUser.OrgId, id)

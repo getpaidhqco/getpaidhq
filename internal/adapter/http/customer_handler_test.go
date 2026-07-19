@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"net/http"
 	"testing"
 
@@ -11,7 +12,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // newCustomerHandlerForTest constructs a real CustomerService against repo
@@ -74,7 +74,7 @@ func TestCustomerHandler_Create(t *testing.T) {
 			Email: "x@example.com",
 		})
 
-		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors2.ForbiddenError))
 		assert.Empty(t, custRepo.created, "service must not run when authz denies")
 	})
 
@@ -91,7 +91,7 @@ func TestCustomerHandler_Create(t *testing.T) {
 			Email: "dup@example.com",
 		})
 
-		assertErrorEnvelope(t, rec, http.StatusBadRequest, string(lib.BadRequestError))
+		assertErrorEnvelope(t, rec, http.StatusBadRequest, string(errors2.BadRequestError))
 	})
 
 	t.Run("repo lookup failure becomes internal_error envelope", func(t *testing.T) {
@@ -106,7 +106,7 @@ func TestCustomerHandler_Create(t *testing.T) {
 			Email: "x@example.com",
 		})
 
-		assertErrorEnvelope(t, rec, http.StatusInternalServerError, string(lib.InternalError))
+		assertErrorEnvelope(t, rec, http.StatusInternalServerError, string(errors2.InternalError))
 	})
 }
 
@@ -141,7 +141,7 @@ func TestCustomerHandler_Get(t *testing.T) {
 
 		rec := doJSON(t, ts, http.MethodGet, "/api/customers/cus_x", nil)
 
-		assertErrorEnvelope(t, rec, http.StatusNotFound, string(lib.NotFoundError))
+		assertErrorEnvelope(t, rec, http.StatusNotFound, string(errors2.NotFoundError))
 	})
 }
 
@@ -206,7 +206,7 @@ func TestCustomerHandler_CreatePaymentMethod(t *testing.T) {
 			Psp: "paystack", Name: "Visa", Type: domain.PaymentMethodType("card"), Token: "tok",
 		})
 
-		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors2.ForbiddenError))
 		assert.Empty(t, pmRepo.created)
 	})
 
@@ -221,7 +221,7 @@ func TestCustomerHandler_CreatePaymentMethod(t *testing.T) {
 			Psp: "paystack", Name: "Visa", Type: domain.PaymentMethodType("card"), Token: "tok",
 		})
 
-		assertErrorEnvelope(t, rec, http.StatusNotFound, string(lib.NotFoundError))
+		assertErrorEnvelope(t, rec, http.StatusNotFound, string(errors2.NotFoundError))
 	})
 }
 
@@ -257,7 +257,7 @@ func TestCustomerHandler_UpdatePaymentMethod(t *testing.T) {
 			Token: "tok_new",
 		})
 
-		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors2.ForbiddenError))
 		assert.Empty(t, pmRepo.updated)
 	})
 }

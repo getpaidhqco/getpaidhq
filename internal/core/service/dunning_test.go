@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"sync"
 	"testing"
 	"time"
@@ -12,7 +13,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // ---- fakes ----
@@ -164,7 +164,7 @@ func newDunningServiceForTest(dr port.DunningRepository, sr port.SubscriptionRep
 	// customer/payment repos, subscription service and gateway factory are
 	// unused by UpdateCampaignWithAttemptResult; ErrorReporter is a struct so a
 	// zero value (also unused here) stands in.
-	return NewDunningService(dr, sr, nil, nil, nil, noopBillingInvoicing{}, nil, ps, lib.ErrorReporter{}, silentLogger{})
+	return NewDunningService(dr, sr, nil, nil, nil, noopBillingInvoicing{}, nil, ps, errors2.ErrorReporter{}, silentLogger{})
 }
 
 // standardEscalation: suspend at attempt 3, final notice at 4, cancel at 5.

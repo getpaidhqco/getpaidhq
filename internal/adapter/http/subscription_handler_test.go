@@ -2,6 +2,7 @@ package handler
 
 import (
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"net/http"
 	"testing"
 	"time"
@@ -12,7 +13,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 func newSubscriptionHandlerForTest(
@@ -28,7 +28,7 @@ func newSubscriptionHandlerForTest(
 		// no gateway factory needed for the handler-level cases (they don't
 		// trigger charge attempts).
 		service.NewGatewayFactory(&fakePspRepo{}, fakeSecretCipher{}, silentLogger{}, map[domain.Gateway]port.GatewayAdapter{}),
-		noopBillingInvoicing{}, newPubSub(), lib.NewErrorReporter(silentLogger{}), silentLogger{}, noopTxManager{},
+		noopBillingInvoicing{}, newPubSub(), errors2.NewErrorReporter(silentLogger{}), silentLogger{}, noopTxManager{},
 	)
 	if err != nil {
 		t.Fatalf("NewSubscriptionService: %v", err)
@@ -122,7 +122,7 @@ func TestSubscriptionHandler_Pause(t *testing.T) {
 
 		rec := doJSON(t, ts, http.MethodPut, "/api/subscriptions/sub_1/pause", PauseSubscriptionRequest{})
 
-		assertErrorEnvelope(t, rec, http.StatusBadRequest, string(lib.BadRequestError))
+		assertErrorEnvelope(t, rec, http.StatusBadRequest, string(errors2.BadRequestError))
 	})
 }
 
@@ -241,7 +241,7 @@ func TestSubscriptionHandler_AuthzDenied(t *testing.T) {
 
 			rec := doJSON(t, ts, tt.method, tt.path, tt.body)
 
-			assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+			assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors2.ForbiddenError))
 			assert.Empty(t, subRepo.updated, "service must not run when authz denies")
 		})
 	}

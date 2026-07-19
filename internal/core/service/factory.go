@@ -3,10 +3,10 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"getpaidhq/internal/lib/errors"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // GatewayFactory creates payment gateway instances from stored PSP configuration.
@@ -50,7 +50,7 @@ func (s *GatewayFactory) NewGateway(ctx context.Context, orgId string, id string
 
 	adapter, ok := s.adapters[psp.PspId]
 	if !ok {
-		return nil, lib.NewCustomError(lib.BadRequestError, "Invalid payment processor", nil)
+		return nil, errors.NewCustomError(errors.BadRequestError, "Invalid payment processor", nil)
 	}
 
 	return adapter.CreateGateway(psp.Config, creds)
@@ -73,7 +73,7 @@ func DecryptGatewayCredentials(cipher port.SecretCipher, psp domain.PspConfig) (
 		return map[string]domain.Secret{}, nil
 	}
 	if cipher == nil {
-		return nil, lib.NewCustomError(lib.InternalError, "SECRETS_ENCRYPTION_KEY is not configured; cannot open gateway credentials", nil)
+		return nil, errors.NewCustomError(errors.InternalError, "SECRETS_ENCRYPTION_KEY is not configured; cannot open gateway credentials", nil)
 	}
 	plaintext, err := cipher.Decrypt(psp.OrgId, psp.Id, psp.EncryptedCredentials)
 	if err != nil {

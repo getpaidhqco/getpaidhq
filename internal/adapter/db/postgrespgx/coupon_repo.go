@@ -2,13 +2,13 @@ package postgrespgx
 
 import (
 	"context"
+	"getpaidhq/internal/lib/errors"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 type CouponRepo struct {
@@ -92,7 +92,7 @@ func (r *CouponRepo) DeleteIfUnreferenced(ctx context.Context, orgId, id string)
 		return err
 	}
 	if count > 0 {
-		return lib.NewCustomError(lib.BadRequestError, "coupon has discounts and cannot be deleted", nil)
+		return errors.NewCustomError(errors.BadRequestError, "coupon has discounts and cannot be deleted", nil)
 	}
 	_, err := q.Exec(ctx, `DELETE FROM coupons WHERE org_id = $1 AND id = $2`, orgId, id)
 	return err

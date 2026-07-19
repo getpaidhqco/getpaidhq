@@ -2,11 +2,11 @@ package service
 
 import (
 	"context"
+	"getpaidhq/internal/lib/errors"
 	"time"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // SettingService is generic CRUD over org-scoped key/value settings. A setting is
@@ -32,7 +32,7 @@ type CreateSettingInput struct {
 
 func (s *SettingService) Create(ctx context.Context, in CreateSettingInput) (domain.Setting, error) {
 	if in.Id == "" {
-		return domain.Setting{}, lib.NewCustomError(lib.BadRequestError, "id is required", nil)
+		return domain.Setting{}, errors.NewCustomError(errors.BadRequestError, "id is required", nil)
 	}
 	now := time.Now().UTC()
 	return s.settingRepository.Create(ctx, domain.Setting{
@@ -57,7 +57,7 @@ func (s *SettingService) List(ctx context.Context, orgId, parentId string, p dom
 // Upsert creates or replaces a setting by its key (the update path).
 func (s *SettingService) Upsert(ctx context.Context, in CreateSettingInput) (domain.Setting, error) {
 	if in.Id == "" {
-		return domain.Setting{}, lib.NewCustomError(lib.BadRequestError, "id is required", nil)
+		return domain.Setting{}, errors.NewCustomError(errors.BadRequestError, "id is required", nil)
 	}
 	now := time.Now().UTC()
 	return s.settingRepository.Upsert(ctx, domain.Setting{

@@ -4,12 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"getpaidhq/internal/lib/errors"
 	"getpaidhq/internal/lib/ids"
 	"time"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // DunningService is the narrow, engine-agnostic dunning aggregate root.
@@ -26,7 +26,7 @@ type DunningService struct {
 	invoiceService         BillingInvoicing
 	gatewayFactory         port.GatewayFactory
 	pubsub                 port.PubSub
-	errorReporter          lib.ErrorReporter
+	errorReporter          errors.ErrorReporter
 	logger                 port.Logger
 }
 
@@ -39,7 +39,7 @@ func NewDunningService(
 	invoiceService BillingInvoicing,
 	gatewayFactory port.GatewayFactory,
 	pubsub port.PubSub,
-	errorReporter lib.ErrorReporter,
+	errorReporter errors.ErrorReporter,
 	logger port.Logger,
 ) *DunningService {
 	return &DunningService{
@@ -63,11 +63,11 @@ func (s *DunningService) CreateCampaign(ctx context.Context, input port.CreateDu
 
 	if _, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.SubscriptionId); err != nil {
 		s.logger.Error("Failed to find subscription", err.Error())
-		return domain.DunningCampaign{}, lib.NewCustomError(lib.NotFoundError, "Subscription not found", err)
+		return domain.DunningCampaign{}, errors.NewCustomError(errors.NotFoundError, "Subscription not found", err)
 	}
 	if _, err := s.customerRepository.FindById(ctx, input.OrgId, input.CustomerId); err != nil {
 		s.logger.Error("Failed to find customer", err.Error())
-		return domain.DunningCampaign{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+		return domain.DunningCampaign{}, errors.NewCustomError(errors.NotFoundError, "Customer not found", err)
 	}
 
 	now := time.Now().UTC()
@@ -91,7 +91,7 @@ func (s *DunningService) CreateCampaign(ctx context.Context, input port.CreateDu
 	created, err := s.dunningRepository.CreateCampaign(ctx, campaign)
 	if err != nil {
 		s.logger.Error("Failed to create dunning campaign", err.Error())
-		return domain.DunningCampaign{}, lib.NewCustomError(lib.InternalError, "Failed to create dunning campaign", err)
+		return domain.DunningCampaign{}, errors.NewCustomError(errors.InternalError, "Failed to create dunning campaign", err)
 	}
 
 	_ = s.pubsub.Publish(ctx, created.OrgId, port.TopicDunningCampaignStarted, port.NewDunningCampaignEvent(created))
@@ -101,7 +101,7 @@ func (s *DunningService) CreateCampaign(ctx context.Context, input port.CreateDu
 func (s *DunningService) FindCampaignById(ctx context.Context, orgId, id string) (domain.DunningCampaign, error) {
 	c, err := s.dunningRepository.FindCampaignById(ctx, orgId, id)
 	if err != nil {
-		return domain.DunningCampaign{}, lib.NewCustomError(lib.NotFoundError, "Dunning campaign not found", err)
+		return domain.DunningCampaign{}, errors.NewCustomError(errors.NotFoundError, "Dunning campaign not found", err)
 	}
 	return c, nil
 }
@@ -124,13 +124,13 @@ func (s *DunningService) PauseCampaign(ctx context.Context, input port.PauseDunn
 		return domain.DunningCampaign{}, err
 	}
 	if c.Status != domain.DunningStatusActive {
-		return c, lib.NewCustomError(lib.BadRequestError, "Only active campaigns can be paused", nil)
+		return c, errors.NewCustomError(errors.BadRequestError, "Only active campaigns can be paused", nil)
 	}
 	c.Status = domain.DunningStatusPaused
 	c.UpdatedAt = time.Now().UTC()
 	updated, err := s.dunningRepository.UpdateCampaign(ctx, c)
 	if err != nil {
-		return domain.DunningCampaign{}, lib.NewCustomError(lib.InternalError, "Failed to pause campaign", err)
+		return domain.DunningCampaign{}, errors.NewCustomError(errors.InternalError, "Failed to pause campaign", err)
 	}
 	_ = s.pubsub.Publish(ctx, updated.OrgId, port.TopicDunningCampaignPaused, port.NewDunningCampaignEvent(updated))
 	return updated, nil
@@ -142,13 +142,13 @@ func (s *DunningService) ResumeCampaign(ctx context.Context, input port.ResumeDu
 		return domain.DunningCampaign{}, err
 	}
 	if c.Status != domain.DunningStatusPaused {
-		return c, lib.NewCustomError(lib.BadRequestError, "Only paused campaigns can be resumed", nil)
+		return c, errors.NewCustomError(errors.BadRequestError, "Only paused campaigns can be resumed", nil)
 	}
 	c.Status = domain.DunningStatusActive
 	c.UpdatedAt = time.Now().UTC()
 	updated, err := s.dunningRepository.UpdateCampaign(ctx, c)
 	if err != nil {
-		return domain.DunningCampaign{}, lib.NewCustomError(lib.InternalError, "Failed to resume campaign", err)
+		return domain.DunningCampaign{}, errors.NewCustomError(errors.InternalError, "Failed to resume campaign", err)
 	}
 	_ = s.pubsub.Publish(ctx, updated.OrgId, port.TopicDunningCampaignResumed, port.NewDunningCampaignEvent(updated))
 	return updated, nil
@@ -160,7 +160,7 @@ func (s *DunningService) CancelCampaign(ctx context.Context, input port.CancelDu
 		return domain.DunningCampaign{}, err
 	}
 	if c.Status != domain.DunningStatusActive && c.Status != domain.DunningStatusPaused {
-		return c, lib.NewCustomError(lib.BadRequestError, "Only active or paused campaigns can be cancelled", nil)
+		return c, errors.NewCustomError(errors.BadRequestError, "Only active or paused campaigns can be cancelled", nil)
 	}
 	now := time.Now().UTC()
 	c.Status = domain.DunningStatusCancelled
@@ -169,7 +169,7 @@ func (s *DunningService) CancelCampaign(ctx context.Context, input port.CancelDu
 	c.UpdatedAt = now
 	updated, err := s.dunningRepository.UpdateCampaign(ctx, c)
 	if err != nil {
-		return domain.DunningCampaign{}, lib.NewCustomError(lib.InternalError, "Failed to cancel campaign", err)
+		return domain.DunningCampaign{}, errors.NewCustomError(errors.InternalError, "Failed to cancel campaign", err)
 	}
 	_ = s.pubsub.Publish(ctx, updated.OrgId, port.TopicDunningCampaignCancelled, port.NewDunningCampaignEvent(updated))
 	return updated, nil
@@ -179,7 +179,7 @@ func (s *DunningService) UpdateCampaign(ctx context.Context, campaign domain.Dun
 	campaign.UpdatedAt = time.Now().UTC()
 	updated, err := s.dunningRepository.UpdateCampaign(ctx, campaign)
 	if err != nil {
-		return domain.DunningCampaign{}, lib.NewCustomError(lib.InternalError, "Failed to update campaign", err)
+		return domain.DunningCampaign{}, errors.NewCustomError(errors.InternalError, "Failed to update campaign", err)
 	}
 	return updated, nil
 }
@@ -198,7 +198,7 @@ func (s *DunningService) MarkCampaignRecovered(ctx context.Context, orgId, campa
 	c.UpdatedAt = now
 	updated, err := s.dunningRepository.UpdateCampaign(ctx, c)
 	if err != nil {
-		return domain.DunningCampaign{}, lib.NewCustomError(lib.InternalError, "Failed to mark campaign recovered", err)
+		return domain.DunningCampaign{}, errors.NewCustomError(errors.InternalError, "Failed to mark campaign recovered", err)
 	}
 	_ = s.pubsub.Publish(ctx, updated.OrgId, port.TopicDunningCampaignRecovered, port.NewDunningCampaignEvent(updated))
 	return updated, nil
@@ -216,7 +216,7 @@ func (s *DunningService) MarkCampaignFailed(ctx context.Context, orgId, campaign
 	c.UpdatedAt = now
 	updated, err := s.dunningRepository.UpdateCampaign(ctx, c)
 	if err != nil {
-		return domain.DunningCampaign{}, lib.NewCustomError(lib.InternalError, "Failed to mark campaign failed", err)
+		return domain.DunningCampaign{}, errors.NewCustomError(errors.InternalError, "Failed to mark campaign failed", err)
 	}
 	_ = s.pubsub.Publish(ctx, updated.OrgId, port.TopicDunningCampaignFailed, port.NewDunningCampaignEvent(updated))
 	return updated, nil
@@ -284,11 +284,11 @@ func (s *DunningService) runChargeAttempt(ctx context.Context, orgId, campaignId
 	}
 	subscription, err := s.subscriptionRepository.FindById(ctx, orgId, campaign.SubscriptionId)
 	if err != nil {
-		return domain.DunningAttempt{}, lib.NewCustomError(lib.NotFoundError, "Subscription not found", err)
+		return domain.DunningAttempt{}, errors.NewCustomError(errors.NotFoundError, "Subscription not found", err)
 	}
 	customer, err := s.subscriptionService.GetSubscriptionCustomer(ctx, subscription)
 	if err != nil {
-		return domain.DunningAttempt{}, lib.NewCustomError(lib.InternalError, "Failed to load customer", err)
+		return domain.DunningAttempt{}, errors.NewCustomError(errors.InternalError, "Failed to load customer", err)
 	}
 
 	pmId := subscription.PaymentMethodId
@@ -297,12 +297,12 @@ func (s *DunningService) runChargeAttempt(ctx context.Context, orgId, campaignId
 	}
 	paymentMethod, err := s.customerRepository.FindPaymentMethodById(ctx, orgId, pmId)
 	if err != nil {
-		return domain.DunningAttempt{}, lib.NewCustomError(lib.NotFoundError, "Payment method not found", err)
+		return domain.DunningAttempt{}, errors.NewCustomError(errors.NotFoundError, "Payment method not found", err)
 	}
 
 	gw, err := s.gatewayFactory.NewGateway(ctx, orgId, string(subscription.PspId))
 	if err != nil {
-		return domain.DunningAttempt{}, lib.NewCustomError(lib.InternalError, "Failed to get gateway", err)
+		return domain.DunningAttempt{}, errors.NewCustomError(errors.InternalError, "Failed to get gateway", err)
 	}
 
 	startedAt := time.Now().UTC()
@@ -364,7 +364,7 @@ func (s *DunningService) runChargeAttempt(ctx context.Context, orgId, campaignId
 	}
 	created, err := s.dunningRepository.CreateAttempt(ctx, attempt)
 	if err != nil {
-		return domain.DunningAttempt{}, lib.NewCustomError(lib.InternalError, "Failed to record attempt", err)
+		return domain.DunningAttempt{}, errors.NewCustomError(errors.InternalError, "Failed to record attempt", err)
 	}
 
 	// Bump campaign counters; recovery / suspension decisions are made by the
@@ -512,10 +512,10 @@ func (s *DunningService) CreatePaymentUpdateToken(ctx context.Context, input por
 	s.logger.Info("Creating payment update token", "subscriptionId", input.SubscriptionId)
 
 	if _, err := s.subscriptionRepository.FindById(ctx, input.OrgId, input.SubscriptionId); err != nil {
-		return domain.PaymentUpdateToken{}, lib.NewCustomError(lib.NotFoundError, "Subscription not found", err)
+		return domain.PaymentUpdateToken{}, errors.NewCustomError(errors.NotFoundError, "Subscription not found", err)
 	}
 	if _, err := s.customerRepository.FindById(ctx, input.OrgId, input.CustomerId); err != nil {
-		return domain.PaymentUpdateToken{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+		return domain.PaymentUpdateToken{}, errors.NewCustomError(errors.NotFoundError, "Customer not found", err)
 	}
 
 	maxUses := input.MaxUses
@@ -559,7 +559,7 @@ func (s *DunningService) CreatePaymentUpdateToken(ctx context.Context, input por
 	}
 	created, err := s.dunningRepository.CreateToken(ctx, token)
 	if err != nil {
-		return domain.PaymentUpdateToken{}, lib.NewCustomError(lib.InternalError, "Failed to create token", err)
+		return domain.PaymentUpdateToken{}, errors.NewCustomError(errors.InternalError, "Failed to create token", err)
 	}
 	_ = s.pubsub.Publish(ctx, created.OrgId, port.TopicDunningTokenCreated, port.NewDunningTokenEvent(created))
 	return created, nil
@@ -568,20 +568,20 @@ func (s *DunningService) CreatePaymentUpdateToken(ctx context.Context, input por
 func (s *DunningService) VerifyPaymentUpdateToken(ctx context.Context, orgId, tokenId string) (domain.PaymentUpdateToken, error) {
 	t, err := s.dunningRepository.FindTokenById(ctx, orgId, tokenId)
 	if err != nil {
-		return domain.PaymentUpdateToken{}, lib.NewCustomError(lib.NotFoundError, "Token not found", err)
+		return domain.PaymentUpdateToken{}, errors.NewCustomError(errors.NotFoundError, "Token not found", err)
 	}
 	if t.Status != domain.TokenStatusActive {
-		return t, lib.NewCustomError(lib.BadRequestError, "Token is not active", nil)
+		return t, errors.NewCustomError(errors.BadRequestError, "Token is not active", nil)
 	}
 	if time.Now().UTC().After(t.ExpiresAt) {
 		t.Status = domain.TokenStatusExpired
 		_, _ = s.dunningRepository.UpdateToken(ctx, t)
-		return t, lib.NewCustomError(lib.BadRequestError, "Token has expired", nil)
+		return t, errors.NewCustomError(errors.BadRequestError, "Token has expired", nil)
 	}
 	if t.UsedCount >= t.MaxUses {
 		t.Status = domain.TokenStatusMaxUsesReached
 		_, _ = s.dunningRepository.UpdateToken(ctx, t)
-		return t, lib.NewCustomError(lib.BadRequestError, "Token has reached max uses", nil)
+		return t, errors.NewCustomError(errors.BadRequestError, "Token has reached max uses", nil)
 	}
 	return t, nil
 }
@@ -600,7 +600,7 @@ func (s *DunningService) ActivatePaymentUpdateToken(ctx context.Context, input p
 	}
 	updated, err := s.dunningRepository.UpdateToken(ctx, t)
 	if err != nil {
-		return domain.PaymentUpdateToken{}, lib.NewCustomError(lib.InternalError, "Failed to update token", err)
+		return domain.PaymentUpdateToken{}, errors.NewCustomError(errors.InternalError, "Failed to update token", err)
 	}
 	_ = s.pubsub.Publish(ctx, updated.OrgId, port.TopicDunningTokenActivated, port.NewDunningTokenEvent(updated))
 	return updated, nil
@@ -609,15 +609,15 @@ func (s *DunningService) ActivatePaymentUpdateToken(ctx context.Context, input p
 func (s *DunningService) RevokePaymentUpdateToken(ctx context.Context, orgId, tokenId string) (domain.PaymentUpdateToken, error) {
 	t, err := s.dunningRepository.FindTokenById(ctx, orgId, tokenId)
 	if err != nil {
-		return domain.PaymentUpdateToken{}, lib.NewCustomError(lib.NotFoundError, "Token not found", err)
+		return domain.PaymentUpdateToken{}, errors.NewCustomError(errors.NotFoundError, "Token not found", err)
 	}
 	if t.Status != domain.TokenStatusActive {
-		return t, lib.NewCustomError(lib.BadRequestError, "Only active tokens can be revoked", nil)
+		return t, errors.NewCustomError(errors.BadRequestError, "Only active tokens can be revoked", nil)
 	}
 	t.Status = domain.TokenStatusRevoked
 	updated, err := s.dunningRepository.UpdateToken(ctx, t)
 	if err != nil {
-		return domain.PaymentUpdateToken{}, lib.NewCustomError(lib.InternalError, "Failed to revoke token", err)
+		return domain.PaymentUpdateToken{}, errors.NewCustomError(errors.InternalError, "Failed to revoke token", err)
 	}
 	_ = s.pubsub.Publish(ctx, updated.OrgId, port.TopicDunningTokenRevoked, port.NewDunningTokenEvent(updated))
 	return updated, nil
@@ -628,7 +628,7 @@ func (s *DunningService) RevokePaymentUpdateToken(ctx context.Context, orgId, to
 func (s *DunningService) CreateConfiguration(ctx context.Context, input port.CreateDunningConfigurationInput) (domain.DunningConfiguration, error) {
 	configMap, err := configToMap(input.Config)
 	if err != nil {
-		return domain.DunningConfiguration{}, lib.NewCustomError(lib.BadRequestError, "Invalid dunning config", err)
+		return domain.DunningConfiguration{}, errors.NewCustomError(errors.BadRequestError, "Invalid dunning config", err)
 	}
 	now := time.Now().UTC()
 	cfg := domain.DunningConfiguration{
@@ -649,7 +649,7 @@ func (s *DunningService) CreateConfiguration(ctx context.Context, input port.Cre
 	}
 	created, err := s.dunningRepository.CreateConfiguration(ctx, cfg)
 	if err != nil {
-		return domain.DunningConfiguration{}, lib.NewCustomError(lib.InternalError, "Failed to create configuration", err)
+		return domain.DunningConfiguration{}, errors.NewCustomError(errors.InternalError, "Failed to create configuration", err)
 	}
 	_ = s.pubsub.Publish(ctx, created.OrgId, port.TopicDunningConfigurationCreated, port.NewDunningConfigurationEvent(created))
 	return created, nil
@@ -658,7 +658,7 @@ func (s *DunningService) CreateConfiguration(ctx context.Context, input port.Cre
 func (s *DunningService) GetConfiguration(ctx context.Context, orgId, id string) (domain.DunningConfiguration, error) {
 	c, err := s.dunningRepository.FindConfigurationById(ctx, orgId, id)
 	if err != nil {
-		return domain.DunningConfiguration{}, lib.NewCustomError(lib.NotFoundError, "Configuration not found", err)
+		return domain.DunningConfiguration{}, errors.NewCustomError(errors.NotFoundError, "Configuration not found", err)
 	}
 	return c, nil
 }
@@ -690,7 +690,7 @@ func (s *DunningService) UpdateConfiguration(ctx context.Context, input port.Upd
 	if input.Config != nil {
 		configMap, err := configToMap(*input.Config)
 		if err != nil {
-			return domain.DunningConfiguration{}, lib.NewCustomError(lib.BadRequestError, "Invalid dunning config", err)
+			return domain.DunningConfiguration{}, errors.NewCustomError(errors.BadRequestError, "Invalid dunning config", err)
 		}
 		c.Config = configMap
 	}
@@ -706,7 +706,7 @@ func (s *DunningService) UpdateConfiguration(ctx context.Context, input port.Upd
 	c.UpdatedAt = time.Now().UTC()
 	updated, err := s.dunningRepository.UpdateConfiguration(ctx, c)
 	if err != nil {
-		return domain.DunningConfiguration{}, lib.NewCustomError(lib.InternalError, "Failed to update configuration", err)
+		return domain.DunningConfiguration{}, errors.NewCustomError(errors.InternalError, "Failed to update configuration", err)
 	}
 	_ = s.pubsub.Publish(ctx, updated.OrgId, port.TopicDunningConfigurationUpdated, port.NewDunningConfigurationEvent(updated))
 	return updated, nil
@@ -755,7 +755,7 @@ func (s *DunningService) LoadConfigForCampaign(ctx context.Context, orgId, campa
 
 func (s *DunningService) GetCustomerDunningHistory(ctx context.Context, orgId, customerId string) (domain.CustomerDunningHistory, error) {
 	if _, err := s.customerRepository.FindById(ctx, orgId, customerId); err != nil {
-		return domain.CustomerDunningHistory{}, lib.NewCustomError(lib.NotFoundError, "Customer not found", err)
+		return domain.CustomerDunningHistory{}, errors.NewCustomError(errors.NotFoundError, "Customer not found", err)
 	}
 	return s.dunningRepository.GetCustomerDunningHistory(ctx, orgId, customerId)
 }

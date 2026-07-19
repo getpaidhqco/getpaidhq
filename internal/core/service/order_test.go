@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	errors2 "getpaidhq/internal/lib/errors"
 	"sync"
 	"testing"
 
@@ -11,7 +12,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // ---- fakes specific to OrderService ----
@@ -476,9 +476,9 @@ func TestOrderService_InitOrderPayment(t *testing.T) {
 
 		_, err := svc.InitOrderPayment(context.Background(), "org_1", "ord_1", "paystack", nil)
 		require.Error(t, err)
-		var ce lib.CustomError
+		var ce errors2.CustomError
 		require.ErrorAs(t, err, &ce)
-		assert.Equal(t, lib.ConflictError, ce.Type)
+		assert.Equal(t, errors2.ConflictError, ce.Type)
 		assert.Equal(t, 0, gw.calls, "no gateway call for a non-pending order")
 	})
 }
@@ -499,9 +499,9 @@ func TestOrderService_CreateOrder_RejectsArchivedProduct(t *testing.T) {
 	})
 
 	require.Error(t, err)
-	var ce lib.CustomError
+	var ce errors2.CustomError
 	require.ErrorAs(t, err, &ce)
-	assert.Equal(t, lib.ConflictError, ce.Type)
+	assert.Equal(t, errors2.ConflictError, ce.Type)
 	assert.Empty(t, orderRepo.updated, "archived product must be rejected before the order is created")
 }
 

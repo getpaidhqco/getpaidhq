@@ -1,13 +1,13 @@
 package handler
 
 import (
+	"getpaidhq/internal/lib/errors"
 	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 func newInvoiceSettingsHandlerForTest(t *testing.T, repo *fakeSettingRepoHTTP) *InvoiceSettingsHandler {
@@ -76,7 +76,7 @@ func TestInvoiceSettingsHandler_AuthzGuards(t *testing.T) {
 	}
 	for _, tc := range cases {
 		rec := doJSON(t, ts, tc.method, tc.path, tc.body)
-		assertErrorEnvelope(t, rec, http.StatusForbidden, string(lib.ForbiddenError))
+		assertErrorEnvelope(t, rec, http.StatusForbidden, string(errors.ForbiddenError))
 	}
 	require.Zero(t, repo.upsertN)
 }
