@@ -7,6 +7,7 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/ids"
 	"time"
 
 	"golang.org/x/sync/errgroup"
@@ -100,7 +101,7 @@ func NewOrderService(
 func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderInput) (port.CreateOrderResult, error) {
 	s.logger.Info("Creating order for cart", "session", input.SessionId)
 	orgId := input.OrgId
-	orderId := lib.GenerateId("order")
+	orderId := ids.Generate("order")
 	var customerEntity domain.Customer
 	var err error
 	var orderCart domain.Cart
@@ -125,7 +126,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 		// Create a cart from the items in the input
 		orderCart = domain.Cart{
 			OrgId: orgId,
-			Id:    lib.GenerateId("cart"),
+			Id:    ids.Generate("cart"),
 			Data: domain.CartData{
 				Currency: currency,
 			},
@@ -145,7 +146,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 			}
 
 			orderCart.Data.Items = append(orderCart.Data.Items, domain.CartLineItem{
-				Id:            lib.GenerateId("ci"),
+				Id:            ids.Generate("ci"),
 				ProductId:     product.Id,
 				Price:         domain.PriceToCartItemPrice(price),
 				Description:   product.Name,
@@ -207,7 +208,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 	} else {
 		customerEntity, err = s.customerRepository.Create(ctx, domain.Customer{
 			OrgId:     orgId,
-			Id:        lib.GenerateId("customer"),
+			Id:        ids.Generate("customer"),
 			FirstName: input.Customer.FirstName,
 			LastName:  input.Customer.LastName,
 			Phone:     input.Customer.Phone,
@@ -244,7 +245,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 	for _, item := range orderCart.Data.Items {
 		orderItem, err := s.orderRepository.CreateOrderItem(ctx, domain.OrderItem{
 			OrgId:         orgId,
-			Id:            lib.GenerateId("order_item"),
+			Id:            ids.Generate("order_item"),
 			OrderId:       orderId,
 			ProductId:     item.ProductId,
 			VariantId:     item.Price.VariantId,
@@ -514,7 +515,7 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 
 			paymentMethod, err = s.paymentMethodRepository.Create(ctx, domain.PaymentMethod{
 				OrgId:          order.OrgId,
-				Id:             lib.GenerateId("pm"),
+				Id:             ids.Generate("pm"),
 				Psp:            input.PaymentMethod.Psp,
 				Status:         domain.PaymentMethodStatusActive,
 				ExpireAt:       expireAt,
@@ -617,7 +618,7 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 			// multi-sub or pure one-time order leaves SubscriptionId empty (the
 			// combined invoice itself carries no single SubscriptionId in those
 			// cases).
-			payment.Id = lib.GenerateId("pmt")
+			payment.Id = ids.Generate("pmt")
 			payment.PspId = input.Payment.PspId
 			payment.Reference = input.Payment.Reference
 			payment.Metadata = input.Payment.Metadata

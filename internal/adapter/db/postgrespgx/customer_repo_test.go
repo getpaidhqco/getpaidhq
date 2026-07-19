@@ -5,6 +5,7 @@ package postgrespgx
 import (
 	"context"
 	"fmt"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 	"getpaidhq/internal/adapter/db/storagetest"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // poolForTest boots the shared container and opens a pgx pool against it.
@@ -29,7 +29,7 @@ func poolForTest(t *testing.T) *pgxpool.Pool {
 
 func seedOrgForTest(t *testing.T, pool *pgxpool.Pool) string {
 	t.Helper()
-	orgId := lib.GenerateId("org_test")
+	orgId := ids.Generate("org_test")
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	_, err := NewOrgRepo(pool).Create(context.Background(), domain.Org{
 		Id: orgId, Name: "Test Org " + orgId, Country: "US", Timezone: "UTC",
@@ -47,9 +47,9 @@ func TestCustomerRepo_PgxReference(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	cust := domain.Customer{
-		OrgId: orgId, Id: lib.GenerateId("cus"),
+		OrgId: orgId, Id: ids.Generate("cus"),
 		FirstName: "Ada", LastName: "Lovelace",
-		Email:          fmt.Sprintf("%s@example.com", lib.GenerateId("ada")),
+		Email:          fmt.Sprintf("%s@example.com", ids.Generate("ada")),
 		Phone:          "+15551234",
 		BillingAddress: domain.Address{Line1: "1 Engine Way", City: "London", Country: "GB"},
 		Metadata:       map[string]string{"tier": "gold"},
@@ -100,7 +100,7 @@ func TestCohortCRUD_PgxReference(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	coh := domain.Cohort{
-		OrgId: orgId, Id: lib.GenerateId("coh"), Name: "VIPs",
+		OrgId: orgId, Id: ids.Generate("coh"), Name: "VIPs",
 		Type: domain.CohortType("static"), Metadata: map[string]string{"k": "v"},
 		CreatedAt: now, UpdatedAt: now,
 	}

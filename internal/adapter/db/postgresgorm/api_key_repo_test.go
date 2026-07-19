@@ -4,6 +4,7 @@ package postgresgorm
 
 import (
 	"context"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -11,11 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"getpaidhq/internal/core/domain"
-	"getpaidhq/internal/lib"
 )
 
 func newApiKey(orgId, name string) domain.ApiKey {
-	id := lib.GenerateId("sk")
+	id := ids.Generate("sk")
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	return domain.ApiKey{
 		OrgId:     orgId,

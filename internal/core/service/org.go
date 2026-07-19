@@ -5,6 +5,7 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/ids"
 	"time"
 )
 
@@ -53,7 +54,7 @@ func (s *OrgService) Create(ctx context.Context, input port.CreateOrgInput) (dom
 	s.logger.Debug("Creating tenant", "input", input)
 
 	org := domain.Org{
-		Id:        lib.GenerateId("org"),
+		Id:        ids.Generate("org"),
 		Name:      input.Name,
 		Status:    domain.OrgStatusActive,
 		Country:   input.Country,
@@ -92,7 +93,7 @@ func (s *OrgService) Create(ctx context.Context, input port.CreateOrgInput) (dom
 	if err != nil {
 		return domain.Org{}, err
 	}
-	keyId := lib.GenerateId("sk")
+	keyId := ids.Generate("sk")
 	rawKey := keyId + "_" + secret
 	keyHash, err := lib.HashApiKey(rawKey, s.apiKeyPepper)
 	if err != nil {

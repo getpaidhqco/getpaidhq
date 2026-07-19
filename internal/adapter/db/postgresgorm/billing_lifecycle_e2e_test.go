@@ -13,6 +13,7 @@ package postgresgorm
 
 import (
 	"context"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -25,7 +26,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // seedDecliningCard wires the subscription to the memory gateway with a payment
@@ -37,7 +37,7 @@ func seedDecliningCard(t *testing.T, db *gorm.DB, orgId string, sub *domain.Subs
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	pm := domain.PaymentMethod{
 		OrgId:      orgId,
-		Id:         lib.GenerateId("pm"),
+		Id:         ids.Generate("pm"),
 		Status:     domain.PaymentMethodStatusActive,
 		Psp:        string(domain.Memory),
 		Name:       "Visa ****0002 (declines)",
@@ -209,7 +209,7 @@ func TestTrialSubscription_FlatFeeWaived_E2E(t *testing.T) {
 	// Add the flat fee the trial must waive.
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	flat := domain.Price{
-		OrgId: orgId, Id: lib.GenerateId("price"), VariantId: seedVariantChain(t, db, orgId),
+		OrgId: orgId, Id: ids.Generate("price"), VariantId: seedVariantChain(t, db, orgId),
 		Label:    "Platform fee",
 		Category: domain.PriceCategorySubscription, Scheme: domain.Fixed,
 		Currency: domain.USD, UnitPrice: 2900,
@@ -255,21 +255,21 @@ func TestCreateSubscriptionsForOrder_MeteredCadenceClamp_E2E(t *testing.T) {
 
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	cust := domain.Customer{
-		OrgId: orgId, Id: lib.GenerateId("cus"), FirstName: "Cad", LastName: "Clamp",
-		Email: lib.GenerateId("cad") + "@example.com", CreatedAt: now, UpdatedAt: now,
+		OrgId: orgId, Id: ids.Generate("cus"), FirstName: "Cad", LastName: "Clamp",
+		Email: ids.Generate("cad") + "@example.com", CreatedAt: now, UpdatedAt: now,
 	}
 	custRow := customerRowFromDomain(cust)
 	require.NoError(t, db.Omit("DefaultPaymentMethodId").Create(&custRow).Error)
 
 	meter := domain.BillableMetric{
-		OrgId: orgId, Id: lib.GenerateId("met"), Code: "annual_usage", Name: "Usage",
+		OrgId: orgId, Id: ids.Generate("met"), Code: "annual_usage", Name: "Usage",
 		Aggregation: domain.AggregationCount, CreatedAt: now, UpdatedAt: now,
 	}
 	meterRow := billableMetricRowFromDomain(meter)
 	require.NoError(t, db.Create(&meterRow).Error)
 
 	price := domain.Price{
-		OrgId: orgId, Id: lib.GenerateId("price"), VariantId: seedVariantChain(t, db, orgId),
+		OrgId: orgId, Id: ids.Generate("price"), VariantId: seedVariantChain(t, db, orgId),
 		Label:    "Annual metered",
 		Category: domain.PriceCategorySubscription, Scheme: domain.Fixed,
 		Currency: domain.USD, UnitPrice: 10,

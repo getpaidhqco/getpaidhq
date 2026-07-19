@@ -1,11 +1,10 @@
 package domain
 
 import (
+	"getpaidhq/internal/lib/ids"
 	"time"
 
 	"github.com/shopspring/decimal"
-
-	"getpaidhq/internal/lib"
 )
 
 // BaseLineFromPrice builds the fixed base line for a subscription's period from its
@@ -18,7 +17,7 @@ func BaseLineFromPrice(orgId, invoiceId string, p Price, quantity decimal.Decima
 	now := time.Now().UTC()
 	return InvoiceLineItem{
 		OrgId:       orgId,
-		Id:          lib.GenerateId("ili"),
+		Id:          ids.Generate("ili"),
 		InvoiceId:   invoiceId,
 		PriceId:     p.Id,
 		Kind:        InvoiceLineKindBase,
@@ -46,7 +45,7 @@ func NewInvoice(sub Subscription, periodStart, periodEnd time.Time) Invoice {
 	now := time.Now().UTC()
 	return Invoice{
 		OrgId:          sub.OrgId,
-		Id:             lib.GenerateId("inv"),
+		Id:             ids.Generate("inv"),
 		SubscriptionId: sub.Id,
 		CustomerId:     sub.CustomerId,
 		OrderId:        sub.OrderId,
@@ -66,7 +65,7 @@ func UsageLineFromPrice(orgId, invoiceId string, p Price, units decimal.Decimal)
 	now := time.Now().UTC()
 	return InvoiceLineItem{
 		OrgId:       orgId,
-		Id:          lib.GenerateId("ili"),
+		Id:          ids.Generate("ili"),
 		InvoiceId:   invoiceId,
 		PriceId:     p.Id,
 		Kind:        InvoiceLineKindUsage,

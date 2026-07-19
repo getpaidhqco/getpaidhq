@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"getpaidhq/internal/lib/ids"
 	"strings"
 	"time"
 
@@ -61,7 +62,7 @@ func NewCouponCode(in NewCouponCodeInput) (CouponCode, error) {
 	}
 	return CouponCode{
 		OrgId:          in.OrgId,
-		Id:             lib.GenerateId("ccode"),
+		Id:             ids.Generate("ccode"),
 		CouponId:       in.CouponId,
 		Code:           strings.ToUpper(strings.TrimSpace(in.Code)),
 		Active:         true,

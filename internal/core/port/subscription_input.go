@@ -2,7 +2,7 @@ package port
 
 import (
 	"getpaidhq/internal/core/domain"
-	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/ids"
 	"time"
 )
 
@@ -47,7 +47,7 @@ func (input CreateSubscriptionInput) ToSubscription() domain.Subscription {
 
 	return domain.Subscription{
 		OrgId:              input.OrgId,
-		Id:                 lib.GenerateId("sub"),
+		Id:                 ids.Generate("sub"),
 		Status:             domain.SubscriptionStatusPending,
 		StartDate:          startDate,
 		BillingInterval:    input.BillingInterval,

@@ -17,6 +17,7 @@ package postgresgorm
 
 import (
 	"context"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -29,7 +30,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // noopEngine satisfies port.Engine without orchestration. CompleteOrder's
@@ -138,7 +138,7 @@ func seedSubscriptionPrice(t *testing.T, db *gorm.DB, orgId string, cycles int) 
 
 	p := domain.Price{
 		OrgId:              orgId,
-		Id:                 lib.GenerateId("price"),
+		Id:                 ids.Generate("price"),
 		VariantId:          variantId,
 		Label:              "Warp Drive Pro",
 		Category:           domain.PriceCategorySubscription,

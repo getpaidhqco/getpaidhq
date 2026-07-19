@@ -4,7 +4,7 @@ import (
 	"context"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/ids"
 	"time"
 )
 
@@ -59,7 +59,7 @@ func (s *PaymentService) ProcessRefund(ctx context.Context, paymentContext domai
 	now := time.Now().UTC()
 	_, err = s.paymentRepository.CreateRefund(ctx, domain.Refund{
 		OrgId:      paymentContext.OrgId,
-		Id:         lib.GenerateId("refund"),
+		Id:         ids.Generate("refund"),
 		PaymentId:  payment.Id,
 		Amount:     paymentContext.Payment.Amount,
 		Currency:   paymentContext.Payment.Currency,

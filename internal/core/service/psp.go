@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"encoding/json"
+	"getpaidhq/internal/lib/ids"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
@@ -40,7 +41,7 @@ func (s *PspService) CreateGateway(ctx context.Context, input port.CreateGateway
 		return domain.PspConfig{}, lib.NewCustomError(lib.BadRequestError, "credentials are required", nil)
 	}
 
-	id := lib.GenerateId("psp")
+	id := ids.Generate("psp")
 
 	credsJson, err := json.Marshal(domain.RevealMap(input.Credentials))
 	if err != nil {

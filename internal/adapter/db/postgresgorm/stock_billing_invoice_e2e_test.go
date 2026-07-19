@@ -17,6 +17,7 @@ package postgresgorm
 
 import (
 	"context"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -27,7 +28,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // seedUsageFixture persists the parent chain for a usage-based subscription —
@@ -40,11 +40,11 @@ func seedUsageFixture(t *testing.T, db *gorm.DB, orgId string, meter domain.Bill
 
 	cust := domain.Customer{
 		OrgId:      orgId,
-		Id:         lib.GenerateId("cus"),
-		ExternalId: lib.GenerateId("ext_cus"),
+		Id:         ids.Generate("cus"),
+		ExternalId: ids.Generate("ext_cus"),
 		FirstName:  "Ada",
 		LastName:   "Lovelace",
-		Email:      lib.GenerateId("ada") + "@example.com",
+		Email:      ids.Generate("ada") + "@example.com",
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}
@@ -52,13 +52,13 @@ func seedUsageFixture(t *testing.T, db *gorm.DB, orgId string, meter domain.Bill
 	require.NoError(t, db.Omit("DefaultPaymentMethodId").Create(&custRow).Error)
 
 	meter.OrgId = orgId
-	meter.Id = lib.GenerateId("met")
+	meter.Id = ids.Generate("met")
 	meter.CreatedAt, meter.UpdatedAt = now, now
 	meterRow := billableMetricRowFromDomain(meter)
 	require.NoError(t, db.Create(&meterRow).Error)
 
 	price.OrgId = orgId
-	price.Id = lib.GenerateId("price")
+	price.Id = ids.Generate("price")
 	price.VariantId = seedVariantChain(t, db, orgId)
 	price.Category = domain.PriceCategorySubscription
 	price.Currency = domain.USD
@@ -75,7 +75,7 @@ func seedUsageFixture(t *testing.T, db *gorm.DB, orgId string, meter domain.Bill
 
 	sub := domain.Subscription{
 		OrgId:              orgId,
-		Id:                 lib.GenerateId("sub"),
+		Id:                 ids.Generate("sub"),
 		PspId:              domain.Paystack,
 		OrderId:            order.Id,
 		CustomerId:         cust.Id,

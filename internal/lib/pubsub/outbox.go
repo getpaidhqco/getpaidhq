@@ -4,11 +4,11 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"getpaidhq/internal/lib/ids"
 	"time"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // Outbox is a port.PubSub whose Publish writes the encoded envelope to the
@@ -26,7 +26,7 @@ func NewOutbox(repo port.OutboxRepository, delegate port.PubSub) *Outbox {
 func (o *Outbox) Publish(ctx context.Context, orgId string, topic string, message any) error {
 	createdAt := time.Now().UTC()
 	envelope := domain.PubSubPayload{
-		Id:        lib.GenerateId("evt"),
+		Id:        ids.Generate("evt"),
 		OrgId:     orgId,
 		Topic:     topic,
 		Data:      message,

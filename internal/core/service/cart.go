@@ -6,6 +6,7 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/ids"
 )
 
 type CartService struct {
@@ -69,7 +70,7 @@ func (s *CartService) AddProduct(ctx context.Context, input port.AddProductInput
 	}
 
 	cartEntity.Data.Items = append(cartEntity.Data.Items, domain.CartLineItem{
-		Id:            lib.GenerateId("ci"),
+		Id:            ids.Generate("ci"),
 		ProductId:     product.Id,
 		Price:         domain.PriceToCartItemPrice(price),
 		Description:   product.Name,

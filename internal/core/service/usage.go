@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"getpaidhq/internal/lib/ids"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -239,7 +240,7 @@ func (s *UsageService) buildEvent(ctx context.Context, in port.RecordEventInput,
 
 	event := domain.MeterEvent{
 		OrgId:              in.OrgId,
-		Id:                 lib.GenerateId("mev"),
+		Id:                 ids.Generate("mev"),
 		CustomerId:         in.CustomerId,
 		ExternalCustomerId: in.ExternalCustomerId,
 		MetricCode:         in.MetricCode,

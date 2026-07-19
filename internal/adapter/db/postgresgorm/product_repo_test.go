@@ -4,6 +4,7 @@ package postgresgorm
 
 import (
 	"context"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"getpaidhq/internal/core/domain"
-	"getpaidhq/internal/lib"
 )
 
 func seedProduct(t *testing.T, repo *ProductRepo, orgId, name string, status domain.ProductStatus) domain.Product {
@@ -19,7 +19,7 @@ func seedProduct(t *testing.T, repo *ProductRepo, orgId, name string, status dom
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	p := domain.Product{
 		OrgId:     orgId,
-		Id:        lib.GenerateId("prod"),
+		Id:        ids.Generate("prod"),
 		Name:      name,
 		Status:    status,
 		CreatedAt: now,

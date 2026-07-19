@@ -18,6 +18,7 @@ package postgresgorm
 
 import (
 	"context"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -30,7 +31,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // buildWiredInvoiceService constructs the real InvoiceService off the
@@ -126,7 +126,7 @@ func seedOneTimePrice(t *testing.T, db *gorm.DB, orgId string, unitPrice int64) 
 
 	p := domain.Price{
 		OrgId:              orgId,
-		Id:                 lib.GenerateId("price"),
+		Id:                 ids.Generate("price"),
 		VariantId:          variantId,
 		Label:              "Setup fee",
 		Category:           domain.OneTime,

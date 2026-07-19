@@ -4,7 +4,7 @@ import (
 	"context"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/ids"
 )
 
 type SessionService struct {
@@ -31,7 +31,7 @@ func NewSessionService(
 func (s *SessionService) CreateSession(ctx context.Context, input port.CreateSessionInput) (domain.Session, error) {
 	cartEntity, err := s.cartRepository.Create(ctx, domain.Cart{
 		OrgId: input.OrgId,
-		Id:    lib.GenerateId("cart"),
+		Id:    ids.Generate("cart"),
 		Data: domain.CartData{
 			Currency: input.Currency,
 		},
@@ -44,7 +44,7 @@ func (s *SessionService) CreateSession(ctx context.Context, input port.CreateSes
 	session, err := s.sessionRepository.Create(ctx,
 		domain.Session{
 			OrgId:  input.OrgId,
-			Id:     lib.GenerateId("session"),
+			Id:     ids.Generate("session"),
 			CartId: cartEntity.Id,
 		})
 

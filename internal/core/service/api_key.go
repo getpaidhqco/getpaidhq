@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"getpaidhq/internal/lib/ids"
 	"time"
 
 	"getpaidhq/internal/core/domain"
@@ -36,7 +37,7 @@ func (s *ApiKeyService) Create(ctx context.Context, orgId string, name string) (
 	if err != nil {
 		return port.CreatedApiKey{}, err
 	}
-	keyId := lib.GenerateId("sk")
+	keyId := ids.Generate("sk")
 	rawKey := keyId + "_" + secret
 	keyHash, err := lib.HashApiKey(rawKey, s.pepper)
 	if err != nil {

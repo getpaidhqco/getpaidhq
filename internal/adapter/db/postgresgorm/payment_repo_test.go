@@ -5,6 +5,7 @@ package postgresgorm
 import (
 	"context"
 	"errors"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -15,18 +16,17 @@ import (
 	"gorm.io/gorm"
 
 	"getpaidhq/internal/core/domain"
-	"getpaidhq/internal/lib"
 )
 
 func newPayment(orgId, orderId string) domain.Payment {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	return domain.Payment{
 		OrgId:       orgId,
-		Id:          lib.GenerateId("pay"),
+		Id:          ids.Generate("pay"),
 		OrderId:     orderId,
 		Psp:         domain.Paystack,
-		PspId:       lib.GenerateId("psp"),
-		Reference:   "REF-" + lib.GenerateId("r"),
+		PspId:       ids.Generate("psp"),
+		Reference:   "REF-" + ids.Generate("r"),
 		Status:      domain.PaymentStatusSucceeded,
 		Recurring:   true,
 		Currency:    "USD",
@@ -164,8 +164,8 @@ func TestPaymentRepo(t *testing.T) {
 
 		refund := domain.Refund{
 			OrgId:       orgId,
-			Id:          lib.GenerateId("ref"),
-			PspRefundId: lib.GenerateId("psprf"),
+			Id:          ids.Generate("ref"),
+			PspRefundId: ids.Generate("psprf"),
 			PaymentId:   pay.Id,
 			Amount:      999,
 			Currency:    "USD",

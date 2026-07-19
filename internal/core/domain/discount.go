@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"getpaidhq/internal/lib/ids"
 	"time"
 
 	"getpaidhq/internal/lib"
@@ -61,7 +62,7 @@ func NewDiscount(in NewDiscountInput) (Discount, error) {
 	}
 	return Discount{
 		OrgId:          in.OrgId,
-		Id:             lib.GenerateId("disc"),
+		Id:             ids.Generate("disc"),
 		CouponId:       in.CouponId,
 		CouponCodeId:   in.CouponCodeId,
 		CustomerId:     in.CustomerId,

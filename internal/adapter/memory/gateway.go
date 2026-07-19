@@ -2,10 +2,10 @@ package memory
 
 import (
 	"context"
+	"getpaidhq/internal/lib/ids"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // GatewayAdapter is an in-memory implementation of port.GatewayAdapter.
@@ -78,14 +78,14 @@ const DeclineToken = "tok_decline"
 func (g *gatewayProvider) ChargePayment(_ context.Context, input port.ChargePaymentInput) port.ChargePaymentResponse {
 	reference := input.Reference
 	if reference == "" {
-		reference = lib.GenerateId("memref")
+		reference = ids.Generate("memref")
 	}
 	if input.PaymentMethod.Token == DeclineToken {
 		return port.ChargePaymentResponse{
 			Status:      port.ChargePaymentStatusError,
 			Retryable:   true,
 			Psp:         domain.Memory,
-			PspId:       lib.GenerateId("mempsp"),
+			PspId:       ids.Generate("mempsp"),
 			Reference:   reference,
 			Currency:    domain.Currency(input.Currency),
 			ErrorCode:   "card_declined",
@@ -103,7 +103,7 @@ func (g *gatewayProvider) ChargePayment(_ context.Context, input port.ChargePaym
 		Status:        port.ChargePaymentStatusSuccess,
 		Retryable:     false,
 		Psp:           domain.Memory,
-		PspId:         lib.GenerateId("mempsp"),
+		PspId:         ids.Generate("mempsp"),
 		Reference:     reference,
 		Currency:      domain.Currency(input.Currency),
 		AmountCharged: input.Amount,

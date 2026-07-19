@@ -2,7 +2,7 @@ package port
 
 import (
 	"getpaidhq/internal/core/domain"
-	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/ids"
 	"time"
 )
 
@@ -46,7 +46,7 @@ func (input CreatePriceInput) ToPrice(orgId, variantId string) domain.Price {
 	}
 	return domain.Price{
 		OrgId:              orgId,
-		Id:                 lib.GenerateId("price"),
+		Id:                 ids.Generate("price"),
 		Label:              input.Label,
 		VariantId:          variantId,
 		Category:           input.Category,

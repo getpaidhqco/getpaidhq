@@ -5,6 +5,7 @@ package postgresgorm
 import (
 	"context"
 	"errors"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"getpaidhq/internal/core/domain"
-	"getpaidhq/internal/lib"
 )
 
 func TestOrderRepo(t *testing.T) {
@@ -29,14 +29,14 @@ func TestOrderRepo(t *testing.T) {
 
 		// orders.cart_id is NOT NULL with FK; seed a cart row first.
 		now := time.Now().UTC().Truncate(time.Microsecond)
-		cartId := lib.GenerateId("cart")
+		cartId := ids.Generate("cart")
 		require.NoError(t, db.Create(&cartRow{
 			OrgId: orgId, Id: cartId, CreatedAt: now, UpdatedAt: now,
 		}).Error)
 
 		o := domain.Order{
 			OrgId:      orgId,
-			Id:         lib.GenerateId("ord"),
+			Id:         ids.Generate("ord"),
 			CustomerId: cust.Id,
 			CartId:     cartId,
 			Reference:  "REF-1",
@@ -92,7 +92,7 @@ func TestOrderRepo(t *testing.T) {
 
 		item := domain.OrderItem{
 			OrgId:       orgId,
-			Id:          lib.GenerateId("oi"),
+			Id:          ids.Generate("oi"),
 			OrderId:     order.Id,
 			PriceId:     price.Id,
 			Description: "Pro plan",

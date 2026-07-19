@@ -8,6 +8,7 @@ package postgresgorm
 
 import (
 	"context"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -17,7 +18,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // Volume scheme: call minutes summed over January, the WHOLE quantity priced at
@@ -44,7 +44,7 @@ func TestVolumeScheme_Invoice_E2E(t *testing.T) {
 	for i, minutes := range []string{"50", "60", "40"} {
 		recordUsage(t, usage, port.RecordEventInput{
 			OrgId: orgId, CustomerId: fx.customer.Id, MetricCode: fx.meter.Code,
-			SubscriptionId: fx.sub.Id, ExternalId: lib.GenerateId("vol"),
+			SubscriptionId: fx.sub.Id, ExternalId: ids.Generate("vol"),
 			Timestamp: jan1.Add(time.Duration(i+1) * 24 * time.Hour),
 			Metadata:  map[string]string{"minutes": minutes},
 		})
@@ -75,7 +75,7 @@ func TestGroupedUsage_Invoice_E2E(t *testing.T) {
 	for i, region := range []string{"eu", "eu", "eu", "us", "us"} {
 		recordUsage(t, usage, port.RecordEventInput{
 			OrgId: orgId, CustomerId: fx.customer.Id, MetricCode: fx.meter.Code,
-			SubscriptionId: fx.sub.Id, ExternalId: lib.GenerateId("grp"),
+			SubscriptionId: fx.sub.Id, ExternalId: ids.Generate("grp"),
 			Timestamp: feb1.Add(time.Duration(i+1) * time.Hour),
 			Metadata:  map[string]string{"region": region},
 		})
@@ -127,7 +127,7 @@ func TestHybridPlan_FlatPlusMetered_Invoice_E2E(t *testing.T) {
 	// item owned by the same subscription.
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	flat := domain.Price{
-		OrgId: orgId, Id: lib.GenerateId("price"), VariantId: seedVariantChain(t, db, orgId),
+		OrgId: orgId, Id: ids.Generate("price"), VariantId: seedVariantChain(t, db, orgId),
 		Label:    "Platform fee",
 		Category: domain.PriceCategorySubscription, Scheme: domain.Fixed,
 		Currency: domain.USD, UnitPrice: 2900,
@@ -146,7 +146,7 @@ func TestHybridPlan_FlatPlusMetered_Invoice_E2E(t *testing.T) {
 	for i := range 4 {
 		recordUsage(t, usage, port.RecordEventInput{
 			OrgId: orgId, CustomerId: fx.customer.Id, MetricCode: fx.meter.Code,
-			SubscriptionId: fx.sub.Id, ExternalId: lib.GenerateId("hyb"),
+			SubscriptionId: fx.sub.Id, ExternalId: ids.Generate("hyb"),
 			Timestamp: mar1.Add(time.Duration(i+1) * time.Hour),
 		})
 	}

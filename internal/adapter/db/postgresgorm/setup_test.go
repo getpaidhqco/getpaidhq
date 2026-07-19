@@ -23,6 +23,7 @@ package postgresgorm
 import (
 	"context"
 	"fmt"
+	"getpaidhq/internal/lib/ids"
 	"sync"
 	"testing"
 	"time"
@@ -36,7 +37,6 @@ import (
 	gormlogger "gorm.io/gorm/logger"
 
 	"getpaidhq/internal/core/domain"
-	"getpaidhq/internal/lib"
 )
 
 var (
@@ -109,7 +109,7 @@ func testDB(t *testing.T) *gorm.DB {
 func seedVariantChain(t *testing.T, db *gorm.DB, orgId string) string {
 	t.Helper()
 	now := time.Now().UTC().Truncate(time.Microsecond)
-	productId := lib.GenerateId("prod")
+	productId := ids.Generate("prod")
 	require.NoError(t, db.Create(&productRow{
 		OrgId:     orgId,
 		Id:        productId,
@@ -118,7 +118,7 @@ func seedVariantChain(t *testing.T, db *gorm.DB, orgId string) string {
 		CreatedAt: now,
 		UpdatedAt: now,
 	}).Error)
-	variantId := lib.GenerateId("var")
+	variantId := ids.Generate("var")
 	require.NoError(t, db.Create(&variantRow{
 		OrgId:     orgId,
 		Id:        variantId,
@@ -151,7 +151,7 @@ func seedOrg(t *testing.T, db *gorm.DB, orgId string) {
 func uniqueOrg(t *testing.T) string {
 	t.Helper()
 	db := testDB(t)
-	orgId := lib.GenerateId("org_test")
+	orgId := ids.Generate("org_test")
 	seedOrg(t, db, orgId)
 	return orgId
 }
@@ -194,10 +194,10 @@ func seedCustomer(t *testing.T, db *gorm.DB, orgId string) domain.Customer {
 	t.Helper()
 	c := domain.Customer{
 		OrgId:     orgId,
-		Id:        lib.GenerateId("cus"),
+		Id:        ids.Generate("cus"),
 		FirstName: "Ada",
 		LastName:  "Lovelace",
-		Email:     fmt.Sprintf("%s@example.com", lib.GenerateId("ada")),
+		Email:     fmt.Sprintf("%s@example.com", ids.Generate("ada")),
 		Phone:     "+155****1111",
 		BillingAddress: domain.Address{
 			Line1:   "1 Analytical Engine Way",
@@ -222,7 +222,7 @@ func seedPrice(t *testing.T, db *gorm.DB, orgId string) domain.Price {
 	variantId := seedVariantChain(t, db, orgId)
 	p := domain.Price{
 		OrgId:              orgId,
-		Id:                 lib.GenerateId("price"),
+		Id:                 ids.Generate("price"),
 		VariantId:          variantId,
 		Label:              "Monthly Pro",
 		Category:           domain.PriceCategorySubscription,
@@ -244,7 +244,7 @@ func seedOrderItem(t *testing.T, db *gorm.DB, orgId, orderId, priceId string) do
 	t.Helper()
 	item := domain.OrderItem{
 		OrgId:       orgId,
-		Id:          lib.GenerateId("oi"),
+		Id:          ids.Generate("oi"),
 		OrderId:     orderId,
 		PriceId:     priceId,
 		Description: "Monthly Pro",
@@ -268,7 +268,7 @@ func seedOrder(t *testing.T, db *gorm.DB, orgId, customerId string) domain.Order
 	t.Helper()
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	// orders.cart_id is NOT NULL with a FK to carts(org_id, id). Seed a minimal cart.
-	cartId := lib.GenerateId("cart")
+	cartId := ids.Generate("cart")
 	require.NoError(t, db.Create(&cartRow{
 		OrgId:     orgId,
 		Id:        cartId,
@@ -277,10 +277,10 @@ func seedOrder(t *testing.T, db *gorm.DB, orgId, customerId string) domain.Order
 	}).Error)
 	o := domain.Order{
 		OrgId:      orgId,
-		Id:         lib.GenerateId("ord"),
+		Id:         ids.Generate("ord"),
 		CustomerId: customerId,
 		CartId:     cartId,
-		Reference:  "REF-" + lib.GenerateId("r"),
+		Reference:  "REF-" + ids.Generate("r"),
 		Status:     domain.OrderStatusPending,
 		Currency:   "USD",
 		Total:      1999,

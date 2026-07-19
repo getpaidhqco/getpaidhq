@@ -3,6 +3,7 @@ package storagetest
 import (
 	"context"
 	"errors"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -10,14 +11,13 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"getpaidhq/internal/core/domain"
-	"getpaidhq/internal/lib"
 )
 
 const outboxTestMaxAttempts = 10
 
 func outboxEvent(orgId, topic string) domain.OutboxEvent {
 	return domain.OutboxEvent{
-		EventId:   lib.GenerateId("evt"),
+		EventId:   ids.Generate("evt"),
 		OrgId:     orgId,
 		Topic:     topic,
 		Payload:   []byte(`{"id":"x","org_id":"` + orgId + `","topic":"` + topic + `","data":{"n":1}}`),

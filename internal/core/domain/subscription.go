@@ -1,7 +1,7 @@
 package domain
 
 import (
-	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/ids"
 	"maps"
 	"time"
 )
@@ -366,7 +366,7 @@ func NewSubscriptionFromLines(orgId, orderId, customerId string, prices []Price)
 	interval, qty := plan.SubscriptionCadence()
 	return Subscription{
 		OrgId:              orgId,
-		Id:                 lib.GenerateId("sub"),
+		Id:                 ids.Generate("sub"),
 		OrderId:            orderId,
 		CustomerId:         customerId,
 		Status:             SubscriptionStatusPending,

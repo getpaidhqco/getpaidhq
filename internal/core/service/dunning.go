@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"getpaidhq/internal/lib/ids"
 	"time"
 
 	"getpaidhq/internal/core/domain"
@@ -72,7 +73,7 @@ func (s *DunningService) CreateCampaign(ctx context.Context, input port.CreateDu
 	now := time.Now().UTC()
 	campaign := domain.DunningCampaign{
 		OrgId:                input.OrgId,
-		Id:                   lib.GenerateId("dunning_campaign"),
+		Id:                   ids.Generate("dunning_campaign"),
 		SubscriptionId:       input.SubscriptionId,
 		CustomerId:           input.CustomerId,
 		ParentWorkflowId:     input.ParentWorkflowId,
@@ -343,7 +344,7 @@ func (s *DunningService) runChargeAttempt(ctx context.Context, orgId, campaignId
 
 	attempt := domain.DunningAttempt{
 		OrgId:             orgId,
-		Id:                lib.GenerateId("dunning_attempt"),
+		Id:                ids.Generate("dunning_attempt"),
 		DunningCampaignId: campaign.Id,
 		SubscriptionId:    subscription.Id,
 		AttemptNumber:     campaign.TotalAttempts + 1,
@@ -534,7 +535,7 @@ func (s *DunningService) CreatePaymentUpdateToken(ctx context.Context, input por
 	expiresAt := now.Add(time.Duration(expiryHours) * time.Hour)
 	token := domain.PaymentUpdateToken{
 		OrgId:             input.OrgId,
-		TokenId:           lib.GenerateId("payment_update_token"),
+		TokenId:           ids.Generate("payment_update_token"),
 		SubscriptionId:    input.SubscriptionId,
 		CustomerId:        input.CustomerId,
 		DunningCampaignId: input.DunningCampaignId,
@@ -632,7 +633,7 @@ func (s *DunningService) CreateConfiguration(ctx context.Context, input port.Cre
 	now := time.Now().UTC()
 	cfg := domain.DunningConfiguration{
 		OrgId:            input.OrgId,
-		Id:               lib.GenerateId("dunning_configuration"),
+		Id:               ids.Generate("dunning_configuration"),
 		Name:             input.Name,
 		Description:      input.Description,
 		Priority:         input.Priority,

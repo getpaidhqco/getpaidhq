@@ -23,6 +23,7 @@ package postgresgorm
 
 import (
 	"context"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -34,7 +35,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // The graduated email-API ladder (cents per email; sub-cent rates are exact via
@@ -73,11 +73,11 @@ func seedGraduatedEmailFixture(t *testing.T, db *gorm.DB, orgId string, periodSt
 
 	cust := domain.Customer{
 		OrgId:      orgId,
-		Id:         lib.GenerateId("cus"),
-		ExternalId: lib.GenerateId("ext_cus"),
+		Id:         ids.Generate("cus"),
+		ExternalId: ids.Generate("ext_cus"),
 		FirstName:  "Ada",
 		LastName:   "Lovelace",
-		Email:      lib.GenerateId("ada") + "@example.com",
+		Email:      ids.Generate("ada") + "@example.com",
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}
@@ -88,7 +88,7 @@ func seedGraduatedEmailFixture(t *testing.T, db *gorm.DB, orgId string, periodSt
 	// period quantity is the sum of those batches.
 	meter := domain.BillableMetric{
 		OrgId:       orgId,
-		Id:          lib.GenerateId("met"),
+		Id:          ids.Generate("met"),
 		Code:        "emails_sent",
 		Name:        "Emails Sent",
 		Aggregation: domain.AggregationSum,
@@ -105,7 +105,7 @@ func seedGraduatedEmailFixture(t *testing.T, db *gorm.DB, orgId string, periodSt
 	// be ignored, and asserting $85.00 proves the tier path (not the flat path) ran.
 	price := domain.Price{
 		OrgId:              orgId,
-		Id:                 lib.GenerateId("price"),
+		Id:                 ids.Generate("price"),
 		VariantId:          variantId,
 		Label:              "Transactional Email",
 		Category:           domain.PriceCategorySubscription,
@@ -127,7 +127,7 @@ func seedGraduatedEmailFixture(t *testing.T, db *gorm.DB, orgId string, periodSt
 
 	sub := domain.Subscription{
 		OrgId:              orgId,
-		Id:                 lib.GenerateId("sub"),
+		Id:                 ids.Generate("sub"),
 		PspId:              domain.Paystack,
 		OrderId:            order.Id,
 		CustomerId:         cust.Id,

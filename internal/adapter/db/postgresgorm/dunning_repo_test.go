@@ -5,6 +5,7 @@ package postgresgorm
 import (
 	"context"
 	"errors"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -14,17 +15,16 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"getpaidhq/internal/core/domain"
-	"getpaidhq/internal/lib"
 )
 
 func newCampaign(orgId, subId, custId string) domain.DunningCampaign {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	return domain.DunningCampaign{
 		OrgId:                orgId,
-		Id:                   lib.GenerateId("dun"),
+		Id:                   ids.Generate("dun"),
 		SubscriptionId:       subId,
 		CustomerId:           custId,
-		WorkflowId:           lib.GenerateId("wf"),
+		WorkflowId:           ids.Generate("wf"),
 		Status:               domain.DunningStatusActive,
 		FailedAmount:         1999,
 		Currency:             "USD",
@@ -45,8 +45,8 @@ func TestDunningRepo_Campaigns(t *testing.T) {
 	t.Run("Create then FindById round-trips", func(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
-		subId := lib.GenerateId("sub")
-		c := newCampaign(orgId, subId, lib.GenerateId("cus"))
+		subId := ids.Generate("sub")
+		c := newCampaign(orgId, subId, ids.Generate("cus"))
 
 		created, err := repo.CreateCampaign(ctx, c)
 		require.NoError(t, err)
@@ -63,7 +63,7 @@ func TestDunningRepo_Campaigns(t *testing.T) {
 	t.Run("Update mutates status", func(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
-		c, err := repo.CreateCampaign(ctx, newCampaign(orgId, lib.GenerateId("sub"), lib.GenerateId("cus")))
+		c, err := repo.CreateCampaign(ctx, newCampaign(orgId, ids.Generate("sub"), ids.Generate("cus")))
 		require.NoError(t, err)
 
 		c.Status = domain.DunningStatusRecovered
@@ -84,12 +84,12 @@ func TestDunningRepo_Campaigns(t *testing.T) {
 	t.Run("FindCampaignsBySubscriptionId filters by subscription", func(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
-		subId := lib.GenerateId("sub")
+		subId := ids.Generate("sub")
 		for range 2 {
-			_, err := repo.CreateCampaign(ctx, newCampaign(orgId, subId, lib.GenerateId("cus")))
+			_, err := repo.CreateCampaign(ctx, newCampaign(orgId, subId, ids.Generate("cus")))
 			require.NoError(t, err)
 		}
-		_, err := repo.CreateCampaign(ctx, newCampaign(orgId, lib.GenerateId("sub"), lib.GenerateId("cus")))
+		_, err := repo.CreateCampaign(ctx, newCampaign(orgId, ids.Generate("sub"), ids.Generate("cus")))
 		require.NoError(t, err)
 
 		p := domain.Pagination{Limit: 10, SortBy: "created_at", SortDirection: "asc"}
@@ -102,15 +102,15 @@ func TestDunningRepo_Campaigns(t *testing.T) {
 	t.Run("FindActiveCampaignForSubscription returns active/paused only", func(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
-		subId := lib.GenerateId("sub")
+		subId := ids.Generate("sub")
 
 		// A closed campaign should be ignored.
-		closed := newCampaign(orgId, subId, lib.GenerateId("cus"))
+		closed := newCampaign(orgId, subId, ids.Generate("cus"))
 		closed.Status = domain.DunningStatusFailed
 		_, err := repo.CreateCampaign(ctx, closed)
 		require.NoError(t, err)
 
-		active := newCampaign(orgId, subId, lib.GenerateId("cus"))
+		active := newCampaign(orgId, subId, ids.Generate("cus"))
 		active.Status = domain.DunningStatusActive
 		createdActive, err := repo.CreateCampaign(ctx, active)
 		require.NoError(t, err)
@@ -125,7 +125,7 @@ func TestDunningRepo_Campaigns(t *testing.T) {
 		orgB := uniqueOrg(t)
 		cleanupOrg(t, db, orgA)
 		cleanupOrg(t, db, orgB)
-		created, err := repo.CreateCampaign(ctx, newCampaign(orgA, lib.GenerateId("sub"), lib.GenerateId("cus")))
+		created, err := repo.CreateCampaign(ctx, newCampaign(orgA, ids.Generate("sub"), ids.Generate("cus")))
 		require.NoError(t, err)
 
 		_, err = repo.FindCampaignById(ctx, orgB, created.Id)
@@ -141,12 +141,12 @@ func TestDunningRepo_Attempts(t *testing.T) {
 	t.Run("Create, FindById, FindByCampaignId", func(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
-		campaign, err := repo.CreateCampaign(ctx, newCampaign(orgId, lib.GenerateId("sub"), lib.GenerateId("cus")))
+		campaign, err := repo.CreateCampaign(ctx, newCampaign(orgId, ids.Generate("sub"), ids.Generate("cus")))
 		require.NoError(t, err)
 
 		a := domain.DunningAttempt{
 			OrgId:             orgId,
-			Id:                lib.GenerateId("att"),
+			Id:                ids.Generate("att"),
 			DunningCampaignId: campaign.Id,
 			SubscriptionId:    campaign.SubscriptionId,
 			AttemptNumber:     1,
@@ -193,13 +193,13 @@ func TestDunningRepo_Tokens(t *testing.T) {
 	t.Run("Create, FindById, Update", func(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
-		subId := lib.GenerateId("sub")
+		subId := ids.Generate("sub")
 
 		tok := domain.PaymentUpdateToken{
 			OrgId:          orgId,
-			TokenId:        lib.GenerateId("tok"),
+			TokenId:        ids.Generate("tok"),
 			SubscriptionId: subId,
-			CustomerId:     lib.GenerateId("cus"),
+			CustomerId:     ids.Generate("cus"),
 			Signature:      "sig123",
 			ExpiresAt:      time.Now().UTC().Add(72 * time.Hour).Truncate(time.Microsecond),
 			MaxUses:        5,
@@ -230,13 +230,13 @@ func TestDunningRepo_Tokens(t *testing.T) {
 	t.Run("FindTokensBySubscriptionId filters by subscription", func(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
-		subId := lib.GenerateId("sub")
+		subId := ids.Generate("sub")
 		for range 2 {
 			tok := domain.PaymentUpdateToken{
 				OrgId:          orgId,
-				TokenId:        lib.GenerateId("tok"),
+				TokenId:        ids.Generate("tok"),
 				SubscriptionId: subId,
-				CustomerId:     lib.GenerateId("cus"),
+				CustomerId:     ids.Generate("cus"),
 				Status:         domain.TokenStatusActive,
 				ExpiresAt:      time.Now().UTC().Add(time.Hour),
 				CreatedAt:      time.Now().UTC().Truncate(time.Microsecond),
@@ -268,8 +268,8 @@ func TestDunningRepo_Configurations(t *testing.T) {
 		now := time.Now().UTC().Truncate(time.Microsecond)
 		return domain.DunningConfiguration{
 			OrgId:     orgId,
-			Id:        lib.GenerateId("cfg"),
-			Name:      "cfg-" + lib.GenerateId("n"),
+			Id:        ids.Generate("cfg"),
+			Name:      "cfg-" + ids.Generate("n"),
 			Priority:  priority,
 			AppliesTo: domain.DunningConfigScopeOrganization,
 			Config:    map[string]any{"max_attempts": float64(3)},
@@ -338,7 +338,7 @@ func TestDunningRepo_CustomerHistory(t *testing.T) {
 	t.Run("Get on missing returns empty (not error)", func(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
-		custId := lib.GenerateId("cus")
+		custId := ids.Generate("cus")
 		h, err := repo.GetCustomerDunningHistory(ctx, orgId, custId)
 		require.NoError(t, err)
 		assert.Equal(t, orgId, h.OrgId)
@@ -349,7 +349,7 @@ func TestDunningRepo_CustomerHistory(t *testing.T) {
 	t.Run("Upsert then Get round-trips", func(t *testing.T) {
 		orgId := uniqueOrg(t)
 		cleanupOrg(t, db, orgId)
-		custId := lib.GenerateId("cus")
+		custId := ids.Generate("cus")
 		h := domain.CustomerDunningHistory{
 			OrgId:                 orgId,
 			CustomerId:            custId,

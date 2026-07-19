@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"getpaidhq/internal/lib/ids"
 	"time"
 
 	"getpaidhq/internal/lib"
@@ -43,7 +44,7 @@ func NewCouponReservation(in NewCouponReservationInput) (CouponReservation, erro
 	}
 	now := time.Now().UTC()
 	return CouponReservation{
-		OrgId: in.OrgId, Id: lib.GenerateId("cres"),
+		OrgId: in.OrgId, Id: ids.Generate("cres"),
 		CouponId: in.CouponId, CouponCodeId: in.CouponCodeId, CustomerId: in.CustomerId,
 		CheckoutSessionId: in.CheckoutSessionId, OrderId: in.OrderId,
 		ExpiresAt: in.ExpiresAt, CreatedAt: now,

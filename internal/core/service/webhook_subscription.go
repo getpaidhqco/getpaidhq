@@ -7,6 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"getpaidhq/internal/lib/ids"
 	"io"
 	"net"
 	"net/http"
@@ -14,7 +15,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // outgoingWebhookTimeout bounds the total time spent on a single
@@ -88,7 +88,7 @@ func (s *WebhookSubscriptionService) Create(ctx context.Context, input port.Crea
 
 	webhook, err := s.whsRepo.Create(ctx, domain.WebhookSubscription{
 		OrgID:     input.OrgId,
-		Id:        lib.GenerateId("webhook"),
+		Id:        ids.Generate("webhook"),
 		Events:    input.Events,
 		URL:       input.Url,
 		Secret:    input.Secret,

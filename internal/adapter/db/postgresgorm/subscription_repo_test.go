@@ -5,6 +5,7 @@ package postgresgorm
 import (
 	"context"
 	"errors"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // subFixture seeds the parent chain (customer, price, order, order item) the
@@ -40,7 +40,7 @@ func newSubscription(orgId, customerId, orderId string) domain.Subscription {
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	return domain.Subscription{
 		OrgId:              orgId,
-		Id:                 lib.GenerateId("sub"),
+		Id:                 ids.Generate("sub"),
 		PspId:              domain.Paystack,
 		OrderId:            orderId,
 		CustomerId:         customerId,

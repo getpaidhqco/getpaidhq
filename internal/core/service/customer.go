@@ -7,6 +7,7 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/ids"
 	"time"
 )
 
@@ -60,7 +61,7 @@ func (s *CustomerService) Create(ctx context.Context, orgId string, input port.C
 
 	customer := domain.Customer{
 		OrgId:          orgId,
-		Id:             lib.GenerateId("cus"),
+		Id:             ids.Generate("cus"),
 		FirstName:      input.FirstName,
 		LastName:       input.LastName,
 		Email:          input.Email,
@@ -121,7 +122,7 @@ func (s *CustomerService) CreatePaymentMethod(ctx context.Context, orgId string,
 	// check for existing payment method
 	paymentMethod := domain.PaymentMethod{
 		OrgId:          orgId,
-		Id:             lib.GenerateId("pm"),
+		Id:             ids.Generate("pm"),
 		Psp:            input.Psp,
 		Name:           input.Name,
 		Status:         domain.PaymentMethodStatusActive,

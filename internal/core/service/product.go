@@ -5,6 +5,7 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/ids"
 	"time"
 )
 
@@ -40,7 +41,7 @@ func (s *ProductService) CreateProduct(ctx context.Context, orgId string, input 
 	product, err := s.productRepository.Create(ctx,
 		domain.Product{
 			OrgId:       orgId,
-			Id:          lib.GenerateId("prod"),
+			Id:          ids.Generate("prod"),
 			Name:        input.Name,
 			Description: input.Description,
 			Status:      domain.ProductStatusActive,
@@ -57,7 +58,7 @@ func (s *ProductService) CreateProduct(ctx context.Context, orgId string, input 
 		variant, err := s.variantRepository.Create(ctx,
 			domain.Variant{
 				OrgId:     orgId,
-				Id:        lib.GenerateId("var"),
+				Id:        ids.Generate("var"),
 				ProductId: product.Id,
 				Name:      v.Name,
 				CreatedAt: time.Now().UTC(),
@@ -245,7 +246,7 @@ func (s *ProductService) DeleteProduct(ctx context.Context, orgId string, id str
 func (s *ProductService) CreateVariant(ctx context.Context, orgId string, productId string, input port.CreateVariantInput) (domain.Variant, error) {
 	variant, err := s.variantRepository.Create(ctx, domain.Variant{
 		OrgId:       orgId,
-		Id:          lib.GenerateId("var"),
+		Id:          ids.Generate("var"),
 		ProductId:   productId,
 		Name:        input.Name,
 		Description: input.Description,

@@ -3,6 +3,7 @@ package pubsub
 import (
 	"context"
 	"errors"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -11,7 +12,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 type noopLogger struct{}
@@ -131,7 +131,7 @@ func newTestRelay(repo *fakeOutboxRepo, pub *fakeRawPublisher) *Relay {
 
 func pendingEvent(id int64, topic string) domain.OutboxEvent {
 	return domain.OutboxEvent{
-		Id: id, EventId: lib.GenerateId("evt"), OrgId: "org_1", Topic: topic,
+		Id: id, EventId: ids.Generate("evt"), OrgId: "org_1", Topic: topic,
 		Payload: []byte(`{"topic":"` + topic + `"}`), CreatedAt: time.Now().UTC(),
 	}
 }

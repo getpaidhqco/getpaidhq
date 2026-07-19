@@ -3,6 +3,7 @@ package temporal
 import (
 	"context"
 	"errors"
+	"getpaidhq/internal/lib/ids"
 
 	enums "go.temporal.io/api/enums/v1"
 	serviceerror "go.temporal.io/api/serviceerror"
@@ -118,7 +119,7 @@ func (t *Temporal) StartWorkflow(ctx context.Context, id port.WorkflowType, payl
 			return port.WorkflowResult{}, err
 		}
 		opts := client.StartWorkflowOptions{
-			ID:        lib.GenerateId("payment_success"),
+			ID:        ids.Generate("payment_success"),
 			TaskQueue: t.taskQueue,
 		}
 		we, err := t.client.ExecuteWorkflow(ctx, opts, workflows.PaymentSuccessWorkflow, workflows.PaymentSuccessInput{PaymentContext: pc})
@@ -134,7 +135,7 @@ func (t *Temporal) StartWorkflow(ctx context.Context, id port.WorkflowType, payl
 			return port.WorkflowResult{}, err
 		}
 		opts := client.StartWorkflowOptions{
-			ID:        lib.GenerateId("payment_refunded"),
+			ID:        ids.Generate("payment_refunded"),
 			TaskQueue: t.taskQueue,
 		}
 		we, err := t.client.ExecuteWorkflow(ctx, opts, workflows.PaymentRefunded, pc)
@@ -150,7 +151,7 @@ func (t *Temporal) StartWorkflow(ctx context.Context, id port.WorkflowType, payl
 			return port.WorkflowResult{}, errors.New("outgoing-webhook expects port.OutgoingWebhookPayload")
 		}
 		opts := client.StartWorkflowOptions{
-			ID:        lib.GenerateId("webhook_out"),
+			ID:        ids.Generate("webhook_out"),
 			TaskQueue: t.taskQueue,
 		}
 		we, err := t.client.ExecuteWorkflow(ctx, opts, workflows.OutgoingWebhookWorkflow, wh)

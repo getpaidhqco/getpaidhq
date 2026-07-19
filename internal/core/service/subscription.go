@@ -8,6 +8,7 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/ids"
 	"time"
 )
 
@@ -524,7 +525,7 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 
 	payment := domain.Payment{
 		OrgId:          subscription.OrgId,
-		Id:             lib.GenerateId("pmt"),
+		Id:             ids.Generate("pmt"),
 		Psp:            charge.Psp,
 		PspId:          charge.PspId,
 		Reference:      charge.Reference,
@@ -658,7 +659,7 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 
 	payment := domain.Payment{
 		OrgId:          subscription.OrgId,
-		Id:             lib.GenerateId("pmt"),
+		Id:             ids.Generate("pmt"),
 		Psp:            charge.Psp,
 		PspId:          charge.PspId,
 		Reference:      charge.Reference,

@@ -4,13 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"getpaidhq/internal/lib/ids"
 	"runtime/debug"
 	"time"
 
 	"github.com/nats-io/nats.go"
 
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // NatsPubSub is a port.PubSub backed by an external NATS server.
@@ -64,7 +64,7 @@ func (n *NatsPubSub) Conn() *nats.Conn { return n.conn }
 
 func (n *NatsPubSub) Publish(_ context.Context, orgId, topic string, message any) error {
 	data, err := json.Marshal(port.PubSubPayload{
-		Id:        lib.GenerateId("evt"),
+		Id:        ids.Generate("evt"),
 		OrgId:     orgId,
 		Topic:     topic,
 		Data:      message,

@@ -15,6 +15,7 @@ package postgresgorm
 
 import (
 	"context"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -123,7 +124,7 @@ func seedMemoryPsp(t *testing.T, db *gorm.DB, orgId string) string {
 	t.Helper()
 	now := time.Now().UTC().Truncate(time.Microsecond)
 
-	pspConfigId := lib.GenerateId("gw")
+	pspConfigId := ids.Generate("gw")
 	require.NoError(t, db.Create(pspConfigRowFromDomain(domain.PspConfig{
 		OrgId:     orgId,
 		Id:        pspConfigId,
@@ -145,13 +146,13 @@ func seedPaymentMethod(t *testing.T, db *gorm.DB, orgId, customerId string) doma
 	now := time.Now().UTC().Truncate(time.Microsecond)
 	pm := domain.PaymentMethod{
 		OrgId:      orgId,
-		Id:         lib.GenerateId("pm"),
+		Id:         ids.Generate("pm"),
 		Status:     domain.PaymentMethodStatusActive,
 		Psp:        string(domain.Memory),
 		Name:       "Visa ****4242",
 		CustomerId: customerId,
 		Type:       domain.PaymentMethodTypeCard,
-		Token:      domain.Secret(lib.GenerateId("tok")),
+		Token:      domain.Secret(ids.Generate("tok")),
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}

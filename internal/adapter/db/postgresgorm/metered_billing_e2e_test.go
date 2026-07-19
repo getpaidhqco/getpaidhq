@@ -19,6 +19,7 @@ package postgresgorm
 
 import (
 	"context"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -30,7 +31,6 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
-	"getpaidhq/internal/lib"
 )
 
 // meteredFixture is the parent chain for a usage-based subscription: a customer
@@ -59,11 +59,11 @@ func seedMeteredFixture(t *testing.T, db *gorm.DB, orgId string, periodStart, pe
 
 	cust := domain.Customer{
 		OrgId:      orgId,
-		Id:         lib.GenerateId("cus"),
-		ExternalId: lib.GenerateId("ext_cus"), // the merchant's own id, matched on usage events
+		Id:         ids.Generate("cus"),
+		ExternalId: ids.Generate("ext_cus"), // the merchant's own id, matched on usage events
 		FirstName:  "Grace",
 		LastName:   "Hopper",
-		Email:      lib.GenerateId("grace") + "@example.com",
+		Email:      ids.Generate("grace") + "@example.com",
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}
@@ -72,7 +72,7 @@ func seedMeteredFixture(t *testing.T, db *gorm.DB, orgId string, periodStart, pe
 
 	meter := domain.BillableMetric{
 		OrgId:       orgId,
-		Id:          lib.GenerateId("met"),
+		Id:          ids.Generate("met"),
 		Code:        "api_calls",
 		Name:        "API Calls",
 		Aggregation: domain.AggregationCount,
@@ -85,7 +85,7 @@ func seedMeteredFixture(t *testing.T, db *gorm.DB, orgId string, periodStart, pe
 	variantId := seedVariantChain(t, db, orgId)
 	price := domain.Price{
 		OrgId:              orgId,
-		Id:                 lib.GenerateId("price"),
+		Id:                 ids.Generate("price"),
 		VariantId:          variantId,
 		Label:              "Metered API",
 		Category:           domain.PriceCategorySubscription,
@@ -107,7 +107,7 @@ func seedMeteredFixture(t *testing.T, db *gorm.DB, orgId string, periodStart, pe
 
 	sub := domain.Subscription{
 		OrgId:              orgId,
-		Id:                 lib.GenerateId("sub"),
+		Id:                 ids.Generate("sub"),
 		PspId:              domain.Paystack,
 		OrderId:            order.Id,
 		CustomerId:         cust.Id,
@@ -271,7 +271,7 @@ func TestMeteredBilling_UnitCount_E2E(t *testing.T) {
 	for i := range 25 {
 		recordUsage(t, usage, port.RecordEventInput{
 			OrgId: orgId, CustomerId: fx.customer.Id, MetricCode: fx.meter.Code,
-			SubscriptionId: fx.sub.Id, ExternalId: lib.GenerateId("uc"),
+			SubscriptionId: fx.sub.Id, ExternalId: ids.Generate("uc"),
 			Timestamp: jan1.Add(time.Duration(i+1) * time.Minute),
 		})
 	}
@@ -453,7 +453,7 @@ func TestMeteredBilling_Package_PartialBlock_E2E(t *testing.T) {
 	for i := range 25 {
 		recordUsage(t, usage, port.RecordEventInput{
 			OrgId: orgId, CustomerId: fx.customer.Id, MetricCode: fx.meter.Code,
-			SubscriptionId: fx.sub.Id, ExternalId: lib.GenerateId("pkg"),
+			SubscriptionId: fx.sub.Id, ExternalId: ids.Generate("pkg"),
 			Timestamp: jan1.Add(time.Duration(i+1) * time.Minute),
 		})
 	}
@@ -483,7 +483,7 @@ func TestMeteredBilling_Package_BlockBoundary_E2E(t *testing.T) {
 	for i, count := range []string{"700", "400"} { // 1,100 total → 2 started blocks
 		recordUsage(t, usage, port.RecordEventInput{
 			OrgId: orgId, CustomerId: fx.customer.Id, MetricCode: fx.meter.Code,
-			SubscriptionId: fx.sub.Id, ExternalId: lib.GenerateId("sms"),
+			SubscriptionId: fx.sub.Id, ExternalId: ids.Generate("sms"),
 			Timestamp: jan1.Add(time.Duration(i+1) * 24 * time.Hour),
 			Metadata:  map[string]string{"count": count},
 		})

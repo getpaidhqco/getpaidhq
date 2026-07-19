@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"getpaidhq/internal/lib/ids"
 	"sync"
 	"testing"
 	"time"
@@ -14,7 +15,6 @@ import (
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // RepoSet is the set of db ports the conformance suite exercises. Each
@@ -97,7 +97,7 @@ func now() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }
 
 func seedOrg(t *testing.T, ctx context.Context, rs RepoSet) string {
 	t.Helper()
-	orgId := lib.GenerateId("org_test")
+	orgId := ids.Generate("org_test")
 	_, err := rs.Org.Create(ctx, domain.Org{
 		Id: orgId, Name: "Test Org " + orgId, Country: "US", Timezone: "UTC",
 		Status: domain.OrgStatusActive, CreatedAt: now(), UpdatedAt: now(),
@@ -109,9 +109,9 @@ func seedOrg(t *testing.T, ctx context.Context, rs RepoSet) string {
 func seedCustomer(t *testing.T, ctx context.Context, rs RepoSet, orgId string) domain.Customer {
 	t.Helper()
 	c := domain.Customer{
-		OrgId: orgId, Id: lib.GenerateId("cus"),
+		OrgId: orgId, Id: ids.Generate("cus"),
 		FirstName: "Ada", LastName: "Lovelace",
-		Email:          fmt.Sprintf("%s@example.com", lib.GenerateId("ada")),
+		Email:          fmt.Sprintf("%s@example.com", ids.Generate("ada")),
 		Phone:          "+15551234",
 		BillingAddress: domain.Address{Line1: "1 Engine Way", City: "London", Country: "GB"},
 		Metadata:       map[string]string{"tier": "gold"},
@@ -124,14 +124,14 @@ func seedCustomer(t *testing.T, ctx context.Context, rs RepoSet, orgId string) d
 
 func seedPrice(t *testing.T, ctx context.Context, rs RepoSet, orgId string) domain.Price {
 	t.Helper()
-	prod := domain.Product{OrgId: orgId, Id: lib.GenerateId("prod"), Name: "Test Product", Status: domain.ProductStatusActive, CreatedAt: now(), UpdatedAt: now()}
+	prod := domain.Product{OrgId: orgId, Id: ids.Generate("prod"), Name: "Test Product", Status: domain.ProductStatusActive, CreatedAt: now(), UpdatedAt: now()}
 	_, err := rs.Product.Create(ctx, prod)
 	require.NoError(t, err)
-	variant := domain.Variant{OrgId: orgId, Id: lib.GenerateId("var"), ProductId: prod.Id, Name: "Default", CreatedAt: now(), UpdatedAt: now()}
+	variant := domain.Variant{OrgId: orgId, Id: ids.Generate("var"), ProductId: prod.Id, Name: "Default", CreatedAt: now(), UpdatedAt: now()}
 	_, err = rs.Variant.Create(ctx, variant)
 	require.NoError(t, err)
 	price := domain.Price{
-		OrgId: orgId, Id: lib.GenerateId("price"), VariantId: variant.Id,
+		OrgId: orgId, Id: ids.Generate("price"), VariantId: variant.Id,
 		Label: "Monthly Pro", Category: domain.PriceCategorySubscription, Scheme: domain.Fixed,
 		Currency: domain.USD, UnitPrice: 1999, BillingInterval: domain.BillingIntervalMonth,
 		BillingIntervalQty: 1, TrialInterval: domain.BillingIntervalNone, CreatedAt: now(), UpdatedAt: now(),
@@ -143,12 +143,12 @@ func seedPrice(t *testing.T, ctx context.Context, rs RepoSet, orgId string) doma
 
 func seedOrder(t *testing.T, ctx context.Context, rs RepoSet, orgId, customerId string) domain.Order {
 	t.Helper()
-	cart := domain.Cart{OrgId: orgId, Id: lib.GenerateId("cart"), Metadata: map[string]string{}, CreatedAt: now(), UpdatedAt: now()}
+	cart := domain.Cart{OrgId: orgId, Id: ids.Generate("cart"), Metadata: map[string]string{}, CreatedAt: now(), UpdatedAt: now()}
 	_, err := rs.Cart.Create(ctx, cart)
 	require.NoError(t, err)
 	o := domain.Order{
-		OrgId: orgId, Id: lib.GenerateId("ord"), CustomerId: customerId, CartId: cart.Id,
-		Reference: "REF-" + lib.GenerateId("r"), Status: domain.OrderStatusPending, Currency: "USD",
+		OrgId: orgId, Id: ids.Generate("ord"), CustomerId: customerId, CartId: cart.Id,
+		Reference: "REF-" + ids.Generate("r"), Status: domain.OrderStatusPending, Currency: "USD",
 		Total: 1999, Metadata: map[string]string{}, CreatedAt: now(), UpdatedAt: now(),
 	}
 	created, err := rs.Order.Create(ctx, o)
@@ -212,7 +212,7 @@ func testCartOrderItem(t *testing.T, ctx context.Context, rs RepoSet) {
 	order := seedOrder(t, ctx, rs, orgId, cust.Id)
 
 	item := domain.OrderItem{
-		OrgId: orgId, Id: lib.GenerateId("oi"), OrderId: order.Id, PriceId: price.Id,
+		OrgId: orgId, Id: ids.Generate("oi"), OrderId: order.Id, PriceId: price.Id,
 		ProductId: "test-product", Description: "Monthly Pro", Quantity: 1,
 		Subtotal: 1999, Total: 1999, Metadata: map[string]string{}, CreatedAt: now(), UpdatedAt: now(),
 	}
@@ -253,8 +253,8 @@ func testCartOrderItem(t *testing.T, ctx context.Context, rs RepoSet) {
 
 	// An order created with Config.UpfrontInvoice=true round-trips that flag.
 	withConfig := domain.Order{
-		OrgId: orgId, Id: lib.GenerateId("ord"), CustomerId: cust.Id, CartId: order.CartId,
-		Reference: "REF-" + lib.GenerateId("r"), Status: domain.OrderStatusPending, Currency: "USD",
+		OrgId: orgId, Id: ids.Generate("ord"), CustomerId: cust.Id, CartId: order.CartId,
+		Reference: "REF-" + ids.Generate("r"), Status: domain.OrderStatusPending, Currency: "USD",
 		Total: 1999, Metadata: map[string]string{}, CreatedAt: now(), UpdatedAt: now(),
 		Config: domain.OrderConfig{UpfrontInvoice: true},
 	}
@@ -266,8 +266,8 @@ func testCartOrderItem(t *testing.T, ctx context.Context, rs RepoSet) {
 
 	// An order created with a PSP session payload round-trips (back as map[string]any).
 	withSession := domain.Order{
-		OrgId: orgId, Id: lib.GenerateId("ord"), CustomerId: cust.Id, CartId: order.CartId,
-		Reference: "REF-" + lib.GenerateId("r"), Status: domain.OrderStatusPending, Currency: "USD",
+		OrgId: orgId, Id: ids.Generate("ord"), CustomerId: cust.Id, CartId: order.CartId,
+		Reference: "REF-" + ids.Generate("r"), Status: domain.OrderStatusPending, Currency: "USD",
 		Total: 1999, Metadata: map[string]string{}, CreatedAt: now(), UpdatedAt: now(),
 		PaymentSession: map[string]any{"reference": "ps_123", "url": "https://pay/x"},
 	}
@@ -313,7 +313,7 @@ func testCartOrderItem(t *testing.T, ctx context.Context, rs RepoSet) {
 func newSubscription(orgId, customerId, orderId string) domain.Subscription {
 	n := now()
 	return domain.Subscription{
-		OrgId: orgId, Id: lib.GenerateId("sub"), PspId: domain.Paystack, OrderId: orderId,
+		OrgId: orgId, Id: ids.Generate("sub"), PspId: domain.Paystack, OrderId: orderId,
 		CustomerId: customerId, Status: domain.SubscriptionStatusActive, StartDate: n,
 		RenewsAt: n.Add(-time.Hour), BillingInterval: domain.BillingIntervalMonth, BillingIntervalQty: 1,
 		TrialInterval: domain.BillingIntervalNone, Cycles: 12, Currency: "USD",
@@ -327,7 +327,7 @@ func testSubscription(t *testing.T, ctx context.Context, rs RepoSet) {
 	price := seedPrice(t, ctx, rs, orgId)
 	order := seedOrder(t, ctx, rs, orgId, cust.Id)
 	item := domain.OrderItem{
-		OrgId: orgId, Id: lib.GenerateId("oi"), OrderId: order.Id, PriceId: price.Id,
+		OrgId: orgId, Id: ids.Generate("oi"), OrderId: order.Id, PriceId: price.Id,
 		ProductId: "test-product", Description: "Monthly Pro", Quantity: 1,
 		Subtotal: 1999, Total: 1999, Metadata: map[string]string{}, CreatedAt: now(), UpdatedAt: now(),
 	}
@@ -368,8 +368,8 @@ func testSubscription(t *testing.T, ctx context.Context, rs RepoSet) {
 func newPayment(orgId, orderId string) domain.Payment {
 	n := now()
 	return domain.Payment{
-		OrgId: orgId, Id: lib.GenerateId("pay"), OrderId: orderId, Psp: domain.Paystack,
-		PspId: lib.GenerateId("psp"), Reference: "REF-" + lib.GenerateId("r"),
+		OrgId: orgId, Id: ids.Generate("pay"), OrderId: orderId, Psp: domain.Paystack,
+		PspId: ids.Generate("psp"), Reference: "REF-" + ids.Generate("r"),
 		Status: domain.PaymentStatusSucceeded, Recurring: true, Currency: "USD",
 		Amount: 1999, PspFee: 59, NetAmount: 1940, Metadata: map[string]string{"channel": "card"},
 		CompletedAt: n, CreatedAt: n, UpdatedAt: n,
@@ -415,7 +415,7 @@ func testSettingUpsert(t *testing.T, ctx context.Context, rs RepoSet) {
 }
 
 func testIdempotency(t *testing.T, ctx context.Context, rs RepoSet) {
-	key := lib.GenerateId("idem")
+	key := ids.Generate("idem")
 	exp := now().Add(time.Hour)
 
 	claimed, err := rs.Idempotency.Claim(ctx, key, exp)
@@ -436,7 +436,7 @@ func testIdempotency(t *testing.T, ctx context.Context, rs RepoSet) {
 func testTxRollback(t *testing.T, ctx context.Context, rs RepoSet) {
 	orgId := seedOrg(t, ctx, rs)
 	cust := domain.Customer{
-		OrgId: orgId, Id: lib.GenerateId("cus"), Email: fmt.Sprintf("%s@x.com", lib.GenerateId("e")),
+		OrgId: orgId, Id: ids.Generate("cus"), Email: fmt.Sprintf("%s@x.com", ids.Generate("e")),
 		Metadata: map[string]string{}, CreatedAt: now(), UpdatedAt: now(),
 	}
 	boom := errors.New("boom")
@@ -457,10 +457,10 @@ func testTxRollback(t *testing.T, ctx context.Context, rs RepoSet) {
 func testProductFindAndVariantDelete(t *testing.T, ctx context.Context, rs RepoSet) {
 	orgId := seedOrg(t, ctx, rs)
 
-	active := domain.Product{OrgId: orgId, Id: lib.GenerateId("prod"), Name: "Active", Status: domain.ProductStatusActive, CreatedAt: now(), UpdatedAt: now()}
+	active := domain.Product{OrgId: orgId, Id: ids.Generate("prod"), Name: "Active", Status: domain.ProductStatusActive, CreatedAt: now(), UpdatedAt: now()}
 	_, err := rs.Product.Create(ctx, active)
 	require.NoError(t, err)
-	archived := domain.Product{OrgId: orgId, Id: lib.GenerateId("prod"), Name: "Archived", Status: domain.ProductStatusArchived, CreatedAt: now(), UpdatedAt: now()}
+	archived := domain.Product{OrgId: orgId, Id: ids.Generate("prod"), Name: "Archived", Status: domain.ProductStatusArchived, CreatedAt: now(), UpdatedAt: now()}
 	_, err = rs.Product.Create(ctx, archived)
 	require.NoError(t, err)
 
@@ -477,7 +477,7 @@ func testProductFindAndVariantDelete(t *testing.T, ctx context.Context, rs RepoS
 	assert.Equal(t, 2, totalAll, "nil statuses returns all products")
 
 	// Variant Delete: create a variant under active, delete it, confirm gone.
-	variant := domain.Variant{OrgId: orgId, Id: lib.GenerateId("var"), ProductId: active.Id, Name: "Default", CreatedAt: now(), UpdatedAt: now()}
+	variant := domain.Variant{OrgId: orgId, Id: ids.Generate("var"), ProductId: active.Id, Name: "Default", CreatedAt: now(), UpdatedAt: now()}
 	_, err = rs.Variant.Create(ctx, variant)
 	require.NoError(t, err)
 	_, err = rs.Variant.FindById(ctx, orgId, variant.Id)
@@ -494,22 +494,22 @@ func testInvoice(t *testing.T, ctx context.Context, rs RepoSet) {
 	orgId := seedOrg(t, ctx, rs)
 	cust := seedCustomer(t, ctx, rs, orgId)
 	price := seedPrice(t, ctx, rs, orgId)
-	subId := lib.GenerateId("sub")
+	subId := ids.Generate("sub")
 
 	inv := domain.Invoice{
-		OrgId: orgId, Id: lib.GenerateId("inv"), Reference: "INV-2026-0001", SubscriptionId: subId, CustomerId: cust.Id,
-		OrderId: lib.GenerateId("ord"), Status: domain.InvoiceStatusDraft, Currency: "USD",
+		OrgId: orgId, Id: ids.Generate("inv"), Reference: "INV-2026-0001", SubscriptionId: subId, CustomerId: cust.Id,
+		OrderId: ids.Generate("ord"), Status: domain.InvoiceStatusDraft, Currency: "USD",
 		Cycle: 3, PeriodStart: now(), PeriodEnd: now().Add(720 * time.Hour),
 		Metadata: map[string]string{"reason": "renewal"}, CreatedAt: now(), UpdatedAt: now(),
 	}
 	inv.AddLine(domain.InvoiceLineItem{
-		OrgId: orgId, Id: lib.GenerateId("ili"), InvoiceId: inv.Id, PriceId: price.Id,
+		OrgId: orgId, Id: ids.Generate("ili"), InvoiceId: inv.Id, PriceId: price.Id,
 		Kind: domain.InvoiceLineKindBase, Description: "Monthly Pro",
 		Quantity: decimal.NewFromInt(1), UnitAmount: decimal.NewFromInt(1999), Total: 1999,
 		CreatedAt: now(), UpdatedAt: now(),
 	})
 	inv.AddLine(domain.InvoiceLineItem{
-		OrgId: orgId, Id: lib.GenerateId("ili"), InvoiceId: inv.Id, PriceId: price.Id,
+		OrgId: orgId, Id: ids.Generate("ili"), InvoiceId: inv.Id, PriceId: price.Id,
 		Kind: domain.InvoiceLineKindUsage, Description: "Usage",
 		Quantity: decimal.NewFromInt(10), UnitAmount: decimal.NewFromInt(50), Total: 500,
 		CreatedAt: now(), UpdatedAt: now(),
@@ -531,13 +531,13 @@ func testInvoice(t *testing.T, ctx context.Context, rs RepoSet) {
 	// Order-only invoice: no subscription. The empty SubscriptionId must persist
 	// as SQL NULL and read back as "" on both drivers (subscription_id is nullable).
 	orderOnly := domain.Invoice{
-		OrgId: orgId, Id: lib.GenerateId("inv"), Reference: "INV-2026-0002", SubscriptionId: "", CustomerId: cust.Id,
-		OrderId: lib.GenerateId("ord"), Status: domain.InvoiceStatusDraft, Currency: "USD",
+		OrgId: orgId, Id: ids.Generate("inv"), Reference: "INV-2026-0002", SubscriptionId: "", CustomerId: cust.Id,
+		OrderId: ids.Generate("ord"), Status: domain.InvoiceStatusDraft, Currency: "USD",
 		Cycle: 0, PeriodStart: now(), PeriodEnd: now().Add(720 * time.Hour),
 		Metadata: map[string]string{"reason": "one-off"}, CreatedAt: now(), UpdatedAt: now(),
 	}
 	orderOnly.AddLine(domain.InvoiceLineItem{
-		OrgId: orgId, Id: lib.GenerateId("ili"), InvoiceId: orderOnly.Id, PriceId: price.Id,
+		OrgId: orgId, Id: ids.Generate("ili"), InvoiceId: orderOnly.Id, PriceId: price.Id,
 		Kind: domain.InvoiceLineKindBase, Description: "One-off charge",
 		Quantity: decimal.NewFromInt(1), UnitAmount: decimal.NewFromInt(4200), Total: 4200,
 		CreatedAt: now(), UpdatedAt: now(),
@@ -623,12 +623,12 @@ func testInvoice(t *testing.T, ctx context.Context, rs RepoSet) {
 
 func testDunning(t *testing.T, ctx context.Context, rs RepoSet) {
 	orgId := seedOrg(t, ctx, rs)
-	subId := lib.GenerateId("sub")
-	custId := lib.GenerateId("cus")
+	subId := ids.Generate("sub")
+	custId := ids.Generate("cus")
 
 	campaign := domain.DunningCampaign{
-		OrgId: orgId, Id: lib.GenerateId("dun"), SubscriptionId: subId, CustomerId: custId,
-		WorkflowId: lib.GenerateId("wf"), Status: domain.DunningStatusActive, FailedAmount: 1999,
+		OrgId: orgId, Id: ids.Generate("dun"), SubscriptionId: subId, CustomerId: custId,
+		WorkflowId: ids.Generate("wf"), Status: domain.DunningStatusActive, FailedAmount: 1999,
 		Currency: "USD", InitialFailureReason: "card_declined", StartedAt: now(),
 		ConfigSnapshot: map[string]any{"max_attempts": float64(5)},
 		Metadata:       map[string]string{"k": "v"}, CreatedAt: now(), UpdatedAt: now(),
@@ -654,7 +654,7 @@ func testDunning(t *testing.T, ctx context.Context, rs RepoSet) {
 	assert.Equal(t, int64(1999), updated.RecoveredAmount)
 
 	attempt := domain.DunningAttempt{
-		OrgId: orgId, Id: lib.GenerateId("att"), DunningCampaignId: campaign.Id, SubscriptionId: subId,
+		OrgId: orgId, Id: ids.Generate("att"), DunningCampaignId: campaign.Id, SubscriptionId: subId,
 		AttemptNumber: 1, AttemptType: domain.DunningAttemptTypeImmediate, Amount: 1999, Currency: "USD",
 		Status: domain.PaymentStatusFailed, FailureReason: "insufficient_funds",
 		ProcessorResponse: map[string]any{"code": "51"}, AttemptedAt: now(), CreatedAt: now(),
@@ -721,9 +721,9 @@ func testCoupon(t *testing.T, ctx context.Context, rs RepoSet) {
 
 	// Discount referencing the coupon, owned by an order and targeting a
 	// subscription (order_id + subscription_id both set).
-	orderId := lib.GenerateId("ord")
-	subId := lib.GenerateId("sub")
-	custId := lib.GenerateId("cus")
+	orderId := ids.Generate("ord")
+	subId := ids.Generate("sub")
+	custId := ids.Generate("cus")
 	disc, err := domain.NewDiscount(domain.NewDiscountInput{
 		OrgId: orgId, CouponId: coupon.Id, CustomerId: custId, OrderId: orderId, SubscriptionId: subId,
 	})
@@ -791,7 +791,7 @@ func testCouponReservation(t *testing.T, ctx context.Context, rs RepoSet) {
 	require.NoError(t, err)
 
 	n := now()
-	orderId := lib.GenerateId("ord")
+	orderId := ids.Generate("ord")
 	res, err := domain.NewCouponReservation(domain.NewCouponReservationInput{
 		OrgId: orgId, CouponId: coupon.Id, OrderId: orderId,
 		ExpiresAt: n.Add(time.Hour),
@@ -828,7 +828,7 @@ func testMeter(t *testing.T, ctx context.Context, rs RepoSet) {
 	orgId := seedOrg(t, ctx, rs)
 
 	m := domain.BillableMetric{
-		OrgId: orgId, Id: lib.GenerateId("met"), Code: "api_calls_" + lib.GenerateId("c"),
+		OrgId: orgId, Id: ids.Generate("met"), Code: "api_calls_" + ids.Generate("c"),
 		Name: "API Calls", Aggregation: domain.AggregationSum, FieldName: "units",
 		CarryOver: false, RoundingMode: "round", RoundingScale: 2,
 		Filters:  []domain.MetricFilter{{Field: "type", Values: []string{"SMS", "MMS"}}},
@@ -860,7 +860,7 @@ func testMeter(t *testing.T, ctx context.Context, rs RepoSet) {
 
 func testMetadata(t *testing.T, ctx context.Context, rs RepoSet) {
 	orgId := seedOrg(t, ctx, rs)
-	parentId := lib.GenerateId("ord")
+	parentId := ids.Generate("ord")
 
 	md := domain.MetadataStore{
 		OrgId: orgId, ParentId: parentId, ParentType: "order", Key: "ext_id",
@@ -898,7 +898,7 @@ func testPsp(t *testing.T, ctx context.Context, rs RepoSet) {
 	orgId := seedOrg(t, ctx, rs)
 
 	cfg := domain.PspConfig{
-		OrgId: orgId, Id: lib.GenerateId("psp"), PspId: domain.Paystack, Name: "Primary",
+		OrgId: orgId, Id: ids.Generate("psp"), PspId: domain.Paystack, Name: "Primary",
 		Active: true, Config: map[string]string{"channel": "card"},
 		EncryptedCredentials: "sealed-envelope", CreatedAt: now(), UpdatedAt: now(),
 	}
@@ -918,7 +918,7 @@ func testPsp(t *testing.T, ctx context.Context, rs RepoSet) {
 
 func testApiKey(t *testing.T, ctx context.Context, rs RepoSet) {
 	orgId := seedOrg(t, ctx, rs)
-	id := lib.GenerateId("sk")
+	id := ids.Generate("sk")
 	key := domain.ApiKey{
 		OrgId: orgId, Id: id, Name: "ci-deploy", KeyHash: "hash_" + id,
 		CreatedAt: now(), UpdatedAt: now(),
@@ -950,7 +950,7 @@ func testApiKey(t *testing.T, ctx context.Context, rs RepoSet) {
 func testWebhook(t *testing.T, ctx context.Context, rs RepoSet) {
 	orgId := seedOrg(t, ctx, rs)
 	sub := domain.WebhookSubscription{
-		OrgID: orgId, Id: lib.GenerateId("whk"), Events: []string{"payment.succeeded", "invoice.paid"},
+		OrgID: orgId, Id: ids.Generate("whk"), Events: []string{"payment.succeeded", "invoice.paid"},
 		URL: "https://example.com/hook", Secret: "whsec_123", CreatedAt: now(), UpdatedAt: now(),
 	}
 	created, err := rs.Webhook.Create(ctx, sub)
@@ -972,11 +972,11 @@ func testWebhook(t *testing.T, ctx context.Context, rs RepoSet) {
 
 func testSession(t *testing.T, ctx context.Context, rs RepoSet) {
 	orgId := seedOrg(t, ctx, rs)
-	cart := domain.Cart{OrgId: orgId, Id: lib.GenerateId("cart"), Metadata: map[string]string{}, CreatedAt: now(), UpdatedAt: now()}
+	cart := domain.Cart{OrgId: orgId, Id: ids.Generate("cart"), Metadata: map[string]string{}, CreatedAt: now(), UpdatedAt: now()}
 	_, err := rs.Cart.Create(ctx, cart)
 	require.NoError(t, err)
 
-	s := domain.Session{OrgId: orgId, Id: lib.GenerateId("sess"), CartId: cart.Id, CreatedAt: now(), UpdatedAt: now()}
+	s := domain.Session{OrgId: orgId, Id: ids.Generate("sess"), CartId: cart.Id, CreatedAt: now(), UpdatedAt: now()}
 	created, err := rs.Session.Create(ctx, s)
 	require.NoError(t, err)
 	assert.Equal(t, s.Id, created.Id)
@@ -996,7 +996,7 @@ func testPaymentMethod(t *testing.T, ctx context.Context, rs RepoSet) {
 	// One expiring soon, one far in the future.
 	expiringAt := now().Add(24 * time.Hour)
 	pm := domain.PaymentMethod{
-		OrgId: orgId, Id: lib.GenerateId("pm"), Status: domain.PaymentMethodStatusActive,
+		OrgId: orgId, Id: ids.Generate("pm"), Status: domain.PaymentMethodStatusActive,
 		Psp: string(domain.Paystack), Name: "Visa", CustomerId: cust.Id,
 		BillingAddress: domain.Address{Line1: "1 Card St", City: "London", Country: "GB"},
 		Type:           domain.PaymentMethodTypeCard, Token: domain.Secret("authcode_123"),
@@ -1014,7 +1014,7 @@ func testPaymentMethod(t *testing.T, ctx context.Context, rs RepoSet) {
 	assert.Equal(t, "authcode_123", got.Token.Reveal())
 
 	notExpiring := pm
-	notExpiring.Id = lib.GenerateId("pm")
+	notExpiring.Id = ids.Generate("pm")
 	notExpiring.ExpireAt = now().Add(365 * 24 * time.Hour)
 	_, err = rs.PaymentMethod.Create(ctx, notExpiring)
 	require.NoError(t, err)
@@ -1034,7 +1034,7 @@ func testPaymentMethod(t *testing.T, ctx context.Context, rs RepoSet) {
 
 func testEventStore(t *testing.T, ctx context.Context, rs RepoSet) {
 	orgId := seedOrg(t, ctx, rs)
-	custId := lib.GenerateId("cus")
+	custId := ids.Generate("cus")
 	from := time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
 	to := from.Add(12 * time.Hour)
 
@@ -1046,10 +1046,10 @@ func testEventStore(t *testing.T, ctx context.Context, rs RepoSet) {
 		}
 	}
 	events := []domain.MeterEvent{
-		mk(lib.GenerateId("ev"), lib.GenerateId("x"), "sub_1", "acme", 10, from),
-		mk(lib.GenerateId("ev"), lib.GenerateId("x"), "sub_1", "acme", 25, from.Add(2*time.Hour)),
-		mk(lib.GenerateId("ev"), lib.GenerateId("x"), "sub_1", "globex", 5, from.Add(3*time.Hour)),
-		mk(lib.GenerateId("ev"), lib.GenerateId("x"), "sub_1", "acme", 100, from.Add(24*time.Hour)), // out of window
+		mk(ids.Generate("ev"), ids.Generate("x"), "sub_1", "acme", 10, from),
+		mk(ids.Generate("ev"), ids.Generate("x"), "sub_1", "acme", 25, from.Add(2*time.Hour)),
+		mk(ids.Generate("ev"), ids.Generate("x"), "sub_1", "globex", 5, from.Add(3*time.Hour)),
+		mk(ids.Generate("ev"), ids.Generate("x"), "sub_1", "acme", 100, from.Add(24*time.Hour)), // out of window
 	}
 	for _, e := range events {
 		res, err := rs.EventStore.Ingest(ctx, e)
@@ -1058,7 +1058,7 @@ func testEventStore(t *testing.T, ctx context.Context, rs RepoSet) {
 	}
 	// Resend with a seen external_id must dedup.
 	dup := events[0]
-	dup.Id = lib.GenerateId("ev")
+	dup.Id = ids.Generate("ev")
 	res, err := rs.EventStore.Ingest(ctx, dup)
 	require.NoError(t, err)
 	assert.Equal(t, port.IngestDuplicate, res.Status, "resend with seen external_id is a duplicate")
@@ -1088,7 +1088,7 @@ func testEventStore(t *testing.T, ctx context.Context, rs RepoSet) {
 }
 
 func testIdempotencyStore(t *testing.T, ctx context.Context, rs RepoSet) {
-	key := lib.GenerateId("idemreq")
+	key := ids.Generate("idemreq")
 	hashA, hashB := "hash-a", "hash-b"
 
 	c, err := rs.IdempotencyStore.Claim(ctx, key, hashA, "tok-1")
@@ -1118,7 +1118,7 @@ func testIdempotencyStore(t *testing.T, ctx context.Context, rs RepoSet) {
 	require.NoError(t, err)
 	assert.Equal(t, port.IdempotencyConflict, c.Status)
 
-	key2 := lib.GenerateId("idemreq")
+	key2 := ids.Generate("idemreq")
 	c, err = rs.IdempotencyStore.Claim(ctx, key2, hashA, "tok-a")
 	require.NoError(t, err)
 	require.Equal(t, port.IdempotencyNew, c.Status)
@@ -1131,7 +1131,7 @@ func testIdempotencyStore(t *testing.T, ctx context.Context, rs RepoSet) {
 	require.NoError(t, err)
 	assert.Equal(t, port.IdempotencyNew, c.Status, "claim after release wins again")
 
-	key3 := lib.GenerateId("idemreq")
+	key3 := ids.Generate("idemreq")
 	const n = 12
 	results := make([]port.IdempotencyClaimStatus, n)
 	var wg sync.WaitGroup

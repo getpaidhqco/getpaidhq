@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"getpaidhq/internal/lib/ids"
 	"time"
 
 	"github.com/shopspring/decimal"
@@ -69,7 +70,7 @@ type NewCouponInput struct {
 func NewCoupon(in NewCouponInput) (Coupon, error) {
 	c := Coupon{
 		OrgId:             in.OrgId,
-		Id:                lib.GenerateId("coupon"),
+		Id:                ids.Generate("coupon"),
 		Name:              in.Name,
 		Active:            true,
 		Metadata:          in.Metadata,

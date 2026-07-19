@@ -6,6 +6,7 @@ import (
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/ids"
 	"time"
 )
 
@@ -99,7 +100,7 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 		details.Token = ""
 		paymentMethod, err := s.paymentMethodRepository.Create(ctx, domain.PaymentMethod{
 			OrgId:          orgId,
-			Id:             lib.GenerateId("payment_method"),
+			Id:             ids.Generate("payment_method"),
 			Psp:            string(paymentCtx.Psp),
 			Status:         domain.PaymentMethodStatusActive,
 			Token:          domain.Secret(paymentCtx.PaymentMethod.Token),
@@ -201,7 +202,7 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 		if paymentCtx.Payment.Amount > 0 {
 			payment := domain.Payment{
 				OrgId:          orgId,
-				Id:             lib.GenerateId("pmt"),
+				Id:             ids.Generate("pmt"),
 				Psp:            paymentCtx.Psp,
 				PspId:          paymentCtx.Payment.PspId,
 				Reference:      paymentCtx.Payment.Reference,

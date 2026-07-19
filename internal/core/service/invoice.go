@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"getpaidhq/internal/lib/ids"
 	"time"
 
 	"github.com/shopspring/decimal"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // MeteredUsageReader is the narrow read InvoiceService needs from usage: a
@@ -205,7 +205,7 @@ func (s *InvoiceService) BuildForOrder(ctx context.Context, order domain.Order) 
 
 	inv := domain.Invoice{
 		OrgId:       order.OrgId,
-		Id:          lib.GenerateId("inv"),
+		Id:          ids.Generate("inv"),
 		OrderId:     order.Id,
 		CustomerId:  order.CustomerId,
 		Status:      domain.InvoiceStatusDraft,

@@ -1,10 +1,10 @@
 package port
 
 import (
+	"getpaidhq/internal/lib/ids"
 	"time"
 
 	"getpaidhq/internal/core/domain"
-	"getpaidhq/internal/lib"
 )
 
 // CreateMeterInput is the input for MeterService.Create. A meter (BillableMetric)
@@ -29,7 +29,7 @@ func (input CreateMeterInput) ToMetric() domain.BillableMetric {
 	now := time.Now().UTC()
 	return domain.BillableMetric{
 		OrgId:         input.OrgId,
-		Id:            lib.GenerateId("met"),
+		Id:            ids.Generate("met"),
 		Code:          input.Code,
 		Name:          input.Name,
 		Aggregation:   input.Aggregation,

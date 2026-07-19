@@ -5,6 +5,7 @@ package postgresgorm
 import (
 	"context"
 	"errors"
+	"getpaidhq/internal/lib/ids"
 	"testing"
 	"time"
 
@@ -14,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"getpaidhq/internal/core/domain"
-	"getpaidhq/internal/lib"
 )
 
 func TestCustomerRepo(t *testing.T) {
@@ -27,10 +27,10 @@ func TestCustomerRepo(t *testing.T) {
 		cleanupOrg(t, db, orgId)
 		in := domain.Customer{
 			OrgId:     orgId,
-			Id:        lib.GenerateId("cus"),
+			Id:        ids.Generate("cus"),
 			FirstName: "Grace",
 			LastName:  "Hopper",
-			Email:     lib.GenerateId("grace") + "@example.com",
+			Email:     ids.Generate("grace") + "@example.com",
 			BillingAddress: domain.Address{
 				Line1:   "1 Compiler Rd",
 				City:    "Arlington",
@@ -110,7 +110,7 @@ func TestCustomerRepo(t *testing.T) {
 
 		pm := domain.PaymentMethod{
 			OrgId:      orgA,
-			Id:         lib.GenerateId("pm"),
+			Id:         ids.Generate("pm"),
 			Status:     domain.PaymentMethodStatusActive,
 			Psp:        string(domain.Paystack),
 			Name:       "Visa ****4242",
