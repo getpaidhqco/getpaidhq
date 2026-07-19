@@ -1,9 +1,5 @@
 # Hatchet in this codebase — the mental model
 
-> Source of truth for engine internals: the local Hatchet checkout at
-> `/Users/mdwt/dev/gphq/research/hatchet` (v0.88.4). The gphq-server module pins v0.86.5.
-> Query that checkout, not the `~/go/pkg/mod` cache, for engine behaviour.
-
 ## Vocabulary
 
 | Concept | What it is | Where in the code |
