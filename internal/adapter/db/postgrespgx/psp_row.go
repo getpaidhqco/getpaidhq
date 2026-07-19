@@ -10,7 +10,7 @@ import (
 // pspConfigRow is the postgres on-the-wire shape of a PspConfig. Note the table
 // name is `gateways` (legacy schema name).
 //
-// config and credentials are plain NOT NULL TEXT columns (default ''), not JSON
+// config and credentials are plain NOT NULL TEXT columns (default ”), not JSON
 // columns — so they are scanned as strings here. Config is the JSON-encoded
 // non-secret settings map; Credentials is the AES-GCM envelope sealed by the
 // service layer (opaque here). The map<->JSON-string conversion is reproduced

@@ -77,9 +77,9 @@ func TestSeatBilling_AddRemoveEvents(t *testing.T) {
 	}
 
 	t.Run("June", func(t *testing.T) {
-		eq(t, aggregate(domain.AggregationLatest, seatJun1, seatJul1, false, false), "3")      // standing at end
-		eq(t, aggregate(domain.AggregationMax, seatJun1, seatJul1, false, false), "4")         // peak concurrent
-		eq(t, aggregate(domain.AggregationUniqueCount, seatJun1, seatJul1, false, false), "4") // distinct active
+		eq(t, aggregate(domain.AggregationLatest, seatJun1, seatJul1, false, false), "3")       // standing at end
+		eq(t, aggregate(domain.AggregationMax, seatJun1, seatJul1, false, false), "4")          // peak concurrent
+		eq(t, aggregate(domain.AggregationUniqueCount, seatJun1, seatJul1, false, false), "4")  // distinct active
 		eq(t, aggregate(domain.AggregationWeightedSum, seatJun1, seatJul1, true, true), "3.17") // B
 		eq(t, aggregate(domain.AggregationWeightedSum, seatJun1, seatJul1, true, false), "3.5") // C
 	})

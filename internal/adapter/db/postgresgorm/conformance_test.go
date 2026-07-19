@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"getpaidhq/internal/adapter/storage/storagetest"
+	"getpaidhq/internal/adapter/db/storagetest"
 )
 
 // gormRepoSet builds the conformance RepoSet from a GORM handle against dsn.

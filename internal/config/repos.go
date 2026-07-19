@@ -7,8 +7,8 @@ import (
 	"gorm.io/gorm"
 
 	"getpaidhq/internal/adapter/clickhouse"
-	"getpaidhq/internal/adapter/storage/postgresgorm"
-	"getpaidhq/internal/adapter/storage/postgrespgx"
+	"getpaidhq/internal/adapter/db/postgresgorm"
+	"getpaidhq/internal/adapter/db/postgrespgx"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
 )
@@ -54,7 +54,7 @@ type repoSet struct {
 	close         func()
 }
 
-// newRepoSet selects the storage adapter implementation from DB_DRIVER.
+// newRepoSet selects the db adapter implementation from DB_DRIVER.
 func newRepoSet(env lib.Env, logger lib.Logger) (*repoSet, error) {
 	switch env.DBDriver {
 	case "", "gorm":

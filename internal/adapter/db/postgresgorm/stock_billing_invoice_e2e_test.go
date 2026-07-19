@@ -348,7 +348,7 @@ func TestStockBilling_Peak_LevelReports_E2E(t *testing.T) {
 	chargeAndAssertInvoice(t, db, orgId, fx, "9", 9*300)
 }
 
-// Time-average from level reports: provisioned storage at $0.10 per GB-month,
+// Time-average from level reports: provisioned db at $0.10 per GB-month,
 // June (30 days). 300 GB provisioned back in April (in force entering June),
 // 600 GB from June 11, 150 GB from June 21: 10 days at each level →
 // average (300 + 600 + 150) / 3 = 350 GB → $35.00.
@@ -360,7 +360,7 @@ func TestStockBilling_TimeAverage_LevelReports_E2E(t *testing.T) {
 	jun1 := time.Date(2026, 6, 1, 0, 0, 0, 0, time.UTC)
 	jul1 := time.Date(2026, 7, 1, 0, 0, 0, 0, time.UTC)
 	fx := seedUsageFixture(t, db, orgId,
-		domain.BillableMetric{Code: "storage", Name: "Provisioned storage",
+		domain.BillableMetric{Code: "db", Name: "Provisioned db",
 			Aggregation: domain.AggregationWeightedSum, FieldName: "gb", CarryOver: true,
 			RoundingMode: "round", RoundingScale: 2},
 		domain.Price{Label: "Storage GB-month", Scheme: domain.Fixed, UnitPrice: 10},
