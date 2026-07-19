@@ -18,6 +18,16 @@ the same transaction as the business write, and have a background relay deliver 
 ## Decisions
 
 - **Scope**: all publishes go through the outbox — one code path, durability everywhere.
+- **Placement**: the outbox is core behavior, not an adapter. `OutboxPubSub` and `OutboxRelay`
+  live in `internal/core/service` and depend only on ports (`port.OutboxRepository`,
+  `port.TxManager`, and a narrow raw-publish port implemented by the NATS adapter). NATS
+  becomes pure transport; any service holding `port.PubSub` gets durability by construction.
+- **Org scoping**: rows carry `org_id NOT NULL` (it is part of the stored envelope and needed
+  for inspection and future per-org replay), but the relay is a single global queue — no
+  per-org partitioning, ordering, or fairness in v1. NATS subjects carry no org id and
+  consumers have never had ordering guarantees, so global best-effort order is a strict
+  improvement; per-aggregate blocking ordering stays a future opt-in if a consumer ever
+  needs it.
 - **Relay**: in-process polling relay (`FOR UPDATE SKIP LOCKED`), no CDC, no new infrastructure.
 - **Row lifecycle**: mark `published_at` on success; periodic purge of published rows older
   than 24h; failing rows retry with backoff and are left for inspection after max attempts.
@@ -59,7 +69,7 @@ There is no status column. States are derived:
 Publish(ctx context.Context, orgId string, topic string, message any) error
 ```
 
-A new `OutboxPubSub` implements `port.PubSub`:
+A new `OutboxPubSub` (`internal/core/service`) implements `port.PubSub`:
 
 - `Publish` builds the `domain.PubSubPayload` envelope — the `evt_` id and `created_at`
   are generated at insert time (moved out of the NATS adapter) — and inserts a row via a
@@ -80,10 +90,11 @@ stay post-commit.
 
 ## Relay
 
-`OutboxRelay`, a background goroutine started in `app.go`, holding `port.TxManager`,
-`port.OutboxRepository`, and the real NATS adapter through a narrow raw-publish method
+`OutboxRelay` (`internal/core/service`), a background goroutine started in `app.go`,
+holding `port.TxManager`, `port.OutboxRepository`, and the real NATS adapter through a
+narrow raw-publish port defined in `internal/core/port`
 (`PublishPayload(topic string, data []byte) error`) so the stored envelope is not
-double-wrapped.
+double-wrapped and core never imports the adapter.
 
 Loop, every poll interval:
 
@@ -101,8 +112,10 @@ Loop, every poll interval:
 transaction is deliberate: a crash after publish but before commit means the row is
 republished — at-least-once delivery.
 
-Tuning values are constants, not env vars: poll interval 1s, batch size 100,
-max attempts 10, purge interval 10min, retention 24h.
+Relay tuning values are constants, not env vars: poll interval 1s, batch size 100,
+max attempts 10. The purge pass is configurable via env (added to `lib.Env` /
+`.env.example` per convention): `OUTBOX_PURGE_INTERVAL` (default `10m`) and
+`OUTBOX_RETENTION` (default `24h`).
 
 ## Storage adapters
 
@@ -118,7 +131,9 @@ both `RepoSet`s, with shared conformance coverage in `storagetest`:
 
 Producer side becomes at-least-once (today: at-most-once with silent drops). Consumers
 (`SubscriptionEventBridge`, webhook fan-out, dunning orchestration, customer handler) may
-see duplicates after a relay crash. `UpdateSubscriptionWorkflow` is fire-and-forget and
+see duplicates after a relay crash, and retry-with-backoff can reorder events within an
+org (a failed row is delivered after later rows). Consumers already tolerate drops with
+no ordering guarantee from NATS core, so neither is a new burden. `UpdateSubscriptionWorkflow` is fire-and-forget and
 workflow starts are idempotent via deterministic ids, so no engine-adapter changes are
 needed — observable behavior is identical on Hatchet and Temporal.
 
