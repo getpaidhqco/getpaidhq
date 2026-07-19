@@ -29,7 +29,7 @@ func NewWorkflowService(
 		idempotencyRepo: idempotencyRepo,
 	}
 	logger.Debugf("[WorkflowService] Subscribing to all topics")
-	if _, err := pubsub.Subscribe(">", safePubSubHandler(logger, "WorkflowService.HandleOutboundWebhook", svc.HandleOutboundWebhook)); err != nil {
+	if _, err := pubsub.Subscribe(">", svc.HandleOutboundWebhook); err != nil {
 		return nil, err
 	}
 	return svc, nil

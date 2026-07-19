@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -83,6 +84,14 @@ func (n *NatsPubSub) PublishPayload(topic string, data []byte) error {
 
 func (n *NatsPubSub) Subscribe(topic string, handler func(topic string, data []byte)) (port.PubSubSubscription, error) {
 	return n.conn.Subscribe(topic, func(m *nats.Msg) {
+		defer func() {
+			if r := recover(); r != nil {
+				n.logger.Error("pubsub handler panic recovered",
+					"topic", m.Subject,
+					"recover", r,
+					"stack", string(debug.Stack()))
+			}
+		}()
 		handler(m.Subject, m.Data)
 	})
 }

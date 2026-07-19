@@ -41,7 +41,7 @@ func NewCustomerService(
 	// Order events feed cohort tracking. A subscribe failure isn't
 	// fatal at boot in the same way — but surfacing the error lets
 	// the caller decide.
-	if _, err := pubsub.Subscribe(port.TopicOrderCompleted, safePubSubHandler(logger, "CustomerService.HandleOrderEvent", svc.HandleOrderEvent)); err != nil {
+	if _, err := pubsub.Subscribe(port.TopicOrderCompleted, svc.HandleOrderEvent); err != nil {
 		return nil, err
 	}
 	return svc, nil

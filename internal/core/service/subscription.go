@@ -73,10 +73,9 @@ func NewSubscriptionService(
 	tx port.TxManager,
 ) (*SubscriptionService, error) {
 
-	handler := safePubSubHandler(logger, "SubscriptionService.workflow-tap", func(topic string, data []byte) {
+	if _, err := pubsub.Subscribe("subscription.workflow.>", func(topic string, data []byte) {
 		logger.Infof("Received message from %s", topic)
-	})
-	if _, err := pubsub.Subscribe("subscription.workflow.>", handler); err != nil {
+	}); err != nil {
 		return nil, err
 	}
 
