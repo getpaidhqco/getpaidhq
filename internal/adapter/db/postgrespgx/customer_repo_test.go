@@ -11,7 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/stretchr/testify/require"
 
-	"getpaidhq/internal/adapter/storage/storagetest"
+	"getpaidhq/internal/adapter/db/storagetest"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
@@ -49,8 +49,8 @@ func TestCustomerRepo_PgxReference(t *testing.T) {
 	cust := domain.Customer{
 		OrgId: orgId, Id: lib.GenerateId("cus"),
 		FirstName: "Ada", LastName: "Lovelace",
-		Email: fmt.Sprintf("%s@example.com", lib.GenerateId("ada")),
-		Phone: "+15551234",
+		Email:          fmt.Sprintf("%s@example.com", lib.GenerateId("ada")),
+		Phone:          "+15551234",
 		BillingAddress: domain.Address{Line1: "1 Engine Way", City: "London", Country: "GB"},
 		Metadata:       map[string]string{"tier": "gold"},
 		CreatedAt:      now, UpdatedAt: now,

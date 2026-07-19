@@ -8,7 +8,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"getpaidhq/internal/adapter/storage/storagetest"
+	"getpaidhq/internal/adapter/db/storagetest"
 )
 
 // pgxRepoSet builds the conformance RepoSet from a pgx pool against dsn.

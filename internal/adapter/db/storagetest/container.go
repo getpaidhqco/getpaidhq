@@ -1,5 +1,5 @@
 // Package storagetest provides the driver-agnostic integration harness and
-// conformance suite that every storage adapter (postgresgorm, postgrespgx)
+// conformance suite that every db adapter (postgresgorm, postgrespgx)
 // runs against. It owns the testcontainer + Goose baseline so both adapters
 // exercise the exact production schema, and (in the conformance suite) seeds
 // through the repository ports so the assertions are identical across drivers.

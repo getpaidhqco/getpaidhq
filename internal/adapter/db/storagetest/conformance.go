@@ -17,7 +17,7 @@ import (
 	"getpaidhq/internal/lib"
 )
 
-// RepoSet is the set of storage ports the conformance suite exercises. Each
+// RepoSet is the set of db ports the conformance suite exercises. Each
 // adapter's integration test builds one (from its own pool/handle) and hands it
 // to RunConformance, so the SAME assertions run against every driver — the
 // parity guarantee. Fields are added as the suite grows.
