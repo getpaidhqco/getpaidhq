@@ -1,79 +1,51 @@
 -- +goose Up
--- Baseline for the operational (app) database. Prisma-managed DDL generated via
--- 'prisma migrate diff', plus the coupon/discount invariants (CHECK constraints +
--- coupon-immutability trigger) Prisma can't express, folded in from the former
--- schemas/app/constraints.sql.
 
--- CreateSchema
 CREATE SCHEMA IF NOT EXISTS "public";
 
--- CreateEnum
 CREATE TYPE "OrgStatus" AS ENUM ('active', 'trial', 'demo', 'inactive', 'deleted');
 
--- CreateEnum
-CREATE TYPE "InvoiceStatus" AS ENUM ('draft', 'open', 'paid', 'unpaid', 'void');
+CREATE TYPE "InvoiceStatus" AS ENUM ('draft', 'open', 'paid', 'uncollectible', 'void');
 
--- CreateEnum
 CREATE TYPE "InvoiceLineItemKind" AS ENUM ('base', 'usage');
 
--- CreateEnum
 CREATE TYPE "Role" AS ENUM ('owner', 'admin', 'user');
 
--- CreateEnum
 CREATE TYPE "ProductStatus" AS ENUM ('active', 'archived');
 
--- CreateEnum
 CREATE TYPE "PriceCategory" AS ENUM ('one_time', 'subscription', 'free', 'variable');
 
--- CreateEnum
 CREATE TYPE "PriceScheme" AS ENUM ('fixed', 'tiered', 'volume', 'graduated', 'package');
 
--- CreateEnum
 CREATE TYPE "BillingInterval" AS ENUM ('none', 'minute', 'hour', 'day', 'week', 'month', 'year');
 
--- CreateEnum
 CREATE TYPE "OrderStatus" AS ENUM ('pending', 'failed', 'refunded', 'partial_refund', 'completed', 'expired', 'cancelled', 'fraudulent');
 
--- CreateEnum
 CREATE TYPE "PaymentMethodStatus" AS ENUM ('active', 'expired');
 
--- CreateEnum
 CREATE TYPE "SubscriptionStatus" AS ENUM ('trial', 'active', 'retry', 'past_due', 'paused', 'unpaid', 'cancelled', 'pending', 'expired', 'completed');
 
--- CreateEnum
 CREATE TYPE "PaymentStatus" AS ENUM ('pending', 'failed', 'succeeded', 'refunded', 'partial_refund', 'cancelled', 'expired', 'fraudulent');
 
--- CreateEnum
 CREATE TYPE "DunningStatus" AS ENUM ('active', 'paused', 'recovered', 'failed', 'cancelled', 'expired');
 
--- CreateEnum
 CREATE TYPE "DunningAttemptType" AS ENUM ('immediate', 'progressive', 'manual', 'triggered');
 
--- CreateEnum
 CREATE TYPE "CommunicationChannel" AS ENUM ('email', 'sms', 'push', 'webhook', 'in_app');
 
--- CreateEnum
 CREATE TYPE "CommunicationStatus" AS ENUM ('pending', 'sent', 'delivered', 'failed', 'bounced');
 
--- CreateEnum
 CREATE TYPE "TokenStatus" AS ENUM ('active', 'expired', 'revoked', 'max_uses_reached');
 
--- CreateEnum
 CREATE TYPE "DunningConfigScope" AS ENUM ('organization', 'customer_segment', 'subscription_tier', 'customer', 'ab_test');
 
--- CreateEnum
 CREATE TYPE "DunningConfigStatus" AS ENUM ('active', 'inactive', 'archived');
 
--- CreateEnum
 CREATE TYPE "DiscountType" AS ENUM ('percentage', 'fixed');
 
--- CreateEnum
 CREATE TYPE "Duration" AS ENUM ('once', 'repeating', 'forever');
 
--- CreateEnum
 CREATE TYPE "DiscountStatus" AS ENUM ('active', 'completed', 'cancelled');
 
--- CreateTable
 CREATE TABLE "api_keys" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -85,7 +57,6 @@ CREATE TABLE "api_keys" (
     CONSTRAINT "api_keys_pkey" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "orgs" (
     "id" TEXT NOT NULL,
     "country" TEXT NOT NULL,
@@ -99,11 +70,10 @@ CREATE TABLE "orgs" (
     CONSTRAINT "orgs_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
 CREATE TABLE "invoices" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
-    "subscription_id" TEXT NOT NULL,
+    "subscription_id" TEXT,
     "customer_id" TEXT NOT NULL,
     "order_id" TEXT NOT NULL,
     "status" "InvoiceStatus" NOT NULL,
@@ -112,16 +82,18 @@ CREATE TABLE "invoices" (
     "total" INTEGER NOT NULL DEFAULT 0,
     "discount_total" INTEGER NOT NULL DEFAULT 0,
     "cycle" INTEGER NOT NULL,
+    "number" BIGINT NOT NULL DEFAULT 0,
+    "reference" TEXT NOT NULL DEFAULT '',
     "period_start" TIMESTAMP(3),
     "period_end" TIMESTAMP(3),
     "metadata" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "invoices_pkey" PRIMARY KEY ("org_id","id")
+    CONSTRAINT "invoices_pkey" PRIMARY KEY ("org_id","id"),
+    CONSTRAINT "inv_discount_nn" CHECK ("discount_total" >= 0)
 );
 
--- CreateTable
 CREATE TABLE "invoice_line_items" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -137,10 +109,11 @@ CREATE TABLE "invoice_line_items" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "invoice_line_items_pkey" PRIMARY KEY ("org_id","id")
+    CONSTRAINT "invoice_line_items_pkey" PRIMARY KEY ("org_id","id"),
+    CONSTRAINT "ili_discount_nn" CHECK ("discount_total" >= 0),
+    CONSTRAINT "ili_discount_cap" CHECK ("discount_total" <= "total")
 );
 
--- CreateTable
 CREATE TABLE "gateways" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -155,7 +128,6 @@ CREATE TABLE "gateways" (
     CONSTRAINT "gateways_pkey" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "settings" (
     "org_id" TEXT NOT NULL,
     "parent_id" TEXT NOT NULL,
@@ -168,7 +140,6 @@ CREATE TABLE "settings" (
     CONSTRAINT "settings_pkey" PRIMARY KEY ("org_id","parent_id","id")
 );
 
--- CreateTable
 CREATE TABLE "users" (
     "id" TEXT NOT NULL,
     "name" TEXT,
@@ -181,7 +152,6 @@ CREATE TABLE "users" (
     CONSTRAINT "users_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
 CREATE TABLE "user_orgs" (
     "user_id" TEXT NOT NULL,
     "org_id" TEXT NOT NULL,
@@ -190,7 +160,6 @@ CREATE TABLE "user_orgs" (
     CONSTRAINT "user_orgs_pkey" PRIMARY KEY ("user_id","org_id")
 );
 
--- CreateTable
 CREATE TABLE "carts" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -202,7 +171,6 @@ CREATE TABLE "carts" (
     CONSTRAINT "carts_pkey" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "products" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -217,7 +185,6 @@ CREATE TABLE "products" (
     CONSTRAINT "products_pkey" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "variants" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -231,7 +198,6 @@ CREATE TABLE "variants" (
     CONSTRAINT "variants_pkey" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "prices" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -263,7 +229,6 @@ CREATE TABLE "prices" (
     CONSTRAINT "prices_pkey" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "sessions" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -275,7 +240,6 @@ CREATE TABLE "sessions" (
     CONSTRAINT "sessions_pkey" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "orders" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -287,13 +251,14 @@ CREATE TABLE "orders" (
     "total" INTEGER NOT NULL,
     "metadata" JSONB NOT NULL,
     "cart_id" TEXT NOT NULL,
+    "payment_session" JSONB,
+    "config" JSONB,
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
     CONSTRAINT "orders_pkey" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "order_items" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -315,7 +280,6 @@ CREATE TABLE "order_items" (
     CONSTRAINT "order_items_pkey" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "customers" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -333,7 +297,6 @@ CREATE TABLE "customers" (
     CONSTRAINT "customer_primary_key" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "cohorts" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -346,7 +309,6 @@ CREATE TABLE "cohorts" (
     CONSTRAINT "cohort_primary_key" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "customer_cohorts" (
     "org_id" TEXT NOT NULL,
     "customer_id" TEXT NOT NULL,
@@ -359,7 +321,6 @@ CREATE TABLE "customer_cohorts" (
     CONSTRAINT "customer_cohorts_pkey" PRIMARY KEY ("org_id","customer_id","cohort_id")
 );
 
--- CreateTable
 CREATE TABLE "payment_methods" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -379,7 +340,6 @@ CREATE TABLE "payment_methods" (
     CONSTRAINT "paymentmethod_pk" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "subscriptions" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -416,7 +376,6 @@ CREATE TABLE "subscriptions" (
     CONSTRAINT "subscriptions_pkey" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "payments" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -442,7 +401,6 @@ CREATE TABLE "payments" (
     CONSTRAINT "payments_pkey" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "refunds" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -458,7 +416,6 @@ CREATE TABLE "refunds" (
     CONSTRAINT "refunds_pkey" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "idempotency_keys" (
     "id" TEXT NOT NULL,
     "expires_at" TIMESTAMP(3) NOT NULL,
@@ -468,7 +425,6 @@ CREATE TABLE "idempotency_keys" (
     CONSTRAINT "idempotency_keys_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
 CREATE TABLE "webhook_subscriptions" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -481,7 +437,6 @@ CREATE TABLE "webhook_subscriptions" (
     CONSTRAINT "webhook_subscriptions_pkey" PRIMARY KEY ("id")
 );
 
--- CreateTable
 CREATE TABLE "metadata_store" (
     "org_id" TEXT NOT NULL,
     "parent_id" TEXT NOT NULL,
@@ -495,7 +450,6 @@ CREATE TABLE "metadata_store" (
     CONSTRAINT "metadata_store_pkey" PRIMARY KEY ("org_id","parent_id","key")
 );
 
--- CreateTable
 CREATE TABLE "dunning_campaigns" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -527,7 +481,6 @@ CREATE TABLE "dunning_campaigns" (
     CONSTRAINT "dunning_campaigns_pkey" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "dunning_attempts" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -552,7 +505,6 @@ CREATE TABLE "dunning_attempts" (
     CONSTRAINT "dunning_attempts_pkey" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "dunning_communications" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -580,7 +532,6 @@ CREATE TABLE "dunning_communications" (
     CONSTRAINT "dunning_communications_pkey" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "payment_update_tokens" (
     "org_id" TEXT NOT NULL,
     "token_id" TEXT NOT NULL,
@@ -606,7 +557,6 @@ CREATE TABLE "payment_update_tokens" (
     CONSTRAINT "payment_update_tokens_pkey" PRIMARY KEY ("org_id","token_id")
 );
 
--- CreateTable
 CREATE TABLE "dunning_configurations" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -626,7 +576,6 @@ CREATE TABLE "dunning_configurations" (
     CONSTRAINT "dunning_configurations_pkey" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "customer_dunning_history" (
     "org_id" TEXT NOT NULL,
     "customer_id" TEXT NOT NULL,
@@ -649,7 +598,6 @@ CREATE TABLE "customer_dunning_history" (
     CONSTRAINT "customer_dunning_history_pkey" PRIMARY KEY ("org_id","customer_id")
 );
 
--- CreateTable
 CREATE TABLE "billable_metrics" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -669,7 +617,6 @@ CREATE TABLE "billable_metrics" (
     CONSTRAINT "billable_metrics_pkey" PRIMARY KEY ("org_id","id")
 );
 
--- CreateTable
 CREATE TABLE "coupons" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -689,10 +636,19 @@ CREATE TABLE "coupons" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "coupons_pkey" PRIMARY KEY ("org_id","id")
+    CONSTRAINT "coupons_pkey" PRIMARY KEY ("org_id","id"),
+    CONSTRAINT "coupons_amount_off_pos" CHECK ("amount_off" > 0),
+    CONSTRAINT "coupons_currency_len" CHECK ("currency" IS NULL OR char_length("currency") = 3),
+    CONSTRAINT "coupons_percent_off_range" CHECK ("percent_off" > 0 AND "percent_off" <= 100),
+    CONSTRAINT "coupons_max_redemptions_nn" CHECK ("max_redemptions" >= 0),
+    CONSTRAINT "coupons_discount_type_xor" CHECK (
+        ("amount_off" IS NOT NULL AND "currency" IS NOT NULL AND "percent_off" IS NULL) OR
+        ("amount_off" IS NULL AND "currency" IS NULL AND "percent_off" IS NOT NULL)),
+    CONSTRAINT "coupons_repeating_cycles" CHECK (
+        ("duration" = 'repeating' AND "duration_in_cycles" >= 1) OR
+        ("duration" <> 'repeating' AND "duration_in_cycles" IS NULL))
 );
 
--- CreateTable
 CREATE TABLE "coupon_codes" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -708,10 +664,11 @@ CREATE TABLE "coupon_codes" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "coupon_codes_pkey" PRIMARY KEY ("org_id","id")
+    CONSTRAINT "coupon_codes_pkey" PRIMARY KEY ("org_id","id"),
+    CONSTRAINT "codes_max_redemptions_nn" CHECK ("max_redemptions" >= 0),
+    CONSTRAINT "codes_times_redeemed_nn" CHECK ("times_redeemed" >= 0)
 );
 
--- CreateTable
 CREATE TABLE "discounts" (
     "org_id" TEXT NOT NULL,
     "id" TEXT NOT NULL,
@@ -728,237 +685,212 @@ CREATE TABLE "discounts" (
     "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updated_at" TIMESTAMP(3) NOT NULL,
 
-    CONSTRAINT "discounts_pkey" PRIMARY KEY ("org_id","id")
+    CONSTRAINT "discounts_pkey" PRIMARY KEY ("org_id","id"),
+    CONSTRAINT "discounts_order_id_nn" CHECK ("order_id" IS NOT NULL),
+    CONSTRAINT "discounts_start_cycle_nn" CHECK ("start_cycle" >= 0)
 );
 
--- CreateIndex
+CREATE TABLE "coupon_reservations" (
+    "org_id"              TEXT NOT NULL,
+    "id"                  TEXT NOT NULL,
+    "coupon_id"           TEXT NOT NULL,
+    "coupon_code_id"      TEXT,
+    "customer_id"         TEXT,
+    "checkout_session_id" TEXT,
+    "order_id"            TEXT,
+    "expires_at"          TIMESTAMP(3) NOT NULL,
+    "created_at"          TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "coupon_reservations_pkey" PRIMARY KEY ("org_id","id"),
+    CONSTRAINT "coupon_reservations_has_holder" CHECK ("checkout_session_id" IS NOT NULL OR "order_id" IS NOT NULL),
+    CONSTRAINT "coupon_reservations_coupon_fkey" FOREIGN KEY ("org_id","coupon_id") REFERENCES "coupons"("org_id","id") ON DELETE CASCADE
+);
+
+CREATE TABLE "idempotency_requests" (
+    "key"              TEXT        NOT NULL,
+    "request_hash"     TEXT        NOT NULL,
+    "state"            TEXT        NOT NULL,
+    "token"            TEXT        NOT NULL,
+    "response_code"    INTEGER,
+    "response_headers" BYTEA,
+    "response_body"    BYTEA,
+    "expires_at"       TIMESTAMP(3) NOT NULL,
+    "created_at"       TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at"       TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "idempotency_requests_pkey" PRIMARY KEY ("key")
+);
+
+CREATE TABLE "invoice_counters" (
+    "org_id" TEXT NOT NULL,
+    "value" BIGINT NOT NULL DEFAULT 0,
+    "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "invoice_counters_pkey" PRIMARY KEY ("org_id"),
+    CONSTRAINT "invoice_counters_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE ON UPDATE CASCADE,
+    CONSTRAINT "invoice_counters_value_nonnegative" CHECK ("value" >= 0)
+);
+
+CREATE TABLE outbox_events (
+    id              BIGSERIAL PRIMARY KEY,
+    event_id        TEXT        NOT NULL,
+    org_id          TEXT        NOT NULL,
+    topic           TEXT        NOT NULL,
+    payload         JSONB       NOT NULL,
+    attempts        INT         NOT NULL DEFAULT 0,
+    next_attempt_at TIMESTAMPTZ,
+    last_error      TEXT,
+    published_at    TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE UNIQUE INDEX "api_keys_key_hash_key" ON "api_keys"("key_hash");
 
--- CreateIndex
 CREATE UNIQUE INDEX "invoices_org_id_subscription_id_cycle_key" ON "invoices"("org_id", "subscription_id", "cycle");
 
--- CreateIndex
+CREATE UNIQUE INDEX "invoices_org_id_number_key" ON "invoices"("org_id", "number") WHERE "number" > 0;
+
+CREATE INDEX "invoices_org_id_reference_idx" ON "invoices" ("org_id", "reference") WHERE "reference" <> '';
+
 CREATE UNIQUE INDEX "users_email_key" ON "users"("email");
 
--- CreateIndex
 CREATE INDEX "products_org_id_status_created_at_idx" ON "products"("org_id", "status", "created_at");
 
--- CreateIndex
 CREATE INDEX "customers_org_id_email_idx" ON "customers"("org_id", "email");
 
--- CreateIndex
 CREATE UNIQUE INDEX "customers_org_id_email_key" ON "customers"("org_id", "email");
 
--- CreateIndex
 CREATE UNIQUE INDEX "customers_org_id_external_id_key" ON "customers"("org_id", "external_id");
 
--- CreateIndex
 CREATE INDEX "idempotency_keys_id_expires_at_idx" ON "idempotency_keys"("id", "expires_at");
 
--- CreateIndex
 CREATE INDEX "metadata_store_org_id_key_value_idx" ON "metadata_store"("org_id", "key", "value");
 
--- CreateIndex
 CREATE INDEX "metadata_store_org_id_parent_id_idx" ON "metadata_store"("org_id", "parent_id");
 
--- CreateIndex
 CREATE INDEX "metadata_store_org_id_parent_type_key_idx" ON "metadata_store"("org_id", "parent_type", "key");
 
--- CreateIndex
 CREATE INDEX "metadata_store_parent_id_idx" ON "metadata_store"("parent_id");
 
--- CreateIndex
 CREATE INDEX "dunning_campaigns_org_id_subscription_id_idx" ON "dunning_campaigns"("org_id", "subscription_id");
 
--- CreateIndex
 CREATE INDEX "dunning_campaigns_org_id_customer_id_idx" ON "dunning_campaigns"("org_id", "customer_id");
 
--- CreateIndex
 CREATE INDEX "dunning_campaigns_org_id_status_idx" ON "dunning_campaigns"("org_id", "status");
 
--- CreateIndex
 CREATE INDEX "dunning_attempts_org_id_campaign_id_idx" ON "dunning_attempts"("org_id", "dunning_campaign_id");
 
--- CreateIndex
 CREATE INDEX "dunning_comms_org_id_campaign_id_idx" ON "dunning_communications"("org_id", "dunning_campaign_id");
 
--- CreateIndex
 CREATE INDEX "payment_update_tokens_org_id_subscription_id_idx" ON "payment_update_tokens"("org_id", "subscription_id");
 
--- CreateIndex
 CREATE INDEX "payment_update_tokens_org_id_campaign_id_idx" ON "payment_update_tokens"("org_id", "dunning_campaign_id");
 
--- CreateIndex
 CREATE INDEX "dunning_configurations_org_id_status_priority_idx" ON "dunning_configurations"("org_id", "status", "priority");
 
--- CreateIndex
 CREATE UNIQUE INDEX "billable_metrics_org_id_code_key" ON "billable_metrics"("org_id", "code");
 
--- CreateIndex
 CREATE UNIQUE INDEX "coupon_codes_org_id_code_key" ON "coupon_codes"("org_id", "code");
 
--- CreateIndex
 CREATE INDEX "discounts_org_id_coupon_id_idx" ON "discounts"("org_id", "coupon_id");
 
--- CreateIndex
 CREATE INDEX "discounts_org_id_subscription_id_idx" ON "discounts"("org_id", "subscription_id");
 
--- CreateIndex
 CREATE UNIQUE INDEX "discounts_org_id_coupon_id_subscription_id_key" ON "discounts"("org_id", "coupon_id", "subscription_id");
 
--- AddForeignKey
+CREATE UNIQUE INDEX "coupon_reservations_org_coupon_order_key"   ON "coupon_reservations"("org_id","coupon_id","order_id")            WHERE "order_id" IS NOT NULL;
+
+CREATE UNIQUE INDEX "coupon_reservations_org_coupon_session_key" ON "coupon_reservations"("org_id","coupon_id","checkout_session_id") WHERE "checkout_session_id" IS NOT NULL;
+
+CREATE INDEX "coupon_reservations_org_coupon_idx" ON "coupon_reservations"("org_id","coupon_id");
+
+CREATE INDEX "coupon_reservations_org_code_idx"   ON "coupon_reservations"("org_id","coupon_code_id");
+
+CREATE INDEX "coupon_reservations_expires_idx"    ON "coupon_reservations"("expires_at");
+
+CREATE INDEX "idempotency_requests_expires_at" ON "idempotency_requests" ("expires_at");
+
+CREATE INDEX outbox_events_pending_idx ON outbox_events (id) WHERE published_at IS NULL;
+
 ALTER TABLE "api_keys" ADD CONSTRAINT "api_keys_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "invoices" ADD CONSTRAINT "invoices_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "invoice_line_items" ADD CONSTRAINT "invoice_line_items_org_id_invoice_id_fkey" FOREIGN KEY ("org_id", "invoice_id") REFERENCES "invoices"("org_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "invoice_line_items" ADD CONSTRAINT "invoice_line_items_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "settings" ADD CONSTRAINT "settings_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "user_orgs" ADD CONSTRAINT "user_orgs_user_id_fkey" FOREIGN KEY ("user_id") REFERENCES "users"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "user_orgs" ADD CONSTRAINT "user_orgs_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "variants" ADD CONSTRAINT "variants_org_id_product_id_fkey" FOREIGN KEY ("org_id", "product_id") REFERENCES "products"("org_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "variants" ADD CONSTRAINT "variants_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "prices" ADD CONSTRAINT "prices_org_id_variant_id_fkey" FOREIGN KEY ("org_id", "variant_id") REFERENCES "variants"("org_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "prices" ADD CONSTRAINT "prices_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "sessions" ADD CONSTRAINT "sessions_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "orders" ADD CONSTRAINT "orders_org_id_customer_id_fkey" FOREIGN KEY ("org_id", "customer_id") REFERENCES "customers"("org_id", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "orders" ADD CONSTRAINT "orders_org_id_cart_id_fkey" FOREIGN KEY ("org_id", "cart_id") REFERENCES "carts"("org_id", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "orders" ADD CONSTRAINT "orders_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "order_items" ADD CONSTRAINT "order_items_org_id_order_id_fkey" FOREIGN KEY ("org_id", "order_id") REFERENCES "orders"("org_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "order_items" ADD CONSTRAINT "order_items_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "order_items" ADD CONSTRAINT "order_items_org_id_variant_id_fkey" FOREIGN KEY ("org_id", "variant_id") REFERENCES "variants"("org_id", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "order_items" ADD CONSTRAINT "order_items_org_id_subscription_id_fkey" FOREIGN KEY ("org_id", "subscription_id") REFERENCES "subscriptions"("org_id", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "customers" ADD CONSTRAINT "customers_org_id_default_payment_method_id_fkey" FOREIGN KEY ("org_id", "default_payment_method_id") REFERENCES "payment_methods"("org_id", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "customers" ADD CONSTRAINT "customers_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "customer_cohorts" ADD CONSTRAINT "customer_cohorts_org_id_customer_id_fkey" FOREIGN KEY ("org_id", "customer_id") REFERENCES "customers"("org_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "customer_cohorts" ADD CONSTRAINT "customer_cohorts_org_id_cohort_id_fkey" FOREIGN KEY ("org_id", "cohort_id") REFERENCES "cohorts"("org_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "payment_methods" ADD CONSTRAINT "payment_methods_org_id_customer_id_fkey" FOREIGN KEY ("org_id", "customer_id") REFERENCES "customers"("org_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_org_id_order_id_fkey" FOREIGN KEY ("org_id", "order_id") REFERENCES "orders"("org_id", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_org_id_customer_id_fkey" FOREIGN KEY ("org_id", "customer_id") REFERENCES "customers"("org_id", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_org_id_payment_method_id_fkey" FOREIGN KEY ("org_id", "payment_method_id") REFERENCES "payment_methods"("org_id", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "subscriptions" ADD CONSTRAINT "subscriptions_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "payments" ADD CONSTRAINT "payments_org_id_order_id_fkey" FOREIGN KEY ("org_id", "order_id") REFERENCES "orders"("org_id", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "payments" ADD CONSTRAINT "payments_org_id_subscription_id_fkey" FOREIGN KEY ("org_id", "subscription_id") REFERENCES "subscriptions"("org_id", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "payments" ADD CONSTRAINT "payments_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "refunds" ADD CONSTRAINT "refunds_org_id_payment_id_fkey" FOREIGN KEY ("org_id", "payment_id") REFERENCES "payments"("org_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "metadata_store" ADD CONSTRAINT "metadata_store_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "dunning_attempts" ADD CONSTRAINT "dunning_attempts_org_id_dunning_campaign_id_fkey" FOREIGN KEY ("org_id", "dunning_campaign_id") REFERENCES "dunning_campaigns"("org_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "dunning_communications" ADD CONSTRAINT "dunning_communications_org_id_dunning_campaign_id_fkey" FOREIGN KEY ("org_id", "dunning_campaign_id") REFERENCES "dunning_campaigns"("org_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "billable_metrics" ADD CONSTRAINT "billable_metrics_org_id_fkey" FOREIGN KEY ("org_id") REFERENCES "orgs"("id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "coupon_codes" ADD CONSTRAINT "coupon_codes_org_id_coupon_id_fkey" FOREIGN KEY ("org_id", "coupon_id") REFERENCES "coupons"("org_id", "id") ON DELETE CASCADE ON UPDATE CASCADE;
 
--- AddForeignKey
 ALTER TABLE "discounts" ADD CONSTRAINT "discounts_org_id_coupon_id_fkey" FOREIGN KEY ("org_id", "coupon_id") REFERENCES "coupons"("org_id", "id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
-
--- ---- Invariants Prisma can't express (CHECK constraints + coupon immutability) ----
-
--- Coupon/discount invariants Prisma can't express. Idempotent: safe to re-run.
 -- +goose StatementBegin
-DO $$
-BEGIN
-  -- coupons
-  BEGIN ALTER TABLE coupons ADD CONSTRAINT coupons_amount_off_pos CHECK (amount_off > 0); EXCEPTION WHEN duplicate_object THEN END;
-  BEGIN ALTER TABLE coupons ADD CONSTRAINT coupons_currency_len CHECK (currency IS NULL OR char_length(currency) = 3); EXCEPTION WHEN duplicate_object THEN END;
-  BEGIN ALTER TABLE coupons ADD CONSTRAINT coupons_percent_off_range CHECK (percent_off > 0 AND percent_off <= 100); EXCEPTION WHEN duplicate_object THEN END;
-  BEGIN ALTER TABLE coupons ADD CONSTRAINT coupons_max_redemptions_nn CHECK (max_redemptions >= 0); EXCEPTION WHEN duplicate_object THEN END;
-  BEGIN ALTER TABLE coupons ADD CONSTRAINT coupons_discount_type_xor CHECK (
-    (amount_off IS NOT NULL AND currency IS NOT NULL AND percent_off IS NULL) OR
-    (amount_off IS NULL AND currency IS NULL AND percent_off IS NOT NULL)); EXCEPTION WHEN duplicate_object THEN END;
-  BEGIN ALTER TABLE coupons ADD CONSTRAINT coupons_repeating_cycles CHECK (
-    (duration = 'repeating' AND duration_in_cycles >= 1) OR
-    (duration <> 'repeating' AND duration_in_cycles IS NULL)); EXCEPTION WHEN duplicate_object THEN END;
-
-  -- coupon_codes
-  BEGIN ALTER TABLE coupon_codes ADD CONSTRAINT codes_max_redemptions_nn CHECK (max_redemptions >= 0); EXCEPTION WHEN duplicate_object THEN END;
-  BEGIN ALTER TABLE coupon_codes ADD CONSTRAINT codes_times_redeemed_nn CHECK (times_redeemed >= 0); EXCEPTION WHEN duplicate_object THEN END;
-
-  -- discounts
-  BEGIN ALTER TABLE discounts ADD CONSTRAINT discounts_target_xor CHECK (
-    (subscription_id IS NOT NULL AND order_id IS NULL) OR
-    (subscription_id IS NULL AND order_id IS NOT NULL)); EXCEPTION WHEN duplicate_object THEN END;
-  BEGIN ALTER TABLE discounts ADD CONSTRAINT discounts_start_cycle_nn CHECK (start_cycle >= 0); EXCEPTION WHEN duplicate_object THEN END;
-
-  -- invoice line discount sanity
-  BEGIN ALTER TABLE invoice_line_items ADD CONSTRAINT ili_discount_nn CHECK (discount_total >= 0); EXCEPTION WHEN duplicate_object THEN END;
-  BEGIN ALTER TABLE invoice_line_items ADD CONSTRAINT ili_discount_cap CHECK (discount_total <= total); EXCEPTION WHEN duplicate_object THEN END;
-  BEGIN ALTER TABLE invoices ADD CONSTRAINT inv_discount_nn CHECK (discount_total >= 0); EXCEPTION WHEN duplicate_object THEN END;
-END $$;
--- +goose StatementEnd
-
--- Coupon immutability: only name, active, metadata, updated_at may change.
--- +goose StatementBegin
-CREATE OR REPLACE FUNCTION coupons_block_term_update() RETURNS trigger AS $$
+CREATE FUNCTION coupons_block_term_update() RETURNS trigger AS $$
 BEGIN
   IF (NEW.discount_type, NEW.amount_off, NEW.currency, NEW.percent_off,
       NEW.duration, NEW.duration_in_cycles, NEW.applies_to_products,
@@ -973,297 +905,7 @@ BEGIN
 END; $$ LANGUAGE plpgsql;
 -- +goose StatementEnd
 
-DROP TRIGGER IF EXISTS coupons_immutable ON coupons;
 CREATE TRIGGER coupons_immutable BEFORE UPDATE ON coupons
   FOR EACH ROW EXECUTE FUNCTION coupons_block_term_update();
 
 -- +goose Down
-
-DROP TRIGGER IF EXISTS coupons_immutable ON coupons;
-DROP FUNCTION IF EXISTS coupons_block_term_update();
-
--- DropForeignKey
-ALTER TABLE "public"."api_keys" DROP CONSTRAINT "api_keys_org_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."invoices" DROP CONSTRAINT "invoices_org_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."invoice_line_items" DROP CONSTRAINT "invoice_line_items_org_id_invoice_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."invoice_line_items" DROP CONSTRAINT "invoice_line_items_org_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."settings" DROP CONSTRAINT "settings_org_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."user_orgs" DROP CONSTRAINT "user_orgs_user_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."user_orgs" DROP CONSTRAINT "user_orgs_org_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."variants" DROP CONSTRAINT "variants_org_id_product_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."variants" DROP CONSTRAINT "variants_org_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."prices" DROP CONSTRAINT "prices_org_id_variant_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."prices" DROP CONSTRAINT "prices_org_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."sessions" DROP CONSTRAINT "sessions_org_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."orders" DROP CONSTRAINT "orders_org_id_customer_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."orders" DROP CONSTRAINT "orders_org_id_cart_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."orders" DROP CONSTRAINT "orders_org_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."order_items" DROP CONSTRAINT "order_items_org_id_order_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."order_items" DROP CONSTRAINT "order_items_org_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."order_items" DROP CONSTRAINT "order_items_org_id_variant_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."order_items" DROP CONSTRAINT "order_items_org_id_subscription_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."customers" DROP CONSTRAINT "customers_org_id_default_payment_method_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."customers" DROP CONSTRAINT "customers_org_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."customer_cohorts" DROP CONSTRAINT "customer_cohorts_org_id_customer_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."customer_cohorts" DROP CONSTRAINT "customer_cohorts_org_id_cohort_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."payment_methods" DROP CONSTRAINT "payment_methods_org_id_customer_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."subscriptions" DROP CONSTRAINT "subscriptions_org_id_order_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."subscriptions" DROP CONSTRAINT "subscriptions_org_id_customer_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."subscriptions" DROP CONSTRAINT "subscriptions_org_id_payment_method_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."subscriptions" DROP CONSTRAINT "subscriptions_org_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."payments" DROP CONSTRAINT "payments_org_id_order_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."payments" DROP CONSTRAINT "payments_org_id_subscription_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."payments" DROP CONSTRAINT "payments_org_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."refunds" DROP CONSTRAINT "refunds_org_id_payment_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."metadata_store" DROP CONSTRAINT "metadata_store_org_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."dunning_attempts" DROP CONSTRAINT "dunning_attempts_org_id_dunning_campaign_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."dunning_communications" DROP CONSTRAINT "dunning_communications_org_id_dunning_campaign_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."billable_metrics" DROP CONSTRAINT "billable_metrics_org_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."coupon_codes" DROP CONSTRAINT "coupon_codes_org_id_coupon_id_fkey";
-
--- DropForeignKey
-ALTER TABLE "public"."discounts" DROP CONSTRAINT "discounts_org_id_coupon_id_fkey";
-
--- DropTable
-DROP TABLE "public"."api_keys";
-
--- DropTable
-DROP TABLE "public"."orgs";
-
--- DropTable
-DROP TABLE "public"."invoices";
-
--- DropTable
-DROP TABLE "public"."invoice_line_items";
-
--- DropTable
-DROP TABLE "public"."gateways";
-
--- DropTable
-DROP TABLE "public"."settings";
-
--- DropTable
-DROP TABLE "public"."users";
-
--- DropTable
-DROP TABLE "public"."user_orgs";
-
--- DropTable
-DROP TABLE "public"."carts";
-
--- DropTable
-DROP TABLE "public"."products";
-
--- DropTable
-DROP TABLE "public"."variants";
-
--- DropTable
-DROP TABLE "public"."prices";
-
--- DropTable
-DROP TABLE "public"."sessions";
-
--- DropTable
-DROP TABLE "public"."orders";
-
--- DropTable
-DROP TABLE "public"."order_items";
-
--- DropTable
-DROP TABLE "public"."customers";
-
--- DropTable
-DROP TABLE "public"."cohorts";
-
--- DropTable
-DROP TABLE "public"."customer_cohorts";
-
--- DropTable
-DROP TABLE "public"."payment_methods";
-
--- DropTable
-DROP TABLE "public"."subscriptions";
-
--- DropTable
-DROP TABLE "public"."payments";
-
--- DropTable
-DROP TABLE "public"."refunds";
-
--- DropTable
-DROP TABLE "public"."idempotency_keys";
-
--- DropTable
-DROP TABLE "public"."webhook_subscriptions";
-
--- DropTable
-DROP TABLE "public"."metadata_store";
-
--- DropTable
-DROP TABLE "public"."dunning_campaigns";
-
--- DropTable
-DROP TABLE "public"."dunning_attempts";
-
--- DropTable
-DROP TABLE "public"."dunning_communications";
-
--- DropTable
-DROP TABLE "public"."payment_update_tokens";
-
--- DropTable
-DROP TABLE "public"."dunning_configurations";
-
--- DropTable
-DROP TABLE "public"."customer_dunning_history";
-
--- DropTable
-DROP TABLE "public"."billable_metrics";
-
--- DropTable
-DROP TABLE "public"."coupons";
-
--- DropTable
-DROP TABLE "public"."coupon_codes";
-
--- DropTable
-DROP TABLE "public"."discounts";
-
--- DropEnum
-DROP TYPE "public"."OrgStatus";
-
--- DropEnum
-DROP TYPE "public"."InvoiceStatus";
-
--- DropEnum
-DROP TYPE "public"."InvoiceLineItemKind";
-
--- DropEnum
-DROP TYPE "public"."Role";
-
--- DropEnum
-DROP TYPE "public"."ProductStatus";
-
--- DropEnum
-DROP TYPE "public"."PriceCategory";
-
--- DropEnum
-DROP TYPE "public"."PriceScheme";
-
--- DropEnum
-DROP TYPE "public"."BillingInterval";
-
--- DropEnum
-DROP TYPE "public"."OrderStatus";
-
--- DropEnum
-DROP TYPE "public"."PaymentMethodStatus";
-
--- DropEnum
-DROP TYPE "public"."SubscriptionStatus";
-
--- DropEnum
-DROP TYPE "public"."PaymentStatus";
-
--- DropEnum
-DROP TYPE "public"."DunningStatus";
-
--- DropEnum
-DROP TYPE "public"."DunningAttemptType";
-
--- DropEnum
-DROP TYPE "public"."CommunicationChannel";
-
--- DropEnum
-DROP TYPE "public"."CommunicationStatus";
-
--- DropEnum
-DROP TYPE "public"."TokenStatus";
-
--- DropEnum
-DROP TYPE "public"."DunningConfigScope";
-
--- DropEnum
-DROP TYPE "public"."DunningConfigStatus";
-
--- DropEnum
-DROP TYPE "public"."DiscountType";
-
--- DropEnum
-DROP TYPE "public"."Duration";
-
--- DropEnum
-DROP TYPE "public"."DiscountStatus";
-
