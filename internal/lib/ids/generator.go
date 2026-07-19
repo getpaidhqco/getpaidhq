@@ -1,8 +1,8 @@
-package lib
+package ids
 
 import "github.com/segmentio/ksuid"
 
-func GenerateId(resource string) string {
+func Generate(resource string) string {
 	switch resource {
 	case "user":
 		return "usr_" + ksuid.New().String()
@@ -19,7 +19,7 @@ func GenerateId(resource string) string {
 	case "payment_method":
 		return "pm_" + ksuid.New().String()
 	case "dunning_campaign":
-		return "dun_" + ksuid.New().String()
+		return "dcam_" + ksuid.New().String()
 	case "dunning_attempt":
 		return "datt_" + ksuid.New().String()
 	case "dunning_communication":
