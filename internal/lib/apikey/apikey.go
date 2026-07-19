@@ -1,4 +1,4 @@
-package lib
+package apikey
 
 import (
 	"crypto/hmac"
@@ -9,15 +9,15 @@ import (
 	"errors"
 )
 
-// ErrMissingApiKeyPepper is returned by HashApiKey when no pepper is
+// ErrMissingApiKeyPepper is returned by Hash when no pepper is
 // configured. Without a pepper the hash is just SHA-256 of the key,
 // which is rainbow-table-cheap for short keys — fail closed.
 var ErrMissingApiKeyPepper = errors.New("API_KEY_PEPPER not set: api key hashing requires a server-side pepper")
 
-// GenerateApiKeySecret returns 32 bytes of crypto/rand-sourced
+// GenerateSecret returns 32 bytes of crypto/rand-sourced
 // randomness, base64-URL-encoded. Caller MUST surface this exactly
 // once to the user (it's their copy of the key); we never store it.
-func GenerateApiKeySecret() (string, error) {
+func GenerateSecret() (string, error) {
 	var b [32]byte
 	if _, err := rand.Read(b[:]); err != nil {
 		return "", err
@@ -25,7 +25,7 @@ func GenerateApiKeySecret() (string, error) {
 	return base64.RawURLEncoding.EncodeToString(b[:]), nil
 }
 
-// HashApiKey computes HMAC-SHA256(pepper, rawKey) and hex-encodes the
+// Hash computes HMAC-SHA256(pepper, rawKey) and hex-encodes the
 // result. Both the create path and the verify path call this; the
 // hash is the value that lives in the DB.
 //
@@ -34,7 +34,7 @@ func GenerateApiKeySecret() (string, error) {
 // protect against DB-only compromise. For API keys you want both —
 // but the keys themselves are 256 random bits, so rainbow tables are
 // already infeasible and a pepper is the cheaper safeguard.
-func HashApiKey(rawKey, pepper string) (string, error) {
+func Hash(rawKey, pepper string) (string, error) {
 	if pepper == "" {
 		return "", ErrMissingApiKeyPepper
 	}

@@ -3,6 +3,7 @@ package apikey
 import (
 	"context"
 	"errors"
+	"getpaidhq/internal/lib/apikey"
 	"testing"
 
 	"getpaidhq/internal/core/domain"
@@ -72,7 +73,7 @@ func newAuth(repo port.ApiKeyRepository) port.Authenticator {
 
 func TestApiKeyMiddleware_Authenticate(t *testing.T) {
 	t.Run("valid key resolves to an admin AuthUser scoped to the org", func(t *testing.T) {
-		hash, err := lib.HashApiKey("live_abc", testPepper)
+		hash, err := apikey.Hash("live_abc", testPepper)
 		require.NoError(t, err)
 		repo := &fakeApiKeyRepo{byHash: map[string]domain.ApiKey{
 			hash: {OrgId: "org_42", Id: "key_1", KeyHash: hash},

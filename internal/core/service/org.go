@@ -4,7 +4,7 @@ import (
 	"context"
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
+	"getpaidhq/internal/lib/apikey"
 	"getpaidhq/internal/lib/ids"
 	"time"
 )
@@ -89,13 +89,13 @@ func (s *OrgService) Create(ctx context.Context, input port.CreateOrgInput) (dom
 	// (id_secret) ONCE in the response. Internally we store only the
 	// HMAC hash; lookup at authentication time re-hashes the
 	// incoming token with the same pepper and matches by hash.
-	secret, err := lib.GenerateApiKeySecret()
+	secret, err := apikey.GenerateSecret()
 	if err != nil {
 		return domain.Org{}, err
 	}
 	keyId := ids.Generate("sk")
 	rawKey := keyId + "_" + secret
-	keyHash, err := lib.HashApiKey(rawKey, s.apiKeyPepper)
+	keyHash, err := apikey.Hash(rawKey, s.apiKeyPepper)
 	if err != nil {
 		s.logger.Error("API key hash failed (check API_KEY_PEPPER)", "err", err.Error())
 		return domain.Org{}, err

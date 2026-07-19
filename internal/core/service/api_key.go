@@ -2,12 +2,12 @@ package service
 
 import (
 	"context"
+	"getpaidhq/internal/lib/apikey"
 	"getpaidhq/internal/lib/ids"
 	"time"
 
 	"getpaidhq/internal/core/domain"
 	"getpaidhq/internal/core/port"
-	"getpaidhq/internal/lib"
 )
 
 // ApiKeyService manages programmatic API keys (the `x-api-key` header
@@ -33,13 +33,13 @@ func NewApiKeyService(repo port.ApiKeyRepository, pepper string, logger port.Log
 // secret is surfaced ONCE here and never persisted, never logged, never
 // re-derivable from the row.
 func (s *ApiKeyService) Create(ctx context.Context, orgId string, name string) (port.CreatedApiKey, error) {
-	secret, err := lib.GenerateApiKeySecret()
+	secret, err := apikey.GenerateSecret()
 	if err != nil {
 		return port.CreatedApiKey{}, err
 	}
 	keyId := ids.Generate("sk")
 	rawKey := keyId + "_" + secret
-	keyHash, err := lib.HashApiKey(rawKey, s.pepper)
+	keyHash, err := apikey.Hash(rawKey, s.pepper)
 	if err != nil {
 		s.logger.Error("API key hash failed (check API_KEY_PEPPER)", "err", err.Error())
 		return port.CreatedApiKey{}, err

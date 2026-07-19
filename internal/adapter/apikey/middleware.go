@@ -2,6 +2,7 @@ package apikey
 
 import (
 	"context"
+	"getpaidhq/internal/lib/apikey"
 
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/lib"
@@ -39,7 +40,7 @@ func (m ApiKeyMiddleware) Authenticate(ctx context.Context, token string) (port.
 		return port.AuthUser{}, lib.NewCustomError(lib.AuthenticationError, "not allowed", nil)
 	}
 
-	keyHash, err := lib.HashApiKey(token, m.pepper)
+	keyHash, err := apikey.Hash(token, m.pepper)
 	if err != nil {
 		// Missing pepper is a server-config error, not a credential
 		// problem — but surface as a generic authn failure so the
