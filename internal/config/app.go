@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"getpaidhq/internal/lib/errors"
+	"getpaidhq/internal/lib/validators"
 	"io"
 	"os"
 	"os/signal"
@@ -92,7 +93,7 @@ func NewApp() (*App, error) {
 	env := lib.NewEnv()
 	logger := lib.GetLogger()
 	reporter := errors.NewErrorReporter(logger)
-	httpValidator := lib.NewValidator()
+	httpValidator := validators.NewValidator()
 
 	// Parse trusted-proxy CIDRs once at boot. Malformed config fails the
 	// app rather than silently degrading to "trust everything" — getting
@@ -155,6 +156,13 @@ func NewApp() (*App, error) {
 	}
 	// Every service publishes through the outbox; the relay below drains it to NATS.
 	pubsub := libpubsub.NewOutbox(repos.outbox, natsPubSub)
+	defer func(pubsub *libpubsub.Outbox) {
+		err := pubsub.Close()
+		if err != nil {
+
+		}
+	}(pubsub)
+
 	cache := redis.NewRedisClient(env.Get("REDIS_HOST"), env.Get("REDIS_PASSWORD"), 0)
 	authzEngine := cedar.NewCedarAuthz(logger, env.CedarPolicyFile)
 	scheduler := cron.NewCronScheduler(logger)
@@ -342,12 +350,12 @@ func NewApp() (*App, error) {
 		Setting:         handler.NewSettingHandler(settingService, logger, authzEngine),
 	}
 
-	port := env.ServerPort
-	if port == "" {
-		port = "8080"
+	serverPort := env.ServerPort
+	if serverPort == "" {
+		serverPort = "8080"
 	}
 	server := BuildServer(ServerDeps{
-		Addr:           ":" + port,
+		Addr:           ":" + serverPort,
 		Logger:         logger,
 		Validator:      httpValidator,
 		Authenticators: authenticators,
