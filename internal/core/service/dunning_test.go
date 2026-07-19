@@ -30,7 +30,7 @@ type publishedEvent struct {
 	message any
 }
 
-func (p *recordingPubSub) Publish(orgId, topic string, message any) error {
+func (p *recordingPubSub) Publish(_ context.Context, orgId, topic string, message any) error {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	p.published = append(p.published, publishedEvent{orgId: orgId, topic: topic, message: message})

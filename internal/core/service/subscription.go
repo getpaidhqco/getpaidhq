@@ -172,7 +172,7 @@ func (s *SubscriptionService) Create(ctx context.Context, input port.CreateSubsc
 		return domain.Subscription{}, err
 	}
 
-	_ = s.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionCreated, subscription)
+	_ = s.pubsub.Publish(ctx, subscription.OrgId, port.TopicSubscriptionCreated, subscription)
 	return subscription, nil
 }
 
@@ -196,7 +196,7 @@ func (s *SubscriptionService) Update(ctx context.Context, input port.UpdateSubsc
 		return domain.Subscription{}, err
 	}
 
-	_ = s.pubsub.Publish(subscription.OrgId, port.GetSubscriptionTopic(subscription.Status), newSub)
+	_ = s.pubsub.Publish(ctx, subscription.OrgId, port.GetSubscriptionTopic(subscription.Status), newSub)
 	return newSub, err
 }
 
@@ -443,15 +443,17 @@ func (s *SubscriptionService) UpdateBillingAnchor(ctx context.Context, input por
 	}
 	prorationDetails := subscription.UpdateBillingAnchor(input.BillingAnchor, string(input.ProrationMode), fixedBase)
 
-	_, err = s.subscriptionRepository.Update(ctx, subscription)
-	if err != nil {
-		s.logger.Error("Failed to update subscription", "err", err.Error())
-		return domain.ProrationDetails{}, err
-	}
-
-	sub, findErr := s.subscriptionRepository.FindById(ctx, input.OrgId, input.Id)
-	if findErr == nil {
-		_ = s.pubsub.Publish(sub.OrgId, port.TopicSubscriptionBillingAnchorChanged, sub)
+	// The anchor update and its billing_anchor.changed event commit together.
+	txErr := s.transitionInTx(ctx, func(ctx context.Context) error {
+		sub, err := s.subscriptionRepository.Update(ctx, subscription)
+		if err != nil {
+			s.logger.Error("Failed to update subscription", "err", err.Error())
+			return err
+		}
+		return s.pubsub.Publish(ctx, sub.OrgId, port.TopicSubscriptionBillingAnchorChanged, sub)
+	})
+	if txErr != nil {
+		return domain.ProrationDetails{}, txErr
 	}
 
 	return prorationDetails, nil
@@ -547,57 +549,72 @@ func (s *SubscriptionService) HandleSubscriptionChargeSuccess(ctx context.Contex
 	}
 	payment.SetMetadata(subscription.Metadata)
 
-	payment, err = s.paymentRepository.Create(ctx, payment)
-	if err != nil {
-		s.logger.Error("Failed to create payment", err.Error())
+	// Payment, invoice settlement, subscription advance and the outbox events
+	// commit or roll back as one unit — the charge.success event can never
+	// outlive (or go missing from) the state it announces.
+	var newSub domain.Subscription
+	txErr := s.transitionInTx(ctx, func(ctx context.Context) error {
+		payment, err = s.paymentRepository.Create(ctx, payment)
+		if err != nil {
+			s.logger.Error("Failed to create payment", err.Error())
+			return err
+		}
+
+		if _, err := s.invoiceService.MarkSettled(ctx, subscription.OrgId, inv.Id); err != nil {
+			s.logger.Error("Failed to mark invoice settled", "err", err.Error())
+			return err
+		}
+
+		lastCharge := time.Now().UTC()
+		subscription.CyclesProcessed++
+		subscription.TotalRevenue += inv.Total
+		subscription.LastCharge = lastCharge
+		subscription.Retries = 0
+		subscription.NextRetryAt = time.Time{}
+
+		if subscription.Cycles != 0 && subscription.CyclesProcessed >= subscription.Cycles {
+			subscription.Status = domain.SubscriptionStatusCompleted
+			subscription.EndsAt = lastCharge
+			subscription.RenewsAt = time.Time{}
+			subscription.CurrentPeriodEnd = time.Time{}
+			subscription.CurrentPeriodStart = time.Time{}
+		} else {
+			subscription.Status = domain.SubscriptionStatusActive
+			nextCharge := subscription.CalculateNextBillingDate()
+			subscription.RenewsAt = nextCharge
+			subscription.CurrentPeriodStart = subscription.CurrentPeriodEnd
+			subscription.CurrentPeriodEnd = nextCharge
+		}
+
+		s.logger.Infof("[%s][%s] subscription charged, updating with new values [%s]",
+			subscription.OrgId, subscription.Id, subscription.Status)
+
+		newSub, err = s.subscriptionRepository.Update(ctx, subscription)
+		if err != nil {
+			s.logger.Error("Failed to update subscription", "err", err.Error())
+			return err
+		}
+
+		if newSub.Status == domain.SubscriptionStatusExpired {
+			if err := s.pubsub.Publish(ctx, subscription.OrgId, port.TopicSubscriptionExpired, newSub); err != nil {
+				return err
+			}
+		}
+		if newSub.Status == domain.SubscriptionStatusCompleted {
+			if err := s.pubsub.Publish(ctx, subscription.OrgId, port.TopicSubscriptionCompleted, newSub); err != nil {
+				return err
+			}
+		}
+
+		return s.pubsub.Publish(ctx,
+			subscription.OrgId,
+			port.TopicSubscriptionPaymentChargeSuccess,
+			port.NewSubscriptionPaymentChargeSuccessEvent(subscription, payment),
+		)
+	})
+	if txErr != nil {
+		return domain.Subscription{}, txErr
 	}
-
-	if _, err := s.invoiceService.MarkSettled(ctx, subscription.OrgId, inv.Id); err != nil {
-		s.logger.Error("Failed to mark invoice settled", "err", err.Error())
-	}
-
-	lastCharge := time.Now().UTC()
-	subscription.CyclesProcessed++
-	subscription.TotalRevenue += inv.Total
-	subscription.LastCharge = lastCharge
-	subscription.Retries = 0
-	subscription.NextRetryAt = time.Time{}
-
-	if subscription.Cycles != 0 && subscription.CyclesProcessed >= subscription.Cycles {
-		subscription.Status = domain.SubscriptionStatusCompleted
-		subscription.EndsAt = lastCharge
-		subscription.RenewsAt = time.Time{}
-		subscription.CurrentPeriodEnd = time.Time{}
-		subscription.CurrentPeriodStart = time.Time{}
-	} else {
-		subscription.Status = domain.SubscriptionStatusActive
-		nextCharge := subscription.CalculateNextBillingDate()
-		subscription.RenewsAt = nextCharge
-		subscription.CurrentPeriodStart = subscription.CurrentPeriodEnd
-		subscription.CurrentPeriodEnd = nextCharge
-	}
-
-	s.logger.Infof("[%s][%s] subscription charged, updating with new values [%s]",
-		subscription.OrgId, subscription.Id, subscription.Status)
-
-	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
-	if err != nil {
-		s.logger.Error("Failed to update subscription", "err", err.Error())
-		return domain.Subscription{}, err
-	}
-
-	if newSub.Status == domain.SubscriptionStatusExpired {
-		_ = s.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionExpired, newSub)
-	}
-	if newSub.Status == domain.SubscriptionStatusCompleted {
-		_ = s.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionCompleted, newSub)
-	}
-
-	_ = s.pubsub.Publish(
-		subscription.OrgId,
-		port.TopicSubscriptionPaymentChargeSuccess,
-		port.NewSubscriptionPaymentChargeSuccessEvent(subscription, payment),
-	)
 
 	return newSub, nil
 }
@@ -669,13 +686,6 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 	}
 	payment.SetMetadata(subscription.Metadata)
 
-	payment, err = s.paymentRepository.Create(ctx, payment)
-	if err != nil {
-		s.logger.Error("Failed to create payment", err.Error())
-	}
-
-	s.logger.Debug("Created payment for subscription")
-
 	retryPolicy := s.GetRetryPolicy(ctx, subscription.OrgId)
 	s.logger.Debug("Retry policy",
 		"attempts", retryPolicy.RetryAttempts,
@@ -684,53 +694,75 @@ func (s *SubscriptionService) HandleSubscriptionChargeFailure(ctx context.Contex
 		"action", retryPolicy.FailureAction,
 	)
 
-	nextRetryDate := retryPolicy.GetNextCharge(subscription)
-	if nextRetryDate.IsZero() {
-		s.logger.Debugf("Subscription [%s] has no more retries left", subscription.Id)
-		if retryPolicy.FailureAction == domain.FailureActionMarkUnpaid {
-			s.logger.Debugf("Marking as unpaid..")
-			subscription.Status = domain.SubscriptionStatusUnpaid
+	// Failed payment, invoice action, subscription state and the outbox events
+	// (charge.failed opens a DunningCampaign downstream) commit or roll back
+	// as one unit.
+	var newSub domain.Subscription
+	txErr := s.transitionInTx(ctx, func(ctx context.Context) error {
+		payment, err = s.paymentRepository.Create(ctx, payment)
+		if err != nil {
+			s.logger.Error("Failed to create payment", err.Error())
+			return err
 		}
-		if retryPolicy.FailureAction == domain.FailureActionCancel {
-			s.logger.Debugf("Cancelling..")
-			subscription.SetCancelled()
+		s.logger.Debug("Created payment for subscription")
+
+		nextRetryDate := retryPolicy.GetNextCharge(subscription)
+		if nextRetryDate.IsZero() {
+			s.logger.Debugf("Subscription [%s] has no more retries left", subscription.Id)
+			if retryPolicy.FailureAction == domain.FailureActionMarkUnpaid {
+				s.logger.Debugf("Marking as unpaid..")
+				subscription.Status = domain.SubscriptionStatusUnpaid
+			}
+			if retryPolicy.FailureAction == domain.FailureActionCancel {
+				s.logger.Debugf("Cancelling..")
+				subscription.SetCancelled()
+			}
+			if retryPolicy.FailureAction == domain.FailureActionMarkUnpaid || retryPolicy.FailureAction == domain.FailureActionCancel {
+				if _, err := s.invoiceService.MarkUncollectible(ctx, subscription.OrgId, inv.Id); err != nil {
+					s.logger.Error("Failed to mark invoice uncollectible", "err", err.Error())
+					return err
+				}
+			}
+		} else {
+			s.logger.Debugf("Subscription [%s] next retry date [%s]", subscription.Id, nextRetryDate)
+			subscription.Status = domain.SubscriptionStatusPastDue
+			subscription.NextRetryAt = nextRetryDate
+			subscription.Retries++
 		}
-		if retryPolicy.FailureAction == domain.FailureActionMarkUnpaid || retryPolicy.FailureAction == domain.FailureActionCancel {
-			if _, err := s.invoiceService.MarkUncollectible(ctx, subscription.OrgId, inv.Id); err != nil {
-				s.logger.Error("Failed to mark invoice uncollectible", "err", err.Error())
+
+		s.logger.Infof("[%s][%s] nextCharge=[%s]", subscription.OrgId, subscription.Id, subscription.GetNextChargeDate())
+		newSub, err = s.subscriptionRepository.Update(ctx, subscription)
+		if err != nil {
+			s.logger.Error("Failed to update subscription", "err", err.Error())
+			return err
+		}
+
+		if err := s.pubsub.Publish(ctx, subscription.OrgId, port.TopicSubscriptionPaymentChargeFailed, map[string]any{
+			"subscription":  subscription,
+			"charge_result": charge,
+		}); err != nil {
+			return err
+		}
+		if err := s.pubsub.Publish(ctx, subscription.OrgId, port.TopicPaymentCreated, payment); err != nil {
+			return err
+		}
+
+		switch newSub.Status {
+		case domain.SubscriptionStatusCancelled:
+			return s.pubsub.Publish(ctx, subscription.OrgId, port.TopicSubscriptionCancelled, newSub)
+		case domain.SubscriptionStatusUnpaid:
+			return s.pubsub.Publish(ctx, subscription.OrgId, port.TopicSubscriptionUnpaid, newSub)
+		case domain.SubscriptionStatusExpired:
+			return s.pubsub.Publish(ctx, subscription.OrgId, port.TopicSubscriptionExpired, newSub)
+		case domain.SubscriptionStatusPastDue:
+			if subscription.Retries == 1 {
+				return s.pubsub.Publish(ctx, subscription.OrgId, port.TopicSubscriptionPastDue, newSub)
 			}
 		}
-	} else {
-		s.logger.Debugf("Subscription [%s] next retry date [%s]", subscription.Id, nextRetryDate)
-		subscription.Status = domain.SubscriptionStatusPastDue
-		subscription.NextRetryAt = nextRetryDate
-		subscription.Retries++
-	}
-
-	s.logger.Infof("[%s][%s] nextCharge=[%s]", subscription.OrgId, subscription.Id, subscription.GetNextChargeDate())
-	newSub, err := s.subscriptionRepository.Update(ctx, subscription)
-	if err != nil {
-		s.logger.Error("Failed to update subscription", "err", err.Error())
-		return domain.Subscription{}, err
-	}
-
-	_ = s.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionPaymentChargeFailed, map[string]any{
-		"subscription":  subscription,
-		"charge_result": charge,
+		return nil
 	})
-	_ = s.pubsub.Publish(subscription.OrgId, port.TopicPaymentCreated, payment)
-
-	switch newSub.Status {
-	case domain.SubscriptionStatusCancelled:
-		_ = s.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionCancelled, newSub)
-	case domain.SubscriptionStatusUnpaid:
-		_ = s.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionUnpaid, newSub)
-	case domain.SubscriptionStatusExpired:
-		_ = s.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionExpired, newSub)
-	case domain.SubscriptionStatusPastDue:
-		if subscription.Retries == 1 {
-			_ = s.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionPastDue, newSub)
-		}
+	if txErr != nil {
+		return domain.Subscription{}, txErr
 	}
 
 	return newSub, nil
@@ -849,7 +881,7 @@ func (s *SubscriptionService) SendRenewalReminder(ctx context.Context, orgId str
 		return err
 	}
 
-	if err := s.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionRenewalReminder, subscription); err != nil {
+	if err := s.pubsub.Publish(ctx, subscription.OrgId, port.TopicSubscriptionRenewalReminder, subscription); err != nil {
 		s.logger.Error("Failed to publish reminder event", "error", err.Error())
 		return err
 	}

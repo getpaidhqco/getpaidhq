@@ -106,7 +106,7 @@ func (s *ProductService) CreateProduct(ctx context.Context, orgId string, input 
 		return domain.Product{}, err
 	}
 
-	_ = s.pubsub.Publish(orgId, port.TopicProductCreated, product)
+	_ = s.pubsub.Publish(ctx, orgId, port.TopicProductCreated, product)
 	return product, err
 }
 
@@ -145,7 +145,7 @@ func (s *ProductService) CreateProductPrice(ctx context.Context, input port.Crea
 		return domain.Price{}, err
 	}
 
-	_ = s.pubsub.Publish(input.OrgId, port.TopicPriceCreated, price)
+	_ = s.pubsub.Publish(ctx, input.OrgId, port.TopicPriceCreated, price)
 	return price, nil
 }
 
@@ -167,7 +167,7 @@ func (s *ProductService) UpdateProduct(ctx context.Context, orgId string, id str
 		return domain.Product{}, err
 	}
 
-	_ = s.pubsub.Publish(orgId, port.TopicProductUpdated, product)
+	_ = s.pubsub.Publish(ctx, orgId, port.TopicProductUpdated, product)
 	return product, nil
 }
 
@@ -195,7 +195,7 @@ func (s *ProductService) ArchiveProduct(ctx context.Context, orgId string, id st
 		return domain.Product{}, err
 	}
 
-	_ = s.pubsub.Publish(orgId, port.TopicProductArchived, product)
+	_ = s.pubsub.Publish(ctx, orgId, port.TopicProductArchived, product)
 	return product, nil
 }
 
@@ -221,7 +221,7 @@ func (s *ProductService) UnarchiveProduct(ctx context.Context, orgId string, id 
 		return domain.Product{}, err
 	}
 
-	_ = s.pubsub.Publish(orgId, port.TopicProductUnarchived, product)
+	_ = s.pubsub.Publish(ctx, orgId, port.TopicProductUnarchived, product)
 	return product, nil
 }
 
@@ -238,7 +238,7 @@ func (s *ProductService) DeleteProduct(ctx context.Context, orgId string, id str
 		return err
 	}
 
-	_ = s.pubsub.Publish(orgId, port.TopicProductDeleted, product)
+	_ = s.pubsub.Publish(ctx, orgId, port.TopicProductDeleted, product)
 	return nil
 }
 
@@ -258,7 +258,7 @@ func (s *ProductService) CreateVariant(ctx context.Context, orgId string, produc
 		return domain.Variant{}, err
 	}
 
-	_ = s.pubsub.Publish(orgId, port.TopicVariantCreated, variant)
+	_ = s.pubsub.Publish(ctx, orgId, port.TopicVariantCreated, variant)
 	return variant, nil
 }
 
@@ -300,7 +300,7 @@ func (s *ProductService) UpdateVariant(ctx context.Context, orgId string, id str
 		return domain.Variant{}, err
 	}
 
-	_ = s.pubsub.Publish(orgId, port.TopicVariantUpdated, variant)
+	_ = s.pubsub.Publish(ctx, orgId, port.TopicVariantUpdated, variant)
 	return variant, nil
 }
 
@@ -317,7 +317,7 @@ func (s *ProductService) DeleteVariant(ctx context.Context, orgId string, id str
 		return err
 	}
 
-	_ = s.pubsub.Publish(orgId, port.TopicVariantDeleted, variant)
+	_ = s.pubsub.Publish(ctx, orgId, port.TopicVariantDeleted, variant)
 	return nil
 }
 
@@ -387,7 +387,7 @@ func (s *ProductService) UpdatePrice(ctx context.Context, orgId string, id strin
 		return domain.Price{}, err
 	}
 
-	_ = s.pubsub.Publish(orgId, port.TopicPriceUpdated, price)
+	_ = s.pubsub.Publish(ctx, orgId, port.TopicPriceUpdated, price)
 	return price, nil
 }
 
@@ -404,7 +404,7 @@ func (s *ProductService) DeletePrice(ctx context.Context, orgId string, id strin
 		return err
 	}
 
-	_ = s.pubsub.Publish(orgId, port.TopicPriceDeleted, price)
+	_ = s.pubsub.Publish(ctx, orgId, port.TopicPriceDeleted, price)
 	return nil
 }
 

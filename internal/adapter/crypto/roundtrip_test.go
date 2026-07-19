@@ -45,7 +45,7 @@ func (noopLogger) Errorf(string, ...any) {}
 
 type noopPubSub struct{ port.PubSub }
 
-func (noopPubSub) Publish(string, string, any) error { return nil }
+func (noopPubSub) Publish(context.Context, string, string, any) error { return nil }
 
 // TestServiceRoundTripWithRealCipher seals credentials through
 // PspService.CreateGateway and opens them through GatewayFactory.NewGateway

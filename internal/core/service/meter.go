@@ -60,7 +60,7 @@ func (s *MeterService) Create(ctx context.Context, in port.CreateMeterInput) (do
 	if err != nil {
 		return domain.BillableMetric{}, err
 	}
-	_ = s.pubsub.Publish(in.OrgId, "meter.created", metric)
+	_ = s.pubsub.Publish(ctx, in.OrgId, "meter.created", metric)
 	return metric, nil
 }
 

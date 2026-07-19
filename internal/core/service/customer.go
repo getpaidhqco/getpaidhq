@@ -77,7 +77,7 @@ func (s *CustomerService) Create(ctx context.Context, orgId string, input port.C
 		return domain.Customer{}, err
 	}
 
-	_ = s.pubsub.Publish(orgId, port.TopicCustomerCreated, newCustomer)
+	_ = s.pubsub.Publish(ctx, orgId, port.TopicCustomerCreated, newCustomer)
 	return newCustomer, nil
 }
 
@@ -153,7 +153,7 @@ func (s *CustomerService) CreatePaymentMethod(ctx context.Context, orgId string,
 		}
 	}
 
-	_ = s.pubsub.Publish(orgId, port.TopicPaymentMethodCreated, newPaymentMethod)
+	_ = s.pubsub.Publish(ctx, orgId, port.TopicPaymentMethodCreated, newPaymentMethod)
 	return newPaymentMethod, nil
 }
 
@@ -208,14 +208,15 @@ func (s *CustomerService) UpdatePaymentMethod(ctx context.Context, orgId string,
 		}
 	}
 
-	_ = s.pubsub.Publish(orgId, port.TopicPaymentMethodUpdated, newPaymentMethod)
+	_ = s.pubsub.Publish(ctx, orgId, port.TopicPaymentMethodUpdated, newPaymentMethod)
 	return newPaymentMethod, nil
 }
 
 func (s *CustomerService) DetectExpiringPaymentMethods() {
 	s.logger.Infof("Detecting expiring payment methods for all organizations")
+	ctx := context.Background()
 	// Implement the logic to detect expiring payment methods
-	expiring, err := s.paymentMethodRepository.FindExpiringPaymentMethods(context.Background(), time.Now().UTC())
+	expiring, err := s.paymentMethodRepository.FindExpiringPaymentMethods(ctx, time.Now().UTC())
 	if err != nil {
 		s.logger.Error("Failed to detect expiring payment methods: ", "err", err)
 		return
@@ -223,7 +224,7 @@ func (s *CustomerService) DetectExpiringPaymentMethods() {
 	for _, paymentMethod := range expiring {
 		// send notification to customer
 		s.logger.Infof("Payment method %s is expiring", paymentMethod.Id)
-		_ = s.pubsub.Publish(paymentMethod.OrgId, port.TopicPaymentMethodExpired, paymentMethod)
+		_ = s.pubsub.Publish(ctx, paymentMethod.OrgId, port.TopicPaymentMethodExpired, paymentMethod)
 	}
 }
 

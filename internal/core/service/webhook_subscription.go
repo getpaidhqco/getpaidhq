@@ -99,7 +99,7 @@ func (s *WebhookSubscriptionService) Create(ctx context.Context, input port.Crea
 		return domain.WebhookSubscription{}, err
 	}
 
-	if pubErr := s.pubsub.Publish(input.OrgId, port.TopicWebhookSubscriptionCreated, webhook); pubErr != nil {
+	if pubErr := s.pubsub.Publish(ctx, input.OrgId, port.TopicWebhookSubscriptionCreated, webhook); pubErr != nil {
 		// Pubsub is best-effort here — the row exists, the API returns
 		// success, but observers won't get the create event. Log
 		// loudly so it surfaces in alerts.

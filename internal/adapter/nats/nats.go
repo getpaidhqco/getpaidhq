@@ -1,6 +1,7 @@
 package nats
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"time"
@@ -22,7 +23,7 @@ type NatsPubSub struct {
 // default when empty) and returns a ready pub/sub. The connection retries the
 // initial dial and reconnects indefinitely, so a transient broker outage
 // neither crashes startup nor permanently drops the process.
-func NewNatsPubSub(url string, logger port.Logger) (port.PubSub, error) {
+func NewNatsPubSub(url string, logger port.Logger) (*NatsPubSub, error) {
 	if url == "" {
 		url = nats.DefaultURL // nats://127.0.0.1:4222
 	}
@@ -60,7 +61,7 @@ func NewNatsPubSub(url string, logger port.Logger) (port.PubSub, error) {
 // (one connection, one reconnect policy, one drain). Returns nil if unset.
 func (n *NatsPubSub) Conn() *nats.Conn { return n.conn }
 
-func (n *NatsPubSub) Publish(orgId, topic string, message any) error {
+func (n *NatsPubSub) Publish(_ context.Context, orgId, topic string, message any) error {
 	data, err := json.Marshal(port.PubSubPayload{
 		Id:        lib.GenerateId("evt"),
 		OrgId:     orgId,
@@ -71,6 +72,13 @@ func (n *NatsPubSub) Publish(orgId, topic string, message any) error {
 	if err != nil {
 		return fmt.Errorf("marshal pubsub payload for %q: %w", topic, err)
 	}
+	return n.PublishPayload(topic, data)
+}
+
+// PublishPayload publishes an already-encoded envelope verbatim. This is the
+// port.RawPublisher surface the outbox relay uses, so stored envelopes are
+// not wrapped a second time.
+func (n *NatsPubSub) PublishPayload(topic string, data []byte) error {
 	n.logger.Debug(fmt.Sprintf("[nats] publishing topic [%s]", topic))
 	return n.conn.Publish(topic, data)
 }
