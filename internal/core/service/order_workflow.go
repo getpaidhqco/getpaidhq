@@ -242,7 +242,7 @@ func (s *OrderWorkflowService) CompleteCheckoutSession(ctx context.Context, inpu
 	}
 
 	if shouldPublish {
-		if err := s.pubsub.Publish(order.OrgId, port.TopicOrderCompleted, order); err != nil {
+		if err := s.pubsub.Publish(ctx, order.OrgId, port.TopicOrderCompleted, order); err != nil {
 			s.logger.Errorf("Failed to publish %s for order %s: %v", port.TopicOrderCompleted, order.Id, err)
 		}
 	}

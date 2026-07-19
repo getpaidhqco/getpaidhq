@@ -26,8 +26,6 @@ func NewIdempotencyStore(pool *pgxpool.Pool, lockTTL, retentionTTL time.Duration
 	return &IdempotencyStore{pool: pool, lockTTL: lockTTL, retentionTTL: retentionTTL}
 }
 
-var _ port.IdempotencyStore = (*IdempotencyStore)(nil)
-
 // Claim is the race-free single-winner gate. The delete-expired-then-INSERT
 // ON CONFLICT DO NOTHING pattern makes RowsAffected the sole arbiter: exactly
 // one concurrent caller inserts the pending row and gets IdempotencyNew; the

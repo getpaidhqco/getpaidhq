@@ -51,6 +51,7 @@ type RepoSet struct {
 	Session           port.SessionRepository
 	PaymentMethod     port.PaymentMethodRepository
 	EventStore        port.EventStore
+	Outbox            port.OutboxRepository
 }
 
 // Factory builds a RepoSet bound to a fresh connection against dsn. Defined in
@@ -87,6 +88,7 @@ func RunConformance(t *testing.T, newRepos Factory) {
 	t.Run("Session", func(t *testing.T) { testSession(t, ctx, rs) })
 	t.Run("PaymentMethod", func(t *testing.T) { testPaymentMethod(t, ctx, rs) })
 	t.Run("EventStore", func(t *testing.T) { testEventStore(t, ctx, rs) })
+	t.Run("Outbox", func(t *testing.T) { testOutbox(t, ctx, rs) })
 }
 
 func now() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }

@@ -48,6 +48,6 @@ func (s *SessionService) CreateSession(ctx context.Context, input port.CreateSes
 			CartId: cartEntity.Id,
 		})
 
-	_ = s.pubsub.Publish(input.OrgId, port.TopicSessionCreated, session)
+	_ = s.pubsub.Publish(ctx, input.OrgId, port.TopicSessionCreated, session)
 	return session, err
 }

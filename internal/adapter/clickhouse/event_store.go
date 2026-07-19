@@ -65,8 +65,6 @@ func NewEventStoreWithConn(conn driver.Conn) *EventStore {
 	return &EventStore{conn: conn}
 }
 
-var _ port.EventStore = (*EventStore)(nil)
-
 // Ingest inserts one event. Dedup is deferred to read time, so a resend is simply
 // inserted again (and collapsed by dedup_key on read) — the status is always
 // "recorded" here. async_insert lets the server batch single-event calls.

@@ -34,6 +34,7 @@ import (
 	"getpaidhq/internal/core/port"
 	"getpaidhq/internal/core/service"
 	"getpaidhq/internal/lib"
+	libpubsub "getpaidhq/internal/lib/pubsub"
 )
 
 // errUnsupportedEngine is returned when WORKFLOW_ENGINE is set to a
@@ -147,10 +148,12 @@ func NewApp() (*App, error) {
 	// ---------------------------------------------------------------------------
 	// Infrastructure adapters
 	// ---------------------------------------------------------------------------
-	pubsub, err := nats.NewNatsPubSub(env.NatsURL, logger)
+	natsPubSub, err := nats.NewNatsPubSub(env.NatsURL, logger)
 	if err != nil {
 		return nil, err
 	}
+	// Every service publishes through the outbox; the relay below drains it to NATS.
+	pubsub := libpubsub.NewOutbox(repos.outbox, natsPubSub)
 	cache := redis.NewRedisClient(env.Get("REDIS_HOST"), env.Get("REDIS_PASSWORD"), 0)
 	authzEngine := cedar.NewCedarAuthz(logger, env.CedarPolicyFile)
 	scheduler := cron.NewCronScheduler(logger)
@@ -205,7 +208,7 @@ func NewApp() (*App, error) {
 	// ---------------------------------------------------------------------------
 	// Narrow services (no workflow engine).
 	// ---------------------------------------------------------------------------
-	ingestor, ingestCloser, err := buildIngestor(env, eventStore, pubsub, logger)
+	ingestor, ingestCloser, err := buildIngestor(env, eventStore, natsPubSub, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -360,6 +363,10 @@ func NewApp() (*App, error) {
 	// repos.close (pool/sql.DB teardown) is registered first so LIFO shutdown
 	// closes the database last, after every worker that might still use it.
 	closers := []io.Closer{closerFunc(func() error { repos.close(); return nil }), pubsub}
+	// Registered AFTER pubsub so LIFO shutdown stops the relay before NATS drains.
+	outboxRelay := libpubsub.NewRelay(txManager, repos.outbox, natsPubSub, logger, env.OutboxPurgeInterval, env.OutboxRetention)
+	outboxRelay.Start()
+	closers = append(closers, outboxRelay)
 	// The jetstream usage consumer shares the NATS connection; register it AFTER
 	// pubsub so LIFO shutdown stops the consume loop before the connection drains.
 	if ingestCloser != nil {

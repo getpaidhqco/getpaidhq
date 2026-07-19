@@ -133,7 +133,7 @@ func (s *OrgService) Create(ctx context.Context, input port.CreateOrgInput) (dom
 		}
 	}
 
-	_ = s.pubsub.Publish(org.Id, port.TopicOrgCreated, org)
+	_ = s.pubsub.Publish(ctx, org.Id, port.TopicOrgCreated, org)
 
 	return org, err
 }

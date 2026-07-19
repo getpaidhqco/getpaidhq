@@ -21,8 +21,6 @@ type OrderCoupons interface {
 	Consume(ctx context.Context, in ConsumeInput) (domain.Discount, error)
 }
 
-var _ OrderCoupons = (*CouponService)(nil)
-
 // OrderInvoicing is the narrow invoicing capability the order flow needs: build
 // the combined cycle-0 invoice for an order, open it, and settle it once paid.
 // Defined here (consumer-side) so order tests can fake it cheaply;
@@ -32,8 +30,6 @@ type OrderInvoicing interface {
 	MarkOpen(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error)
 	SettleOrderInvoice(ctx context.Context, orgId, invoiceId string) error
 }
-
-var _ OrderInvoicing = (*InvoiceService)(nil)
 
 // OrderService owns engine-aware order operations: creating orders,
 // completing orders from the HTTP flow (which starts subscription workflows),
@@ -300,7 +296,7 @@ func (s *OrderService) CreateOrder(ctx context.Context, input port.CreateOrderIn
 				return port.CreateOrderResult{}, err
 			}
 		}
-		_ = s.pubsub.Publish(orgId, port.TopicSubscriptionCreated, created)
+		_ = s.pubsub.Publish(ctx, orgId, port.TopicSubscriptionCreated, created)
 	}
 
 	// Reserve the coupon's capacity for this order. A refusal (exhausted code,
@@ -462,11 +458,11 @@ func (s *OrderService) ListOrderSubscriptions(ctx context.Context, orgId string,
 // that invoice and settles the invoice to paid.
 //
 // All DB writes (order update, payment method find/create, subscription
-// activation, coupon consume, invoice build+settle, payment) run inside a single
-// transaction; the nested RunInTx of Consume/BuildForOrder join it (ambient-tx
-// reuse). Post-commit side effects (subscription workflow starts and the
-// order.completed pubsub event) fire only after the tx commits — running them
-// inside would orphan workflows and pubsub messages on rollback.
+// activation, coupon consume, invoice build+settle, payment, the
+// order.completed outbox event) run inside a single transaction; the nested
+// RunInTx of Consume/BuildForOrder join it (ambient-tx reuse). Only non-DB
+// side effects (subscription workflow starts) stay post-commit — running them
+// inside would orphan workflows on rollback.
 func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrderInput) (domain.Order, error) {
 	s.logger.Infof("Completing order [%s][%s]", input.OrgId, input.Id)
 
@@ -643,7 +639,8 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 				return err
 			}
 		}
-		return nil
+
+		return s.pubsub.Publish(ctx, order.OrgId, port.TopicOrderCompleted, order)
 	})
 	if err != nil {
 		return domain.Order{}, err
@@ -656,9 +653,6 @@ func (s *OrderService) CompleteOrder(ctx context.Context, input port.CompleteOrd
 		if startErr := s.engine.StartSubscriptionWorkflow(ctx, sub); startErr != nil {
 			s.logger.Errorf("Failed to start subscription workflow for %s: %v", sub.Id, startErr)
 		}
-	}
-	if pubErr := s.pubsub.Publish(order.OrgId, port.TopicOrderCompleted, order); pubErr != nil {
-		s.logger.Errorf("Failed to publish %s for order %s: %v", port.TopicOrderCompleted, order.Id, pubErr)
 	}
 	return order, nil
 }

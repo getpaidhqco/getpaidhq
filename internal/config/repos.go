@@ -47,6 +47,7 @@ type repoSet struct {
 	priorPaymentChecker port.PriorPaymentChecker
 	tx                  port.TxManager
 	eventStore          port.EventStore
+	outbox              port.OutboxRepository
 
 	// operationalDB is the raw operational handle (*gorm.DB or *pgxpool.Pool),
 	// retained only for App.DB. close tears down any pools opened by the builder.
@@ -106,6 +107,7 @@ func newGormRepoSet(env lib.Env, logger lib.Logger) (*repoSet, error) {
 		priorPaymentChecker: postgresgorm.NewPriorPaymentChecker(db),
 		tx:                  postgresgorm.NewTxManager(db),
 		eventStore:          eventStore,
+		outbox:              postgresgorm.NewOutboxRepo(db),
 		operationalDB:       db,
 		close: func() {
 			if sqlDB, err := db.DB(); err == nil {
@@ -156,6 +158,7 @@ func newPgxRepoSet(env lib.Env, logger lib.Logger) (*repoSet, error) {
 		priorPaymentChecker: postgrespgx.NewPriorPaymentChecker(pool),
 		tx:                  postgrespgx.NewTxManager(pool),
 		eventStore:          eventStore,
+		outbox:              postgrespgx.NewOutboxRepo(pool),
 		operationalDB:       pool,
 		close: func() {
 			pool.Close()

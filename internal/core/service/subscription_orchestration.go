@@ -64,7 +64,7 @@ func (s *SubscriptionOrchestrationService) PauseSubscription(ctx context.Context
 		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
 	}
 
-	_ = s.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionPaused, subscription)
+	_ = s.pubsub.Publish(ctx, subscription.OrgId, port.TopicSubscriptionPaused, subscription)
 	return subscription, nil
 }
 
@@ -82,7 +82,7 @@ func (s *SubscriptionOrchestrationService) ResumeSubscription(ctx context.Contex
 		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
 	}
 
-	_ = s.pubsub.Publish(newSub.OrgId, port.TopicSubscriptionResumed, newSub)
+	_ = s.pubsub.Publish(ctx, newSub.OrgId, port.TopicSubscriptionResumed, newSub)
 	return newSub, nil
 }
 
@@ -101,7 +101,7 @@ func (s *SubscriptionOrchestrationService) CancelSubscription(ctx context.Contex
 		return domain.Subscription{}, lib.NewCustomError(lib.InternalError, "", err)
 	}
 
-	_ = s.pubsub.Publish(subscription.OrgId, port.TopicSubscriptionCancelled, subscription)
+	_ = s.pubsub.Publish(ctx, subscription.OrgId, port.TopicSubscriptionCancelled, subscription)
 	return subscription, nil
 }
 

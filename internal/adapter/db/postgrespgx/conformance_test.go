@@ -45,6 +45,7 @@ func pgxRepoSet(t *testing.T, dsn string) storagetest.RepoSet {
 		PaymentMethod:     NewPaymentMethodRepo(pool),
 		EventStore:        NewEventStore(pool),
 		IdempotencyStore:  NewIdempotencyStore(pool, time.Minute, 24*time.Hour),
+		Outbox:            NewOutboxRepo(pool),
 	}
 }
 

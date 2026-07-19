@@ -1,6 +1,7 @@
 package nats
 
 import (
+	"context"
 	"encoding/json"
 	"testing"
 	"time"
@@ -56,7 +57,7 @@ func TestNatsPubSub_PublishSubscribeRoundTrip(t *testing.T) {
 	t.Cleanup(func() { _ = sub.Unsubscribe() })
 
 	want := domain.Subscription{OrgId: "mollie", Id: "sub_2saZn2yvjfnzJ6Io2yfgEsCwtmg", Status: "paused"}
-	require.NoError(t, ps.Publish("mollie", "subscription.paused", want))
+	require.NoError(t, ps.Publish(context.Background(), "mollie", "subscription.paused", want))
 
 	select {
 	case data := <-received:

@@ -45,6 +45,7 @@ func gormRepoSet(t *testing.T, dsn string) storagetest.RepoSet {
 		Session:           NewSessionRepo(db),
 		PaymentMethod:     NewPaymentMethodRepo(db),
 		EventStore:        NewEventStore(db),
+		Outbox:            NewOutboxRepo(db),
 	}
 }
 

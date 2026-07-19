@@ -1,8 +1,10 @@
 package nats
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
+	"runtime/debug"
 	"time"
 
 	"github.com/nats-io/nats.go"
@@ -22,7 +24,7 @@ type NatsPubSub struct {
 // default when empty) and returns a ready pub/sub. The connection retries the
 // initial dial and reconnects indefinitely, so a transient broker outage
 // neither crashes startup nor permanently drops the process.
-func NewNatsPubSub(url string, logger port.Logger) (port.PubSub, error) {
+func NewNatsPubSub(url string, logger port.Logger) (*NatsPubSub, error) {
 	if url == "" {
 		url = nats.DefaultURL // nats://127.0.0.1:4222
 	}
@@ -60,7 +62,7 @@ func NewNatsPubSub(url string, logger port.Logger) (port.PubSub, error) {
 // (one connection, one reconnect policy, one drain). Returns nil if unset.
 func (n *NatsPubSub) Conn() *nats.Conn { return n.conn }
 
-func (n *NatsPubSub) Publish(orgId, topic string, message any) error {
+func (n *NatsPubSub) Publish(_ context.Context, orgId, topic string, message any) error {
 	data, err := json.Marshal(port.PubSubPayload{
 		Id:        lib.GenerateId("evt"),
 		OrgId:     orgId,
@@ -71,12 +73,25 @@ func (n *NatsPubSub) Publish(orgId, topic string, message any) error {
 	if err != nil {
 		return fmt.Errorf("marshal pubsub payload for %q: %w", topic, err)
 	}
+	return n.PublishPayload(topic, data)
+}
+
+// PublishPayload implements port.RawPublisher.
+func (n *NatsPubSub) PublishPayload(topic string, data []byte) error {
 	n.logger.Debug(fmt.Sprintf("[nats] publishing topic [%s]", topic))
 	return n.conn.Publish(topic, data)
 }
 
 func (n *NatsPubSub) Subscribe(topic string, handler func(topic string, data []byte)) (port.PubSubSubscription, error) {
 	return n.conn.Subscribe(topic, func(m *nats.Msg) {
+		defer func() {
+			if r := recover(); r != nil {
+				n.logger.Error("pubsub handler panic recovered",
+					"topic", m.Subject,
+					"recover", r,
+					"stack", string(debug.Stack()))
+			}
+		}()
 		handler(m.Subject, m.Data)
 	})
 }

@@ -91,6 +91,9 @@ type Env struct {
 	IdempotencyLockTTL      time.Duration `mapstructure:"IDEMPOTENCY_LOCK_TTL"`
 	IdempotencyRetentionTTL time.Duration `mapstructure:"IDEMPOTENCY_RETENTION_TTL"`
 
+	OutboxPurgeInterval time.Duration `mapstructure:"OUTBOX_PURGE_INTERVAL"`
+	OutboxRetention     time.Duration `mapstructure:"OUTBOX_RETENTION"`
+
 	TemporalHost      string `mapstructure:"TEMPORAL_HOST"`
 	TemporalNamespace string `mapstructure:"TEMPORAL_NAMESPACE"`
 	TemporalTaskQueue string `mapstructure:"TEMPORAL_TASK_QUEUE"`
@@ -180,6 +183,8 @@ func NewEnv() Env {
 	viper.BindEnv("HATCHET_BILLING_SWEEP_INTERVAL")
 	viper.BindEnv("IDEMPOTENCY_LOCK_TTL")
 	viper.BindEnv("IDEMPOTENCY_RETENTION_TTL")
+	viper.BindEnv("OUTBOX_PURGE_INTERVAL")
+	viper.BindEnv("OUTBOX_RETENTION")
 	viper.BindEnv("HATCHET_LOG_LEVEL")
 	viper.BindEnv("HATCHET_TRACING_ENABLED")
 	viper.BindEnv("TEMPORAL_HOST")
@@ -216,6 +221,8 @@ func NewEnv() Env {
 		env.HatchetBillingSweepInterval = viper.GetDuration("HATCHET_BILLING_SWEEP_INTERVAL")
 		env.IdempotencyLockTTL = viper.GetDuration("IDEMPOTENCY_LOCK_TTL")
 		env.IdempotencyRetentionTTL = viper.GetDuration("IDEMPOTENCY_RETENTION_TTL")
+		env.OutboxPurgeInterval = viper.GetDuration("OUTBOX_PURGE_INTERVAL")
+		env.OutboxRetention = viper.GetDuration("OUTBOX_RETENTION")
 		env.HatchetLogLevel = viper.GetString("HATCHET_LOG_LEVEL")
 		env.HatchetTracingEnabled = viper.GetBool("HATCHET_TRACING_ENABLED")
 		env.TemporalHost = viper.GetString("TEMPORAL_HOST")

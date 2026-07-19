@@ -64,7 +64,7 @@ type fakePubSub struct {
 	handler func(topic string, data []byte)
 }
 
-func (f *fakePubSub) Publish(orgId, topic string, message any) error { return nil }
+func (f *fakePubSub) Publish(_ context.Context, orgId, topic string, message any) error { return nil }
 func (f *fakePubSub) Subscribe(topic string, handler func(string, []byte)) (port.PubSubSubscription, error) {
 	f.handler = handler
 	return fakeSub{}, nil

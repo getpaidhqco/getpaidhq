@@ -40,7 +40,7 @@ func NewDunningOrchestrationService(
 	}
 
 	logger.Debugf("[DunningOrchestrationService] Subscribing to %s", port.TopicSubscriptionPaymentChargeFailed)
-	if _, err := pubsub.Subscribe(port.TopicSubscriptionPaymentChargeFailed, safePubSubHandler(logger, "DunningOrchestrationService.HandleSubscriptionChargeFailure", svc.HandleSubscriptionChargeFailure)); err != nil {
+	if _, err := pubsub.Subscribe(port.TopicSubscriptionPaymentChargeFailed, svc.HandleSubscriptionChargeFailure); err != nil {
 		return nil, err
 	}
 

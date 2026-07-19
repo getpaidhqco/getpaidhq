@@ -39,8 +39,6 @@ func NewIdempotencyStore(db *gorm.DB, lockTTL, retentionTTL time.Duration) port.
 	return &IdempotencyStore{db: db, lockTTL: lockTTL, retentionTTL: retentionTTL}
 }
 
-var _ port.IdempotencyStore = (*IdempotencyStore)(nil)
-
 // Claim is the race-free single-winner gate. The delete-expired-then-INSERT
 // ON CONFLICT DO NOTHING pattern (same as IdempotencyKeyRepo) makes RowsAffected
 // the sole arbiter: exactly one concurrent caller inserts the pending row and

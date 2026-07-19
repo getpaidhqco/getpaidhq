@@ -93,7 +93,7 @@ func (s *DunningService) CreateCampaign(ctx context.Context, input port.CreateDu
 		return domain.DunningCampaign{}, lib.NewCustomError(lib.InternalError, "Failed to create dunning campaign", err)
 	}
 
-	_ = s.pubsub.Publish(created.OrgId, port.TopicDunningCampaignStarted, port.NewDunningCampaignEvent(created))
+	_ = s.pubsub.Publish(ctx, created.OrgId, port.TopicDunningCampaignStarted, port.NewDunningCampaignEvent(created))
 	return created, nil
 }
 
@@ -131,7 +131,7 @@ func (s *DunningService) PauseCampaign(ctx context.Context, input port.PauseDunn
 	if err != nil {
 		return domain.DunningCampaign{}, lib.NewCustomError(lib.InternalError, "Failed to pause campaign", err)
 	}
-	_ = s.pubsub.Publish(updated.OrgId, port.TopicDunningCampaignPaused, port.NewDunningCampaignEvent(updated))
+	_ = s.pubsub.Publish(ctx, updated.OrgId, port.TopicDunningCampaignPaused, port.NewDunningCampaignEvent(updated))
 	return updated, nil
 }
 
@@ -149,7 +149,7 @@ func (s *DunningService) ResumeCampaign(ctx context.Context, input port.ResumeDu
 	if err != nil {
 		return domain.DunningCampaign{}, lib.NewCustomError(lib.InternalError, "Failed to resume campaign", err)
 	}
-	_ = s.pubsub.Publish(updated.OrgId, port.TopicDunningCampaignResumed, port.NewDunningCampaignEvent(updated))
+	_ = s.pubsub.Publish(ctx, updated.OrgId, port.TopicDunningCampaignResumed, port.NewDunningCampaignEvent(updated))
 	return updated, nil
 }
 
@@ -170,7 +170,7 @@ func (s *DunningService) CancelCampaign(ctx context.Context, input port.CancelDu
 	if err != nil {
 		return domain.DunningCampaign{}, lib.NewCustomError(lib.InternalError, "Failed to cancel campaign", err)
 	}
-	_ = s.pubsub.Publish(updated.OrgId, port.TopicDunningCampaignCancelled, port.NewDunningCampaignEvent(updated))
+	_ = s.pubsub.Publish(ctx, updated.OrgId, port.TopicDunningCampaignCancelled, port.NewDunningCampaignEvent(updated))
 	return updated, nil
 }
 
@@ -199,7 +199,7 @@ func (s *DunningService) MarkCampaignRecovered(ctx context.Context, orgId, campa
 	if err != nil {
 		return domain.DunningCampaign{}, lib.NewCustomError(lib.InternalError, "Failed to mark campaign recovered", err)
 	}
-	_ = s.pubsub.Publish(updated.OrgId, port.TopicDunningCampaignRecovered, port.NewDunningCampaignEvent(updated))
+	_ = s.pubsub.Publish(ctx, updated.OrgId, port.TopicDunningCampaignRecovered, port.NewDunningCampaignEvent(updated))
 	return updated, nil
 }
 
@@ -217,7 +217,7 @@ func (s *DunningService) MarkCampaignFailed(ctx context.Context, orgId, campaign
 	if err != nil {
 		return domain.DunningCampaign{}, lib.NewCustomError(lib.InternalError, "Failed to mark campaign failed", err)
 	}
-	_ = s.pubsub.Publish(updated.OrgId, port.TopicDunningCampaignFailed, port.NewDunningCampaignEvent(updated))
+	_ = s.pubsub.Publish(ctx, updated.OrgId, port.TopicDunningCampaignFailed, port.NewDunningCampaignEvent(updated))
 	return updated, nil
 }
 
@@ -383,9 +383,9 @@ func (s *DunningService) runChargeAttempt(ctx context.Context, orgId, campaignId
 	}
 
 	if status == domain.PaymentStatusSucceeded {
-		_ = s.pubsub.Publish(orgId, port.TopicDunningAttemptSucceeded, port.NewDunningAttemptEvent(created, campaign.CustomerId, false, false))
+		_ = s.pubsub.Publish(ctx, orgId, port.TopicDunningAttemptSucceeded, port.NewDunningAttemptEvent(created, campaign.CustomerId, false, false))
 	} else {
-		_ = s.pubsub.Publish(orgId, port.TopicDunningAttemptFailed, port.NewDunningAttemptEvent(created, campaign.CustomerId, false, false))
+		_ = s.pubsub.Publish(ctx, orgId, port.TopicDunningAttemptFailed, port.NewDunningAttemptEvent(created, campaign.CustomerId, false, false))
 	}
 	return created, nil
 }
@@ -417,7 +417,7 @@ func (s *DunningService) UpdateCampaignWithAttemptResult(ctx context.Context, at
 				if _, err := s.subscriptionRepository.Update(ctx, subscription); err != nil {
 					s.logger.Error("Failed to reactivate subscription", "err", err.Error())
 				} else {
-					_ = s.pubsub.Publish(campaign.OrgId, port.TopicDunningSubscriptionReactivated, port.DunningSubscriptionEvent{
+					_ = s.pubsub.Publish(ctx, campaign.OrgId, port.TopicDunningSubscriptionReactivated, port.DunningSubscriptionEvent{
 						OrgId:          campaign.OrgId,
 						CampaignId:     campaign.Id,
 						SubscriptionId: subscription.Id,
@@ -463,7 +463,7 @@ func (s *DunningService) UpdateCampaignWithAttemptResult(ctx context.Context, at
 				if _, err := s.subscriptionRepository.Update(ctx, subscription); err != nil {
 					s.logger.Error("Failed to suspend subscription during dunning", "err", err.Error())
 				} else {
-					_ = s.pubsub.Publish(campaign.OrgId, port.TopicDunningSubscriptionSuspended, port.DunningSubscriptionEvent{
+					_ = s.pubsub.Publish(ctx, campaign.OrgId, port.TopicDunningSubscriptionSuspended, port.DunningSubscriptionEvent{
 						OrgId:          campaign.OrgId,
 						CampaignId:     campaign.Id,
 						SubscriptionId: subscription.Id,
@@ -477,7 +477,7 @@ func (s *DunningService) UpdateCampaignWithAttemptResult(ctx context.Context, at
 		}
 	}
 
-	_ = s.pubsub.Publish(campaign.OrgId, port.TopicDunningAttemptFailed, port.NewDunningAttemptEvent(attempt, campaign.CustomerId, shouldSuspend, isFinalNotice))
+	_ = s.pubsub.Publish(ctx, campaign.OrgId, port.TopicDunningAttemptFailed, port.NewDunningAttemptEvent(attempt, campaign.CustomerId, shouldSuspend, isFinalNotice))
 	return campaign, nil
 }
 
@@ -496,7 +496,7 @@ func (s *DunningService) SendCommunication(ctx context.Context, orgId, campaignI
 		return err
 	}
 	s.logger.Info("Publishing dunning communication request", "campaignId", campaignId, "attemptNumber", attemptNumber)
-	return s.pubsub.Publish(orgId, port.TopicDunningCommunicationSent, port.DunningCommunicationEvent{
+	return s.pubsub.Publish(ctx, orgId, port.TopicDunningCommunicationSent, port.DunningCommunicationEvent{
 		OrgId:         orgId,
 		CampaignId:    campaign.Id,
 		CustomerId:    campaign.CustomerId,
@@ -560,7 +560,7 @@ func (s *DunningService) CreatePaymentUpdateToken(ctx context.Context, input por
 	if err != nil {
 		return domain.PaymentUpdateToken{}, lib.NewCustomError(lib.InternalError, "Failed to create token", err)
 	}
-	_ = s.pubsub.Publish(created.OrgId, port.TopicDunningTokenCreated, port.NewDunningTokenEvent(created))
+	_ = s.pubsub.Publish(ctx, created.OrgId, port.TopicDunningTokenCreated, port.NewDunningTokenEvent(created))
 	return created, nil
 }
 
@@ -601,7 +601,7 @@ func (s *DunningService) ActivatePaymentUpdateToken(ctx context.Context, input p
 	if err != nil {
 		return domain.PaymentUpdateToken{}, lib.NewCustomError(lib.InternalError, "Failed to update token", err)
 	}
-	_ = s.pubsub.Publish(updated.OrgId, port.TopicDunningTokenActivated, port.NewDunningTokenEvent(updated))
+	_ = s.pubsub.Publish(ctx, updated.OrgId, port.TopicDunningTokenActivated, port.NewDunningTokenEvent(updated))
 	return updated, nil
 }
 
@@ -618,7 +618,7 @@ func (s *DunningService) RevokePaymentUpdateToken(ctx context.Context, orgId, to
 	if err != nil {
 		return domain.PaymentUpdateToken{}, lib.NewCustomError(lib.InternalError, "Failed to revoke token", err)
 	}
-	_ = s.pubsub.Publish(updated.OrgId, port.TopicDunningTokenRevoked, port.NewDunningTokenEvent(updated))
+	_ = s.pubsub.Publish(ctx, updated.OrgId, port.TopicDunningTokenRevoked, port.NewDunningTokenEvent(updated))
 	return updated, nil
 }
 
@@ -650,7 +650,7 @@ func (s *DunningService) CreateConfiguration(ctx context.Context, input port.Cre
 	if err != nil {
 		return domain.DunningConfiguration{}, lib.NewCustomError(lib.InternalError, "Failed to create configuration", err)
 	}
-	_ = s.pubsub.Publish(created.OrgId, port.TopicDunningConfigurationCreated, port.NewDunningConfigurationEvent(created))
+	_ = s.pubsub.Publish(ctx, created.OrgId, port.TopicDunningConfigurationCreated, port.NewDunningConfigurationEvent(created))
 	return created, nil
 }
 
@@ -707,7 +707,7 @@ func (s *DunningService) UpdateConfiguration(ctx context.Context, input port.Upd
 	if err != nil {
 		return domain.DunningConfiguration{}, lib.NewCustomError(lib.InternalError, "Failed to update configuration", err)
 	}
-	_ = s.pubsub.Publish(updated.OrgId, port.TopicDunningConfigurationUpdated, port.NewDunningConfigurationEvent(updated))
+	_ = s.pubsub.Publish(ctx, updated.OrgId, port.TopicDunningConfigurationUpdated, port.NewDunningConfigurationEvent(updated))
 	return updated, nil
 }
 

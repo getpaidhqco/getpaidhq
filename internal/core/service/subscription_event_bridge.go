@@ -37,7 +37,7 @@ func NewSubscriptionEventBridge(
 	}
 
 	logger.Debugf("[SubscriptionEventBridge] Subscribing to subscription.*")
-	if _, err := pubsub.Subscribe("subscription.*", safePubSubHandler(logger, "SubscriptionEventBridge", b.Handle)); err != nil {
+	if _, err := pubsub.Subscribe("subscription.*", b.Handle); err != nil {
 		return nil, err
 	}
 	return b, nil

@@ -121,7 +121,7 @@ func (s *UsageService) RecordEvent(ctx context.Context, in port.RecordEventInput
 		// Single-handling rule: wrap and return; the HTTP boundary logs it.
 		return port.IngestResult{}, fmt.Errorf("ingest usage event: %w", err)
 	}
-	_ = s.pubsub.Publish(in.OrgId, "usage.recorded", event)
+	_ = s.pubsub.Publish(ctx, in.OrgId, "usage.recorded", event)
 	return res, nil
 }
 
@@ -143,7 +143,7 @@ func (s *UsageService) RecordEvents(ctx context.Context, inputs []port.RecordEve
 		if err != nil {
 			return nil, fmt.Errorf("ingest usage event: %w", err)
 		}
-		_ = s.pubsub.Publish(in.OrgId, "usage.recorded", event)
+		_ = s.pubsub.Publish(ctx, in.OrgId, "usage.recorded", event)
 		results[i] = res
 	}
 	return results, nil

@@ -55,7 +55,7 @@ func (noopLogger) Sync() error               { return nil }
 // constructor's nil-check on the returned subscription is satisfied.
 type noopPubSub struct{}
 
-func (noopPubSub) Publish(string, string, any) error { return nil }
+func (noopPubSub) Publish(context.Context, string, string, any) error { return nil }
 func (noopPubSub) Subscribe(string, func(string, []byte)) (port.PubSubSubscription, error) {
 	return noopSubscription{}, nil
 }

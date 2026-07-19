@@ -6,8 +6,6 @@ import (
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
-
-	"getpaidhq/internal/core/port"
 )
 
 // querier is the subset of *pgxpool.Pool and pgx.Tx that the repos use. Both
@@ -93,9 +91,6 @@ type TxManager struct {
 func NewTxManager(pool *pgxpool.Pool) *TxManager {
 	return &TxManager{pool: pool}
 }
-
-// Compile-time check that TxManager satisfies the port.
-var _ port.TxManager = (*TxManager)(nil)
 
 func (t *TxManager) RunInTx(ctx context.Context, fn func(context.Context) error) error {
 	var b beginner = t.pool
