@@ -23,8 +23,6 @@ func NewOutbox(repo port.OutboxRepository, delegate port.PubSub) *Outbox {
 	return &Outbox{repo: repo, delegate: delegate}
 }
 
-var _ port.PubSub = (*Outbox)(nil)
-
 func (o *Outbox) Publish(ctx context.Context, orgId string, topic string, message any) error {
 	createdAt := time.Now().UTC()
 	envelope := domain.PubSubPayload{
