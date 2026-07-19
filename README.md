@@ -5,7 +5,7 @@
 <br/>
 
 [![Go](https://img.shields.io/badge/Go-1.26-00ADD8?logo=go&logoColor=white)](https://go.dev)
-[![License: MIT](https://img.shields.io/github/license/getpaidhqco/getpaidhq?color=blue)](LICENSE)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue)](LICENSE)
 [![Go CI](https://github.com/getpaidhqco/getpaidhq/actions/workflows/go-test.yml/badge.svg)](https://github.com/getpaidhqco/getpaidhq/actions/workflows/go-test.yml)
 
 **Self-hostable subscription billing that plugs into any payment gateway.**
