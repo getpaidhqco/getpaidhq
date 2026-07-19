@@ -11,6 +11,7 @@ package main
 
 import (
 	"fmt"
+	"getpaidhq/internal/lib/validators"
 	"net/http"
 	"os"
 
@@ -55,9 +56,11 @@ func main() {
 
 	server := config.BuildServer(config.ServerDeps{
 		Logger:    logger,
-		Validator: lib.NewValidator(),
+		Validator: validators.NewValidator(),
 	}, handlers)
-	defer server.Server.Close()
+	defer func(Server *http.Server) {
+		_ = Server.Close()
+	}(server.Server)
 
 	// OutputOpenAPISpec computes tags and validates the spec. DisableLocalSave
 	// is set in BuildServer, so this does not write any file itself.
