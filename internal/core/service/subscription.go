@@ -23,8 +23,6 @@ type BillingInvoicing interface {
 	Void(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error)
 }
 
-var _ BillingInvoicing = (*InvoiceService)(nil)
-
 // SubscriptionService is the narrow subscription service. It owns all
 // subscription operations that do NOT signal the workflow engine: CRUD,
 // charge-result handling (called from activities), and the DB-side of the

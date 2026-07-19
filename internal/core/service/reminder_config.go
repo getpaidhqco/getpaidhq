@@ -9,10 +9,6 @@ import (
 	"getpaidhq/internal/core/port"
 )
 
-// ReminderConfigService satisfies the narrow ReminderConfigResolver port the
-// billing sweep depends on.
-var _ port.ReminderConfigResolver = (*ReminderConfigService)(nil)
-
 type ReminderConfigService struct {
 	settings port.SettingRepository
 	logger   port.Logger

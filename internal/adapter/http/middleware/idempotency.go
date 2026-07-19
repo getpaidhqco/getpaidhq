@@ -24,8 +24,6 @@ type idempoStore struct {
 	org   string
 }
 
-var _ idempo.Store = idempoStore{}
-
 func (a idempoStore) Claim(ctx context.Context, key, requestHash, token string) (idempo.ClaimResult, error) {
 	c, err := a.store.Claim(ctx, a.scopeKey(key), requestHash, token)
 	return idempo.ClaimResult{

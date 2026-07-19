@@ -7,11 +7,7 @@ import (
 	"encoding/base64"
 	"errors"
 	"fmt"
-
-	"getpaidhq/internal/core/port"
 )
-
-var _ port.SecretCipher = (*AesGcmCipher)(nil)
 
 // AesGcmCipher implements port.SecretCipher with AES-256-GCM.
 //

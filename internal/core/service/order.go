@@ -21,8 +21,6 @@ type OrderCoupons interface {
 	Consume(ctx context.Context, in ConsumeInput) (domain.Discount, error)
 }
 
-var _ OrderCoupons = (*CouponService)(nil)
-
 // OrderInvoicing is the narrow invoicing capability the order flow needs: build
 // the combined cycle-0 invoice for an order, open it, and settle it once paid.
 // Defined here (consumer-side) so order tests can fake it cheaply;
@@ -32,8 +30,6 @@ type OrderInvoicing interface {
 	MarkOpen(ctx context.Context, orgId, invoiceId string) (domain.Invoice, error)
 	SettleOrderInvoice(ctx context.Context, orgId, invoiceId string) error
 }
-
-var _ OrderInvoicing = (*InvoiceService)(nil)
 
 // OrderService owns engine-aware order operations: creating orders,
 // completing orders from the HTTP flow (which starts subscription workflows),

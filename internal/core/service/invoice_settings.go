@@ -9,10 +9,6 @@ import (
 	"getpaidhq/internal/core/port"
 )
 
-// InvoiceSettingsService satisfies the narrow InvoiceSettingsResolver port that
-// invoice builds depend on.
-var _ port.InvoiceSettingsResolver = (*InvoiceSettingsService)(nil)
-
 type InvoiceSettingsService struct {
 	settings port.SettingRepository
 	logger   port.Logger

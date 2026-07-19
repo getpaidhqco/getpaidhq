@@ -21,8 +21,6 @@ type MeteredUsageReader interface {
 	MeteredUsageForSubscription(ctx context.Context, sub domain.Subscription, price domain.Price, from, to time.Time) (MeteredUsage, error)
 }
 
-var _ MeteredUsageReader = (*UsageService)(nil)
-
 // InvoiceService builds and persists the per-cycle invoice and flips its status
 // after settlement. Narrow — no workflow engine, no signaling. It resolves the
 // subscription's Price via the order-item + price repos (the domain is ID-only —

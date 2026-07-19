@@ -27,8 +27,6 @@ func NewIngestor(js jetstream.JetStream, logger port.Logger) *Ingestor {
 	return &Ingestor{js: js, logger: logger}
 }
 
-var _ port.EventIngestor = (*Ingestor)(nil)
-
 // Ingest publishes the event durably (synchronous publish: it waits for the stream
 // ack, so a returned nil error means the event is persisted in JetStream). The write
 // into the EventStore happens later in the consumer, so the status is "accepted".

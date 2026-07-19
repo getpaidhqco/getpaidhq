@@ -4,8 +4,6 @@ import (
 	"context"
 
 	"gorm.io/gorm"
-
-	"getpaidhq/internal/core/port"
 )
 
 type txKey struct{}
@@ -36,9 +34,6 @@ type TxManager struct {
 func NewTxManager(db *gorm.DB) *TxManager {
 	return &TxManager{db: db}
 }
-
-// Compile-time check that TxManager satisfies the port.
-var _ port.TxManager = (*TxManager)(nil)
 
 func (t *TxManager) RunInTx(ctx context.Context, fn func(context.Context) error) error {
 	return dbFromCtx(ctx, t.db).Transaction(func(tx *gorm.DB) error {
