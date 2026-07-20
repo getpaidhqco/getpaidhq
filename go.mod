@@ -36,7 +36,6 @@ require (
 	github.com/testcontainers/testcontainers-go v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.42.0
 	github.com/thecodearcher/limen v0.1.4
-	github.com/thecodearcher/limen/adapters/gorm v0.1.4
 	github.com/thecodearcher/limen/adapters/sql v0.1.4
 	github.com/thecodearcher/limen/plugins/credential-password v0.1.4
 	github.com/thecodearcher/limen/plugins/organization v0.0.0
@@ -226,7 +225,6 @@ tool github.com/pressly/goose/v3/cmd/goose
 // version. Drop these once limen tags a release including them.
 replace (
 	github.com/thecodearcher/limen => /home/mdwt/dev/limen
-	github.com/thecodearcher/limen/adapters/gorm => /home/mdwt/dev/limen/adapters/gorm
 	github.com/thecodearcher/limen/adapters/sql => /home/mdwt/dev/limen/adapters/sql
 	github.com/thecodearcher/limen/plugins/credential-password => /home/mdwt/dev/limen/plugins/credential-password
 	github.com/thecodearcher/limen/plugins/organization => /home/mdwt/dev/limen/plugins/organization

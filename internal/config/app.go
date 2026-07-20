@@ -26,6 +26,7 @@ import (
 	handler "getpaidhq/internal/adapter/http"
 	"getpaidhq/internal/adapter/http/middleware"
 	gphqjetstream "getpaidhq/internal/adapter/jetstream"
+	"getpaidhq/internal/adapter/limenauth"
 	"getpaidhq/internal/adapter/memory"
 	"getpaidhq/internal/adapter/nats"
 	"getpaidhq/internal/adapter/paystack"
@@ -371,7 +372,7 @@ func NewApp() (*App, error) {
 	// appear in the OpenAPI spec) and are exempted from the Clerk authn
 	// wrapper (see isPublicPath) — limen authenticates its own surface.
 	if env.LimenSecret != "" {
-		limenAuth, err := buildLimen(env, "http://localhost:"+serverPort, logger, db, authzEngine, natsPubSub)
+		limenAuth, err := limenauth.Build(env.LimenSecret, "http://localhost:"+serverPort, logger, db, authzEngine, natsPubSub)
 		if err != nil {
 			return nil, err
 		}
