@@ -79,8 +79,8 @@ func buildIngestor(env lib.Env, store port.EventStore, pubsub port.PubSub, logge
 // App holds all wired dependencies for the application.
 type App struct {
 	Server *fuego.Server
-	// DB is the raw operational handle (*gorm.DB or *pgxpool.Pool, per DB_DRIVER),
-	// retained for diagnostics/health; the app talks to storage through ports.
+	// DB is the raw operational *pgxpool.Pool, retained for diagnostics/health;
+	// the app talks to storage through ports.
 	DB  any
 	Env lib.Env
 	// closers are long-lived resources (pubsub, workflow engine worker, cron
@@ -107,11 +107,12 @@ func NewApp() (*App, error) {
 	}
 
 	// ---------------------------------------------------------------------------
-	// Storage adapter (gorm | pgx, selected by DB_DRIVER) — every repo, the tx
-	// manager, the event store and the prior-payment checker come from one
-	// driver-specific builder. Downstream code depends only on the ports.
+	// Storage adapter (pgx) — every repo, the tx manager, the event store and
+	// the prior-payment checker come from the pgx builder. Downstream code
+	// depends only on the ports.
 	//
-	// Reporting persistence is intentionally not wired (see report_repo.go).
+	// Reporting persistence is intentionally not wired (REPORTING_DATABASE_URL
+	// is not opened).
 	// ---------------------------------------------------------------------------
 	repos, err := newRepoSet(env, logger)
 	if err != nil {

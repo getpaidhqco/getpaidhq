@@ -16,11 +16,7 @@ type Env struct {
 	LogOutput      string `mapstructure:"LOG_OUTPUT"`
 	LogLevel       string `mapstructure:"GETPAIDHQ_LOG_LEVEL"`
 	LogFormat      string `mapstructure:"LOG_FORMAT"`
-	GormLogLevel   string `mapstructure:"GORM_LOG_LEVEL"`
-	DBUrl          string `mapstructure:"DATABASE_URL"`
-	// DBDriver selects the storage adapter implementation: "gorm" (default) or
-	// "pgx". Both open DATABASE_URL/USAGE_DATABASE_URL; only one runs at a time.
-	DBDriver        string `mapstructure:"DB_DRIVER"`
+	DBUrl           string `mapstructure:"DATABASE_URL"`
 	CedarPolicyFile string `mapstructure:"CEDAR_POLICY"`
 
 	// UsageEventStore selects the backend for usage events: "postgres"
@@ -139,8 +135,6 @@ func NewEnv() Env {
 	viper.SetDefault("IDEMPOTENCY_LOCK_TTL", "1m")
 	viper.SetDefault("IDEMPOTENCY_RETENTION_TTL", "24h")
 	viper.SetDefault("HATCHET_LOG_LEVEL", "warn")
-	viper.SetDefault("GORM_LOG_LEVEL", "warn")
-	viper.SetDefault("DB_DRIVER", "gorm")
 	viper.SetDefault("HATCHET_CLIENT_HOST_PORT", "localhost:7077")
 	viper.SetDefault("HATCHET_CLIENT_NAMESPACE", "getpaidhq")
 	viper.SetDefault("HATCHET_CLIENT_TLS_STRATEGY", "none")
@@ -162,8 +156,6 @@ func NewEnv() Env {
 	viper.BindEnv("LOG_OUTPUT")
 	viper.BindEnv("LOG_FORMAT")
 	viper.BindEnv("GETPAIDHQ_LOG_LEVEL")
-	viper.BindEnv("GORM_LOG_LEVEL")
-	viper.BindEnv("DB_DRIVER")
 	viper.BindEnv("DATABASE_URL")
 	viper.BindEnv("CEDAR_POLICY")
 	viper.BindEnv("JWT_SECRET")
@@ -209,8 +201,6 @@ func NewEnv() Env {
 		env.Env = viper.GetString("ENV")
 		env.LogLevel = viper.GetString("GETPAIDHQ_LOG_LEVEL")
 		env.LogFormat = viper.GetString("LOG_FORMAT")
-		env.GormLogLevel = viper.GetString("GORM_LOG_LEVEL")
-		env.DBDriver = viper.GetString("DB_DRIVER")
 		env.ClerkSecretKey = viper.GetString("CLERK_SECRET")
 		env.SecretsEncryptionKey = viper.GetString("SECRETS_ENCRYPTION_KEY")
 		env.WorkflowEngine = viper.GetString("WORKFLOW_ENGINE")

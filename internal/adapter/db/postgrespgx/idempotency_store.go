@@ -14,8 +14,7 @@ import (
 // IdempotencyStore is the pgx implementation of port.IdempotencyStore, backing
 // the idempo middleware. It persists the captured response (code/headers/body)
 // for replay and a fencing token so only the original claimant can complete or
-// abandon the in-flight request. Behaviour is at 100% parity with the gorm
-// adapter (internal/adapter/db/postgresgorm/idempotency_store.go).
+// abandon the in-flight request.
 type IdempotencyStore struct {
 	pool         *pgxpool.Pool
 	lockTTL      time.Duration

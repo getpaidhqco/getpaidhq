@@ -1,8 +1,8 @@
 // Package storagetest provides the driver-agnostic integration harness and
-// conformance suite that every db adapter (postgresgorm, postgrespgx)
-// runs against. It owns the testcontainer + Goose baseline so both adapters
-// exercise the exact production schema, and (in the conformance suite) seeds
-// through the repository ports so the assertions are identical across drivers.
+// conformance suite that the postgrespgx db adapter runs against. It owns the
+// testcontainer + Goose baseline so the adapter exercises the exact production
+// schema, and (in the conformance suite) seeds through the repository ports so
+// the assertions are storage-agnostic.
 //
 // Adapters import this package only from their //go:build integration test
 // files; nothing in the normal build depends on it.

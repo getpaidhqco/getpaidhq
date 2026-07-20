@@ -35,7 +35,7 @@ flowchart LR
     end
 
     subgraph driven["Driven side (outbound adapters)"]
-        postgres["postgres (GORM)"]
+        postgres["postgres (pgx)"]
         redis["redis"]
         memory["memory (in-process)"]
         nats["nats"]

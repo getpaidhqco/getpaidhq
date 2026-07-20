@@ -23,8 +23,8 @@ func NewInvoiceSettingsService(settings port.SettingRepository, logger port.Logg
 func (s *InvoiceSettingsService) ResolveInvoiceSettings(ctx context.Context, orgId string) (domain.InvoiceSettings, error) {
 	setting, err := s.settings.FindById(ctx, orgId, domain.InvoiceSettingsSettingParent, domain.InvoiceSettingsSettingId)
 	if err != nil {
-		// Not-found → default. The postgres FindById wraps gorm's
-		// ErrRecordNotFound as port.ErrNotFound (see translateErr).
+		// Not-found → default. The postgres FindById returns port.ErrNotFound
+		// when the row is absent (see translateErr).
 		if errors.Is(err, port.ErrNotFound) {
 			return domain.DefaultInvoiceSettings(), nil
 		}

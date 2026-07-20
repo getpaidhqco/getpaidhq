@@ -13,7 +13,7 @@ import (
 
 // pgxRepoSet builds the conformance RepoSet from a pgx pool against dsn.
 func pgxRepoSet(t *testing.T, dsn string) storagetest.RepoSet {
-	pool, err := NewDatabase(dsn, nil, "silent")
+	pool, err := NewDatabase(dsn, nil)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 	return storagetest.RepoSet{

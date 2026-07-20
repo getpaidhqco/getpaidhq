@@ -25,10 +25,10 @@ Local stack details and the Hatchet first-boot token bootstrap: notes in `docker
 
 **Tests MUST NEVER touch the developer's local docker-compose database** — it carries hand-seeded data. Enforced by construction:
 
-- Integration tests gate on `//go:build integration`. The shared harness in `internal/adapter/db/storagetest` spawns a **fresh `postgres:17-alpine` testcontainer per run** + applies the Goose baseline, and exposes `RunConformance(t, factory)` — the same suite both `postgresgorm` and `postgrespgx` run against their own `RepoSet`. The dev DB at `localhost:10432` is never touched.
+- Integration tests gate on `//go:build integration`. The shared harness in `internal/adapter/db/storagetest` spawns a **fresh `postgres:17-alpine` testcontainer per run** + applies the Goose baseline, and exposes `RunConformance(t, factory)` — the suite `postgrespgx` runs against its `RepoSet`. The dev DB at `localhost:10432` is never touched.
 - No test code reads `DATABASE_URL`, calls `lib.NewEnv()`, or `config.NewApp()` — the only paths to the dev DSN.
 
-Adding a DB-touching test: put it in `storagetest` so both drivers exercise it; scope rows with `uniqueOrg(t)` + `cleanupOrg(t, ...)`. Seed through repo `Create` methods (the `RepoSet`), never a raw `*gorm.DB`, so the test is storage-agnostic.
+Adding a DB-touching test: put it in `storagetest`; scope rows with `uniqueOrg(t)` + `cleanupOrg(t, ...)`. Seed through repo `Create` methods (the `RepoSet`), never a raw pool handle, so the test is storage-agnostic.
 
 ## Architecture
 
@@ -36,7 +36,7 @@ Ports-and-adapters (hexagonal): `internal/core/{domain,port,service}` at the cen
 
 **Wiring is manual DI** in `internal/config/app.go` (`NewApp()`) — every repo/service/handler constructed by hand. Add a service by editing `app.go`.
 
-**Storage adapters are grouped by category** under `internal/adapter/db/<impl>`: `postgresgorm` (GORM, default) and `postgrespgx` (hand-written `jackc/pgx/v5`) both implement the repository ports. `DB_DRIVER=gorm|pgx` (default `gorm`) selects which set `app.go` wires; only one runs at a time. They must stay at **100% behavioural parity** — same rows, domain values, errors (`port.ErrNotFound`, unique/FK conflicts) and tx semantics. Parity is enforced by one shared conformance suite, `internal/adapter/db/storagetest` (`RunConformance(t, factory)`), which each adapter's `//go:build integration` test runs against its own `RepoSet`. Other multi-impl adapter categories follow the same `internal/adapter/<category>/<impl>` + `<category>test` conformance shape.
+**Storage is the hand-written pgx adapter** `postgrespgx` (`jackc/pgx/v5`) under `internal/adapter/db/postgrespgx`, implementing the repository ports; `app.go` wires it. Behaviour is exercised by the shared conformance suite `internal/adapter/db/storagetest` (`RunConformance(t, factory)`), which the adapter's `//go:build integration` test runs against its `RepoSet`. Other multi-impl adapter categories follow the same `internal/adapter/<category>/<impl>` + `<category>test` conformance shape.
 
 ### Narrow-vs-orchestration service pattern 
 
@@ -81,10 +81,10 @@ Metered billing records `meter_events` into a dedicated store, scaled/retained i
 
 ### Databases the app opens
 
-- `DB_DRIVER` (`gorm` default | `pgx`) picks the storage adapter (`internal/adapter/db/postgresgorm` vs `postgrespgx`); both open the same DSNs below.
+- The `postgrespgx` adapter opens the DSNs below.
 - `DATABASE_URL` → `getpaidhq` (operational) — always opened.
 - `USAGE_DATABASE_URL` → `getpaidhq_usage` — separate pool when set; falls back to `DATABASE_URL` when empty.
-- `REPORTING_DATABASE_URL` is **not** opened — reporting is not wired. `internal/adapter/db/postgresgorm/report_repo.go` is a stub (logs once, returns zero). To enable it: rewrite each method against `schemas/reporting/migrations/00001_baseline.sql` (the reporting schema baseline), add a service + handler, wire in `app.go`, register routes in `internal/config/server.go`.
+- `REPORTING_DATABASE_URL` is **not** opened — reporting is not wired (there is no report repository). To enable it: implement a report repository against `schemas/reporting/migrations/00001_baseline.sql` (the reporting schema baseline), add a service + handler, wire in `app.go`, register routes in `internal/config/server.go`.
 
 ## Conventions and gotchas
 

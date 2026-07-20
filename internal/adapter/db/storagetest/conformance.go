@@ -93,7 +93,7 @@ func RunConformance(t *testing.T, newRepos Factory) {
 
 func now() time.Time { return time.Now().UTC().Truncate(time.Microsecond) }
 
-// ---- ports-based seeders (driver-agnostic; mirror the gorm seed helpers) ----
+// ---- ports-based seeders (driver-agnostic) ----
 
 func seedOrg(t *testing.T, ctx context.Context, rs RepoSet) string {
 	t.Helper()
