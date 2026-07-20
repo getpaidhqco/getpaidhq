@@ -1,0 +1,45 @@
+{
+  "name": "@getpaidhq/react-sdk",
+  "version": "0.1.0",
+  "description": "React SDK for GetPaidHQ API",
+  "type": "module",
+  "module": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "lint": "eslint \"src/**/*.ts*\"",
+    "clean": "pnpm dlx rimraf dist",
+    "reset": "pnpm dlx rimraf ./node_modules ./dist"
+  },
+  "peerDependencies": {
+    "@getpaidhq/sdk": "^1.3.0",
+    "@hookform/resolvers": "^5.0.1",
+    "@tanstack/react-query": "^5.66.6",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "react-hook-form": "^7.57.0",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@getpaidhq/eslint-config": "workspace:*",
+    "@getpaidhq/sdk": "workspace:*",
+    "@getpaidhq/typescript-config": "workspace:*",
+    "@hookform/resolvers": "^5.0.1",
+    "@types/react": "^19.2.0",
+    "@types/react-dom": "^19.2.0",
+    "eslint": "^9.0.0",
+    "react-hook-form": "^7.57.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "zod": "3.24.2"
+  }
+}

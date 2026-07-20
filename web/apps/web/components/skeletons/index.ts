@@ -1,0 +1,5 @@
+export { DataTableSkeleton } from './data-table-skeleton'
+export { ResourceDetailSkeleton } from './resource-detail-skeleton'
+export { FormSkeleton } from './form-skeleton'
+export { PageSkeleton } from './page-skeleton'
+export { CustomerLoadingSkeleton } from '../../app/(dashboard)/customers/[id]/components/customer-loading-skeleton'

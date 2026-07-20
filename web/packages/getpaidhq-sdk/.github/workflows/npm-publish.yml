@@ -1,0 +1,20 @@
+# DEPRECATED: This workflow is replaced by the automated release.yml workflow
+# The release.yml workflow uses semantic-release for automated versioning and publishing
+# 
+# This file is kept for reference but should not be used.
+# To publish, push commits following conventional commit format to the main branch.
+
+name: Node.js Package (DEPRECATED)
+
+on:
+  workflow_dispatch: # Manual trigger only
+
+jobs:
+  deprecated-notice:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Notice
+        run: |
+          echo "⚠️  This workflow is DEPRECATED"
+          echo "Use the automated release.yml workflow instead"
+          echo "Push conventional commits to main branch to trigger releases"

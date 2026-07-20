@@ -1,0 +1,46 @@
+# Development files
+src/
+tests/
+examples/
+*.test.ts
+*.spec.ts
+tsconfig.json
+tsup.config.ts
+vitest.config.ts
+.eslintrc.js
+.prettierrc
+
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build artifacts
+*.tsbuildinfo
+
+# Testing
+coverage/
+.nyc_output/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+logs/
+*.log
+
+# Environment
+.env
+.env.local
+
+# Misc
+.cache/
+.temp/
+.tmp/

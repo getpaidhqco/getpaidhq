@@ -1,0 +1,33 @@
+{
+  "name": "@getpaidhq/auth-core",
+  "version": "0.0.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    "./use-auth-token": "./src/use-auth-token.tsx",
+    "./auth-provider": "./src/auth-provider.tsx",
+    "./server": "./src/server.ts",
+    "./types": "./src/types.ts",
+    "./client": "./src/client.tsx",
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "lint": "eslint . --max-warnings 0",
+    "generate:component": "turbo gen react-component",
+    "reset": "pnpm dlx rimraf ./node_modules",
+    "check-types": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@getpaidhq/eslint-config": "workspace:*",
+    "@getpaidhq/typescript-config": "workspace:*",
+    "@turbo/gen": "^1.12.4",
+    "@types/node": "^20.11.24",
+    "@types/react": "18.3.0",
+    "@types/react-dom": "18.3.1",
+    "typescript": "5.5.4"
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "react": "^19.0.0"
+  }
+}
