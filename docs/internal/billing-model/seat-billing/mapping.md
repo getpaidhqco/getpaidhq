@@ -266,7 +266,7 @@ Swap to **B** (`credit_on_decrease=true`) and bob's interval clips to Jun 21
 | Meter validation | `validateCarryOver` (`internal/core/service/meter.go`) |
 | Proration switches | `Price.ProrateOnIncrease` / `Price.CreditOnDecrease`, carried onto the `UsageQuery` in `usageQueryFor` |
 | Quantity → money | unchanged: `PriceUsage` → `UsageLineFromPrice`, whole or fractional |
-| Tests | June-timeline unit tests (`usage_interval_test.go`) |
+| Tests | June-timeline unit tests (`usage_interval_test.go`) and e2e across a period boundary (`internal/adapter/db/postgrespgx/seat_billing_e2e_test.go`) |
 
 **Engine parity note.** All aggregation/proration logic lives in `core/`
 (shared by both the Hatchet and Temporal adapters) so the two engines produce

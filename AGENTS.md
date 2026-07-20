@@ -26,9 +26,10 @@ Local stack details and the Hatchet first-boot token bootstrap: notes in `docker
 **Tests MUST NEVER touch the developer's local docker-compose database** — it carries hand-seeded data. Enforced by construction:
 
 - Integration tests gate on `//go:build integration`. The shared harness in `internal/adapter/db/storagetest` spawns a **fresh `postgres:17-alpine` testcontainer per run** + applies the Goose baseline, and exposes `RunConformance(t, factory)` — the suite `postgrespgx` runs against its `RepoSet`. The dev DB at `localhost:10432` is never touched.
+- The `postgrespgx` package also carries the **billing/usage e2e suites** (`*_e2e_test.go`, `*_integration_test.go`) that drive real services (subscription charge, invoicing, dunning, metered/seat/graduated usage) against the same testcontainer. Shared harness (pool bootstrap, ports-based seeders, service builders, in-memory gateway) lives in `billing_e2e_helpers_test.go`.
 - No test code reads `DATABASE_URL`, calls `lib.NewEnv()`, or `config.NewApp()` — the only paths to the dev DSN.
 
-Adding a DB-touching test: put it in `storagetest`; scope rows with `uniqueOrg(t)` + `cleanupOrg(t, ...)`. Seed through repo `Create` methods (the `RepoSet`), never a raw pool handle, so the test is storage-agnostic.
+Adding a DB-touching test: for repo behaviour put it in `storagetest` and seed through repo `Create` methods (the `RepoSet`); for a billing/usage flow add it to `postgrespgx` and reuse the `billing_e2e_helpers_test.go` seeders/builders (`poolForTest`, `uniqueOrg(t, pool)`, `cleanupOrg(t, pool, ...)`).
 
 ## Architecture
 
