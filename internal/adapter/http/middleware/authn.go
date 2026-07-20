@@ -6,6 +6,7 @@ import (
 	"errors"
 	errors2 "getpaidhq/internal/lib/errors"
 	"net/http"
+	"strings"
 
 	"getpaidhq/internal/core/port"
 )
@@ -120,6 +121,10 @@ func (m AuthnWrapperMiddleware) Handler() func(http.Handler) http.Handler {
 //   - GET /openapi.json — the live OpenAPI spec. Published so SDK generators,
 //     docs tooling, and API explorers can fetch the contract without
 //     credentials. It describes the API surface only; no data is exposed.
+//   - /api/auth/*     — the limen auth surface. Limen authenticates its own
+//     routes (session cookies plus per-route session middleware), and its
+//     signup/signin endpoints must be reachable without a Clerk token or no
+//     one could ever obtain a session.
 //
 // Authentication is still the default for everything else.
 func isPublicPath(r *http.Request) bool {
@@ -129,6 +134,8 @@ func isPublicPath(r *http.Request) bool {
 	case r.URL.Path == "/api/notify":
 		return true
 	case r.Method == http.MethodGet && r.URL.Path == "/openapi.json":
+		return true
+	case strings.HasPrefix(r.URL.Path, "/api/auth/"):
 		return true
 	default:
 		return false

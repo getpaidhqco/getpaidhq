@@ -35,6 +35,11 @@ require (
 	github.com/shopspring/decimal v1.4.0
 	github.com/testcontainers/testcontainers-go v0.42.0
 	github.com/testcontainers/testcontainers-go/modules/postgres v0.42.0
+	github.com/thecodearcher/limen v0.1.4
+	github.com/thecodearcher/limen/adapters/gorm v0.1.4
+	github.com/thecodearcher/limen/adapters/sql v0.1.4
+	github.com/thecodearcher/limen/plugins/credential-password v0.1.4
+	github.com/thecodearcher/limen/plugins/organization v0.0.0
 	go.temporal.io/api v1.62.12
 	go.temporal.io/sdk v1.44.0
 	go.uber.org/goleak v1.3.0
@@ -113,6 +118,7 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
+	github.com/jmoiron/sqlx v1.4.0 // indirect
 	github.com/jonboulle/clockwork v0.5.0 // indirect
 	github.com/josharian/intern v1.0.0 // indirect
 	github.com/klauspost/compress v1.18.5 // indirect
@@ -214,3 +220,14 @@ require (
 )
 
 tool github.com/pressly/goose/v3/cmd/goose
+
+// Local development of the limen integration branch: the organization plugin
+// and the PluginOrganization core constant are not yet in a released limen
+// version. Drop these once limen tags a release including them.
+replace (
+	github.com/thecodearcher/limen => /home/mdwt/dev/limen
+	github.com/thecodearcher/limen/adapters/gorm => /home/mdwt/dev/limen/adapters/gorm
+	github.com/thecodearcher/limen/adapters/sql => /home/mdwt/dev/limen/adapters/sql
+	github.com/thecodearcher/limen/plugins/credential-password => /home/mdwt/dev/limen/plugins/credential-password
+	github.com/thecodearcher/limen/plugins/organization => /home/mdwt/dev/limen/plugins/organization
+)

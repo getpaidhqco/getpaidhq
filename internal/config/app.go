@@ -366,6 +366,21 @@ func NewApp() (*App, error) {
 		RateLimiter:    rateLimiter,
 	}, handlers)
 
+	// Limen auth (opt-in via LIMEN_SECRET): mounted directly on the mux at
+	// /api/auth so its routes bypass fuego's typed registration (they won't
+	// appear in the OpenAPI spec) and are exempted from the Clerk authn
+	// wrapper (see isPublicPath) — limen authenticates its own surface.
+	if env.LimenSecret != "" {
+		limenAuth, err := buildLimen(env, "http://localhost:"+serverPort, logger, db, authzEngine, natsPubSub)
+		if err != nil {
+			return nil, err
+		}
+		server.Mux.Handle("/api/auth/", limenAuth.Handler())
+		logger.Infof("limen auth mounted at /api/auth (credential-password + organization plugins)")
+	} else {
+		logger.Warn("LIMEN_SECRET not set — limen auth endpoints not mounted")
+	}
+
 	// Collect resources that own goroutines / connections so Run can tear them
 	// down on shutdown. The workflow engine (Hatchet/Temporal worker) and cron
 	// scheduler expose Close() via io.Closer; pubsub always does.

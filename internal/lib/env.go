@@ -79,6 +79,10 @@ type Env struct {
 
 	ClerkSecretKey string `mapstructure:"CLERK_SECRET"`
 
+	// LimenSecret is the 32-byte signing secret for the limen auth instance
+	// mounted at /api/auth. When empty, limen is not mounted.
+	LimenSecret string `mapstructure:"LIMEN_SECRET"`
+
 	HatchetClientToken string `mapstructure:"HATCHET_CLIENT_TOKEN"`
 	HatchetHostPort    string `mapstructure:"HATCHET_CLIENT_HOST_PORT"`
 	HatchetNamespace   string `mapstructure:"HATCHET_CLIENT_NAMESPACE"`
@@ -212,6 +216,7 @@ func NewEnv() Env {
 		env.GormLogLevel = viper.GetString("GORM_LOG_LEVEL")
 		env.DBDriver = viper.GetString("DB_DRIVER")
 		env.ClerkSecretKey = viper.GetString("CLERK_SECRET")
+		env.LimenSecret = viper.GetString("LIMEN_SECRET")
 		env.SecretsEncryptionKey = viper.GetString("SECRETS_ENCRYPTION_KEY")
 		env.WorkflowEngine = viper.GetString("WORKFLOW_ENGINE")
 		env.HatchetClientToken = viper.GetString("HATCHET_CLIENT_TOKEN")

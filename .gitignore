@@ -45,3 +45,6 @@ node_modules
 # understand-anything generated knowledge graph (regenerable; per-commit snapshot)
 .understand-anything/.claude/
 .claude/worktrees
+
+# limen CLI schema export (regenerated on boot when LIMEN_SECRET is set)
+.limen/
