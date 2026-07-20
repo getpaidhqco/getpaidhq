@@ -17,8 +17,7 @@ import (
 // EventStore is the hand-written pgx backend for usage events. It uses the
 // operational DB pool by default (the USAGE_DATABASE_URL-unset fallback); a
 // separate usage DB or the ClickHouse backend can be swapped in behind the
-// port.EventStore interface. This is the pgx port of the gorm EventStore and
-// reproduces its SQL behaviour exactly.
+// port.EventStore interface.
 type EventStore struct {
 	pool *pgxpool.Pool
 }
@@ -29,7 +28,7 @@ func NewEventStore(pool *pgxpool.Pool) port.EventStore {
 
 // Ingest writes one meter event. ON CONFLICT DO NOTHING: a resend with the same
 // (org_id, external_id) hits the partial unique index and is reported as a
-// duplicate (RowsAffected == 0), matching the gorm adapter.
+// duplicate (RowsAffected == 0).
 func (s *EventStore) Ingest(ctx context.Context, e domain.MeterEvent) (port.IngestResult, error) {
 	row := meterEventRowFromDomain(e)
 	q := dbFromCtx(ctx, s.pool)
@@ -49,9 +48,9 @@ func (s *EventStore) Ingest(ctx context.Context, e domain.MeterEvent) (port.Inge
 }
 
 // IngestBatch writes events in one round trip via a batched INSERT, ignoring
-// rows that collide with the partial unique index (resends). Mirroring the gorm
-// adapter's CreateInBatches + ON CONFLICT DO NOTHING, every input event is
-// reported as recorded; results align by index with events.
+// rows that collide with the partial unique index (resends). With ON CONFLICT
+// DO NOTHING, every input event is reported as recorded; results align by index
+// with events.
 func (s *EventStore) IngestBatch(ctx context.Context, events []domain.MeterEvent) ([]port.IngestResult, error) {
 	results := make([]port.IngestResult, len(events))
 	if len(events) == 0 {
@@ -109,8 +108,8 @@ func (a *argBuf) next(v any) string {
 // whereClause builds the shared WHERE for q: org + metric + half-open window +
 // either customer id + optional subscription attribution + optional metadata
 // filter. It returns the clause (without the leading "WHERE") and the bound
-// args, mirroring the gorm adapter's scope() predicate-for-predicate. Every
-// placeholder it emits is backed by an appended arg, so no $N is ever unused.
+// args. Every placeholder it emits is backed by an appended arg, so no $N is
+// ever unused.
 func (s *EventStore) whereClause(q port.UsageQuery, ab *argBuf) string {
 	var conds []string
 
@@ -272,7 +271,7 @@ func (s *EventStore) AggregateGrouped(ctx context.Context, q port.UsageQuery, ag
 
 // groupedAggExpr is the SQL aggregate for a grouped query, appending any bound
 // args to ab. Latest needs DISTINCT ON / window and weighted_sum is
-// unimplemented even ungrouped, so both are rejected here (matching gorm).
+// unimplemented even ungrouped, so both are rejected here.
 func groupedAggExpr(agg domain.AggregationType, fieldName string, ab *argBuf) (string, error) {
 	switch agg {
 	case domain.AggregationCount:
@@ -289,7 +288,7 @@ func groupedAggExpr(agg domain.AggregationType, fieldName string, ab *argBuf) (s
 }
 
 // scalar runs a single-row aggregate expr over q, returning decimal.Zero (not an
-// error) when there are no matching rows — matching the gorm adapter.
+// error) when there are no matching rows.
 func (s *EventStore) scalar(ctx context.Context, q port.UsageQuery, expr string) (decimal.Decimal, error) {
 	ab := &argBuf{}
 	where := s.whereClause(q, ab)

@@ -260,13 +260,13 @@ Swap to **B** (`credit_on_decrease=true`) and bob's interval clips to Jun 21
 | Capability | Code |
 | --- | --- |
 | Carry-over read path | `UsageService.AggregateForPeriod` → `aggregateCarryOver` (`internal/core/service/usage.go`) |
-| History fetch | `EventStore.ListHistory` — both stores (`internal/adapter/storage/postgresgorm/event_store.go`, `internal/adapter/clickhouse/event_store.go`) |
+| History fetch | `EventStore.ListHistory` — both stores (`internal/adapter/db/postgrespgx/event_store.go`, `internal/adapter/clickhouse/event_store.go`) |
 | Interval reconstruction + level math | `internal/core/domain/usage_interval.go` (`ReconstructIntervals`, `CountStandingAtEnd`, `CountPeakConcurrent`, `CountDistinctActive`, `WeightIntervals`, level-report reads) |
 | Operation convention + ingest validation | `domain.UsageOperationKey` consts; `UsageService.buildEvent` |
 | Meter validation | `validateCarryOver` (`internal/core/service/meter.go`) |
 | Proration switches | `Price.ProrateOnIncrease` / `Price.CreditOnDecrease`, carried onto the `UsageQuery` in `usageQueryFor` |
 | Quantity → money | unchanged: `PriceUsage` → `UsageLineFromPrice`, whole or fractional |
-| Tests | June-timeline unit tests (`usage_interval_test.go`) and e2e across a period boundary (`internal/adapter/storage/postgresgorm/seat_billing_e2e_test.go`) |
+| Tests | June-timeline unit tests (`usage_interval_test.go`) and e2e across a period boundary (`internal/adapter/db/postgrespgx/seat_billing_e2e_test.go`) |
 
 **Engine parity note.** All aggregation/proration logic lives in `core/`
 (shared by both the Hatchet and Temporal adapters) so the two engines produce

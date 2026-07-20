@@ -21,7 +21,7 @@ import (
 func poolForTest(t *testing.T) *pgxpool.Pool {
 	t.Helper()
 	dsn := storagetest.StartPostgres(t)
-	pool, err := NewDatabase(dsn, nil, "silent")
+	pool, err := NewDatabase(dsn, nil)
 	require.NoError(t, err)
 	t.Cleanup(pool.Close)
 	return pool

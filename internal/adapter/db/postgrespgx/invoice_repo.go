@@ -18,12 +18,11 @@ func NewInvoiceRepo(pool *pgxpool.Pool) port.InvoiceRepository {
 	return &InvoiceRepo{pool: pool}
 }
 
-// Create persists the invoice and all its line items atomically. The gorm
-// adapter relies on gorm cascading the association in one Create; here we open
-// a transaction (joining the caller's ambient tx via SAVEPOINT when one is
+// Create persists the invoice and all its line items atomically. We open a
+// transaction (joining the caller's ambient tx via SAVEPOINT when one is
 // present, else a fresh tx) and insert the invoice followed by each line item.
-// On success we reselect the full invoice with its line items hydrated, exactly
-// as gorm's FindById-after-Create does.
+// On success we reselect the full invoice with its line items hydrated via a
+// FindById after the Create.
 func (r *InvoiceRepo) Create(ctx context.Context, entity domain.Invoice) (domain.Invoice, error) {
 	entity.Metadata = emptyIfNil(entity.Metadata)
 	row := invoiceRowFromDomain(entity)
@@ -193,9 +192,8 @@ func (r *InvoiceRepo) Update(ctx context.Context, entity domain.Invoice) (domain
 	return r.FindById(ctx, entity.OrgId, entity.Id)
 }
 
-// lineItems hydrates an invoice's line items, mirroring the gorm Preload. The
-// gorm adapter imposes no explicit order; we order by created_at then id so the
-// result is deterministic (stable insert order) without changing the set.
+// lineItems hydrates an invoice's line items. We order by created_at then id so
+// the result is deterministic (stable insert order).
 func (r *InvoiceRepo) lineItems(ctx context.Context, orgId, invoiceId string) ([]domain.InvoiceLineItem, error) {
 	q := dbFromCtx(ctx, r.pool)
 	rows, err := q.Query(ctx,

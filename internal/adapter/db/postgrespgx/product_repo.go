@@ -44,7 +44,7 @@ func (r *ProductRepo) Create(ctx context.Context, product domain.Product) (domai
 // Find lists products, optionally filtered by status. An empty/nil statuses
 // slice returns all products regardless of status; otherwise the same status
 // predicate is applied to both the count and the page query so the total
-// matches what's returned. Mirrors the gorm adapter's statusScope.
+// matches what's returned.
 func (r *ProductRepo) Find(ctx context.Context, orgId string, p domain.Pagination, statuses []domain.ProductStatus) ([]domain.Product, int, error) {
 	q := dbFromCtx(ctx, r.pool)
 

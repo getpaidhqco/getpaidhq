@@ -10,9 +10,9 @@ import (
 // WebhookSubscription. Package-internal.
 //
 // Events maps to a native Postgres text[] column (schema: `events text[]`).
-// pgx encodes/decodes a Go []string directly to/from text[], so no
-// serializer is needed — the gorm adapter used pq.StringArray for the same
-// reason (a json-encoded slice would be rejected as a malformed array literal).
+// pgx encodes/decodes a Go []string directly to/from text[], so no serializer
+// is needed — a json-encoded slice would be rejected as a malformed array
+// literal.
 type webhookSubscriptionRow struct {
 	OrgID     string
 	Id        string

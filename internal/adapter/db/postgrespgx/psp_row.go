@@ -13,8 +13,8 @@ import (
 // config and credentials are plain NOT NULL TEXT columns (default ”), not JSON
 // columns — so they are scanned as strings here. Config is the JSON-encoded
 // non-secret settings map; Credentials is the AES-GCM envelope sealed by the
-// service layer (opaque here). The map<->JSON-string conversion is reproduced
-// from the gorm adapter exactly.
+// service layer (opaque here). The map<->JSON-string conversion is handled
+// here at the boundary.
 type pspConfigRow struct {
 	OrgId       string
 	Id          string

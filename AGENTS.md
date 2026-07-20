@@ -25,10 +25,11 @@ Local stack details and the Hatchet first-boot token bootstrap: notes in `docker
 
 **Tests MUST NEVER touch the developer's local docker-compose database** — it carries hand-seeded data. Enforced by construction:
 
-- Integration tests gate on `//go:build integration`. The shared harness in `internal/adapter/db/storagetest` spawns a **fresh `postgres:17-alpine` testcontainer per run** + applies the Goose baseline, and exposes `RunConformance(t, factory)` — the same suite both `postgresgorm` and `postgrespgx` run against their own `RepoSet`. The dev DB at `localhost:10432` is never touched.
+- Integration tests gate on `//go:build integration`. The shared harness in `internal/adapter/db/storagetest` spawns a **fresh `postgres:17-alpine` testcontainer per run** + applies the Goose baseline, and exposes `RunConformance(t, factory)` — the suite `postgrespgx` runs against its `RepoSet`. The dev DB at `localhost:10432` is never touched.
+- The `postgrespgx` package also carries the **billing/usage e2e suites** (`*_e2e_test.go`, `*_integration_test.go`) that drive real services (subscription charge, invoicing, dunning, metered/seat/graduated usage) against the same testcontainer. Shared harness (pool bootstrap, ports-based seeders, service builders, in-memory gateway) lives in `billing_e2e_helpers_test.go`.
 - No test code reads `DATABASE_URL`, calls `lib.NewEnv()`, or `config.NewApp()` — the only paths to the dev DSN.
 
-Adding a DB-touching test: put it in `storagetest` so both drivers exercise it; scope rows with `uniqueOrg(t)` + `cleanupOrg(t, ...)`. Seed through repo `Create` methods (the `RepoSet`), never a raw `*gorm.DB`, so the test is storage-agnostic.
+Adding a DB-touching test: for repo behaviour put it in `storagetest` and seed through repo `Create` methods (the `RepoSet`); for a billing/usage flow add it to `postgrespgx` and reuse the `billing_e2e_helpers_test.go` seeders/builders (`poolForTest`, `uniqueOrg(t, pool)`, `cleanupOrg(t, pool, ...)`).
 
 ## Architecture
 
@@ -36,7 +37,7 @@ Ports-and-adapters (hexagonal): `internal/core/{domain,port,service}` at the cen
 
 **Wiring is manual DI** in `internal/config/app.go` (`NewApp()`) — every repo/service/handler constructed by hand. Add a service by editing `app.go`.
 
-**Storage adapters are grouped by category** under `internal/adapter/db/<impl>`: `postgresgorm` (GORM, default) and `postgrespgx` (hand-written `jackc/pgx/v5`) both implement the repository ports. `DB_DRIVER=gorm|pgx` (default `gorm`) selects which set `app.go` wires; only one runs at a time. They must stay at **100% behavioural parity** — same rows, domain values, errors (`port.ErrNotFound`, unique/FK conflicts) and tx semantics. Parity is enforced by one shared conformance suite, `internal/adapter/db/storagetest` (`RunConformance(t, factory)`), which each adapter's `//go:build integration` test runs against its own `RepoSet`. Other multi-impl adapter categories follow the same `internal/adapter/<category>/<impl>` + `<category>test` conformance shape.
+**Storage is the hand-written pgx adapter** `postgrespgx` (`jackc/pgx/v5`) under `internal/adapter/db/postgrespgx`, implementing the repository ports; `app.go` wires it. Behaviour is exercised by the shared conformance suite `internal/adapter/db/storagetest` (`RunConformance(t, factory)`), which the adapter's `//go:build integration` test runs against its `RepoSet`. Other multi-impl adapter categories follow the same `internal/adapter/<category>/<impl>` + `<category>test` conformance shape.
 
 ### Narrow-vs-orchestration service pattern 
 
@@ -81,10 +82,10 @@ Metered billing records `meter_events` into a dedicated store, scaled/retained i
 
 ### Databases the app opens
 
-- `DB_DRIVER` (`gorm` default | `pgx`) picks the storage adapter (`internal/adapter/db/postgresgorm` vs `postgrespgx`); both open the same DSNs below.
+- The `postgrespgx` adapter opens the DSNs below.
 - `DATABASE_URL` → `getpaidhq` (operational) — always opened.
 - `USAGE_DATABASE_URL` → `getpaidhq_usage` — separate pool when set; falls back to `DATABASE_URL` when empty.
-- `REPORTING_DATABASE_URL` is **not** opened — reporting is not wired. `internal/adapter/db/postgresgorm/report_repo.go` is a stub (logs once, returns zero). To enable it: rewrite each method against `schemas/reporting/migrations/00001_baseline.sql` (the reporting schema baseline), add a service + handler, wire in `app.go`, register routes in `internal/config/server.go`.
+- `REPORTING_DATABASE_URL` is **not** opened — reporting is not wired (there is no report repository). To enable it: implement a report repository against `schemas/reporting/migrations/00001_baseline.sql` (the reporting schema baseline), add a service + handler, wire in `app.go`, register routes in `internal/config/server.go`.
 
 ## Conventions and gotchas
 
@@ -92,5 +93,5 @@ Metered billing records `meter_events` into a dedicated store, scaled/retained i
 - **Transactions**: no per-request tx. Services needing multi-row atomicity use `port.TxManager` (`s.tx.RunInTx(ctx, ...)`); the tx propagates via ctx and repos use `dbFromCtx(ctx, r.db)`. Pubsub publishes go through the transactional outbox (`lib/pubsub.Outbox` is the wired `port.PubSub`; a background `lib/pubsub.Relay` delivers to the broker) — publish *inside* the `RunInTx` closure and propagate the error, so the event commits and rolls back with the business write. Only non-DB side effects (workflow starts) stay *after* `RunInTx` returns nil — a rollback would orphan them. First user: `OrderService.CompleteOrder`.
 - **Validation / errors**: one `*validator.Validate` from `lib.NewValidator` (registers `iso4217`); DTOs use `validate:"..."` tags. Handlers return `ApiError` (`{code,message,details}`); Fuego's own errors marshal the same shape via `handler.ApiErrorSerializer`.
 - **Env**: `lib.NewEnv()` loads `.env` (godotenv) then binds via viper. Add a var by extending the `Env` struct **and** `viper.BindEnv` in `NewEnv()`. `.env.example` lists every var; the active `.env` is gitignored.
-- **Logging**: use the injected `port.Logger` (`log/slog` via `internal/lib/logger.go`), not `log`/`fmt`. GORM and Hatchet logs are bridged into the same handler.
+- **Logging**: use the injected `port.Logger` (`log/slog` via `internal/lib/logger.go`), not `log`/`fmt`.
 - **Tests** live next to code (`*_test.go`). Strongest coverage in `internal/core/domain` and `internal/adapter/http` (real httptest harness with real Cedar authz + authn middleware); `internal/core/service` is lighter; DB behaviour via `//go:build integration` tests.

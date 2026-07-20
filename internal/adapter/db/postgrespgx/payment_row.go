@@ -8,10 +8,9 @@ import (
 
 // paymentRow is the postgres on-the-wire shape of a Payment. subscription_id and
 // invoice_id are nullable FK columns (NULL, never "") so an empty value never
-// violates the constraint. psp_id and completed_at mirror the gorm row exactly:
-// the gorm adapter held psp_id as a plain string and completed_at as a plain
-// time.Time (no nulltime serializer), so we write the zero value rather than NULL
-// to keep observable behaviour identical.
+// violates the constraint. psp_id is held as a plain string and completed_at as
+// a plain time.Time (no nulltime handling), so the zero value is written rather
+// than NULL.
 type paymentRow struct {
 	OrgId          string
 	Id             string

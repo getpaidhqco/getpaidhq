@@ -112,7 +112,7 @@ func (s *OrgService) Create(ctx context.Context, input port.CreateOrgInput) (dom
 		return domain.Org{}, err
 	}
 	// Surface the raw key on the returned ApiKey object only through
-	// the side channel `RawKey` (tagged gorm:"-"). Callers/handlers
+	// the side channel `RawKey` (never persisted). Callers/handlers
 	// that need to return it to the user can read it here; nothing
 	// else persists it.
 	_ = createdKey // RawKey would be set here if Org.Create returned an ApiKey; for now the value lives only in `rawKey` above.

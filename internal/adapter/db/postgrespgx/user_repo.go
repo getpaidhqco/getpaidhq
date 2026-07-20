@@ -6,8 +6,8 @@ import (
 	"getpaidhq/internal/core/port"
 )
 
-// UserRepo mirrors the gorm UserRepo. port.UserRepository is currently `any`
-// (no methods wired), so this is a placeholder holding the pool for when user
+// UserRepo holds the pool for user persistence. port.UserRepository is
+// currently `any` (no methods wired), so this is a placeholder for when user
 // persistence is implemented.
 type UserRepo struct {
 	pool *pgxpool.Pool

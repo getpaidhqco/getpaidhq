@@ -8,8 +8,8 @@ import (
 
 // sessionRow is the postgres on-the-wire shape of a Session. The sessions table
 // also carries a `metadata` jsonb column, but Session has no metadata field, so
-// the gorm row never mapped it and neither does this one. cart_id is a nullable
-// column; the domain's "" sentinel maps to SQL NULL.
+// this row does not map it. cart_id is a nullable column; the domain's ""
+// sentinel maps to SQL NULL.
 type sessionRow struct {
 	OrgId     string
 	Id        string

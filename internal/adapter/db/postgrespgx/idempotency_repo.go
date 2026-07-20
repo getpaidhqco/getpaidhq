@@ -33,10 +33,9 @@ func NewIdempotencyKeyRepo(pool *pgxpool.Pool) port.IdempotencyKeyRepository {
 //   - Row exists and is live   → the DO UPDATE WHERE guard is false, the update
 //     is skipped, RowsAffected=0 → NOT claimed (work already done).
 //
-// This mirrors the gorm adapter's observable behaviour (sweep-expired-then-
-// upsert-on-conflict) in one round-trip. created_at relies on its column
-// default; updated_at is NOT NULL with no default, so it is supplied and
-// refreshed on the expired-claim path.
+// This performs sweep-expired-then-upsert-on-conflict in one round-trip.
+// created_at relies on its column default; updated_at is NOT NULL with no
+// default, so it is supplied and refreshed on the expired-claim path.
 func (r *IdempotencyKeyRepo) Claim(ctx context.Context, key string, expiresAt time.Time) (bool, error) {
 	q := dbFromCtx(ctx, r.pool)
 	tag, err := q.Exec(ctx,

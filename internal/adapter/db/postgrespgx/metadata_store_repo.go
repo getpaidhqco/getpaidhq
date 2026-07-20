@@ -63,7 +63,7 @@ func (r *MetadataStoreRepo) FindByValue(ctx context.Context, orgId string, key s
 }
 
 // FindByValueWithoutOrg deliberately omits the org_id filter — it matches on
-// key, value and parent_type across all orgs, mirroring the gorm adapter.
+// key, value and parent_type across all orgs.
 func (r *MetadataStoreRepo) FindByValueWithoutOrg(ctx context.Context, key string, value string, parentType string) ([]domain.MetadataStore, error) {
 	q := dbFromCtx(ctx, r.pool)
 	rows, err := q.Query(ctx,
@@ -109,8 +109,7 @@ func (r *MetadataStoreRepo) Delete(ctx context.Context, orgId string, parentId s
 }
 
 // collect drains rows into domain metadata entries, closing rows. Returns a
-// non-nil empty slice when no rows match, mirroring the gorm adapter's
-// metadataStoreRowsToDomain.
+// non-nil empty slice when no rows match.
 func (r *MetadataStoreRepo) collect(rows pgx.Rows) ([]domain.MetadataStore, error) {
 	defer rows.Close()
 	out := make([]domain.MetadataStore, 0)

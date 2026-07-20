@@ -10,9 +10,8 @@ import (
 
 // invoiceLineItemRow is the postgres on-the-wire shape of an InvoiceLineItem.
 // quantity / unit_amount are numeric columns scanned straight into
-// decimal.Decimal. metadata mirrors the gorm row exactly: it carries no
-// emptyIfNil on the write path (the gorm Create only normalised the invoice's
-// metadata), so a nil map serialises to JSON null.
+// decimal.Decimal. metadata carries no emptyIfNil on the write path, so a nil
+// map serialises to JSON null.
 type invoiceLineItemRow struct {
 	OrgId         string
 	Id            string

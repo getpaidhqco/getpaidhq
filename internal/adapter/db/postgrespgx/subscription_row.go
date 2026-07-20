@@ -12,9 +12,9 @@ import (
 //
 // The nullable timestamp columns (start_date, end_date, trial_ends_at, cancel_at,
 // ends_at, last_charge, renews_at, current_period_start, current_period_end,
-// next_retry, cancelled_at) are held as *time.Time: the gorm row tagged them
-// serializer:nulltime, so a zero domain time maps to SQL NULL on write
-// (nullTime) and a NULL column maps back to the zero time on read (timeOrZero).
+// next_retry, cancelled_at) are held as *time.Time: a zero domain time maps to
+// SQL NULL on write (nullTime) and a NULL column maps back to the zero time on
+// read (timeOrZero).
 // payment_method_id is a nullable FK held as *string. retries is a nullable
 // INTEGER held as *int. These two map through nilIfEmpty/strOrEmpty and a
 // nil→0 conversion respectively at the domain boundary.

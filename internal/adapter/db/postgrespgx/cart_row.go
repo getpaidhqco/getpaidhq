@@ -9,8 +9,8 @@ import (
 // cartRow is the postgres on-the-wire shape of a Cart. Status and Total are
 // derived fields on the domain entity (populated by Cart.Calculate()) and are
 // NOT persisted, so they have no column here. data and metadata are nullable
-// jsonb columns; gorm mapped them with `serializer:json` and without emptyIfNil,
-// so a nil map/zero struct serializes as JSON null — mirrored here.
+// jsonb columns carried via jsonCol without emptyIfNil, so a nil map/zero struct
+// serializes as JSON null.
 type cartRow struct {
 	OrgId     string
 	Id        string
