@@ -9,8 +9,8 @@ import (
 // apiKeyRow is the postgres on-the-wire shape of an ApiKey. Package-internal.
 // key_hash carries the HMAC of the raw key (deduped by a unique index); it is
 // NOT NULL. name is a nullable TEXT column, so it is held as *string and
-// converted at the boundary — SQL NULL round-trips as the domain's empty string
-// (matching how the gorm adapter coerced the nullable column into a string).
+// converted at the boundary — SQL NULL round-trips as the domain's empty
+// string.
 type apiKeyRow struct {
 	OrgId     string
 	Id        string

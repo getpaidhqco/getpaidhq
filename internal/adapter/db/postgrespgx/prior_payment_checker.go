@@ -16,7 +16,7 @@ import (
 // through orders (for one-time payments) and subscriptions (for recurring
 // payments). We check for any payment whose org matches, whose status is
 // succeeded, and that is linked to either an order or a subscription owned by
-// the given customer. Mirrors the gorm adapter's query exactly.
+// the given customer.
 type PriorPaymentChecker struct {
 	pool *pgxpool.Pool
 }

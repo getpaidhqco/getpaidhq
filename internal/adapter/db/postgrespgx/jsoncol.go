@@ -8,13 +8,11 @@ import (
 
 // jsonCol[T] adapts a Go value of type T to a Postgres json/jsonb column. It
 // implements driver.Valuer (marshal on write) and sql.Scanner (unmarshal on
-// read), which pgx honours. This is the pgx counterpart to the gorm rows'
-// `serializer:json` tag.
+// read), which pgx honours.
 //
-// Use it for every column the gorm row tagged `serializer:json` — metadata
-// maps, embedded structs (domain.Address), string slices, etc. On the write
-// path apply emptyIfNil to NOT NULL metadata columns first so they store `{}`,
-// never NULL.
+// Use it for every column that stores serialized JSON — metadata maps, embedded
+// structs (domain.Address), string slices, etc. On the write path apply
+// emptyIfNil to NOT NULL metadata columns first so they store `{}`, never NULL.
 type jsonCol[T any] struct{ V T }
 
 func newJSON[T any](v T) jsonCol[T] { return jsonCol[T]{V: v} }

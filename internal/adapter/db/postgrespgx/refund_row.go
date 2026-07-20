@@ -7,9 +7,9 @@ import (
 )
 
 // refundRow is the postgres on-the-wire shape of a Refund. psp_refund_id and
-// reason are nullable columns (NULL, never ""). The gorm row held them as plain
-// strings; here they map through nilIfEmpty/strOrEmpty so an empty value lands
-// as NULL on write and reads back as "".
+// reason are nullable columns (NULL, never ""). They map through
+// nilIfEmpty/strOrEmpty so an empty value lands as NULL on write and reads back
+// as "".
 type refundRow struct {
 	OrgId       string
 	Id          string

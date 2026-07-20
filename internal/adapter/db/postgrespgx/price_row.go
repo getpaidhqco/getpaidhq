@@ -9,8 +9,8 @@ import (
 // priceRow is the postgres on-the-wire shape of a Price. Prices are NOT embedded
 // in their variant — composition is a service-layer concern.
 //
-// Differences from the gorm row (which leans on the driver to coerce NULLs into
-// Go zero values, and to coerce the domain's "" enum sentinel back out):
+// Column handling (NULLs and the domain's "" enum sentinel are handled
+// explicitly at the boundary):
 //
 //   - category / scheme are NOT NULL enum columns, held as string and converted
 //     at the domain boundary (never pass a defined enum type as a pgx arg).
@@ -19,19 +19,17 @@ import (
 //   - billing_interval / trial_interval are NULLABLE enum columns. The domain
 //     carries "" for "unset", which is NOT a valid enum member — so the write
 //     path maps "" → NULL (nilIfEmpty) and the read path maps NULL → ""
-//     (strOrEmpty), mirroring what the gorm driver did implicitly.
+//     (strOrEmpty).
 //   - label / tax_code / billable_metric_id / filter_field / filter_value are
 //     nullable TEXT columns held as *string (NULL ↔ "" via strOrEmpty/nilIfEmpty)
-//     so a NULL row scans without error. The gorm row typed them as bare strings.
+//     so a NULL row scans without error.
 //   - cycles / billing_interval_qty / trial_interval_qty / min_price /
 //     suggested_price are nullable integer columns held as pointer types so a
 //     NULL row scans without error. There is no domain "unset" sentinel for these
-//     ints (0 is a real value), and the gorm code wrote the zero value straight
-//     through, so the write path passes the int directly and the read path maps
-//     NULL → 0.
-//   - tiers / metadata are nullable JSONB columns mapped via jsonCol; the gorm
-//     adapter applied no emptyIfNil to either, so a nil value marshals to JSON
-//     null — the pgx jsonCol does the same.
+//     ints (0 is a real value), so the write path passes the int directly and the
+//     read path maps NULL → 0.
+//   - tiers / metadata are nullable JSONB columns mapped via jsonCol; no
+//     emptyIfNil is applied to either, so a nil value marshals to JSON null.
 type priceRow struct {
 	OrgId              string
 	Id                 string
@@ -139,8 +137,7 @@ func priceRowFromDomain(p domain.Price) priceRow {
 }
 
 // priceIntOrZero / priceInt64OrZero map a NULL nullable-integer column back to
-// 0. The gorm adapter relied on the driver to coerce NULL → zero into its bare
-// int fields; pgx requires an explicit pointer scan, so these mirror that on the
+// 0. pgx requires an explicit pointer scan, so these coerce NULL → zero on the
 // read path. Entity-prefixed to avoid colliding with sibling repos in this
 // package.
 func priceIntOrZero(v *int) int {

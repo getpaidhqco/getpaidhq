@@ -42,7 +42,7 @@ func (r *WebhookSubscriptionRepo) GetByID(ctx context.Context, orgId string, id 
 
 func (r *WebhookSubscriptionRepo) FindByEvent(ctx context.Context, orgId string, event string) ([]domain.WebhookSubscription, error) {
 	// Postgres array-containment against the native text[] `events` column:
-	// `event = ANY(events)`. Mirrors the gorm adapter exactly.
+	// `event = ANY(events)`.
 	q := dbFromCtx(ctx, r.pool)
 	rows, err := q.Query(ctx,
 		`SELECT `+webhookSubscriptionColumns+` FROM webhook_subscriptions WHERE org_id = $1 AND $2 = ANY(events)`, orgId, event)
@@ -65,7 +65,7 @@ func (r *WebhookSubscriptionRepo) Update(ctx context.Context, subscription domai
 }
 
 func (r *WebhookSubscriptionRepo) Delete(ctx context.Context, id string) error {
-	// Not org-scoped — mirrors the gorm adapter, which deletes by id alone.
+	// Not org-scoped — deletes by id alone.
 	q := dbFromCtx(ctx, r.pool)
 	_, err := q.Exec(ctx, `DELETE FROM webhook_subscriptions WHERE id = $1`, id)
 	return err

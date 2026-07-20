@@ -9,9 +9,9 @@ import (
 // couponCodeRow is the postgres on-the-wire shape of a CouponCode.
 //
 // customer_id is a nullable FK (NULL, never ""). expires_at is a nullable
-// timestamp (the gorm `serializer:nulltime` column). metadata and restrictions
-// are nullable JSONB columns carried via jsonCol (the gorm `serializer:json`
-// columns) — no emptyIfNil, matching the gorm row.
+// timestamp, held as *time.Time and mapped via nullTime / timeOrZero. metadata
+// and restrictions are nullable JSONB columns carried via jsonCol — no
+// emptyIfNil, so a nil map / zero struct serializes as JSON null.
 type couponCodeRow struct {
 	OrgId    string
 	Id       string

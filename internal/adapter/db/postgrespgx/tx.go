@@ -10,8 +10,8 @@ import (
 
 // querier is the subset of *pgxpool.Pool and pgx.Tx that the repos use. Both
 // the pool and an open transaction satisfy it, so dbFromCtx can hand back
-// either without the repo caring which. This is the pgx analogue of the gorm
-// adapter threading a *gorm.DB.
+// either without the repo caring which — a single query handle threaded through
+// every repo.
 type querier interface {
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
@@ -20,7 +20,7 @@ type querier interface {
 
 // beginner is satisfied by both *pgxpool.Pool and pgx.Tx. Pool.Begin opens a
 // real transaction; Tx.Begin opens a nested transaction implemented as a
-// SAVEPOINT — which is exactly the nested-RunInTx semantics gorm gives us.
+// SAVEPOINT — which gives us nested-RunInTx semantics.
 type beginner interface {
 	Begin(ctx context.Context) (pgx.Tx, error)
 }
@@ -35,14 +35,14 @@ type scanner interface {
 type txKey struct{}
 
 // WithTx stashes a pgx transaction handle on ctx. Used by TxManager. Exported
-// so tests can bring their own tx, mirroring the gorm adapter.
+// so tests can bring their own tx.
 func WithTx(ctx context.Context, tx pgx.Tx) context.Context {
 	return context.WithValue(ctx, txKey{}, tx)
 }
 
 // dbFromCtx returns the active transaction handle if one is stashed on ctx,
-// otherwise the fallback pool. Mirrors the gorm adapter's dbFromCtx so every
-// repo opts into the ambient transaction the same way.
+// otherwise the fallback pool, so every repo opts into the ambient transaction
+// the same way.
 func dbFromCtx(ctx context.Context, fallback querier) querier {
 	if tx, ok := ctx.Value(txKey{}).(pgx.Tx); ok && tx != nil {
 		return tx
@@ -53,8 +53,8 @@ func dbFromCtx(ctx context.Context, fallback querier) querier {
 // inTx runs fn inside a transaction so a repo that writes multiple rows
 // (invoice + line items, order + items) is atomic regardless of whether a
 // caller already opened a RunInTx. If a tx is already on ctx it joins it via a
-// SAVEPOINT (matching gorm's nested-transaction semantics); otherwise it opens
-// a fresh tx on the pool. fn receives a ctx carrying the (possibly nested) tx.
+// SAVEPOINT (nested-transaction semantics); otherwise it opens a fresh tx on
+// the pool. fn receives a ctx carrying the (possibly nested) tx.
 func inTx(ctx context.Context, pool *pgxpool.Pool, fn func(context.Context) error) error {
 	var b beginner = pool
 	if existing, ok := ctx.Value(txKey{}).(pgx.Tx); ok && existing != nil {
@@ -83,7 +83,7 @@ func inTx(ctx context.Context, pool *pgxpool.Pool, fn func(context.Context) erro
 // TxManager opens a pgx transaction and threads it through ctx for the
 // duration of the callback. Commits on nil return, rolls back on error or
 // panic (the panic propagates after rollback). A RunInTx nested inside another
-// RunInTx reuses the open tx and opens a SAVEPOINT, matching gorm.
+// RunInTx reuses the open tx and opens a SAVEPOINT.
 type TxManager struct {
 	pool *pgxpool.Pool
 }

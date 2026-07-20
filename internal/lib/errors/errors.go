@@ -36,7 +36,7 @@ const (
 var (
 	// ErrNotFound is the canonical "resource missing" error. Repository
 	// implementations return this (or wrap it) so service-layer code can
-	// branch on errors.Is(err, lib.ErrNotFound) without importing GORM or
+	// branch on errors.Is(err, lib.ErrNotFound) without importing pgx or
 	// any specific storage driver.
 	ErrNotFound = errors.New("not found")
 )

@@ -10,14 +10,14 @@ import (
 
 // couponRow is the postgres on-the-wire shape of a Coupon.
 //
-// The discount-type-specific columns are nullable and mirror the gorm row's
-// pointer fields: amount_off/currency are populated only for fixed coupons,
+// The discount-type-specific columns are nullable and held as pointer
+// fields: amount_off/currency are populated only for fixed coupons,
 // percent_off only for percentage coupons, duration_in_cycles only for
 // repeating coupons. percent_off is DECIMAL(5,2) and maps to a
 // decimal.Decimal (which implements sql.Scanner/driver.Valuer) — held as a
 // *decimal.Decimal so it can be NULL. applies_to_products is a native text[]
 // column, scanned directly to/from a []string (no json serializer).
-// redeem_by is a nullable timestamp (the gorm `serializer:nulltime` column).
+// redeem_by is a nullable timestamp, held as *time.Time.
 type couponRow struct {
 	OrgId    string
 	Id       string

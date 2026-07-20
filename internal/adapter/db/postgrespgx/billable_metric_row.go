@@ -8,8 +8,7 @@ import (
 
 // billableMetricRow is the postgres on-the-wire shape of a BillableMetric.
 // field_name and rounding_mode are nullable TEXT (NULL ↔ ""); filters, group_by
-// and metadata are nullable JSONB. The gorm row gets these via struct tags +
-// the json serializer; here we map them explicitly in the mappers.
+// and metadata are nullable JSONB, mapped explicitly in the mappers.
 type billableMetricRow struct {
 	OrgId         string
 	Id            string

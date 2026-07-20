@@ -9,11 +9,10 @@ import (
 // variantRow is the postgres on-the-wire shape of a Variant. Prices are NOT
 // embedded — composition is a service-layer concern. description is a nullable
 // TEXT column scanned through a *string so a NULL row reads back as "" without
-// a scan error; the gorm adapter stored the domain's "" directly (plain string,
-// never NULL), so the write path keeps that behaviour by always passing a
-// non-nil pointer. metadata is a nullable JSONB column mapped via jsonCol; the
-// gorm adapter applied no emptyIfNil here, so a nil map marshals to JSON null —
-// the pgx jsonCol does the same.
+// a scan error; the domain's "" is stored directly (never NULL) by always
+// passing a non-nil pointer on the write path. metadata is a nullable JSONB
+// column mapped via jsonCol with no emptyIfNil applied, so a nil map marshals to
+// JSON null.
 type variantRow struct {
 	OrgId       string
 	Id          string
@@ -45,8 +44,8 @@ func (r variantRow) toDomain() domain.Variant {
 }
 
 func variantRowFromDomain(v domain.Variant) variantRow {
-	// Description is written as a non-nil pointer (storing "" when unset) to
-	// match the gorm adapter, which used a plain string column.
+	// Description is written as a non-nil pointer (storing "" when unset) so the
+	// column behaves like a plain string, never NULL.
 	desc := v.Description
 	return variantRow{
 		OrgId:       v.OrgId,

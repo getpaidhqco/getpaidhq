@@ -39,7 +39,7 @@ func (r *PaymentRepo) FindByPspId(ctx context.Context, orgId string, id string) 
 }
 
 // ListByPspId is intentionally NOT org-scoped: it resolves a payment by gateway
-// + PSP id across orgs (webhook lookups), mirroring the gorm adapter's WHERE.
+// + PSP id across orgs (webhook lookups).
 func (r *PaymentRepo) ListByPspId(ctx context.Context, psp domain.Gateway, pspId string) ([]domain.Payment, error) {
 	q := dbFromCtx(ctx, r.pool)
 	rows, err := q.Query(ctx,
@@ -69,8 +69,8 @@ func (r *PaymentRepo) FindBySubscriptionId(ctx context.Context, orgId string, id
 	return out, int(count), nil
 }
 
-// List returns the org's payments, newest first, paginated. The gorm adapter
-// ordered created_at DESC; paginationClause defaults to that same order.
+// List returns the org's payments, newest first, paginated. paginationClause
+// defaults to ordering created_at DESC.
 func (r *PaymentRepo) List(ctx context.Context, orgId string, p domain.Pagination) ([]domain.Payment, int, error) {
 	q := dbFromCtx(ctx, r.pool)
 	var count int64

@@ -9,15 +9,15 @@ import (
 // productRow is the postgres on-the-wire shape of a Product. Variants are NOT
 // embedded — composition is a service-layer concern.
 //
-// Differences from the gorm row (which leans on the driver to coerce NULLs):
+// Nullable-column handling:
 //   - description is a nullable TEXT column, so it's held as *string and mapped
 //     via strOrEmpty/nilIfEmpty rather than a bare string.
 //   - status is the ProductStatus enum column, held as string and converted at
 //     the domain boundary (never pass a defined enum type as a pgx arg).
-//   - metadata is a nullable JSONB column the gorm code did NOT emptyIfNil, so
+//   - metadata is a nullable JSONB column that is NOT run through emptyIfNil, so
 //     the value passes straight through jsonCol field-for-field.
-//   - archived_at is a plain nullable timestamp (no nulltime serializer in the
-//     gorm row), held as *time.Time and passed/read straight.
+//   - archived_at is a plain nullable timestamp, held as *time.Time and
+//     passed/read straight.
 type productRow struct {
 	OrgId       string
 	Id          string

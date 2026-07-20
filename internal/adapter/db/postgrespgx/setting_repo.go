@@ -81,9 +81,9 @@ func (r *SettingRepo) Delete(ctx context.Context, orgId string, parentId string,
 // Upsert is a real Postgres upsert keyed on the (org_id, parent_id, id) PK.
 // value_type is in the DO UPDATE set so a future caller writing a different
 // Type on an existing key gets correct update semantics rather than a stale
-// type — matching the gorm adapter's DoUpdates of {value, value_type,
-// updated_at}. created_at is deliberately not updated, so it is not in the SET
-// list (a passed-but-unreferenced param would be a 42P18 error).
+// type — the update set is {value, value_type, updated_at}. created_at is
+// deliberately not updated, so it is not in the SET list (a passed-but-
+// unreferenced param would be a 42P18 error).
 func (r *SettingRepo) Upsert(ctx context.Context, entity domain.Setting) (domain.Setting, error) {
 	row := settingRowFromDomain(entity)
 	q := dbFromCtx(ctx, r.pool)

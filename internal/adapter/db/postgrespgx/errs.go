@@ -20,9 +20,9 @@ const pgForeignKeyViolation = "23503"
 const pgUniqueViolation = "23505"
 
 // translateErr maps pgx-specific errors onto domain-level sentinels so callers
-// can do `errors.Is(err, port.ErrNotFound)` without importing pgx — the
-// pgx-side mirror of the gorm adapter's translateErr. Every method that does a
-// single-row QueryRow().Scan(...) MUST run its returned error through this.
+// can do `errors.Is(err, port.ErrNotFound)` without importing pgx. Every method
+// that does a single-row QueryRow().Scan(...) MUST run its returned error
+// through this.
 //
 // nil maps to nil. The original error is wrapped (%w) so callers needing the
 // raw driver error still have access via errors.Unwrap / errors.As.
@@ -40,7 +40,7 @@ func translateErr(err error) error {
 // ConflictError carrying msg, so handlers render a 409 with a clear message
 // instead of leaking the raw driver error. The driver error stays in the chain
 // (%w via NewCustomError). Any other error — including nil — is returned
-// unchanged. Identical contract to the gorm adapter.
+// unchanged.
 func asConflictOnFK(err error, msg string) error {
 	var pgErr *pgconn.PgError
 	if errors.As(err, &pgErr) && pgErr.Code == pgForeignKeyViolation {

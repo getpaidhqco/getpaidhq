@@ -11,8 +11,9 @@ import (
 // coupon_code_id, subscription_id and order_id are nullable FKs (NULL, never
 // ""); customer_id is NOT NULL. status is the DiscountStatus enum held as a
 // string at the boundary. redeemed_at is NOT NULL; ended_at is a nullable
-// timestamp (the gorm `serializer:nulltime` column). metadata is a nullable
-// JSONB column carried via jsonCol (no emptyIfNil, matching the gorm row).
+// timestamp (zero domain time maps to NULL and back). metadata is a nullable
+// JSONB column carried via jsonCol (no emptyIfNil, so a nil map serialises to
+// JSON null).
 type discountRow struct {
 	OrgId          string
 	Id             string

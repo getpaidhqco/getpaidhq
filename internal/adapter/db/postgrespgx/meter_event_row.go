@@ -12,8 +12,7 @@ import (
 // id columns (customer_id, external_customer_id, subscription_id, external_id)
 // are nullable pointers: an absent id is stored as NULL, never "". This keeps
 // "no value" unambiguous and lets the dedup unique index and the customer match
-// key work off real values instead of an empty-string sentinel. Mirrors the
-// gorm adapter's meterEventRow exactly.
+// key work off real values instead of an empty-string sentinel.
 type meterEventRow struct {
 	OrgId              string
 	Id                 string

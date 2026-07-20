@@ -7,8 +7,8 @@ import (
 )
 
 // invoiceRow is the postgres on-the-wire shape of an Invoice. LineItems are
-// hydrated separately (a second query keyed by invoice id), mirroring the gorm
-// adapter's Preload. period_start / period_end are nullable timestamp columns,
+// hydrated separately (a second query keyed by invoice id). period_start /
+// period_end are nullable timestamp columns,
 // so they are carried as *time.Time and mapped to/from the domain's zero-time
 // "unset" sentinel via nullTime / timeOrZero. metadata is a NOT-NULL-intent
 // jsonb column written as `{}` (emptyIfNil before the jsonCol wrap on the

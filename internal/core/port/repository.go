@@ -11,8 +11,8 @@ import (
 // ErrNotFound is the domain-level "row not found" sentinel that
 // repository implementations MUST return (or wrap) when a lookup
 // resolves to no row. Translating here means services can
-// `errors.Is(err, port.ErrNotFound)` without importing GORM /
-// pgx / sqlx — keeping the hexagonal boundary clean.
+// `errors.Is(err, port.ErrNotFound)` without importing pgx /
+// sqlx / any storage driver — keeping the hexagonal boundary clean.
 var ErrNotFound = errors.New("not found")
 
 // SubscriptionRepository manages subscription persistence.
