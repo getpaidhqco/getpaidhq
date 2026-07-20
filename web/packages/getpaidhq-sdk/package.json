@@ -1,0 +1,127 @@
+{
+  "name": "@getpaidhq/sdk",
+  "version": "1.8.0",
+  "description": "TypeScript SDK for GetPaidHQ API - Comprehensive subscription billing platform",
+  "type": "module",
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist/**/*",
+    "README.md",
+    "LICENSE"
+  ],
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      },
+      "require": {
+        "types": "./dist/index.d.cts",
+        "default": "./dist/index.cjs"
+      }
+    },
+    "./client": {
+      "import": {
+        "types": "./dist/client.d.ts",
+        "default": "./dist/client.js"
+      },
+      "require": {
+        "types": "./dist/client.d.cts",
+        "default": "./dist/client.cjs"
+      }
+    },
+    "./resources": {
+      "import": {
+        "types": "./dist/resources/index.d.ts",
+        "default": "./dist/resources/index.js"
+      },
+      "require": {
+        "types": "./dist/resources/index.d.cts",
+        "default": "./dist/resources/index.cjs"
+      }
+    },
+    "./types": {
+      "import": {
+        "types": "./dist/types/index.d.ts",
+        "default": "./dist/types/index.js"
+      },
+      "require": {
+        "types": "./dist/types/index.d.cts",
+        "default": "./dist/types/index.cjs"
+      }
+    },
+    "./errors": {
+      "import": {
+        "types": "./dist/errors/errors.d.ts",
+        "default": "./dist/errors/errors.js"
+      },
+      "require": {
+        "types": "./dist/errors/errors.d.cts",
+        "default": "./dist/errors/errors.cjs"
+      }
+    }
+  },
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "test": "vitest run",
+    "test:watch": "vitest watch",
+    "test:coverage": "vitest run --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "check-types": "tsc --noEmit",
+    "prepublishOnly": "pnpm run build",
+    "reset": "pnpm dlx rimraf ./node_modules ./dist"
+  },
+  "keywords": [
+    "getpaidhq",
+    "billing",
+    "subscription",
+    "payments",
+    "api",
+    "sdk",
+    "typescript"
+  ],
+  "author": "GetPaidHQ <support@getpaidhq.co>",
+  "license": "MIT",
+  "sideEffects": false,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mdwt/payloop-web.git",
+    "directory": "packages/getpaidhq-sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/mdwt/payloop-web/issues"
+  },
+  "homepage": "https://getpaidhq.co",
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "dependencies": {
+    "axios": "^1.7.7",
+    "axios-retry": "^4.5.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.0.0",
+    "@types/node": "^22.8.0",
+    "@typescript-eslint/eslint-plugin": "^8.13.0",
+    "@typescript-eslint/parser": "^8.13.0",
+    "@vitest/coverage-v8": "^2.1.5",
+    "typescript-eslint": "^7.0.0",
+    "eslint": "^9.13.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-prettier": "^5.2.1",
+    "msw": "^2.6.0",
+    "prettier": "^3.3.3",
+    "tsup": "^8.3.5",
+    "typescript": "^5.6.3",
+    "vitest": "^2.1.5"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

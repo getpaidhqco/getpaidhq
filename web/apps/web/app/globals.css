@@ -1,0 +1,296 @@
+@import url("https://rsms.me/inter/inter.css");
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@plugin "tailwindcss-animate";
+
+/* ---------------------------------------------------------------------------
+   GetPaidHQ — design tokens (Precision direction)
+   Slate-tinted neutrals, deep teal accent, monochromatic charts.
+   Light mode = :root, dark mode = .dark on <html>.
+   --------------------------------------------------------------------------- */
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-success: var(--success);
+  --color-success-foreground: var(--success-foreground);
+  --color-warning: var(--warning);
+  --color-warning-foreground: var(--warning-foreground);
+  --color-info: var(--info);
+  --color-info-foreground: var(--info-foreground);
+  --color-border: var(--border);
+  --color-border-strong: var(--border-strong);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-soft: var(--brand-soft);
+
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+
+  --font-sans: var(--font-sans-family);
+  --font-mono: var(--font-mono-family);
+  --font-display: var(--font-display-family);
+
+  --radius-sm: calc(var(--radius) * 0.5);
+  --radius-md: calc(var(--radius) * 0.75);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.5);
+  --radius-2xl: calc(var(--radius) * 2);
+
+  /* Legacy gphq-* brand scale retained for components that still reference it.
+     Will be removed in cleanup once those callsites are migrated. */
+  --color-gphq-50: hsl(233, 5%, 85%);
+  --color-gphq-100: hsl(233, 5%, 79%);
+  --color-gphq-200: hsl(233, 5%, 68%);
+  --color-gphq-300: hsl(233, 5%, 62%);
+  --color-gphq-400: hsl(233, 5%, 52%);
+  --color-gphq-500: hsl(233, 5%, 46%);
+  --color-gphq-600: hsl(233, 5%, 24%);
+  --color-gphq-700: hsl(233, 5%, 12%);
+  --color-gphq-800: hsl(233, 5%, 9.5%);
+  --color-gphq-900: hsl(233, 5%, 6.5%);
+  --color-gphq-950: hsl(233, 5%, 3%);
+}
+
+:root {
+  --font-sans-family: "InterVariable", ui-sans-serif, system-ui, sans-serif;
+  /* "GeistMono" is the family name registered by `next/font`'s GeistMono.variable
+     (applied on <body>). var() fallback keeps :root valid even before body classes apply. */
+  --font-mono-family: var(--font-geist-mono, "GeistMono"), "Geist Mono", ui-monospace, "SF Mono", Menlo, Monaco, monospace;
+  --font-display-family: "InterVariable", ui-sans-serif, system-ui, sans-serif;
+  --radius: 0.375rem;
+
+  /* Canvas reads as white. Slate tint is applied to sidebar / muted / accent
+     surfaces below, not to the main page background. */
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.21 0.022 248);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.21 0.022 248);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.21 0.022 248);
+
+  --primary: oklch(0.21 0.022 248);
+  --primary-foreground: oklch(0.99 0.003 230);
+  --secondary: oklch(0.965 0.008 240);
+  --secondary-foreground: oklch(0.21 0.022 248);
+  --muted: oklch(0.97 0.008 240);
+  --muted-foreground: oklch(0.50 0.018 248);
+  --accent: oklch(0.955 0.010 240);
+  --accent-foreground: oklch(0.21 0.022 248);
+
+  --brand: oklch(0.52 0.10 200);
+  --brand-foreground: oklch(0.99 0 0);
+  --brand-soft: oklch(0.94 0.04 200);
+
+  --success: oklch(0.55 0.13 158);
+  --success-foreground: oklch(0.99 0 0);
+  --warning: oklch(0.66 0.16 60);
+  --warning-foreground: oklch(0.20 0.015 60);
+  --info: oklch(0.52 0.10 200);
+  --info-foreground: oklch(0.99 0 0);
+  --destructive: oklch(0.54 0.22 22);
+  --destructive-foreground: oklch(0.99 0 0);
+
+  --border: oklch(0.21 0.022 248 / 9%);
+  --border-strong: oklch(0.21 0.022 248 / 16%);
+  --input: oklch(0.21 0.022 248 / 14%);
+  --ring: oklch(0.52 0.10 200 / 45%);
+
+  --chart-1: oklch(0.52 0.10 200);
+  --chart-2: oklch(0.66 0.16 60);
+  --chart-3: oklch(0.68 0.07 200);
+  --chart-4: oklch(0.40 0.022 248);
+  --chart-5: oklch(0.75 0.012 248);
+
+  /* Sidebar — subtle slate panel against the white canvas. */
+  --sidebar: oklch(0.985 0.005 240);
+  --sidebar-foreground: oklch(0.21 0.022 248);
+  --sidebar-primary: oklch(0.21 0.022 248);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.95 0.008 240);
+  --sidebar-accent-foreground: oklch(0.21 0.022 248);
+  --sidebar-border: oklch(0.21 0.022 248 / 9%);
+  --sidebar-ring: oklch(0.52 0.10 200 / 45%);
+}
+
+.dark {
+  --background: oklch(0.165 0.022 250);
+  --foreground: oklch(0.95 0.005 230);
+  --card: oklch(0.21 0.022 250);
+  --card-foreground: oklch(0.95 0.005 230);
+  --popover: oklch(0.22 0.022 250);
+  --popover-foreground: oklch(0.95 0.005 230);
+
+  --primary: oklch(0.95 0.005 230);
+  --primary-foreground: oklch(0.165 0.022 250);
+  --secondary: oklch(0.26 0.022 250);
+  --secondary-foreground: oklch(0.95 0.005 230);
+  --muted: oklch(0.24 0.022 250);
+  --muted-foreground: oklch(0.68 0.015 230);
+  --accent: oklch(0.26 0.022 250);
+  --accent-foreground: oklch(0.95 0.005 230);
+
+  --brand: oklch(0.72 0.12 200);
+  --brand-foreground: oklch(0.165 0.022 250);
+  --brand-soft: oklch(0.30 0.07 200);
+
+  --success: oklch(0.74 0.15 158);
+  --success-foreground: oklch(0.165 0.022 250);
+  --warning: oklch(0.80 0.14 60);
+  --warning-foreground: oklch(0.165 0.022 250);
+  --info: oklch(0.72 0.12 200);
+  --info-foreground: oklch(0.165 0.022 250);
+  --destructive: oklch(0.70 0.22 22);
+  --destructive-foreground: oklch(0.165 0.022 250);
+
+  --border: oklch(1 0 0 / 8%);
+  --border-strong: oklch(1 0 0 / 14%);
+  --input: oklch(1 0 0 / 14%);
+  --ring: oklch(0.72 0.12 200 / 50%);
+
+  --chart-1: oklch(0.72 0.12 200);
+  --chart-2: oklch(0.80 0.14 60);
+  --chart-3: oklch(0.52 0.10 200);
+  --chart-4: oklch(0.65 0.012 230);
+  --chart-5: oklch(0.88 0.005 230);
+
+  --sidebar: oklch(0.185 0.022 250);
+  --sidebar-foreground: oklch(0.95 0.005 230);
+  --sidebar-primary: oklch(0.95 0.005 230);
+  --sidebar-primary-foreground: oklch(0.165 0.022 250);
+  --sidebar-accent: oklch(0.25 0.022 250);
+  --sidebar-accent-foreground: oklch(0.95 0.005 230);
+  --sidebar-border: oklch(1 0 0 / 8%);
+  --sidebar-ring: oklch(0.72 0.12 200 / 50%);
+}
+
+@layer base {
+  * {
+    border-color: var(--border);
+    outline-color: oklch(from var(--ring) l c h / 50%);
+  }
+  html {
+    font-family: var(--font-sans-family);
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11", "ss01", "ss03";
+    font-optical-sizing: auto;
+    -webkit-font-smoothing: antialiased;
+    text-rendering: optimizeLegibility;
+  }
+  body {
+    background: var(--background);
+    color: var(--foreground);
+    font-family: var(--font-sans-family);
+  }
+  .font-mono, code, kbd, samp, pre {
+    font-family: var(--font-mono-family);
+  }
+}
+
+@layer utilities {
+  .tabular {
+    font-variant-numeric: tabular-nums;
+  }
+  .font-display {
+    font-family: var(--font-display-family);
+  }
+  .num-display {
+    font-family: var(--font-display-family);
+    font-variant-numeric: lining-nums tabular-nums;
+    letter-spacing: -0.015em;
+  }
+  .eyebrow {
+    font-family: var(--font-mono-family);
+    font-size: 0.625rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted-foreground);
+  }
+  .hairline {
+    background: var(--border);
+  }
+  .hair-cols > * + * {
+    border-left: 1px solid var(--border);
+  }
+}
+
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::selection {
+  background: var(--foreground);
+  color: var(--background);
+}
+
+.AccordionContent {
+  overflow: hidden;
+}
+.AccordionContent[data-state="open"] {
+  animation: slideDown 300ms ease-out;
+}
+.AccordionContent[data-state="closed"] {
+  animation: slideUp 300ms ease-out;
+}
+
+@keyframes slideDown {
+  from {
+    height: 0;
+  }
+  to {
+    height: var(--radix-accordion-content-height);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    height: var(--radix-accordion-content-height);
+  }
+  to {
+    height: 0;
+  }
+}
