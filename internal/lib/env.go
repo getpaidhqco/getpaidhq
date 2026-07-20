@@ -10,12 +10,12 @@ import (
 
 // Env has environment stored
 type Env struct {
-	ServerPort     string `mapstructure:"SERVER_PORT"`
-	WorkflowEngine string `mapstructure:"WORKFLOW_ENGINE"`
-	Env            string `mapstructure:"ENV"`
-	LogOutput      string `mapstructure:"LOG_OUTPUT"`
-	LogLevel       string `mapstructure:"GETPAIDHQ_LOG_LEVEL"`
-	LogFormat      string `mapstructure:"LOG_FORMAT"`
+	ServerPort      string `mapstructure:"SERVER_PORT"`
+	WorkflowEngine  string `mapstructure:"WORKFLOW_ENGINE"`
+	Env             string `mapstructure:"ENV"`
+	LogOutput       string `mapstructure:"LOG_OUTPUT"`
+	LogLevel        string `mapstructure:"GETPAIDHQ_LOG_LEVEL"`
+	LogFormat       string `mapstructure:"LOG_FORMAT"`
 	DBUrl           string `mapstructure:"DATABASE_URL"`
 	CedarPolicyFile string `mapstructure:"CEDAR_POLICY"`
 
