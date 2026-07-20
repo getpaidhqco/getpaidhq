@@ -18,7 +18,7 @@ import (
 	"sigs.k8s.io/yaml"
 
 	handler "getpaidhq/internal/adapter/http"
-	"getpaidhq/internal/config"
+	"getpaidhq/internal/app"
 	"getpaidhq/internal/lib"
 )
 
@@ -30,31 +30,32 @@ func main() {
 	// Every handler is constructed with nil dependencies — RegisterRoutes reads
 	// only function references and route metadata, never the underlying service,
 	// so nil is safe.
-	handlers := config.Handlers{
-		Health:         handler.NewHealthHandler(logger),
-		Order:          handler.NewOrderHandler(nil, logger, nil, func(h http.Handler) http.Handler { return h }),
-		Subscription:   handler.NewSubscriptionHandler(nil, logger, nil),
-		Customer:       handler.NewCustomerHandler(nil, logger, nil),
-		Product:        handler.NewProductHandler(nil, logger, nil),
-		Cart:           handler.NewCartHandler(nil, logger, nil),
-		Session:        handler.NewSessionHandler(nil, logger, nil),
-		Webhook:        handler.NewWebhookHandler(nil, logger),
-		WebhookSub:     handler.NewWebhookSubscriptionHandler(nil, logger, nil),
-		Org:            handler.NewOrgHandler(nil, logger),
-		Psp:            handler.NewPspHandler(nil, logger, nil),
-		PaymentMethod:  handler.NewPaymentMethodHandler(nil),
-		Dunning:        handler.NewDunningHandler(nil, nil, logger, nil, nil),
-		ApiKey:         handler.NewApiKeyHandler(nil, logger, nil),
-		ReminderConfig: handler.NewReminderConfigHandler(nil, logger),
-		Usage:          handler.NewUsageHandler(nil, logger, nil),
-		Meter:          handler.NewMeterHandler(nil, logger, nil),
-		Invoice:        handler.NewInvoiceHandler(nil, logger, nil),
-		Payment:        handler.NewPaymentHandler(nil, logger, nil),
-		Setting:        handler.NewSettingHandler(nil, logger, nil),
-		Coupon:         handler.NewCouponHandler(nil, logger, nil),
+	handlers := app.Handlers{
+		Health:          handler.NewHealthHandler(logger),
+		Order:           handler.NewOrderHandler(nil, logger, nil, func(h http.Handler) http.Handler { return h }),
+		Subscription:    handler.NewSubscriptionHandler(nil, logger, nil),
+		Customer:        handler.NewCustomerHandler(nil, logger, nil),
+		Product:         handler.NewProductHandler(nil, logger, nil),
+		Cart:            handler.NewCartHandler(nil, logger, nil),
+		Session:         handler.NewSessionHandler(nil, logger, nil),
+		Webhook:         handler.NewWebhookHandler(nil, logger),
+		WebhookSub:      handler.NewWebhookSubscriptionHandler(nil, logger, nil),
+		Org:             handler.NewOrgHandler(nil, logger),
+		Psp:             handler.NewPspHandler(nil, logger, nil),
+		PaymentMethod:   handler.NewPaymentMethodHandler(nil),
+		Dunning:         handler.NewDunningHandler(nil, nil, logger, nil, nil),
+		ApiKey:          handler.NewApiKeyHandler(nil, logger, nil),
+		ReminderConfig:  handler.NewReminderConfigHandler(nil, logger),
+		InvoiceSettings: handler.NewInvoiceSettingsHandler(nil, logger, nil),
+		Usage:           handler.NewUsageHandler(nil, logger, nil),
+		Meter:           handler.NewMeterHandler(nil, logger, nil),
+		Invoice:         handler.NewInvoiceHandler(nil, logger, nil),
+		Payment:         handler.NewPaymentHandler(nil, logger, nil),
+		Setting:         handler.NewSettingHandler(nil, logger, nil),
+		Coupon:          handler.NewCouponHandler(nil, logger, nil),
 	}
 
-	server := config.BuildServer(config.ServerDeps{
+	server := app.BuildServer(app.ServerDeps{
 		Logger:    logger,
 		Validator: validators.NewValidator(),
 	}, handlers)

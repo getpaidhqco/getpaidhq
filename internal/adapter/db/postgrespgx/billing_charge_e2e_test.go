@@ -9,7 +9,7 @@
 //
 // The charge runs against an in-memory gateway (internal/adapter/memory) so no
 // real PSP is contacted. The DB is a per-run Testcontainer Postgres via
-// poolForTest(t) — never the developer's local stack, never config.NewApp, never
+// poolForTest(t) — never the developer's local stack, never app.NewApp, never
 // env-derived DSNs.
 package postgrespgx
 

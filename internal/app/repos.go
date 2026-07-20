@@ -1,4 +1,4 @@
-package config
+package app
 
 import (
 	"fmt"
@@ -11,7 +11,7 @@ import (
 	"getpaidhq/internal/lib"
 )
 
-// repoSet is the full set of persistence ports the rest of NewApp consumes. It
+// repoSet is the full set of persistence ports the rest of New consumes. It
 // is built by the pgx adapter — every downstream service depends on the port
 // interfaces, never a concrete adapter.
 type repoSet struct {

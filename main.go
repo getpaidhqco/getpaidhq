@@ -1,11 +1,11 @@
 package main
 
 import (
-	"getpaidhq/internal/config"
+	"getpaidhq/internal/app"
 )
 
 func main() {
-	app, err := config.NewApp()
+	app, err := app.New()
 	if err != nil {
 		panic(err)
 	}

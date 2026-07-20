@@ -33,7 +33,7 @@ func (r *fakeWebhookSubRepo) Create(_ context.Context, w domain.WebhookSubscript
 // newWebhookSubscriptionService builds the service with the SSRF
 // predicate relaxed to allow loopback — required for httptest.Server,
 // which always binds to 127.0.0.1. Never relax the predicate in prod
-// wiring (config.NewApp); the package-private field is the only path.
+// wiring (app.NewApp); the package-private field is the only path.
 func newWebhookSubscriptionService(repo port.WebhookSubscriptionRepository, ps port.PubSub) *WebhookSubscriptionService {
 	if ps == nil {
 		ps = &recordingPubSub{}

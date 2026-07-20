@@ -50,7 +50,7 @@ func repoRootPolicyPath(t *testing.T) string {
 }
 
 // newTestAuthz builds the REAL Cedar adapter against the REAL repo-root
-// policy.cedar, exactly the way config.NewApp wires it.
+// policy.cedar, exactly the way app.NewApp wires it.
 func newTestAuthz(t *testing.T) port.Authz {
 	t.Helper()
 	return NewCedarAuthz(noopLogger{}, repoRootPolicyPath(t))

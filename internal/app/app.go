@@ -1,4 +1,4 @@
-package config
+package app
 
 import (
 	"context"
@@ -41,7 +41,7 @@ import (
 
 // errUnsupportedEngine is returned when WORKFLOW_ENGINE is set to a
 // value other than the recognized ones; previously this panicked
-// inside NewApp which is hostile to anything trying to surface a
+// inside New which is hostile to anything trying to surface a
 // startup config error cleanly.
 func errUnsupportedEngine(name string) error {
 	return fmt.Errorf("unsupported WORKFLOW_ENGINE %q (want 'hatchet' or 'temporal')", name)
@@ -88,8 +88,8 @@ type App struct {
 	closers []io.Closer
 }
 
-// NewApp creates a new App with all dependencies manually wired.
-func NewApp() (*App, error) {
+// New creates a new App with all dependencies manually wired.
+func New() (*App, error) {
 	env := lib.NewEnv()
 	logger := lib.GetLogger()
 	reporter := errors.NewErrorReporter(logger)

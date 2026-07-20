@@ -1,4 +1,4 @@
-package config
+package app
 
 import (
 	"net/http"
@@ -208,71 +208,31 @@ func BuildServer(deps ServerDeps, h Handlers) *fuego.Server {
 	return s
 }
 
+// registerAll mounts every handler's routes. Every field of Handlers is
+// required — both callers (NewApp and cmd/openapi-export) populate the full
+// set — so a nil handler is a wiring bug and should panic loudly here rather
+// than silently drop its routes.
 func registerAll(api *fuego.Server, h Handlers) {
-	if h.Health != nil {
-		h.Health.RegisterRoutes(api)
-	}
-	if h.Order != nil {
-		h.Order.RegisterRoutes(api)
-	}
-	if h.Subscription != nil {
-		h.Subscription.RegisterRoutes(api)
-	}
-	if h.Customer != nil {
-		h.Customer.RegisterRoutes(api)
-	}
-	if h.Product != nil {
-		h.Product.RegisterRoutes(api)
-	}
-	if h.Cart != nil {
-		h.Cart.RegisterRoutes(api)
-	}
-	if h.Session != nil {
-		h.Session.RegisterRoutes(api)
-	}
-	if h.Webhook != nil {
-		h.Webhook.RegisterRoutes(api)
-	}
-	if h.WebhookSub != nil {
-		h.WebhookSub.RegisterRoutes(api)
-	}
-	if h.Org != nil {
-		h.Org.RegisterRoutes(api)
-	}
-	if h.Psp != nil {
-		h.Psp.RegisterRoutes(api)
-	}
-	if h.PaymentMethod != nil {
-		h.PaymentMethod.RegisterRoutes(api)
-	}
-	if h.Dunning != nil {
-		h.Dunning.RegisterRoutes(api)
-	}
-	if h.ApiKey != nil {
-		h.ApiKey.RegisterRoutes(api)
-	}
-	if h.ReminderConfig != nil {
-		h.ReminderConfig.RegisterRoutes(api)
-	}
-	if h.InvoiceSettings != nil {
-		h.InvoiceSettings.RegisterRoutes(api)
-	}
-	if h.Usage != nil {
-		h.Usage.RegisterRoutes(api)
-	}
-	if h.Meter != nil {
-		h.Meter.RegisterRoutes(api)
-	}
-	if h.Invoice != nil {
-		h.Invoice.RegisterRoutes(api)
-	}
-	if h.Payment != nil {
-		h.Payment.RegisterRoutes(api)
-	}
-	if h.Setting != nil {
-		h.Setting.RegisterRoutes(api)
-	}
-	if h.Coupon != nil {
-		h.Coupon.RegisterRoutes(api)
-	}
+	h.Health.RegisterRoutes(api)
+	h.Order.RegisterRoutes(api)
+	h.Subscription.RegisterRoutes(api)
+	h.Customer.RegisterRoutes(api)
+	h.Product.RegisterRoutes(api)
+	h.Cart.RegisterRoutes(api)
+	h.Session.RegisterRoutes(api)
+	h.Webhook.RegisterRoutes(api)
+	h.WebhookSub.RegisterRoutes(api)
+	h.Org.RegisterRoutes(api)
+	h.Psp.RegisterRoutes(api)
+	h.PaymentMethod.RegisterRoutes(api)
+	h.Dunning.RegisterRoutes(api)
+	h.ApiKey.RegisterRoutes(api)
+	h.ReminderConfig.RegisterRoutes(api)
+	h.InvoiceSettings.RegisterRoutes(api)
+	h.Usage.RegisterRoutes(api)
+	h.Meter.RegisterRoutes(api)
+	h.Invoice.RegisterRoutes(api)
+	h.Payment.RegisterRoutes(api)
+	h.Setting.RegisterRoutes(api)
+	h.Coupon.RegisterRoutes(api)
 }
